@@ -1,47 +1,96 @@
 ---
 sidebar_position: 1
+slug: /
 ---
 
-# Tutorial Intro
+# Welcome to Arc
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, and flexible storage backends. It achieves **2.01M records/sec ingestion** and is the **fastest time-series database in ClickBench**.
 
-## Getting Started
+## Key Features
 
-Get started by **creating a new site**.
+- **⚡ High-Performance Ingestion**: 2.01M records/sec with MessagePack binary protocol
+- **🚀 Fast Analytical Queries**: Powered by DuckDB with full SQL support
+- **🗄️ Flexible Storage**: Local filesystem, MinIO, AWS S3, or Google Cloud Storage
+- **📊 Multi-Database Architecture**: Organize data by environment, tenant, or application
+- **🔄 Automatic Compaction**: Merges small files for 10-50x faster queries
+- **💾 Optional WAL**: Zero data loss with Write-Ahead Log (disabled by default for max throughput)
+- **📈 Apache Superset Integration**: Native dialect for BI dashboards
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Why Arc?
 
-### What you'll need
+Arc is designed for applications that need:
 
-- [Node.js](https://nodejs.org/en/download/) version 20.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
+- **High write throughput**: IoT sensors, metrics collection, observability platforms
+- **Cost-effective storage**: Commodity object storage instead of expensive databases
+- **Analytical queries**: Complex aggregations, window functions, joins
+- **Flexible deployment**: Docker, native, or cloud deployments
 
-## Generate a new site
+## Quick Example
 
-Generate a new Docusaurus site using the **classic template**.
+```python
+import msgpack
+import requests
 
-The classic template will automatically be added to your project after you run the command:
+# Write data
+data = {
+    "batch": [{
+        "m": "cpu",                           # measurement
+        "t": 1697472000000,                   # timestamp (ms)
+        "h": "server01",                      # host
+        "fields": {"usage": 45.2}
+    }]
+}
 
-```bash
-npm init docusaurus@latest my-website classic
+requests.post(
+    "http://localhost:8000/write/v2/msgpack",
+    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    data=msgpack.packb(data)
+)
+
+# Query data
+response = requests.post(
+    "http://localhost:8000/query",
+    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    json={"sql": "SELECT * FROM cpu LIMIT 10"}
+)
 ```
 
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
+## Architecture
 
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
-
-```bash
-cd my-website
-npm run start
+```
+Client → Arc API → Buffer → Parquet → Storage (MinIO/S3/Local)
+                     ↓
+                  DuckDB Query Engine
 ```
 
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
+Arc separates compute and storage, allowing you to scale them independently. Data is stored as Parquet files on object storage, queried directly by DuckDB's efficient columnar engine.
 
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
+## Performance
 
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+**ClickBench Results** (AWS c6a.4xlarge):
+- **Cold run**: 34.43s across 43 queries
+- **Dataset**: 99.9M rows, 14.78GB
+- **Method**: HTTP REST API (includes all overhead)
+
+Arc is **3.3x faster than VictoriaLogs**, **6.5x faster than QuestDB**, and **29.7x faster than TimescaleDB** in analytical workloads.
+
+## Next Steps
+
+<div className="button-grid">
+  <a href="/getting-started" className="button button--primary">Get Started</a>
+  <a href="/installation" className="button button--secondary">Installation</a>
+  <a href="https://github.com/basekick-labs/arc" className="button button--secondary">GitHub</a>
+</div>
+
+## Alpha Release Notice
+
+:::caution
+Arc is currently in **alpha** and evolving rapidly. It is **not recommended for production workloads** at this time. Use in development and testing environments only.
+:::
+
+## Support
+
+- 💬 [Discord Community](https://discord.gg/nxnWfUxsdm)
+- 🐛 [GitHub Issues](https://github.com/basekick-labs/arc/issues)
+- 📧 Enterprise: enterprise@basekick.net
