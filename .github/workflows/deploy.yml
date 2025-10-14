@@ -99,6 +99,15 @@ jobs:
           if [ $? -ne 0 ]; then echo "File sync failed"; exit 1; fi
         shell: bash
 
+      - name: Copy docker-compose.yml to server
+        run: |
+          set -x
+          echo "Copying docker-compose.yml to server..."
+          DEPLOY_DIR=$(dirname ${{ secrets.DEPLOY_PATH }})
+          scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_DIR/
+          if [ $? -ne 0 ]; then echo "Failed to copy docker-compose.yml"; exit 1; fi
+        shell: bash
+
       - name: Deploy docs with Docker Compose
         run: |
           set -x
@@ -106,9 +115,6 @@ jobs:
           DEPLOY_DIR=$(dirname ${{ secrets.DEPLOY_PATH }})
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
           cd \$DEPLOY_DIR
-
-          # Ensure external Docker network exists
-          sudo docker network create traefik || true
 
           # Restart docs container
           sudo docker compose up -d docs
