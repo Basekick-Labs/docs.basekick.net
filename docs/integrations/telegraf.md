@@ -588,7 +588,7 @@ datasources:
       password: "YOUR_ARC_TOKEN"
 ```
 
-**Note:** Use [Arc Superset dialect](/integrations/superset) for native Arc support.
+**Note:** Use [Arc Superset dialect](/arc/integrations/superset) for native Arc support.
 
 ## Best Practices
 
@@ -637,12 +637,12 @@ Tags enable powerful GROUP BY queries but increase cardinality.
 
 - **[Telegraf Documentation](https://docs.influxdata.com/telegraf/)**
 - **[Telegraf Plugins](https://docs.influxdata.com/telegraf/latest/plugins/)**
-- **[Arc Query Guide](/guides/querying)**
-- **[InfluxDB Line Protocol](/api-reference/ingestion#line-protocol)**
+- **[Arc Query Guide](/arc/guides/querying)**
+- **[InfluxDB Line Protocol](/arc/api-reference/ingestion#line-protocol)**
 
 ## Next Steps
 
-- **[Query Telegraf metrics](/guides/querying)**
-- **[Create Superset dashboards](/integrations/superset)**
-- **[Set up alerts](/guides/alerting)**
-- **[Optimize performance](/configuration/performance)**
+- **[Query Telegraf metrics](/arc/guides/querying)**
+- **[Create Superset dashboards](/arc/integrations/superset)**
+- **[Set up alerts](/arc/guides/alerting)**
+- **[Optimize performance](/arc/configuration/performance)**

@@ -77,55 +77,55 @@ curl http://localhost:8000/health
 
 High-performance data writing endpoints.
 
-- **[MessagePack Protocol](/api-reference/ingestion#messagepack)** (Recommended - 8x faster)
-- **[Line Protocol](/api-reference/ingestion#line-protocol)** (InfluxDB compatible)
-- **[JSON API](/api-reference/ingestion#json)** (Simple integration)
+- **[MessagePack Protocol](/arc/api-reference/ingestion#messagepack)** (Recommended - 8x faster)
+- **[Line Protocol](/arc/api-reference/ingestion#line-protocol)** (InfluxDB compatible)
+- **[JSON API](/arc/api-reference/ingestion#json)** (Simple integration)
 
-[View Ingestion API →](/api-reference/ingestion)
+[View Ingestion API →](/arc/api-reference/ingestion)
 
 ### Querying
 
 Execute SQL queries with DuckDB.
 
-- **[Execute Query](/api-reference/queries#execute)** - Run SQL queries
-- **[Stream Results](/api-reference/queries#stream)** - Stream large datasets
-- **[Query Estimation](/api-reference/queries#estimate)** - Estimate query cost
-- **[List Measurements](/api-reference/queries#list)** - Show available tables
+- **[Execute Query](/arc/api-reference/queries#execute)** - Run SQL queries
+- **[Stream Results](/arc/api-reference/queries#stream)** - Stream large datasets
+- **[Query Estimation](/arc/api-reference/queries#estimate)** - Estimate query cost
+- **[List Measurements](/arc/api-reference/queries#list)** - Show available tables
 
-[View Query API →](/api-reference/queries)
+[View Query API →](/arc/api-reference/queries)
 
 ### Authentication
 
 Manage API tokens and access control.
 
-- **[Create Token](/api-reference/auth#create)** - Generate new tokens
-- **[List Tokens](/api-reference/auth#list)** - View all tokens
-- **[Rotate Token](/api-reference/auth#rotate)** - Generate new token value
-- **[Delete Token](/api-reference/auth#delete)** - Revoke access
+- **[Create Token](/arc/api-reference/auth#create)** - Generate new tokens
+- **[List Tokens](/arc/api-reference/auth#list)** - View all tokens
+- **[Rotate Token](/arc/api-reference/auth#rotate)** - Generate new token value
+- **[Delete Token](/arc/api-reference/auth#delete)** - Revoke access
 
-[View Auth API →](/api-reference/auth)
+[View Auth API →](/arc/api-reference/auth)
 
 ### Health & Monitoring
 
 Monitor Arc's health and performance.
 
-- **[Health Check](/api-reference/monitoring#health)** - Service status
-- **[Metrics](/api-reference/monitoring#metrics)** - Prometheus metrics
-- **[Memory Profile](/api-reference/monitoring#memory)** - Memory usage
-- **[Logs](/api-reference/monitoring#logs)** - Application logs
+- **[Health Check](/arc/api-reference/monitoring#health)** - Service status
+- **[Metrics](/arc/api-reference/monitoring#metrics)** - Prometheus metrics
+- **[Memory Profile](/arc/api-reference/monitoring#memory)** - Memory usage
+- **[Logs](/arc/api-reference/monitoring#logs)** - Application logs
 
-[View Monitoring API →](/api-reference/monitoring)
+[View Monitoring API →](/arc/api-reference/monitoring)
 
 ### Compaction
 
 Manage Parquet file compaction.
 
-- **[Status](/api-reference/compaction#status)** - Current compaction state
-- **[Trigger](/api-reference/compaction#trigger)** - Manual compaction
-- **[History](/api-reference/compaction#history)** - Job history
-- **[Candidates](/api-reference/compaction#candidates)** - Eligible partitions
+- **[Status](/arc/api-reference/compaction#status)** - Current compaction state
+- **[Trigger](/arc/api-reference/compaction#trigger)** - Manual compaction
+- **[History](/arc/api-reference/compaction#history)** - Job history
+- **[Candidates](/arc/api-reference/compaction#candidates)** - Eligible partitions
 
-[View Compaction API →](/api-reference/compaction)
+[View Compaction API →](/arc/api-reference/compaction)
 
 ## Interactive Documentation
 
@@ -489,7 +489,7 @@ for chunk in response.iter_content(chunk_size=8192):
 
 ## Next Steps
 
-- **[Ingestion API →](/api-reference/ingestion)** - Write data to Arc
-- **[Query API →](/api-reference/queries)** - Execute SQL queries
-- **[Authentication →](/api-reference/auth)** - Manage tokens
+- **[Ingestion API →](/arc/api-reference/ingestion)** - Write data to Arc
+- **[Query API →](/arc/api-reference/queries)** - Execute SQL queries
+- **[Authentication →](/arc/api-reference/auth)** - Manage tokens
 - **[Interactive Docs →](http://localhost:8000/docs)** - Try the API

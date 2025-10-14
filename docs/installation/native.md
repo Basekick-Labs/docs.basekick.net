@@ -502,8 +502,8 @@ tail -f logs/arc-api.log
 
 ## Next Steps
 
-- **[Configure authentication](/configuration/authentication)**
-- **[Set up monitoring](/operations/monitoring)**
-- **[Enable WAL for durability](/advanced/wal)**
-- **[Configure compaction](/advanced/compaction)**
-- **[Integrate with Telegraf](/integrations/telegraf)**
+- **[Configure authentication](/arc/configuration/authentication)**
+- **[Set up monitoring](/arc/operations/monitoring)**
+- **[Enable WAL for durability](/arc/advanced/wal)**
+- **[Configure compaction](/arc/advanced/compaction)**
+- **[Integrate with Telegraf](/arc/integrations/telegraf)**

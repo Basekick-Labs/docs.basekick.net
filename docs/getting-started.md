@@ -251,12 +251,12 @@ curl -X POST http://localhost:8000/query \
 
 Now that you have Arc running, you can:
 
-- **[Configure storage backends](/configuration/storage)** - Switch to MinIO, AWS S3, or GCS
-- **[Set up authentication](/configuration/authentication)** - Manage API tokens and permissions
-- **[Integrate with Telegraf](/integrations/telegraf)** - Collect system metrics automatically
-- **[Connect Apache Superset](/integrations/superset)** - Build interactive dashboards
-- **[Enable WAL](/advanced/wal)** - Guarantee zero data loss
-- **[Optimize compaction](/advanced/compaction)** - Fine-tune query performance
+- **[Configure storage backends](/arc/configuration/storage)** - Switch to MinIO, AWS S3, or GCS
+- **[Set up authentication](/arc/configuration/authentication)** - Manage API tokens and permissions
+- **[Integrate with Telegraf](/arc/integrations/telegraf)** - Collect system metrics automatically
+- **[Connect Apache Superset](/arc/integrations/superset)** - Build interactive dashboards
+- **[Enable WAL](/arc/advanced/wal)** - Guarantee zero data loss
+- **[Optimize compaction](/arc/advanced/compaction)** - Fine-tune query performance
 
 ## Troubleshooting
 
@@ -300,5 +300,5 @@ curl -X POST http://localhost:8000/write/flush \
 ## Need Help?
 
 - [Discord Community](https://discord.gg/nxnWfUxsdm)
-- [Full Documentation](/docs/intro)
+- [Full Documentation](/arc)
 - [GitHub Issues](https://github.com/basekick-labs/arc/issues)

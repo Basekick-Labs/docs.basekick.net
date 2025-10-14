@@ -488,6 +488,6 @@ Update connection string in Superset with new token.
 
 ## Next Steps
 
-- **[Query API Reference](/api-reference/queries)**
-- **[SQL Query Guide](/guides/querying)**
+- **[Query API Reference](/arc/api-reference/queries)**
+- **[SQL Query Guide](/arc/guides/querying)**
 - **[Dashboard Examples](https://github.com/basekick-labs/arc-superset-dialect/examples)**

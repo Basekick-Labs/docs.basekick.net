@@ -78,7 +78,7 @@ Settings are applied in this order (highest to lowest):
 - **Host/Port**: Network binding configuration
 - **Logging**: Log level and output format
 
-[Learn more →](/configuration/server)
+[Learn more →](/arc/configuration/server)
 
 ### Storage
 
@@ -86,7 +86,7 @@ Settings are applied in this order (highest to lowest):
 - **Connection settings**: Endpoints, credentials, buckets
 - **Database namespaces**: Multi-tenant organization
 
-[Learn more →](/configuration/storage)
+[Learn more →](/arc/configuration/storage)
 
 ### Authentication
 
@@ -94,7 +94,7 @@ Settings are applied in this order (highest to lowest):
 - **Permissions**: Read/write access control
 - **Token rotation**: Security best practices
 
-[Learn more →](/configuration/authentication)
+[Learn more →](/arc/configuration/authentication)
 
 ### Performance
 
@@ -102,7 +102,7 @@ Settings are applied in this order (highest to lowest):
 - **Query cache**: Speed up repeated queries
 - **Compaction**: Optimize query performance
 
-[Learn more →](/configuration/performance)
+[Learn more →](/arc/configuration/performance)
 
 ### Advanced Features
 
@@ -375,7 +375,7 @@ nproc  # Get CPU count
 
 ## Next Steps
 
-- **[Configure storage backends](/configuration/storage)**
-- **[Set up authentication](/configuration/authentication)**
-- **[Tune performance](/configuration/performance)**
-- **[Enable advanced features](/advanced/overview)**
+- **[Configure storage backends](/arc/configuration/storage)**
+- **[Set up authentication](/arc/configuration/authentication)**
+- **[Tune performance](/arc/configuration/performance)**
+- **[Enable advanced features](/arc/advanced/overview)**

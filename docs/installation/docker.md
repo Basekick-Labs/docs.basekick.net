@@ -171,7 +171,7 @@ docker-compose up -d --build
 
 ## Performance Considerations
 
-Docker deployment achieves **~570K records/sec** write throughput. For maximum performance (2.01M RPS), use [native deployment](/installation/native).
+Docker deployment achieves **~570K records/sec** write throughput. For maximum performance (2.01M RPS), use [native deployment](/arc/installation/native).
 
 ### Optimize Docker Performance
 
@@ -339,7 +339,7 @@ docker-compose up -d
 
 ## Next Steps
 
-- **[Create your first API token](/configuration/authentication)**
-- **[Configure storage backends](/configuration/storage)**
-- **[Start writing data](/getting-started#write-your-first-data)**
-- **[Set up monitoring](/operations/monitoring)**
+- **[Create your first API token](/arc/configuration/authentication)**
+- **[Configure storage backends](/arc/configuration/storage)**
+- **[Start writing data](/arc/getting-started#write-your-first-data)**
+- **[Set up monitoring](/arc/operations/monitoring)**

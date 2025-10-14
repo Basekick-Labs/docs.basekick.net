@@ -207,7 +207,7 @@ Arc achieves exceptional write throughput through MessagePack binary protocol.
 
 ## Reproducibility
 
-All benchmarks are reproducible. See [Running Benchmarks](/performance/running-benchmarks) for instructions.
+All benchmarks are reproducible. See [Running Benchmarks](/arc/performance/running-benchmarks) for instructions.
 
 ### Download Results
 
@@ -225,12 +225,12 @@ Arc's ClickBench performance demonstrates:
 5. **Real-World Performance**: HTTP API overhead included in all measurements
 
 :::tip
-For maximum query performance, enable [automatic compaction](/advanced/compaction) to merge small files into optimized 512MB chunks.
+For maximum query performance, enable [automatic compaction](/arc/advanced/compaction) to merge small files into optimized 512MB chunks.
 :::
 
 ## Next Steps
 
-- **[Run Your Own Benchmarks](/performance/running-benchmarks)**
-- **[Optimize Query Performance](/performance/optimization)**
-- **[Configure Compaction](/advanced/compaction)**
-- **[Enable Query Caching](/configuration/caching)**
+- **[Run Your Own Benchmarks](/arc/performance/running-benchmarks)**
+- **[Optimize Query Performance](/arc/performance/optimization)**
+- **[Configure Compaction](/arc/advanced/compaction)**
+- **[Enable Query Caching](/arc/configuration/caching)**
