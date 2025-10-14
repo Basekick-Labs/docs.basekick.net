@@ -5,48 +5,53 @@ import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
-  Svg: React.ComponentType<React.ComponentProps<'svg'>>;
+  icon: string;
   description: ReactNode;
 };
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Blazing Fast Analytics',
+    icon: '36.43s',
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Fastest time-series database in ClickBench with 36.43s cold run on 99.9M rows.
+        Powered by DuckDB's columnar engine for lightning-fast SQL queries with full ANSI SQL support.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Massive Throughput',
+    icon: '2.01M',
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Ingest 2.01M records/sec with MessagePack binary protocol.
+        Built for IoT sensors, metrics collection, and observability platforms that need extreme write performance.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Flexible Storage',
+    icon: 'S3',
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Deploy anywhere with Local filesystem, MinIO, AWS S3, or Google Cloud Storage.
+        True separation of compute and storage. Automatic Parquet compaction delivers 10-50x faster queries and 80% compression.
       </>
     ),
   },
 ];
 
-function Feature({title, Svg, description}: FeatureItem) {
+function Feature({title, icon, description}: FeatureItem) {
   return (
     <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
+      <div className="text--center" style={{
+        fontSize: '3rem',
+        fontWeight: 'bold',
+        marginBottom: '1rem',
+        color: 'var(--ifm-color-primary)'
+      }}>
+        {icon}
       </div>
       <div className="text--center padding-horiz--md">
         <Heading as="h3">{title}</Heading>

@@ -1,0 +1,8 @@
+{
+  "label": "Advanced",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Advanced features including Write-Ahead Log and automatic compaction."
+  }
+}

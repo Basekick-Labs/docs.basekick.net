@@ -20,9 +20,18 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            to="/docs/intro">
-            Docusaurus Tutorial - 5min ⏱️
+            to="/arc">
+            Get Started
           </Link>
+          <Link
+            className="button button--outline button--secondary button--lg"
+            to="https://github.com/basekick-labs/arc"
+            style={{marginLeft: '10px'}}>
+            GitHub
+          </Link>
+        </div>
+        <div style={{marginTop: '2rem', fontSize: '1.2rem', opacity: 0.9}}>
+          <strong>36.43s</strong> ClickBench cold run • <strong>2.01M</strong> records/sec • <strong>205+</strong> GitHub stars
         </div>
       </div>
     </header>
@@ -30,11 +39,10 @@ function HomepageHeader() {
 }
 
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
+      title="Arc - Fastest Time-Series Database"
+      description="Arc is the fastest time-series database in ClickBench. 36.43s cold run, 2.01M records/sec ingestion, powered by DuckDB and Parquet.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

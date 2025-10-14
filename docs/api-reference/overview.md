@@ -410,10 +410,10 @@ func main() {
 MessagePack is 8x faster than Line Protocol:
 
 ```python
-# ✅ Fast: MessagePack binary
+# Fast: MessagePack binary
 data = msgpack.packb({"batch": [...]})
 
-# ❌ Slow: Line Protocol text
+# Slow: Line Protocol text
 data = "cpu,host=server01 usage=45.2"
 ```
 
@@ -422,7 +422,7 @@ data = "cpu,host=server01 usage=45.2"
 Send multiple measurements in a single request:
 
 ```python
-# ✅ Good: Batch write
+# Good: Batch write
 data = {
     "batch": [
         {"m": "cpu", "t": ts, "fields": {...}},
@@ -431,7 +431,7 @@ data = {
     ]
 }
 
-# ❌ Bad: Individual writes
+# Bad: Individual writes
 for measurement in measurements:
     client.write(measurement)  # Too many HTTP requests
 ```

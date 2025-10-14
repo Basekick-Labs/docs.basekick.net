@@ -11,11 +11,11 @@ Arc's automatic compaction system merges small Parquet files into larger, optimi
 Compaction is Arc's file optimization system that **merges small files into larger ones**, improving query performance by 10-50x.
 
 **Key Features:**
-- ✅ **Automatic** - Runs on schedule (default: hourly at :05)
-- ✅ **Safe** - Locked partitions prevent concurrent compaction
-- ✅ **Efficient** - Uses DuckDB for fast, parallel merging
-- ✅ **Non-blocking** - Queries work during compaction
-- ✅ **Enabled by default** - Essential for production
+- **Automatic** - Runs on schedule (default: hourly at :05)
+- **Safe** - Locked partitions prevent concurrent compaction
+- **Efficient** - Uses DuckDB for fast, parallel merging
+- **Non-blocking** - Queries work during compaction
+- **Enabled by default** - Essential for production
 
 :::info
 Compaction is **enabled by default** and runs automatically every hour.
@@ -36,10 +36,10 @@ At 2.01M records/sec with 5-second flush:
 ```
 
 **Impact on Queries:**
-- 🐌 **Slow queries** - DuckDB must open/scan hundreds of files
-- 💸 **High costs** - More S3/MinIO API calls
-- 📊 **Poor compression** - Small files compress less efficiently
-- 🔍 **Reduced pruning** - Less effective partition elimination
+- **Slow queries** - DuckDB must open/scan hundreds of files
+- **High costs** - More S3/MinIO API calls
+- **Poor compression** - Small files compress less efficiently
+- **Reduced pruning** - Less effective partition elimination
 
 ### After Compaction
 
@@ -60,10 +60,10 @@ Compaction time: 5 seconds
 - **cpu**: 910 files → 1 file, 1,246 MB → 243 MB (80.5% compression)
 
 **Query Performance:**
-- 🚀 **10-50x faster** - Single file scan vs hundreds
-- 💰 **99% fewer API calls** - Massive cost reduction (2,704 → 3 LIST operations)
-- 📦 **80.4% compression** - ZSTD compaction vs Snappy writes
-- 🎯 **Effective pruning** - DuckDB can skip entire files
+- **10-50x faster** - Single file scan vs hundreds
+- **99% fewer API calls** - Massive cost reduction (2,704 → 3 LIST operations)
+- **80.4% compression** - ZSTD compaction vs Snappy writes
+- **Effective pruning** - DuckDB can skip entire files
 
 ## How It Works
 
@@ -75,7 +75,7 @@ Compaction time: 5 seconds
 2. Scan storage for eligible partitions
    ↓
 3. For each partition:
-   - Check age (>1 hour old?)
+   - Check age (&gt;1 hour old?)
    - Check file count (≥10 files?)
    - Check if already compacted?
    ↓
@@ -206,7 +206,7 @@ enabled = false
 
 **When to disable:**
 - Testing ingestion performance
-- Very low write volume (<10 files/hour)
+- Very low write volume (&lt;10 files/hour)
 - Debugging compaction issues
 
 :::warning
@@ -351,19 +351,19 @@ schedule = "5 * * * *"
 
 Set up alerts for:
 - Failed compaction jobs
-- Partitions with >1000 files
-- Compaction taking >10 minutes
+- Partitions with &gt;1000 files
+- Compaction taking &gt;10 minutes
 
 ### 3. Adjust Based on Write Volume
 
-**High volume** (>10M records/sec):
+**High volume** (&gt;10M records/sec):
 ```toml
 [compaction]
 min_files = 100          # Wait for more files
 max_concurrent_jobs = 4  # More parallelism
 ```
 
-**Low volume** (<100K records/sec):
+**Low volume** (&lt;100K records/sec):
 ```toml
 [compaction]
 min_files = 5            # Compact with fewer files
@@ -425,7 +425,7 @@ tail -f logs/arc-api.log | grep compaction
 
 ### Compaction Taking Too Long
 
-**Symptoms:** Compaction jobs running for >30 minutes
+**Symptoms:** Compaction jobs running for &gt;30 minutes
 
 **Solutions:**
 
@@ -536,10 +536,10 @@ View compaction job history.
 Compaction is essential for production deployments:
 
 **Benefits:**
-- ✅ 10-50x faster queries
-- ✅ 80% storage savings
-- ✅ 99% fewer API calls
-- ✅ Automatic and safe
+- 10-50x faster queries
+- 80% storage savings
+- 99% fewer API calls
+- Automatic and safe
 
 **Default configuration works for most cases:**
 ```toml
@@ -553,7 +553,7 @@ min_files = 10
 **Monitor regularly:**
 - Check `/api/compaction/status`
 - Alert on failed jobs
-- Watch for partitions with >1000 files
+- Watch for partitions with &gt;1000 files
 
 ## Next Steps
 

@@ -25,11 +25,11 @@ cd arc
 ```
 
 This script automatically:
-- ✅ Detects your CPU cores and configures optimal workers (3x cores)
-- ✅ Installs and configures MinIO
-- ✅ Creates Python virtual environment
-- ✅ Installs all dependencies
-- ✅ Starts Arc API server
+- Detects your CPU cores and configures optimal workers (3x cores)
+- Installs and configures MinIO
+- Creates Python virtual environment
+- Installs all dependencies
+- Starts Arc API server
 
 Arc API will be available at `http://localhost:8000`
 MinIO Console at `http://localhost:9001`
@@ -380,10 +380,10 @@ Deploy Arc to a remote server:
 ```
 
 The deployment script:
-- ✅ Copies files via rsync
-- ✅ Installs dependencies
-- ✅ Configures systemd service
-- ✅ Starts Arc automatically
+- Copies files via rsync
+- Installs dependencies
+- Configures systemd service
+- Starts Arc automatically
 
 ## Storage Options
 

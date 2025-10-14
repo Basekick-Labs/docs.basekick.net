@@ -40,6 +40,7 @@ const config: Config = {
       'classic',
       {
         docs: {
+          routeBasePath: 'arc',
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
         },
@@ -58,11 +59,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Arc Docs',
-      logo: {
-        alt: 'Arc Logo',
-        src: 'img/logo.svg',
-      },
+      title: 'Arc Documentation',
       items: [
         {
           type: 'docSidebar',
@@ -90,7 +87,7 @@ const config: Config = {
           items: [
             {
               label: 'Getting Started',
-              to: '/docs/intro',
+              to: '/arc',
             },
           ],
         },

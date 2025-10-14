@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  docs:
+    image: nginx:alpine
+    container_name: docs-basekick-net
+    restart: unless-stopped
+    volumes:
+      - /opt/services/docs.basekick.net:/usr/share/nginx/html:ro
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.docs-basekick.rule=Host(`docs.basekick.net`)"
+      - "traefik.http.routers.docs-basekick.entrypoints=https"
+      - "traefik.http.routers.docs-basekick.tls=true"
+      - "traefik.http.routers.docs-basekick.tls.certresolver=letsencrypt"
+      - "traefik.http.services.docs-basekick.loadbalancer.server.port=80"
+
+networks:
+  traefik:
+    external: true

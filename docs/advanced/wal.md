@@ -17,21 +17,21 @@ WAL is **disabled by default** to maximize throughput (2.01M records/sec). Enabl
 ### When to Enable WAL
 
 Enable WAL if you need:
-- ✅ **Zero data loss** on system crashes
-- ✅ **Guaranteed durability** for regulatory compliance (finance, healthcare)
-- ✅ **Recovery from unexpected failures** (power loss, OOM kills)
+- **Zero data loss** on system crashes
+- **Guaranteed durability** for regulatory compliance (finance, healthcare)
+- **Recovery from unexpected failures** (power loss, OOM kills)
 
 Keep WAL disabled if you:
-- ⚡ **Prioritize maximum throughput** (2.01M records/sec)
-- 💰 **Can tolerate 0-5 seconds data loss** on rare crashes
-- 🔄 **Have client-side retry logic** or message queue upstream
+- **Prioritize maximum throughput** (2.01M records/sec)
+- **Can tolerate 0-5 seconds data loss** on rare crashes
+- **Have client-side retry logic** or message queue upstream
 
 ### Performance vs Durability Tradeoff
 
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
 | **No WAL (default)** | 2.01M rec/s | 0-5 seconds |
-| **WAL + async** | 1.67M rec/s (-17%) | <1 second |
+| **WAL + async** | 1.67M rec/s (-17%) | &lt;1 second |
 | **WAL + fdatasync** | 1.63M rec/s (-19%) | Near-zero |
 | **WAL + fsync** | 1.67M rec/s (-17%) | Zero |
 
@@ -98,10 +98,10 @@ Arc uses multiple worker processes. Each worker has its own WAL file to avoid lo
 ```
 
 **Benefits:**
-- ✅ Zero lock contention (parallel writes)
-- ✅ Simple implementation
-- ✅ Natural partitioning
-- ✅ Parallel recovery on startup
+- Zero lock contention (parallel writes)
+- Simple implementation
+- Natural partitioning
+- Parallel recovery on startup
 
 ## Configuration
 
@@ -469,14 +469,14 @@ max_size_mb = 10  # Small files for testing
 ## Summary
 
 **Enable WAL if:**
-- ✅ Zero data loss is required
-- ✅ Regulated industry (finance, healthcare)
-- ✅ Can accept 19% throughput reduction
+- Zero data loss is required
+- Regulated industry (finance, healthcare)
+- Can accept 19% throughput reduction
 
 **Disable WAL if:**
-- ⚡ Maximum throughput is priority
-- 💰 Can tolerate 0-5s data loss risk
-- 🔄 Have upstream retry/queue mechanisms
+- Maximum throughput is priority
+- Can tolerate 0-5s data loss risk
+- Have upstream retry/queue mechanisms
 
 **Recommended settings:**
 ```toml

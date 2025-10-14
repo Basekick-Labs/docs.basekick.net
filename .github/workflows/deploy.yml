@@ -1,0 +1,123 @@
+name: Deploy Docs to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Set up Tailscale
+        run: |
+          set -x
+          curl -fsSL https://tailscale.com/install.sh | sh
+          if [ $? -ne 0 ]; then echo "Tailscale installation failed"; exit 1; fi
+
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-actions-docs-runner
+          if [ $? -ne 0 ]; then echo "Tailscale up failed"; exit 1; fi
+
+          tailscale status
+          if [ $? -ne 0 ]; then echo "Tailscale status check failed"; exit 1; fi
+        shell: bash
+
+      - name: Set up SSH
+        run: |
+          set -x
+          mkdir -p ~/.ssh
+          if [ $? -ne 0 ]; then echo "Failed to create .ssh directory"; exit 1; fi
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          if [ $? -ne 0 ]; then echo "Failed to write SSH private key"; exit 1; fi
+
+          chmod 600 ~/.ssh/id_rsa
+          if [ $? -ne 0 ]; then echo "Failed to set permissions on SSH private key"; exit 1; fi
+
+          eval $(ssh-agent -s)
+          if [ $? -ne 0 ]; then echo "Failed to start ssh-agent"; exit 1; fi
+
+          ssh-add ~/.ssh/id_rsa
+          if [ $? -ne 0 ]; then echo "Failed to add SSH key to agent"; exit 1; fi
+        shell: bash
+
+      - name: Check DNS Resolution
+        run: nslookup ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+
+      - name: Check Network Connectivity
+        run: ping -c 4 ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+
+      - name: Add host to known_hosts
+        run: |
+          set -x
+          echo "Adding host to known_hosts..."
+          mkdir -p ~/.ssh
+          touch ~/.ssh/known_hosts
+          ssh-keyscan -v -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          if [ $? -ne 0 ]; then echo "Failed to add host to known_hosts"; exit 1; fi
+        shell: bash
+
+      - name: Test SSH Connection
+        run: |
+          set -x
+          echo "Testing SSH connection..."
+          ssh -vvv ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} whoami
+          if [ $? -ne 0 ]; then echo "SSH connection test failed"; exit 1; fi
+        shell: bash
+
+      - name: Sync docs files to remote host
+        run: |
+          set -x
+          echo "Syncing docs.basekick.net files to remote host..."
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "sudo mkdir -p ${{ secrets.DEPLOY_PATH }} && sudo chown ${{ secrets.DEPLOY_USER }}:${{ secrets.DEPLOY_USER }} ${{ secrets.DEPLOY_PATH }}"
+          rsync -avz --checksum --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.github' \
+            --exclude '*.log' \
+            --exclude '.DS_Store' \
+            --stats \
+            ./build/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}
+          if [ $? -ne 0 ]; then echo "File sync failed"; exit 1; fi
+        shell: bash
+
+      - name: Deploy docs with Docker Compose
+        run: |
+          set -x
+          echo "Deploying docs.basekick.net (Docusaurus static site)..."
+          DEPLOY_DIR=$(dirname ${{ secrets.DEPLOY_PATH }})
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
+          cd \$DEPLOY_DIR
+
+          # Ensure external Docker network exists
+          sudo docker network create traefik || true
+
+          # Restart docs container
+          sudo docker compose up -d docs
+
+          # Touch deployment timestamp
+          touch .last-deploy
+
+          # Show container status
+          sudo docker ps | grep docs
+          EOF
+          if [ $? -ne 0 ]; then echo "Deployment failed"; exit 1; fi
+        shell: bash

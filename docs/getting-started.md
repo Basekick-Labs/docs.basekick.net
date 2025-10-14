@@ -118,9 +118,9 @@ response = requests.post(
 )
 
 if response.status_code == 204:
-    print("✓ Successfully wrote data!")
+    print("Successfully wrote data!")
 else:
-    print(f"✗ Error {response.status_code}: {response.text}")
+    print(f"Error {response.status_code}: {response.text}")
 ```
 
 ### Using InfluxDB Line Protocol
@@ -299,6 +299,6 @@ curl -X POST http://localhost:8000/write/flush \
 
 ## Need Help?
 
-- 💬 [Discord Community](https://discord.gg/nxnWfUxsdm)
-- 📖 [Full Documentation](/docs/intro)
-- 🐛 [GitHub Issues](https://github.com/basekick-labs/arc/issues)
+- [Discord Community](https://discord.gg/nxnWfUxsdm)
+- [Full Documentation](/docs/intro)
+- [GitHub Issues](https://github.com/basekick-labs/arc/issues)

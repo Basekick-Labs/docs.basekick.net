@@ -9,11 +9,11 @@ Connect Arc to Apache Superset for interactive dashboards and visualizations.
 ## Overview
 
 Arc provides a native SQLAlchemy dialect for Apache Superset, enabling:
-- ✅ Full SQL query support via DuckDB
-- ✅ Multi-database schema support
-- ✅ Cross-database joins
-- ✅ Time-series visualizations
-- ✅ Interactive dashboards
+- Full SQL query support via DuckDB
+- Multi-database schema support
+- Cross-database joins
+- Time-series visualizations
+- Interactive dashboards
 
 ## Installation
 
@@ -328,10 +328,10 @@ Email dashboards on a schedule:
 Always filter by time to reduce data scanned:
 
 ```sql
--- ✅ Good: Time filter
+-- Good: Time filter
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 
--- ❌ Bad: No filter (scans all data)
+-- Bad: No filter (scans all data)
 SELECT * FROM cpu
 ```
 
@@ -380,7 +380,7 @@ WHERE hour > NOW() - INTERVAL 7 DAY;
 ### 5. Optimize Chart SQL
 
 ```sql
--- ✅ Good: Aggregate first
+-- Good: Aggregate first
 SELECT
     DATE_TRUNC('hour', timestamp) as hour,
     AVG(usage_idle) as avg_idle
@@ -388,7 +388,7 @@ FROM cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 GROUP BY hour;
 
--- ❌ Bad: Return all rows
+-- Bad: Return all rows
 SELECT timestamp, usage_idle
 FROM cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR;

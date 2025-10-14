@@ -11,11 +11,11 @@ Use Telegraf to collect system metrics and send them to Arc as a drop-in InfluxD
 Arc is compatible with InfluxDB Line Protocol, making it a perfect drop-in replacement for Telegraf outputs. Simply point your existing Telegraf configuration to Arc with zero code changes.
 
 **Benefits:**
-- ✅ No configuration changes needed
-- ✅ All Telegraf plugins work unchanged
-- ✅ 8x faster than InfluxDB (2.01M RPS)
-- ✅ Lower cost with object storage
-- ✅ Full SQL analytics with DuckDB
+- No configuration changes needed
+- All Telegraf plugins work unchanged
+- 8x faster than InfluxDB (2.01M RPS)
+- Lower cost with object storage
+- Full SQL analytics with DuckDB
 
 ## Quick Start
 
@@ -429,9 +429,9 @@ ORDER BY avg_memory_bytes DESC;
 ```
 
 **Guidelines:**
-- **Low volume** (<1000 metrics/sec): batch_size = 1000
+- **Low volume** (&lt;1000 metrics/sec): batch_size = 1000
 - **Medium volume** (1000-10000/sec): batch_size = 5000
-- **High volume** (>10000/sec): batch_size = 10000
+- **High volume** (&gt;10000/sec): batch_size = 10000
 
 ### Reduce Flush Interval
 
@@ -493,14 +493,14 @@ curl -X POST http://localhost:8000/query \
 ### Authentication Errors
 
 ```toml
-# ✅ Correct: Use headers
+# Correct: Use headers
 [outputs.influxdb.headers]
   Authorization = "Bearer YOUR_TOKEN"
 
-# ❌ Wrong: Password without Bearer
+# Wrong: Password without Bearer
 password = "YOUR_TOKEN"
 
-# ✅ Also correct: Password with Bearer
+# Also correct: Password with Bearer
 password = "Bearer YOUR_TOKEN"
 ```
 

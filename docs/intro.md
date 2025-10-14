@@ -9,13 +9,13 @@ Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, a
 
 ## Key Features
 
-- **⚡ High-Performance Ingestion**: 2.01M records/sec with MessagePack binary protocol
-- **🚀 Fast Analytical Queries**: Powered by DuckDB with full SQL support
-- **🗄️ Flexible Storage**: Local filesystem, MinIO, AWS S3, or Google Cloud Storage
-- **📊 Multi-Database Architecture**: Organize data by environment, tenant, or application
-- **🔄 Automatic Compaction**: Merges small files for 10-50x faster queries
-- **💾 Optional WAL**: Zero data loss with Write-Ahead Log (disabled by default for max throughput)
-- **📈 Apache Superset Integration**: Native dialect for BI dashboards
+- **High-Performance Ingestion**: 2.01M records/sec with MessagePack binary protocol
+- **Fast Analytical Queries**: Powered by DuckDB with full SQL support
+- **Flexible Storage**: Local filesystem, MinIO, AWS S3, or Google Cloud Storage
+- **Multi-Database Architecture**: Organize data by environment, tenant, or application
+- **Automatic Compaction**: Merges small files for 10-50x faster queries
+- **Optional WAL**: Zero data loss with Write-Ahead Log (disabled by default for max throughput)
+- **Apache Superset Integration**: Native dialect for BI dashboards
 
 ## Why Arc?
 
@@ -77,11 +77,9 @@ Arc is **3.3x faster than VictoriaLogs**, **6.5x faster than QuestDB**, and **29
 
 ## Next Steps
 
-<div className="button-grid">
-  <a href="/getting-started" className="button button--primary">Get Started</a>
-  <a href="/installation" className="button button--secondary">Installation</a>
-  <a href="https://github.com/basekick-labs/arc" className="button button--secondary">GitHub</a>
-</div>
+- [Getting Started](/arc/getting-started) - Learn how to install and use Arc
+- [Installation Guide](/arc/installation/docker) - Docker and native installation
+- [GitHub Repository](https://github.com/basekick-labs/arc) - Star us on GitHub
 
 ## Alpha Release Notice
 
@@ -91,6 +89,6 @@ Arc is currently in **alpha** and evolving rapidly. It is **not recommended for 
 
 ## Support
 
-- 💬 [Discord Community](https://discord.gg/nxnWfUxsdm)
-- 🐛 [GitHub Issues](https://github.com/basekick-labs/arc/issues)
-- 📧 Enterprise: enterprise@basekick.net
+- [Discord Community](https://discord.gg/nxnWfUxsdm)
+- [GitHub Issues](https://github.com/basekick-labs/arc/issues)
+- Enterprise: enterprise@basekick.net
