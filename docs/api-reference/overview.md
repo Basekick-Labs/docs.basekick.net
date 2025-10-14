@@ -56,13 +56,32 @@ response = requests.post(
 )
 ```
 
-### Query Data
+### Query Data (JSON)
 
 ```bash
 curl -X POST http://localhost:8000/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM cpu LIMIT 10"}'
+```
+
+### Query Data (Apache Arrow)
+
+For large result sets, use Arrow format for 7.36x faster performance:
+
+```python
+import requests
+import pyarrow as pa
+
+response = requests.post(
+    "http://localhost:8000/query/arrow",
+    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    json={"sql": "SELECT * FROM cpu LIMIT 100000"}
+)
+
+# Parse Arrow IPC stream
+reader = pa.ipc.open_stream(response.content)
+arrow_table = reader.read_all()
 ```
 
 ### Health Check
@@ -87,7 +106,8 @@ High-performance data writing endpoints.
 
 Execute SQL queries with DuckDB.
 
-- **[Execute Query](/arc/api-reference/queries#execute)** - Run SQL queries
+- **[Execute Query](/arc/api-reference/queries#execute)** - Run SQL queries (JSON format)
+- **[Execute Query (Arrow)](/arc/api-reference/queries#arrow)** - Run SQL queries (Apache Arrow format)
 - **[Stream Results](/arc/api-reference/queries#stream)** - Stream large datasets
 - **[Query Estimation](/arc/api-reference/queries#estimate)** - Estimate query cost
 - **[List Measurements](/arc/api-reference/queries#list)** - Show available tables

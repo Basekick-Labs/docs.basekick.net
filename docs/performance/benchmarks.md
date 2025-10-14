@@ -205,6 +205,35 @@ Arc achieves exceptional write throughput through MessagePack binary protocol.
 
 **MessagePack vs Line Protocol**: 8.4x faster
 
+## Query Format Performance
+
+Arc supports two query result formats: JSON and Apache Arrow.
+
+### Apache Arrow vs JSON Benchmarks
+
+| Result Size | JSON Time | Arrow Time | Speedup | Size Reduction |
+|-------------|-----------|------------|---------|----------------|
+| 1K rows | 0.0130s | 0.0099s | 1.31x | 42.8% smaller |
+| 10K rows | 0.0443s | 0.0271s | 1.63x | 43.4% smaller |
+| 100K rows | 0.3627s | 0.0493s | **7.36x** | 43.5% smaller |
+
+**Test Configuration**:
+- Hardware: Apple M3 Max
+- Query: `SELECT * FROM cpu LIMIT N`
+- Endpoints: `/query` (JSON) vs `/query/arrow` (Arrow IPC)
+
+**Key Findings**:
+- Arrow format is 7.36x faster for large result sets (100K+ rows)
+- Payloads are 43% smaller with Arrow
+- Zero-copy conversion to Pandas/Polars
+- Columnar format stays efficient end-to-end
+
+**When to use Arrow**:
+- Large result sets (10K+ rows)
+- Wide tables with many columns
+- Data pipelines feeding into Pandas/Polars
+- Analytics notebooks and dashboards
+
 ## Reproducibility
 
 All benchmarks are reproducible. See [Running Benchmarks](/arc/performance/running-benchmarks) for instructions.

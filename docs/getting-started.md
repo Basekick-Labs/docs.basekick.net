@@ -225,6 +225,48 @@ response = requests.post(
 )
 ```
 
+### Apache Arrow Format (For Large Result Sets)
+
+For queries returning 10K+ rows, use the Apache Arrow endpoint for **7.36x faster performance** and **43% smaller payloads**.
+
+```python
+import requests
+import pyarrow as pa
+import pandas as pd
+import os
+
+token = os.getenv("ARC_TOKEN")
+
+# Query with Arrow format
+response = requests.post(
+    "http://localhost:8000/query/arrow",
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    },
+    json={
+        "sql": "SELECT * FROM cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 10000"
+    }
+)
+
+# Parse Arrow IPC stream
+reader = pa.ipc.open_stream(response.content)
+arrow_table = reader.read_all()
+
+# Convert to Pandas (zero-copy)
+df = arrow_table.to_pandas()
+
+print(f"Rows: {len(df)}")
+print(df.head())
+```
+
+**Performance benefits:**
+- Zero-copy conversion to Pandas/Polars
+- Columnar format stays efficient end-to-end
+- Ideal for analytics notebooks and data pipelines
+
+See [Arc README examples](https://github.com/basekick-labs/arc#apache-arrow-columnar-queries) for Polars usage.
+
 ## Check Health
 
 ```bash
