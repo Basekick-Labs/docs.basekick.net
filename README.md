@@ -1,6 +1,6 @@
 # Arc Documentation
 
-Official documentation for [Arc](https://github.com/basekick-labs/arc) - the fastest time-series database in ClickBench.
+Official documentation for [Arc](https://github.com/basekick-labs/arc) - the fastest time-series database.
 
 ## About
 

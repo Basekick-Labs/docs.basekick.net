@@ -42,7 +42,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Arc - Fastest Time-Series Database"
-      description="Arc is the fastest time-series database in ClickBench. 36.43s cold run, 2.01M records/sec ingestion, powered by DuckDB and Parquet.">
+      description="Arc is the fastest time-series database. 36.43s cold run on ClickBench, 2.01M records/sec ingestion, powered by DuckDB and Parquet.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

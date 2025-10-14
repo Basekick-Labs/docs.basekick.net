@@ -15,7 +15,7 @@ const FeatureList: FeatureItem[] = [
     icon: '36.43s',
     description: (
       <>
-        Fastest time-series database in ClickBench with 36.43s cold run on 99.9M rows.
+        Fastest time-series database with 36.43s cold run on ClickBench (99.9M rows).
         Powered by DuckDB's columnar engine for lightning-fast SQL queries with full ANSI SQL support.
       </>
     ),

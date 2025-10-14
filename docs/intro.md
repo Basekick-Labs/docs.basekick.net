@@ -5,7 +5,7 @@ slug: /
 
 # Welcome to Arc
 
-Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, and flexible storage backends. It achieves **2.01M records/sec ingestion** and is the **fastest time-series database in ClickBench**.
+Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, and flexible storage backends. It achieves **2.01M records/sec ingestion** and is the **fastest time-series database**.
 
 ## Key Features
 

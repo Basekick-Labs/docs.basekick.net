@@ -8,7 +8,7 @@ Arc has been benchmarked using [ClickBench](https://github.com/ClickHouse/ClickB
 
 ## ClickBench Results
 
-**Arc is the fastest time-series database in ClickBench**, completing all 43 queries in **107.66 seconds total** (36.43s cold run).
+**Arc is the fastest time-series database**, completing all 43 queries on ClickBench in **107.66 seconds total** (36.43s cold run).
 
 ### Official Rankings (Cold Run)
 
