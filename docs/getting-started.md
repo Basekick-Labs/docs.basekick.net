@@ -16,7 +16,7 @@ This guide will get you up and running with Arc in 5 minutes.
 
 ### Option 1: Native Deployment (Recommended)
 
-Native deployment provides **3.5x faster performance** than Docker (2.01M RPS vs 570K RPS).
+Native deployment provides **4x faster performance** than Docker (2.32M RPS vs 570K RPS).
 
 ```bash
 # Clone the repository
@@ -77,7 +77,9 @@ export ARC_TOKEN="your-token-here"
 
 ## Write Your First Data
 
-### Using MessagePack (Recommended - 7.9x Faster)
+### Using MessagePack Columnar (Recommended - 9.7x Faster)
+
+MessagePack columnar format provides the best performance (2.32M RPS vs 240K Line Protocol).
 
 ```python
 import msgpack
@@ -87,24 +89,18 @@ import os
 
 token = os.getenv("ARC_TOKEN")
 
-# Prepare data
+# Columnar format - arrange data by columns (fastest)
 data = {
-    "batch": [
-        {
-            "m": "cpu",                                      # measurement name
-            "t": int(datetime.now().timestamp() * 1000),    # timestamp (milliseconds)
-            "h": "server01",                                 # host tag
-            "tags": {                                        # additional tags
-                "region": "us-east",
-                "dc": "aws"
-            },
-            "fields": {                                      # metric values
-                "usage_idle": 95.0,
-                "usage_user": 3.2,
-                "usage_system": 1.8
-            }
-        }
-    ]
+    "m": "cpu",                                      # measurement name
+    "columns": {
+        "time": [int(datetime.now().timestamp() * 1000)],   # timestamps
+        "host": ["server01"],                                # host tag
+        "region": ["us-east"],                               # region tag
+        "dc": ["aws"],                                       # dc tag
+        "usage_idle": [95.0],                                # metric value
+        "usage_user": [3.2],                                 # metric value
+        "usage_system": [1.8]                                # metric value
+    }
 }
 
 # Send data
@@ -121,6 +117,35 @@ if response.status_code == 204:
     print("Successfully wrote data!")
 else:
     print(f"Error {response.status_code}: {response.text}")
+```
+
+**Batch multiple rows for even better performance:**
+
+```python
+# Send multiple rows in one request
+data = {
+    "m": "cpu",
+    "columns": {
+        "time": [
+            int(datetime.now().timestamp() * 1000),
+            int(datetime.now().timestamp() * 1000),
+            int(datetime.now().timestamp() * 1000)
+        ],
+        "host": ["server01", "server02", "server03"],
+        "usage_idle": [95.0, 87.5, 92.3],
+        "usage_user": [3.2, 8.1, 5.4],
+        "usage_system": [1.8, 4.4, 2.3]
+    }
+}
+
+response = requests.post(
+    "http://localhost:8000/write/v2/msgpack",
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/msgpack"
+    },
+    data=msgpack.packb(data)
+)
 ```
 
 ### Using InfluxDB Line Protocol

@@ -187,23 +187,31 @@ Arc excels at:
 
 ## Write Performance
 
-Arc achieves exceptional write throughput through MessagePack binary protocol.
+Arc achieves exceptional write throughput through MessagePack columnar binary protocol.
 
-### Write Benchmarks
+### Write Benchmarks - Format Comparison
 
-| Storage Backend | Throughput | p50 Latency | p95 Latency | p99 Latency |
-|----------------|------------|-------------|-------------|-------------|
-| **Local NVMe** | **2.08M RPS** | **13.4ms** | **136ms** | **280ms** |
-| **MinIO** | **2.01M RPS** | **16.6ms** | **147ms** | **318ms** |
-| **Line Protocol** | **240K RPS** | N/A | N/A | N/A |
+| Wire Format | Throughput | p50 Latency | p95 Latency | p99 Latency | Notes |
+|-------------|------------|-------------|-------------|-------------|-------|
+| **MessagePack Columnar** | **2.32M RPS** | **6.75ms** | **39.46ms** | **59.09ms** | Zero-copy passthrough (RECOMMENDED) |
+| **MessagePack Row** | **908K RPS** | **136.86ms** | **851.71ms** | **1542ms** | Legacy format with conversion overhead |
+| **Line Protocol** | **240K RPS** | N/A | N/A | N/A | InfluxDB compatibility mode |
+
+**Columnar Format Advantages:**
+- **2.55x faster throughput** vs row format (2.32M vs 908K RPS)
+- **20x lower p50 latency** (6.75ms vs 136.86ms)
+- **21x lower p95 latency** (39.46ms vs 851.71ms)
+- **26x lower p99 latency** (59.09ms vs 1542ms)
+- **67x fewer errors** under load (63 vs 4,211 errors at 2.5M target RPS)
 
 **Test Configuration**:
 - Hardware: Apple M3 Max (14 cores)
-- Workers: 42 (3x CPU cores)
-- Protocol: MessagePack binary streaming
+- Workers: 400
+- Protocol: MessagePack columnar binary streaming
 - Deployment: Native mode
+- Storage: MinIO
 
-**MessagePack vs Line Protocol**: 8.4x faster
+**MessagePack Columnar vs Line Protocol**: 9.7x faster
 
 ## Query Format Performance
 
