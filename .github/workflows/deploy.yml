@@ -103,8 +103,7 @@ jobs:
         run: |
           set -x
           echo "Copying docker-compose.yml to server..."
-          DEPLOY_DIR=$(dirname ${{ secrets.DEPLOY_PATH }})
-          scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_DIR/
+          scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
           if [ $? -ne 0 ]; then echo "Failed to copy docker-compose.yml"; exit 1; fi
         shell: bash
 
@@ -112,9 +111,8 @@ jobs:
         run: |
           set -x
           echo "Deploying docs.basekick.net (Docusaurus static site)..."
-          DEPLOY_DIR=$(dirname ${{ secrets.DEPLOY_PATH }})
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
-          cd \$DEPLOY_DIR
+          cd ${{ secrets.DEPLOY_PATH }}
 
           # Restart docs container
           sudo docker compose up -d docs
