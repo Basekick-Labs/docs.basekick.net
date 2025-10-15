@@ -248,7 +248,7 @@ All benchmarks are reproducible. See [Running Benchmarks](/arc/performance/runni
 
 ### Download Results
 
-- [c6a.4xlarge_cache_disabled.json](https://github.com/basekick-labs/arc/tree/main/benchmarks/clickbench/results)
+- [c6a.4xlarge_cache_disabled.json](https://github.com/Basekick-Labs/ClickBench/blob/main/arc/results/c6a.4xlarge_cache_disabled.json)
 - [Full ClickBench Results](https://clickhouse.com/benchmark)
 
 ## What This Means
