@@ -6,6 +6,16 @@ sidebar_position: 1
 
 Arc's Write-Ahead Log (WAL) provides **zero data loss guarantees** on system crashes.
 
+:::note Important Clarification
+There are **two different WAL features** in Arc:
+
+1. **SQLite WAL mode** (always enabled) - Internal mode for Arc's metadata database (`arc.db`). This enables concurrent access to connection settings, export jobs, and compaction locks. You'll see the log message `"SQLite WAL mode enabled for concurrent access"` on startup - this is expected and not related to data ingestion.
+
+2. **Arc's WAL feature** (disabled by default) - Optional durability feature for **data ingestion** that provides zero data loss guarantees. This page documents the Arc WAL feature, controlled by the `WAL_ENABLED` environment variable.
+
+**TL;DR**: The startup log `"SQLite WAL mode enabled"` is normal and does NOT mean Arc's data ingestion WAL is enabled.
+:::
+
 ## Overview
 
 WAL is an optional durability feature that persists all incoming data to disk **before** acknowledging writes. When enabled, Arc guarantees that data can be recovered even if the instance crashes.
