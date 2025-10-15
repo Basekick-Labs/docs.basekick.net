@@ -31,22 +31,43 @@ Arc is designed for applications that need:
 ```python
 import msgpack
 import requests
+from datetime import datetime
 
-# Write data
+# COLUMNAR FORMAT (RECOMMENDED - 2.66x faster than row format)
+# All data organized as columns (arrays), not rows
 data = {
-    "batch": [{
-        "m": "cpu",                           # measurement
-        "t": 1697472000000,                   # timestamp (ms)
-        "h": "server01",                      # host
-        "fields": {"usage": 45.2}
-    }]
+    "m": "cpu",                    # measurement name
+    "columns": {                   # columnar data structure
+        "time": [
+            int(datetime.now().timestamp() * 1000),
+            int(datetime.now().timestamp() * 1000) + 1000,
+            int(datetime.now().timestamp() * 1000) + 2000
+        ],
+        "host": ["server01", "server02", "server03"],
+        "region": ["us-east", "us-west", "eu-central"],
+        "datacenter": ["aws", "gcp", "azure"],
+        "usage_idle": [95.0, 85.0, 92.0],
+        "usage_user": [3.2, 10.5, 5.8],
+        "usage_system": [1.8, 4.5, 2.2]
+    }
 }
 
-requests.post(
+# Send columnar data (2.42M RPS throughput)
+response = requests.post(
     "http://localhost:8000/write/v2/msgpack",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={
+        "Authorization": "Bearer YOUR_TOKEN",
+        "Content-Type": "application/msgpack",
+        "x-arc-database": "default"  # Optional: specify database
+    },
     data=msgpack.packb(data)
 )
+
+# Check response (returns 204 No Content on success)
+if response.status_code == 204:
+    print(f"Successfully wrote {len(data['columns']['time'])} records!")
+else:
+    print(f"Error {response.status_code}: {response.text}")
 
 # Query data
 response = requests.post(
