@@ -25,10 +25,10 @@ Compaction is **enabled by default** and runs automatically every hour.
 
 ### The Small File Problem
 
-Arc's high-performance ingestion (2.01M records/sec) creates many small files:
+Arc's high-performance ingestion (2.42M records/sec) creates many small files:
 
 ```
-At 2.01M records/sec with 5-second flush:
+At 2.42M records/sec with 5-second flush:
 → 10M records every 5 seconds
 → 12 files per minute per measurement
 → 720 files per hour per measurement

@@ -21,7 +21,7 @@ There are **two different WAL features** in Arc:
 WAL is an optional durability feature that persists all incoming data to disk **before** acknowledging writes. When enabled, Arc guarantees that data can be recovered even if the instance crashes.
 
 :::info
-WAL is **disabled by default** to maximize throughput (2.01M records/sec). Enable it when zero data loss is required.
+WAL is **disabled by default** to maximize throughput (2.42M records/sec). Enable it when zero data loss is required.
 :::
 
 ### When to Enable WAL
@@ -32,7 +32,7 @@ Enable WAL if you need:
 - **Recovery from unexpected failures** (power loss, OOM kills)
 
 Keep WAL disabled if you:
-- **Prioritize maximum throughput** (2.01M records/sec)
+- **Prioritize maximum throughput** (2.42M records/sec)
 - **Can tolerate 0-5 seconds data loss** on rare crashes
 - **Have client-side retry logic** or message queue upstream
 
@@ -40,7 +40,7 @@ Keep WAL disabled if you:
 
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
-| **No WAL (default)** | 2.01M rec/s | 0-5 seconds |
+| **No WAL (default)** | 2.42M rec/s | 0-5 seconds |
 | **WAL + async** | 1.67M rec/s (-17%) | &lt;1 second |
 | **WAL + fdatasync** | 1.63M rec/s (-19%) | Near-zero |
 | **WAL + fsync** | 1.67M rec/s (-17%) | Zero |
@@ -403,7 +403,7 @@ $ du -sh ./data/wal
 ### Performance Degradation with WAL
 
 **Symptoms:**
-- Throughput dropped from 2.01M to 600K rec/s
+- Throughput dropped from 2.42M to 600K rec/s
 - High CPU usage from fsync calls
 
 **Solutions:**

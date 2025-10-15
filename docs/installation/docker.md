@@ -171,7 +171,7 @@ docker-compose up -d --build
 
 ## Performance Considerations
 
-Docker deployment achieves **~570K records/sec** write throughput. For maximum performance (2.01M RPS), use [native deployment](/arc/installation/native).
+Docker deployment achieves **~570K records/sec** write throughput. For maximum performance (2.42M RPS), use [native deployment](/arc/installation/native).
 
 ### Optimize Docker Performance
 

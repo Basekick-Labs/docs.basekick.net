@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Native Installation
 
-Install Arc natively for **maximum performance**. Native deployment achieves **2.01M records/sec** (3.5x faster than Docker).
+Install Arc natively for **maximum performance**. Native deployment achieves **2.42M records/sec** (3.5x faster than Docker).
 
 ## Prerequisites
 
@@ -203,8 +203,8 @@ pip install uvloop httptools orjson
 | Backend | Performance | Use Case |
 |---------|-------------|----------|
 | **Local NVMe** | 2.08M RPS | Maximum performance, single-node |
-| **Local SSD** | 2.01M RPS | High performance, single-node |
-| **MinIO** | 2.01M RPS | Distributed, multi-tenant |
+| **Local SSD** | 2.42M RPS | High performance, single-node |
+| **MinIO** | 2.42M RPS | Distributed, multi-tenant |
 | **AWS S3** | 1.5M RPS | Cloud, unlimited scale |
 
 **Recommendation**:

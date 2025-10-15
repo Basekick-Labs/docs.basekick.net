@@ -13,7 +13,7 @@ Arc is compatible with InfluxDB Line Protocol, making it a perfect drop-in repla
 **Benefits:**
 - No configuration changes needed
 - All Telegraf plugins work unchanged
-- 8x faster than InfluxDB (2.01M RPS)
+- 8x faster than InfluxDB (2.42M RPS)
 - Lower cost with object storage
 - Full SQL analytics with DuckDB
 
