@@ -47,7 +47,7 @@ data = {
 }
 
 response = requests.post(
-    "http://localhost:8000/write/v2/msgpack",
+    "http://localhost:8000/write/v1/msgpack",
     headers={
         "Authorization": "Bearer YOUR_TOKEN",
         "Content-Type": "application/msgpack"
@@ -242,9 +242,9 @@ cors_origins = ["http://localhost:3000", "https://your-app.com"]
 Arc API uses URL versioning:
 
 - `/write` - Current version (InfluxDB compatibility)
-- `/write/v2/msgpack` - Versioned MessagePack endpoint
+- `/write/v1/msgpack` - Versioned MessagePack endpoint
 - `/api/v1/write` - InfluxDB 1.x compatible
-- `/api/v2/write` - InfluxDB 2.x compatible
+- `/api/v1/write/influxdb` - InfluxDB 2.x compatible
 
 ## Client Libraries
 
@@ -272,7 +272,7 @@ class ArcClient:
         }
 
         response = requests.post(
-            f"{self.base_url}/write/v2/msgpack",
+            f"{self.base_url}/write/v1/msgpack",
             headers={**self.headers, "Content-Type": "application/msgpack"},
             data=msgpack.packb(data)
         )
@@ -320,7 +320,7 @@ class ArcClient {
       }]
     };
 
-    await this.client.post('/write/v2/msgpack',
+    await this.client.post('/write/v1/msgpack',
       msgpack.encode(data),
       { headers: { 'Content-Type': 'application/msgpack' } }
     );
@@ -382,7 +382,7 @@ func (c *ArcClient) Write(m string, fields map[string]interface{}, tags map[stri
     }
 
     body, _ := msgpack.Marshal(data)
-    req, _ := http.NewRequest("POST", c.BaseURL+"/write/v2/msgpack", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", c.BaseURL+"/write/v1/msgpack", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+c.Token)
     req.Header.Set("Content-Type", "application/msgpack")
 

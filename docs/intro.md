@@ -54,7 +54,7 @@ data = {
 
 # Send columnar data (2.42M RPS throughput)
 response = requests.post(
-    "http://localhost:8000/write/v2/msgpack",
+    "http://localhost:8000/write/v1/msgpack",
     headers={
         "Authorization": "Bearer YOUR_TOKEN",
         "Content-Type": "application/msgpack",
