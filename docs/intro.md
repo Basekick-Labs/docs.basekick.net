@@ -90,11 +90,12 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 ## Performance
 
 **ClickBench Results** (AWS c6a.4xlarge):
-- **Cold run**: 34.43s across 43 queries
+- **Cold run**: 120.25s across 43 queries (with proper cache flushing)
+- **Warm run**: 35.70s across 43 queries
 - **Dataset**: 99.9M rows, 14.78GB
 - **Method**: HTTP REST API (includes all overhead)
 
-Arc is **3.3x faster than VictoriaLogs**, **6.5x faster than QuestDB**, and **29.7x faster than TimescaleDB** in analytical workloads.
+Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in analytical workloads.
 
 ## Next Steps
 
