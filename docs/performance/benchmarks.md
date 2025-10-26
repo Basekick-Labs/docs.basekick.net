@@ -114,12 +114,6 @@ All 43 analytical queries completed successfully with proper cache flushing comp
 | Q41 | 0.1103s | 0.0613s | 0.0625s | 1.76x |
 | Q42 | 0.2814s | 0.2526s | 0.2264s | 1.24x |
 
-**Notable Performance Characteristics:**
-- **Highest speedup**: Q21 (12.59x faster warm vs cold) - demonstrates excellent cache effectiveness
-- **Consistent performance**: Q28 (1.01x) - heavy analytics query, consistently CPU-bound
-- **Average speedup**: 3.37x cold-to-warm improvement
-- **Most queries under 1 second** when warm (37 out of 43 queries)
-
 ## Why Arc is Fast
 
 ### 1. DuckDB Query Engine
