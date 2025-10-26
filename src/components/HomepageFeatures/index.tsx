@@ -12,10 +12,10 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'Blazing Fast Analytics',
-    icon: '36.43s',
+    icon: '120.25s',
     description: (
       <>
-        Fastest time-series database with 36.43s cold run on ClickBench (99.9M rows).
+        Fastest time-series database with 120.25s cold run on ClickBench (99.9M rows).
         Powered by DuckDB's columnar engine for lightning-fast SQL queries with full ANSI SQL support.
       </>
     ),
