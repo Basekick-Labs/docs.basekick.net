@@ -6,8 +6,8 @@ sidebar_position: 2
 
 Arc supports deleting data using a rewrite-based approach that provides precise deletion with zero overhead on write and query operations.
 
-:::caution Feature Branch
-This feature is available in the `feature/rewrite-based-delete` branch and must be explicitly enabled in configuration.
+:::caution Configuration Required
+Delete operations must be explicitly enabled in configuration for safety.
 :::
 
 ## Overview
