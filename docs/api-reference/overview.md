@@ -17,7 +17,7 @@ http://localhost:8000
 All endpoints (except public ones) require Bearer token authentication:
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/query
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -59,10 +59,10 @@ response = requests.post(
 ### Query Data (JSON)
 
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM cpu LIMIT 10"}'
+  -d '{"sql": "SELECT * FROM cpu LIMIT 10", "format": "json"}'
 ```
 
 ### Query Data (Apache Arrow)
@@ -74,7 +74,7 @@ import requests
 import pyarrow as pa
 
 response = requests.post(
-    "http://localhost:8000/query/arrow",
+    "http://localhost:8000/api/v1/query/arrow",
     headers={"Authorization": "Bearer YOUR_TOKEN"},
     json={"sql": "SELECT * FROM cpu LIMIT 100000"}
 )
@@ -280,7 +280,7 @@ class ArcClient:
 
     def query(self, sql):
         response = requests.post(
-            f"{self.base_url}/query",
+            f"{self.base_url}/api/v1/query",
             headers={**self.headers, "Content-Type": "application/json"},
             json={"sql": sql, "format": "json"}
         )
@@ -327,7 +327,7 @@ class ArcClient {
   }
 
   async query(sql) {
-    const response = await this.client.post('/query', {
+    const response = await this.client.post('/api/v1/query', {
       sql: sql,
       format: 'json'
     });
@@ -394,7 +394,7 @@ func (c *ArcClient) Query(sql string) (map[string]interface{}, error) {
     query := map[string]string{"sql": sql, "format": "json"}
     body, _ := json.Marshal(query)
 
-    req, _ := http.NewRequest("POST", c.BaseURL+"/query", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", c.BaseURL+"/api/v1/query", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+c.Token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -497,9 +497,9 @@ session.post(url, data=data, headers=headers)
 ```python
 # For large datasets, use streaming
 response = requests.post(
-    "http://localhost:8000/query/stream",
+    "http://localhost:8000/api/v1/query/stream",
     headers=headers,
-    json={"sql": "SELECT * FROM cpu"},
+    json={"sql": "SELECT * FROM cpu", "format": "csv"},
     stream=True
 )
 

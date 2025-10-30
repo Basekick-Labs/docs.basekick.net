@@ -177,7 +177,7 @@ import os
 token = os.getenv("ARC_TOKEN")
 
 response = requests.post(
-    "http://localhost:8000/query",
+    "http://localhost:8000/api/v1/query",
     headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
@@ -197,7 +197,7 @@ for row in data['data']:
 ### Using curl
 
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -211,7 +211,7 @@ curl -X POST http://localhost:8000/query \
 ```python
 # Time-series aggregation
 response = requests.post(
-    "http://localhost:8000/query",
+    "http://localhost:8000/api/v1/query",
     headers={"Authorization": f"Bearer {token}"},
     json={
         "sql": """
@@ -231,7 +231,7 @@ response = requests.post(
 
 # Join multiple measurements
 response = requests.post(
-    "http://localhost:8000/query",
+    "http://localhost:8000/api/v1/query",
     headers={"Authorization": f"Bearer {token}"},
     json={
         "sql": """
@@ -264,7 +264,7 @@ token = os.getenv("ARC_TOKEN")
 
 # Query with Arrow format
 response = requests.post(
-    "http://localhost:8000/query/arrow",
+    "http://localhost:8000/api/v1/query/arrow",
     headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
@@ -309,7 +309,7 @@ curl http://localhost:8000/health
 ## List Measurements
 
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{"sql": "SHOW TABLES", "format": "json"}'
 ```
