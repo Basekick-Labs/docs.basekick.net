@@ -467,7 +467,7 @@ For real-time monitoring, use smaller intervals (5s). For cost optimization, use
 curl http://localhost:8000/health
 
 # Test with token
-curl -X POST http://localhost:8000/write \
+curl -X POST http://localhost:8000/api/v1/write \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d "test,host=local value=1"
 

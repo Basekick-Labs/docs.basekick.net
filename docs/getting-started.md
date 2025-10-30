@@ -152,13 +152,13 @@ response = requests.post(
 
 ```bash
 # Single measurement
-curl -X POST "http://localhost:8000/write" \
+curl -X POST "http://localhost:8000/api/v1/write" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: text/plain" \
   --data-binary "cpu,host=server01,region=us-east usage_idle=95.0,usage_user=3.2 $(date +%s)000000000"
 
 # Multiple measurements
-curl -X POST "http://localhost:8000/write" \
+curl -X POST "http://localhost:8000/api/v1/write" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: text/plain" \
   --data-binary "cpu,host=server01 usage=64.2
@@ -360,7 +360,7 @@ brew services list | grep minio
 Data might not be flushed yet. Wait 5-10 seconds or manually flush:
 
 ```bash
-curl -X POST http://localhost:8000/write/flush \
+curl -X POST http://localhost:8000/api/v1/write/flush \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
