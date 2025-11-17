@@ -109,11 +109,13 @@ sudo journalctl -u telegraf -f
 # Check measurements
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"sql": "SHOW TABLES", "format": "json"}'
 
 # Query CPU data
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM cpu ORDER BY time DESC LIMIT 10", "format": "json"}'
 ```
 
@@ -487,6 +489,7 @@ telegraf --config /etc/telegraf/telegraf.conf --test
 # Check Arc received data
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"sql": "SELECT COUNT(*) FROM cpu", "format": "json"}'
 ```
 

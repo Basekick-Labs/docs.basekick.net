@@ -22,10 +22,10 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Massive Throughput',
-    icon: '2.42M',
+    icon: '6.57M',
     description: (
       <>
-        Ingest 2.42M records/sec with MessagePack binary protocol.
+        Ingest 6.57M records/sec unified (metrics, logs, traces, events simultaneously).
         Built for IoT sensors, metrics collection, and observability platforms that need extreme write performance.
       </>
     ),

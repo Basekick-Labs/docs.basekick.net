@@ -31,7 +31,7 @@ function HomepageHeader() {
           </Link>
         </div>
         <div style={{marginTop: '2rem', fontSize: '1.2rem', opacity: 0.9}}>
-          <strong>120.25s</strong> ClickBench cold run • <strong>2.42M</strong> records/sec • <strong>302</strong> GitHub stars
+          <strong>6.57M</strong> records/sec unified • <strong>120.25s</strong> ClickBench cold run • <strong>373</strong> GitHub stars
         </div>
       </div>
     </header>
@@ -41,8 +41,8 @@ function HomepageHeader() {
 export default function Home(): ReactNode {
   return (
     <Layout
-      title="Arc - Fastest Time-Series Database"
-      description="Arc is the fastest time-series database. 120.25s cold run on ClickBench, 2.42M records/sec ingestion, powered by DuckDB and Parquet.">
+      title="Arc - Unified Observability Database"
+      description="One database for metrics, logs, traces, and events. Query all your observability data with SQL. 6.57M records/sec unified throughput, powered by DuckDB and Parquet.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

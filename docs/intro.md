@@ -5,12 +5,16 @@ slug: /
 
 # Welcome to Arc
 
-Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, and flexible storage backends. It achieves **2.42M records/sec ingestion** and is the **fastest time-series database**.
+**One database for metrics, logs, traces, and events**
+
+Arc is a unified observability database built on DuckDB, Parquet, and flexible storage backends. Query all your observability data with SQL. No more copying timestamps between dashboards. **6.57M records/sec** unified throughput.
 
 ## Key Features
 
-- **High-Performance Ingestion**: 2.42M records/sec with MessagePack binary protocol
+- **Unified Observability**: One SQL query across metrics, logs, traces, and events
+- **High-Performance Ingestion**: 6.57M records/sec unified (all data types simultaneously)
 - **Fast Analytical Queries**: Powered by DuckDB with full SQL support
+- **No Data Silos**: Join metrics with logs, correlate traces with events
 - **Flexible Storage**: Local filesystem, MinIO, AWS S3, or Google Cloud Storage
 - **Multi-Database Architecture**: Organize data by environment, tenant, or application
 - **Automatic Compaction**: Merges small files for 10-50x faster queries
@@ -19,12 +23,38 @@ Arc is a high-performance time-series data warehouse built on DuckDB, Parquet, a
 
 ## Why Arc?
 
+**The Problem**: You're running Prometheus for metrics. Loki for logs. Tempo for traces. Three systems. Three query languages. When production breaks at 3am, you're copying timestamps between dashboards.
+
+**Arc solves this: one SQL query across all your observability data.**
+
+```sql
+-- What happened after that deployment?
+WITH deploy AS (
+  SELECT time FROM prod.events
+  WHERE event_type = 'deployment_started'
+  LIMIT 1
+)
+SELECT
+  m.timestamp,
+  m.service,
+  m.cpu_usage,
+  l.error_count,
+  t.p99_latency
+FROM prod.metrics m
+JOIN prod.logs l USING (timestamp, service)
+JOIN prod.traces t USING (timestamp, service)
+CROSS JOIN deploy d
+WHERE m.timestamp BETWEEN d.time AND d.time + INTERVAL '30 minutes'
+ORDER BY m.timestamp DESC;
+```
+
 Arc is designed for applications that need:
 
-- **High write throughput**: IoT sensors, metrics collection, observability platforms
+- **Unified observability**: One query language across all telemetry types
+- **High write throughput**: 6.57M records/sec unified (metrics + logs + traces + events)
 - **Cost-effective storage**: Commodity object storage instead of expensive databases
 - **Analytical queries**: Complex aggregations, window functions, joins
-- **Flexible deployment**: Docker, native, or cloud deployments
+- **Flexible deployment**: Docker, Kubernetes, native, or cloud deployments
 
 ## Quick Example
 
@@ -33,7 +63,7 @@ import msgpack
 import requests
 from datetime import datetime
 
-# COLUMNAR FORMAT (RECOMMENDED - 2.66x faster than row format)
+# COLUMNAR FORMAT (RECOMMENDED - 3.2x faster than row format)
 # All data organized as columns (arrays), not rows
 data = {
     "m": "cpu",                    # measurement name
@@ -52,9 +82,9 @@ data = {
     }
 }
 
-# Send columnar data (2.42M RPS throughput)
+# Send columnar data (2.91M RPS metrics throughput)
 response = requests.post(
-    "http://localhost:8000/write/v1/msgpack",
+    "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": "Bearer YOUR_TOKEN",
         "Content-Type": "application/msgpack",
@@ -89,10 +119,31 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 
 ## Performance
 
+### Write Performance
+
+**Unified Ingestion** - All data types simultaneously on a single node:
+- **Total Throughput**: 6.57M records/sec
+- **Metrics**: 1.98M/sec (68% of individual peak)
+- **Logs**: 1.55M/sec (160% of individual peak)
+- **Traces**: 1.50M/sec (191% of individual peak)
+- **Events**: 1.54M/sec (157% of individual peak)
+- **Hardware**: Apple M3 Max (14 cores, 36GB RAM)
+- **Duration**: 61 seconds
+- **Total Records**: 402 million records
+- **Success Rate**: 100% (zero errors)
+
+**Individual Performance** (when tested separately):
+- **Metrics**: 2.91M/sec (p50: 1.76ms, p99: 29ms)
+- **Logs**: 968K/sec (p50: 7.68ms, p99: 58ms)
+- **Traces**: 784K/sec (p50: 2.61ms, p99: 64ms)
+- **Events**: 981K/sec (p50: 3.34ms, p99: 55ms)
+
+### Query Performance
+
 **ClickBench Results** (AWS c6a.4xlarge):
 - **Cold run**: 120.25s across 43 queries (with proper cache flushing)
 - **Warm run**: 35.70s across 43 queries
-- **Dataset**: 99.9M rows, 14.78GB
+- **Dataset**: 100M rows, 14GB Parquet
 - **Method**: HTTP REST API (includes all overhead)
 
 Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in analytical workloads.

@@ -26,7 +26,6 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
 - `GET /health` - Health check
 - `GET /ready` - Readiness probe
 - `GET /docs` - Swagger UI
-- `GET /redoc` - ReDoc
 - `GET /openapi.json` - OpenAPI spec
 
 ## Quick Examples
@@ -47,7 +46,7 @@ data = {
 }
 
 response = requests.post(
-    "http://localhost:8000/write/v1/msgpack",
+    "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": "Bearer YOUR_TOKEN",
         "Content-Type": "application/msgpack"
@@ -96,56 +95,78 @@ curl http://localhost:8000/health
 
 High-performance data writing endpoints.
 
-- **[MessagePack Protocol](/arc/api-reference/ingestion#messagepack)** (Recommended - 8x faster)
-- **[Line Protocol](/arc/api-reference/ingestion#line-protocol)** (InfluxDB compatible)
-- **[JSON API](/arc/api-reference/ingestion#json)** (Simple integration)
-
-[View Ingestion API →](/arc/api-reference/ingestion)
+- **POST /api/v1/write** - InfluxDB 1.x line protocol (text/plain)
+- **POST /api/v1/write/line-protocol** - Standard line protocol endpoint
+- **POST /api/v1/write/influxdb** - InfluxDB 2.x compatible endpoint
+- **POST /api/v1/write/msgpack** - High-performance MessagePack format (recommended)
 
 ### Querying
 
 Execute SQL queries with DuckDB.
 
-- **[Execute Query](/arc/api-reference/queries#execute)** - Run SQL queries (JSON format)
-- **[Execute Query (Arrow)](/arc/api-reference/queries#arrow)** - Run SQL queries (Apache Arrow format)
-- **[Stream Results](/arc/api-reference/queries#stream)** - Stream large datasets
-- **[Query Estimation](/arc/api-reference/queries#estimate)** - Estimate query cost
-- **[List Measurements](/arc/api-reference/queries#list)** - Show available tables
-
-[View Query API →](/arc/api-reference/queries)
+- **POST /api/v1/query** - Run SQL queries (JSON format)
+- **POST /api/v1/query/arrow** - Run SQL queries (Apache Arrow format)
+- **POST /api/v1/query/stream** - Stream large datasets (CSV/JSON)
 
 ### Authentication
 
 Manage API tokens and access control.
 
-- **[Create Token](/arc/api-reference/auth#create)** - Generate new tokens
-- **[List Tokens](/arc/api-reference/auth#list)** - View all tokens
-- **[Rotate Token](/arc/api-reference/auth#rotate)** - Generate new token value
-- **[Delete Token](/arc/api-reference/auth#delete)** - Revoke access
-
-[View Auth API →](/arc/api-reference/auth)
+- **POST /api/v1/auth/verify** - Verify token validity
+- **GET /api/v1/auth/tokens** - List all tokens
+- **POST /api/v1/auth/tokens** - Create new token
+- **DELETE /api/v1/auth/tokens/\{token_id\}** - Revoke token
 
 ### Health & Monitoring
 
 Monitor Arc's health and performance.
 
-- **[Health Check](/arc/api-reference/monitoring#health)** - Service status
-- **[Metrics](/arc/api-reference/monitoring#metrics)** - Prometheus metrics
-- **[Memory Profile](/arc/api-reference/monitoring#memory)** - Memory usage
-- **[Logs](/arc/api-reference/monitoring#logs)** - Application logs
-
-[View Monitoring API →](/arc/api-reference/monitoring)
+- **GET /health** - Service health status
+- **GET /ready** - Readiness probe
+- **GET /** - API information and version
 
 ### Compaction
 
 Manage Parquet file compaction.
 
-- **[Status](/arc/api-reference/compaction#status)** - Current compaction state
-- **[Trigger](/arc/api-reference/compaction#trigger)** - Manual compaction
-- **[History](/arc/api-reference/compaction#history)** - Job history
-- **[Candidates](/arc/api-reference/compaction#candidates)** - Eligible partitions
+- **GET /api/v1/compaction/status** - Current compaction state
+- **POST /api/v1/compaction/trigger** - Trigger manual compaction
+- **GET /api/v1/compaction/history** - View compaction job history
+- **GET /api/v1/compaction/candidates** - List eligible partitions for compaction
 
-[View Compaction API →](/arc/api-reference/compaction)
+### Write-Ahead Log (WAL)
+
+Manage Write-Ahead Log for zero data loss.
+
+- **GET /api/v1/wal/status** - Current WAL state
+- **GET /api/v1/wal/stats** - WAL statistics and metrics
+- **GET /api/v1/wal/files** - List WAL files
+- **POST /api/v1/wal/flush** - Force WAL flush to Parquet
+- **POST /api/v1/wal/compact** - Compact WAL files
+- **POST /api/v1/wal/recover** - Recover data from WAL
+
+### Data Lifecycle
+
+Manage data retention, deletion, and aggregation.
+
+**Retention Policies** - See [Retention Policies Documentation](/arc/data-lifecycle/retention-policies)
+- **GET /api/v1/retention** - List all retention policies
+- **POST /api/v1/retention** - Create new retention policy
+- **GET /api/v1/retention/\{policy_id\}** - Get specific policy
+- **PUT /api/v1/retention/\{policy_id\}** - Update retention policy
+- **DELETE /api/v1/retention/\{policy_id\}** - Delete retention policy
+- **POST /api/v1/retention/\{policy_id\}/execute** - Execute policy manually
+
+**Delete Operations** - See [Delete Operations Documentation](/arc/data-lifecycle/delete-operations)
+- **POST /api/v1/delete** - Delete data matching conditions
+
+**Continuous Queries** - See [Continuous Queries Documentation](/arc/data-lifecycle/continuous-queries)
+- **GET /api/v1/continuous_queries** - List all continuous queries
+- **POST /api/v1/continuous_queries** - Create new continuous query
+- **GET /api/v1/continuous_queries/\{query_id\}** - Get specific query
+- **PUT /api/v1/continuous_queries/\{query_id\}** - Update continuous query
+- **DELETE /api/v1/continuous_queries/\{query_id\}** - Delete continuous query
+- **POST /api/v1/continuous_queries/\{query_id\}/execute** - Execute query manually
 
 ## Interactive Documentation
 
@@ -239,12 +260,15 @@ cors_origins = ["http://localhost:3000", "https://your-app.com"]
 
 ## Versioning
 
-Arc API uses URL versioning:
+Arc API uses URL versioning with the `/api/v1/` prefix:
 
-- `/write` - Current version (InfluxDB compatibility)
-- `/write/v1/msgpack` - Versioned MessagePack endpoint
-- `/api/v1/write` - InfluxDB 1.x compatible
-- `/api/v1/write/influxdb` - InfluxDB 2.x compatible
+- `/api/v1/write` - InfluxDB 1.x line protocol (text/plain)
+- `/api/v1/write/line-protocol` - Standard line protocol endpoint
+- `/api/v1/write/influxdb` - InfluxDB 2.x compatible endpoint
+- `/api/v1/write/msgpack` - High-performance MessagePack format (recommended)
+- `/api/v1/query` - SQL query endpoint (JSON format)
+- `/api/v1/query/arrow` - Apache Arrow format queries
+- `/api/v1/query/stream` - Streaming query results
 
 ## Client Libraries
 
@@ -272,7 +296,7 @@ class ArcClient:
         }
 
         response = requests.post(
-            f"{self.base_url}/write/v1/msgpack",
+            f"{self.base_url}/api/v1/write/msgpack",
             headers={**self.headers, "Content-Type": "application/msgpack"},
             data=msgpack.packb(data)
         )
@@ -320,7 +344,7 @@ class ArcClient {
       }]
     };
 
-    await this.client.post('/write/v1/msgpack',
+    await this.client.post('/api/v1/write/msgpack',
       msgpack.encode(data),
       { headers: { 'Content-Type': 'application/msgpack' } }
     );
@@ -382,7 +406,7 @@ func (c *ArcClient) Write(m string, fields map[string]interface{}, tags map[stri
     }
 
     body, _ := msgpack.Marshal(data)
-    req, _ := http.NewRequest("POST", c.BaseURL+"/write/v1/msgpack", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", c.BaseURL+"/api/v1/write/msgpack", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+c.Token)
     req.Header.Set("Content-Type", "application/msgpack")
 
@@ -509,7 +533,7 @@ for chunk in response.iter_content(chunk_size=8192):
 
 ## Next Steps
 
-- **[Ingestion API →](/arc/api-reference/ingestion)** - Write data to Arc
-- **[Query API →](/arc/api-reference/queries)** - Execute SQL queries
-- **[Authentication →](/arc/api-reference/auth)** - Manage tokens
-- **[Interactive Docs →](http://localhost:8000/docs)** - Try the API
+- **[Getting Started →](/arc/getting-started)** - Learn how to use Arc
+- **[Data Lifecycle →](/arc/data-lifecycle/retention-policies)** - Manage data retention and deletion
+- **[Interactive Docs →](http://localhost:8000/docs)** - Try the API with Swagger UI
+- **[OpenAPI Spec →](http://localhost:8000/openapi.json)** - Download OpenAPI specification

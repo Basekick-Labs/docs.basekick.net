@@ -8,64 +8,77 @@ This guide will get you up and running with Arc in 5 minutes.
 
 ## Prerequisites
 
-- Python 3.11 or higher
-- Docker (for MinIO storage) or local filesystem
+- Docker or Kubernetes cluster
 - 4GB RAM minimum, 8GB+ recommended
 
 ## Quick Start
 
-### Option 1: Native Deployment (Recommended)
+### Docker Deployment (Recommended)
 
-Native deployment provides **4x faster performance** than Docker (2.32M RPS vs 570K RPS).
+The simplest way to get started with Arc is using Docker:
 
 ```bash
-# Clone the repository
-git clone https://github.com/basekick-labs/arc.git
-cd arc
-
-# One-command start (auto-installs MinIO, auto-detects optimal workers)
-./start.sh native
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
 Arc API will be available at `http://localhost:8000`
-MinIO Console at `http://localhost:9001` (minioadmin/minioadmin)
 
-### Option 2: Docker Deployment
+**Verify it's running:**
 
 ```bash
-# Start Arc with MinIO
-docker-compose up -d
-
-# Check status
-docker-compose ps
-
-# View logs
-docker-compose logs -f arc-api
+curl http://localhost:8000/health
 ```
 
-**Note:** Docker mode achieves ~570K RPS. For maximum performance, use native deployment.
+**Data persistence:**
+- `/app/data/arc/` - Parquet files containing your data
+- `/app/data/arc.db` - SQLite metadata and authentication tokens
 
-## Create Your First API Token
+### Kubernetes Deployment (Helm)
 
-After Arc starts, create an admin token:
+For production deployments on Kubernetes:
 
 ```bash
-# Docker deployment
-docker exec -it arc-api python3 -c "
-from api.auth import AuthManager
-auth = AuthManager(db_path='/data/arc.db')
-token = auth.create_token('my-admin', description='Admin token')
-print(f'Admin Token: {token}')
-"
+helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.1/arc-25.11.1.tgz
+kubectl port-forward svc/arc 8000:8000
+```
 
-# Native deployment
-source venv/bin/activate
-python3 -c "
-from api.auth import AuthManager
-auth = AuthManager(db_path='./data/arc.db')
-token = auth.create_token('my-admin', description='Admin token')
-print(f'Admin Token: {token}')
-"
+**Customize your deployment:**
+
+```bash
+helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.1/arc-25.11.1.tgz \
+  --set persistence.size=20Gi \
+  --set resources.limits.memory=4Gi
+```
+
+**Key configuration options:**
+- `persistence.enabled` - Enable persistent storage (default: true)
+- `persistence.size` - Storage volume size (default: 10Gi)
+- `arc.storageBackend` - Backend: local, s3, minio (default: local)
+- `resources.limits.memory` - Memory limit (default: unrestricted)
+
+See `helm/arc/values.yaml` in the [Arc repository](https://github.com/basekick-labs/arc) for all options.
+
+## Get Your Admin Token
+
+When Arc starts for the first time, it automatically creates an admin token and displays it in the logs.
+
+**IMPORTANT: Copy this token immediately - you won't see it again!**
+
+```bash
+# Docker - check the logs for your admin token
+docker logs arc-api 2>&1 | grep "Admin token"
+
+# Kubernetes - check pod logs
+kubectl logs -l app=arc | grep "Admin token"
+```
+
+You should see output like:
+```
+Admin token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Save this token! You'll need it for all API requests.
@@ -77,9 +90,9 @@ export ARC_TOKEN="your-token-here"
 
 ## Write Your First Data
 
-### Using MessagePack Columnar (Recommended - 9.7x Faster)
+### Using MessagePack Columnar (Recommended)
 
-MessagePack columnar format provides the best performance (2.32M RPS vs 240K Line Protocol).
+MessagePack columnar format provides the best performance for high-throughput ingestion.
 
 ```python
 import msgpack
@@ -105,7 +118,7 @@ data = {
 
 # Send data
 response = requests.post(
-    "http://localhost:8000/write/v1/msgpack",
+    "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/msgpack"
@@ -139,7 +152,7 @@ data = {
 }
 
 response = requests.post(
-    "http://localhost:8000/write/v1/msgpack",
+    "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/msgpack"
@@ -183,7 +196,7 @@ response = requests.post(
         "Content-Type": "application/json"
     },
     json={
-        "sql": "SELECT * FROM cpu ORDER BY time DESC LIMIT 10",
+        "sql": "SELECT * FROM prod.cpu ORDER BY time DESC LIMIT 10",
         "format": "json"
     }
 )
@@ -201,7 +214,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "sql": "SELECT * FROM cpu LIMIT 10",
+    "sql": "SELECT * FROM prod.cpu LIMIT 10",
     "format": "json"
   }'
 ```
@@ -220,7 +233,7 @@ response = requests.post(
                 host,
                 AVG(usage_idle) as avg_idle,
                 MAX(usage_user) as max_user
-            FROM cpu
+            FROM prod.cpu
             WHERE time > now() - INTERVAL '1 hour'
             GROUP BY bucket, host
             ORDER BY bucket DESC
@@ -240,8 +253,8 @@ response = requests.post(
                 c.host,
                 c.usage_idle as cpu_idle,
                 m.used_percent as mem_used
-            FROM cpu c
-            JOIN mem m ON c.timestamp = m.timestamp AND c.host = m.host
+            FROM prod.cpu c
+            JOIN prod.mem m ON c.timestamp = m.timestamp AND c.host = m.host
             WHERE c.timestamp > now() - INTERVAL '10 minutes'
             ORDER BY c.timestamp DESC
         """,
@@ -270,7 +283,7 @@ response = requests.post(
         "Content-Type": "application/json"
     },
     json={
-        "sql": "SELECT * FROM cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 10000"
+        "sql": "SELECT * FROM prod.cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 10000"
     }
 )
 
@@ -309,9 +322,17 @@ curl http://localhost:8000/health
 ## List Measurements
 
 ```bash
+# List all tables in the default database
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"sql": "SHOW TABLES", "format": "json"}'
+
+# List tables in the prod database
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SHOW TABLES FROM prod", "format": "json"}'
 ```
 
 ## Next Steps
@@ -330,29 +351,32 @@ Now that you have Arc running, you can:
 ### Arc Won't Start
 
 ```bash
-# Check logs
-docker-compose logs arc-api
+# Docker - check logs
+docker logs arc-api
 
-# Or for native
-tail -f logs/arc-api.log
+# Kubernetes - check pod logs
+kubectl logs -l app=arc
 ```
 
 ### Authentication Errors
 
 Make sure you:
-1. Created a token using the command above
+1. Retrieved your admin token from the logs on first startup
 2. Exported it: `export ARC_TOKEN="your-token"`
 3. Include it in headers: `Authorization: Bearer $ARC_TOKEN`
 
-### Storage Connection Issues
+### Can't Find Admin Token
 
-Check MinIO is running:
+If you missed copying the admin token from the logs, you'll need to create a new one:
+
 ```bash
 # Docker
-docker-compose ps minio
-
-# Native
-brew services list | grep minio
+docker exec -it arc-api python3 -c "
+from api.auth import AuthManager
+auth = AuthManager(db_path='/data/arc.db')
+token = auth.create_token('my-admin', description='Admin token')
+print(f'Admin Token: {token}')
+"
 ```
 
 ### No Data Returned

@@ -9,337 +9,268 @@ Install and run Arc using Docker for quick setup and isolated environments.
 ## Prerequisites
 
 - Docker 20.10 or higher
-- Docker Compose 2.0 or higher
 - 4GB RAM minimum, 8GB+ recommended
-- 10GB disk space for storage
 
 ## Quick Start
 
-### 1. Clone the Repository
+### Single Command Installation (Recommended)
+
+The simplest way to get started with Arc is using Docker:
 
 ```bash
-git clone https://github.com/basekick-labs/arc.git
-cd arc
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
-### 2. Start Arc with Docker Compose
+Arc API will be available at `http://localhost:8000`
+
+**Verify it's running:**
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# Check status
-docker-compose ps
-
-# Expected output:
-# NAME                COMMAND                  SERVICE             STATUS              PORTS
-# arc-api            "uvicorn api.main:ap…"   arc-api             running             0.0.0.0:8000->8000/tcp
-# minio              "/usr/bin/docker-ent…"   minio               running             0.0.0.0:9000-9001->9000-9001/tcp
-```
-
-### 3. Verify Installation
-
-```bash
-# Check Arc health
 curl http://localhost:8000/health
-
-# Expected response:
-# {"status":"healthy","version":"0.1.0","storage":"minio"}
 ```
 
-### 4. Access Services
+**Data persistence:**
+- `/app/data/arc/` - Parquet files containing your data
+- `/app/data/arc.db` - SQLite metadata and authentication tokens
 
-- **Arc API**: http://localhost:8000
-- **Arc API Docs**: http://localhost:8000/docs
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
+### Get Your Admin Token
 
-## Services Overview
+When Arc starts for the first time, it automatically creates an admin token and displays it in the logs.
 
-The `docker-compose.yml` includes:
+**IMPORTANT: Copy this token immediately - you won't see it again!**
 
-### Arc API (arc-api)
-- Port: 8000
-- Main API server with FastAPI
-- Auto-configures storage backend
-- Includes health checks
+```bash
+# Docker - check the logs for your admin token
+docker logs <container-id> 2>&1 | grep "Admin token"
+```
 
-### MinIO (minio)
-- Port: 9000 (API), 9001 (Console)
-- S3-compatible object storage
-- Default credentials: minioadmin/minioadmin
-- Persistent volume: `./minio_data`
+You should see output like:
+```
+Admin token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
 
-### MinIO Init (minio-init)
-- One-time container
-- Creates Arc bucket automatically
-- Exits after initialization
+Save this token! You'll need it for all API requests.
 
-## Configuration
+```bash
+# Export for convenience
+export ARC_TOKEN="your-token-here"
+```
+
+## Advanced Configuration
 
 ### Environment Variables
 
-Create a `.env` file to customize settings:
+You can customize Arc behavior with environment variables:
 
 ```bash
-# Server Configuration
-ARC_HOST=0.0.0.0
-ARC_PORT=8000
-ARC_WORKERS=8
-
-# Storage Configuration
-STORAGE_BACKEND=minio
-MINIO_ENDPOINT=minio:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin123
-MINIO_BUCKET=arc
-MINIO_DATABASE=default
-
-# Authentication
-AUTH_ENABLED=true
-
-# Query Cache
-QUERY_CACHE_ENABLED=true
-QUERY_CACHE_TTL=60
-
-# Logging
-LOG_LEVEL=INFO
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -e LOG_LEVEL=INFO \
+  -e ARC_WORKERS=8 \
+  -v arc-data:/app/data \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
-### Custom Docker Compose
+**Common environment variables:**
+- `STORAGE_BACKEND` - Storage type: `local`, `s3`, `minio` (default: `local`)
+- `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
+- `ARC_WORKERS` - Number of worker processes (default: auto-detected)
+- `AUTH_ENABLED` - Enable authentication (default: `true`)
 
-You can override settings in `docker-compose.override.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  arc-api:
-    environment:
-      - ARC_WORKERS=16
-      - LOG_LEVEL=DEBUG
-    ports:
-      - "8080:8000"  # Custom port mapping
-```
-
-## Managing Services
+## Managing Your Container
 
 ### View Logs
 
 ```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f arc-api
+# Follow logs in real-time
+docker logs -f <container-id>
 
 # Last 100 lines
-docker-compose logs --tail=100 arc-api
+docker logs --tail=100 <container-id>
+
+# Find your container ID
+docker ps
 ```
 
-### Restart Services
+### Restart Container
 
 ```bash
-# Restart all
-docker-compose restart
-
-# Restart specific service
-docker-compose restart arc-api
+docker restart <container-id>
 ```
 
-### Stop Services
+### Stop Container
 
 ```bash
-# Stop (keeps containers)
-docker-compose stop
+# Stop the container
+docker stop <container-id>
 
-# Stop and remove containers
-docker-compose down
-
-# Remove everything including volumes
-docker-compose down -v
+# Remove the container (data is preserved in the volume)
+docker rm <container-id>
 ```
 
 ### Update Arc
 
 ```bash
-# Pull latest changes
-git pull origin main
+# Stop and remove old container
+docker stop <container-id>
+docker rm <container-id>
 
-# Rebuild and restart
-docker-compose up -d --build
+# Pull latest version
+docker pull ghcr.io/basekick-labs/arc:25.11.1
+
+# Start new container with same volume
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
-
-## Performance Considerations
-
-Docker deployment achieves **~570K records/sec** write throughput. For maximum performance (2.42M RPS), use [native deployment](/arc/installation/native).
-
-### Optimize Docker Performance
-
-1. **Increase Worker Count**:
-   ```bash
-   ARC_WORKERS=16  # Set to 2-3x your CPU cores
-   ```
-
-2. **Allocate More Resources** (Docker Desktop):
-   - Settings → Resources
-   - CPUs: 4+
-   - Memory: 8GB+
-
-3. **Use Volume Mounts for Data**:
-   ```yaml
-   services:
-     arc-api:
-       volumes:
-         - ./data:/data  # Faster than named volumes
-   ```
-
-4. **Disable Unnecessary Services**:
-   ```bash
-   # If using AWS S3 instead of MinIO
-   docker-compose up -d arc-api
-   ```
 
 ## Storage Backend Options
 
-### Local Filesystem (Fastest in Docker)
+### Local Filesystem (Default)
 
-```yaml
-services:
-  arc-api:
-    environment:
-      - STORAGE_BACKEND=local
-      - STORAGE_LOCAL_BASE_PATH=/data/arc
-    volumes:
-      - ./arc_data:/data/arc
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
 ### AWS S3
 
-```yaml
-services:
-  arc-api:
-    environment:
-      - STORAGE_BACKEND=s3
-      - STORAGE_S3_BUCKET=arc-data
-      - STORAGE_S3_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=your_key
-      - AWS_SECRET_ACCESS_KEY=your_secret
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=s3 \
+  -e STORAGE_S3_BUCKET=arc-data \
+  -e STORAGE_S3_REGION=us-east-1 \
+  -e AWS_ACCESS_KEY_ID=your_key \
+  -e AWS_SECRET_ACCESS_KEY=your_secret \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
-### Google Cloud Storage
+### MinIO (Self-Hosted S3)
 
-```yaml
-services:
-  arc-api:
-    environment:
-      - STORAGE_BACKEND=gcs
-      - STORAGE_GCS_BUCKET=arc-data
-      - STORAGE_GCS_PROJECT_ID=my-project
-      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
-    volumes:
-      - ./gcp-key.json:/secrets/gcp-key.json:ro
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=minio \
+  -e MINIO_ENDPOINT=minio:9000 \
+  -e MINIO_ACCESS_KEY=minioadmin \
+  -e MINIO_SECRET_KEY=minioadmin123 \
+  -e MINIO_BUCKET=arc \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
 ## Production Deployment
 
-### Use Specific Versions
+### Always Use Specific Versions
 
-```yaml
-services:
-  arc-api:
-    image: ghcr.io/basekick-labs/arc:v0.1.0  # Pin version
-```
-
-### Health Checks
-
-Health checks are included by default:
-
-```yaml
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 40s
+```bash
+# Pin to specific version for production
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  --restart unless-stopped \
+  ghcr.io/basekick-labs/arc:25.11.1  # ← Pin version
 ```
 
 ### Resource Limits
 
-```yaml
-services:
-  arc-api:
-    deploy:
-      resources:
-        limits:
-          cpus: '8'
-          memory: 16G
-        reservations:
-          cpus: '4'
-          memory: 8G
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -v arc-data:/app/data \
+  --memory="8g" \
+  --cpus="4" \
+  --restart unless-stopped \
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
-### Restart Policy
+### Health Check Example
 
-```yaml
-services:
-  arc-api:
-    restart: unless-stopped
+```bash
+# Check if Arc is healthy
+docker ps --filter "name=arc" --filter "health=healthy"
 ```
 
 ## Troubleshooting
 
-### Arc API Won't Start
+### Arc Container Won't Start
 
 ```bash
 # Check logs
-docker-compose logs arc-api
+docker logs <container-id>
 
 # Common issues:
 # 1. Port 8000 already in use
-docker-compose down
 sudo lsof -i :8000  # Find process using port
+docker stop <container-id>
 
-# 2. MinIO not ready
-docker-compose ps minio
-docker-compose restart arc-api  # Restart after MinIO is ready
-```
-
-### MinIO Connection Issues
-
-```bash
-# Verify MinIO is running
-docker-compose ps minio
-
-# Check MinIO logs
-docker-compose logs minio
-
-# Test MinIO connection
-docker exec arc-api curl -f http://minio:9000/minio/health/live
+# 2. Check container status
+docker ps -a
 ```
 
 ### Permission Errors
 
 ```bash
-# Fix volume permissions
-sudo chown -R $USER:$USER minio_data/
-chmod -R 755 minio_data/
+# If you see permission errors with volumes
+docker volume ls
+docker volume inspect arc-data
+
+# Remove and recreate volume if needed
+docker stop <container-id>
+docker rm <container-id>
+docker volume rm arc-data
+# Then restart with docker run command
 ```
 
 ### Out of Memory
 
 ```bash
 # Check memory usage
-docker stats
+docker stats <container-id>
 
-# Reduce workers
-docker-compose down
-# Edit docker-compose.yml: ARC_WORKERS=4
-docker-compose up -d
+# Restart with memory limit
+docker stop <container-id>
+docker rm <container-id>
+
+docker run -d \
+  -p 8000:8000 \
+  -e STORAGE_BACKEND=local \
+  -e ARC_WORKERS=4 \
+  -v arc-data:/app/data \
+  --memory="4g" \
+  ghcr.io/basekick-labs/arc:25.11.1
+```
+
+### Can't Find Admin Token
+
+```bash
+# View all logs to find the admin token
+docker logs <container-id> 2>&1 | grep -i "admin"
+
+# Or create a new token manually
+docker exec -it <container-id> python3 -c "
+from api.auth import AuthManager
+auth = AuthManager(db_path='/app/data/arc.db')
+token = auth.create_token('my-admin', description='Admin token')
+print(f'Admin Token: {token}')
+"
 ```
 
 ## Next Steps
 
-- **[Create your first API token](/arc/configuration/authentication)**
-- **[Configure storage backends](/arc/configuration/storage)**
-- **[Start writing data](/arc/getting-started#write-your-first-data)**
-- **[Set up monitoring](/arc/operations/monitoring)**
+- **[Write your first data](/arc/getting-started#write-your-first-data)** - Start sending metrics to Arc
+- **[Query your data](/arc/getting-started#query-your-data)** - Learn DuckDB SQL queries
+- **[Configure storage backends](/arc/configuration/storage)** - Switch to S3 or MinIO
+- **[Integrate with Telegraf](/arc/integrations/telegraf)** - Collect system metrics automatically
