@@ -154,12 +154,6 @@ Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in an
 - [Installation Guide](/arc/installation/docker) - Docker and native installation
 - [GitHub Repository](https://github.com/basekick-labs/arc) - Star us on GitHub
 
-## Alpha Release Notice
-
-:::caution
-Arc is currently in **alpha** and evolving rapidly. It is **not recommended for production workloads** at this time. Use in development and testing environments only.
-:::
-
 ## Support
 
 - [Discord Community](https://discord.gg/nxnWfUxsdm)
