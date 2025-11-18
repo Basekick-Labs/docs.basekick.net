@@ -99,12 +99,12 @@ jobs:
           if [ $? -ne 0 ]; then echo "File sync failed"; exit 1; fi
         shell: bash
 
-      - name: Copy docker-compose.yml and nginx.conf to server
+      - name: Copy docker-compose.yml to server
         run: |
           set -x
-          echo "Copying docker-compose.yml and nginx.conf to server..."
-          scp docker-compose.yml nginx.conf ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          if [ $? -ne 0 ]; then echo "Failed to copy files"; exit 1; fi
+          echo "Copying docker-compose.yml to server..."
+          scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+          if [ $? -ne 0 ]; then echo "Failed to copy docker-compose.yml"; exit 1; fi
         shell: bash
 
       - name: Deploy docs with Docker Compose
