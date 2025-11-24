@@ -80,7 +80,7 @@ chmod +x otelcol-arc-linux-amd64
 docker run -d -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.2
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
 ### 2. Get Your API Token

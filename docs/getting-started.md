@@ -22,7 +22,7 @@ docker run -d \
   -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.2
+  ghcr.io/basekick-labs/arc:25.11.1
 ```
 
 Arc API will be available at `http://localhost:8000`
@@ -42,14 +42,14 @@ curl http://localhost:8000/health
 For production deployments on Kubernetes:
 
 ```bash
-helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.2/arc-25.11.2.tgz
+helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.1/arc-25.11.1.tgz
 kubectl port-forward svc/arc 8000:8000
 ```
 
 **Customize your deployment:**
 
 ```bash
-helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.2/arc-25.11.2.tgz \
+helm install arc https://github.com/Basekick-Labs/arc/releases/download/v25.11.1/arc-25.11.1.tgz \
   --set persistence.size=20Gi \
   --set resources.limits.memory=4Gi
 ```
