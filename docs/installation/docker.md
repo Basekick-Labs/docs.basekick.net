@@ -22,7 +22,7 @@ docker run -d \
   -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 Arc API will be available at `http://localhost:8000`
@@ -73,7 +73,7 @@ docker run -d \
   -e LOG_LEVEL=INFO \
   -e ARC_WORKERS=8 \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 **Common environment variables:**
@@ -121,14 +121,14 @@ docker stop <container-id>
 docker rm <container-id>
 
 # Pull latest version
-docker pull ghcr.io/basekick-labs/arc:25.11.1
+docker pull ghcr.io/basekick-labs/arc:25.11.2
 
 # Start new container with same volume
 docker run -d \
   -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ## Storage Backend Options
@@ -140,7 +140,7 @@ docker run -d \
   -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ### AWS S3
@@ -153,7 +153,7 @@ docker run -d \
   -e STORAGE_S3_REGION=us-east-1 \
   -e AWS_ACCESS_KEY_ID=your_key \
   -e AWS_SECRET_ACCESS_KEY=your_secret \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ### MinIO (Self-Hosted S3)
@@ -166,7 +166,7 @@ docker run -d \
   -e MINIO_ACCESS_KEY=minioadmin \
   -e MINIO_SECRET_KEY=minioadmin123 \
   -e MINIO_BUCKET=arc \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ## Production Deployment
@@ -180,7 +180,7 @@ docker run -d \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
   --restart unless-stopped \
-  ghcr.io/basekick-labs/arc:25.11.1  # ← Pin version
+  ghcr.io/basekick-labs/arc:25.11.2  # ← Pin version
 ```
 
 ### Resource Limits
@@ -193,7 +193,7 @@ docker run -d \
   --memory="8g" \
   --cpus="4" \
   --restart unless-stopped \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ### Health Check Example
@@ -250,7 +250,7 @@ docker run -d \
   -e ARC_WORKERS=4 \
   -v arc-data:/app/data \
   --memory="4g" \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.11.2
 ```
 
 ### Can't Find Admin Token
