@@ -421,6 +421,6 @@ df = table.to_pandas()  # Zero-copy conversion
 
 ## Next Steps
 
-- **[Data Management](/docs/sdks/python/data-management)** - Retention, CQs, and deletion
-- **[Data Ingestion](/docs/sdks/python/ingestion)** - Write data to Arc
-- **[API Reference](/docs/api-reference/overview)** - Raw REST API documentation
+- **[Data Management](/arc/sdks/python/data-management)** - Retention, CQs, and deletion
+- **[Data Ingestion](/arc/sdks/python/ingestion)** - Write data to Arc
+- **[API Reference](/arc/api-reference/overview)** - Raw REST API documentation

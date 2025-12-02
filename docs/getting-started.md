@@ -339,11 +339,11 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 Now that you have Arc running, you can:
 
-- **[Use the Python SDK](/docs/sdks/python/)** - Official client with DataFrame support and buffered writes
-- **[Integrate with Telegraf](/docs/integrations/telegraf)** - Collect system metrics automatically
-- **[Connect Apache Superset](/docs/integrations/superset)** - Build interactive dashboards
-- **[Enable WAL](/docs/advanced/wal)** - Guarantee zero data loss
-- **[Optimize compaction](/docs/advanced/compaction)** - Fine-tune query performance
+- **[Use the Python SDK](/arc/sdks/python/)** - Official client with DataFrame support and buffered writes
+- **[Integrate with Telegraf](/arc/integrations/telegraf)** - Collect system metrics automatically
+- **[Connect Apache Superset](/arc/integrations/superset)** - Build interactive dashboards
+- **[Enable WAL](/arc/advanced/wal)** - Guarantee zero data loss
+- **[Optimize compaction](/arc/advanced/compaction)** - Fine-tune query performance
 
 ## Troubleshooting
 

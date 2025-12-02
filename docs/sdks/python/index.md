@@ -93,7 +93,7 @@ ArcClient
         <p>Install the SDK and optional dependencies for pandas, polars, or all features.</p>
       </div>
       <div className="card__footer">
-        <a className="button button--primary button--block" href="/docs/sdks/python/installation">Get Started</a>
+        <a className="button button--primary button--block" href="/arc/sdks/python/installation">Get Started</a>
       </div>
     </div>
   </div>
@@ -106,7 +106,7 @@ ArcClient
         <p>Write data using columnar format, DataFrames, buffered writes, or line protocol.</p>
       </div>
       <div className="card__footer">
-        <a className="button button--primary button--block" href="/docs/sdks/python/ingestion">Learn More</a>
+        <a className="button button--primary button--block" href="/arc/sdks/python/ingestion">Learn More</a>
       </div>
     </div>
   </div>
@@ -119,7 +119,7 @@ ArcClient
         <p>Run SQL queries and get results as JSON, pandas, polars, or PyArrow tables.</p>
       </div>
       <div className="card__footer">
-        <a className="button button--primary button--block" href="/docs/sdks/python/querying">Learn More</a>
+        <a className="button button--primary button--block" href="/arc/sdks/python/querying">Learn More</a>
       </div>
     </div>
   </div>
@@ -132,7 +132,7 @@ ArcClient
         <p>Manage retention policies, continuous queries, delete operations, and authentication.</p>
       </div>
       <div className="card__footer">
-        <a className="button button--primary button--block" href="/docs/sdks/python/data-management">Learn More</a>
+        <a className="button button--primary button--block" href="/arc/sdks/python/data-management">Learn More</a>
       </div>
     </div>
   </div>

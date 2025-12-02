@@ -307,7 +307,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 - Retention policies, continuous queries, delete operations
 - Token management
 
-📖 **[Full Python SDK Documentation →](/docs/sdks/python/)**
+📖 **[Full Python SDK Documentation →](/arc/sdks/python/)**
 
 ### JavaScript (Example Implementation)
 
@@ -529,8 +529,8 @@ for chunk in response.iter_content(chunk_size=8192):
 
 ## Next Steps
 
-- **[Python SDK →](/docs/sdks/python/)** - Official Python client with DataFrame support
-- **[Getting Started →](/docs/getting-started)** - Learn how to use Arc
-- **[Data Lifecycle →](/docs/data-lifecycle/retention-policies)** - Manage data retention and deletion
+- **[Python SDK →](/arc/sdks/python/)** - Official Python client with DataFrame support
+- **[Getting Started →](/arc/getting-started)** - Learn how to use Arc
+- **[Data Lifecycle →](/arc/data-lifecycle/retention-policies)** - Manage data retention and deletion
 - **[Interactive Docs →](http://localhost:8000/docs)** - Try the API with Swagger UI
 - **[OpenAPI Spec →](http://localhost:8000/openapi.json)** - Download OpenAPI specification

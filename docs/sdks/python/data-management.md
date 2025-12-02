@@ -133,7 +133,7 @@ with ArcClient(host="localhost", token="your-token") as client:
     print(f"\nDry run: would delete {result.deleted_count} rows")
 ```
 
-See [Retention Policies](/docs/data-lifecycle/retention-policies) for more details on how retention works in Arc.
+See [Retention Policies](/arc/data-lifecycle/retention-policies) for more details on how retention works in Arc.
 
 ## Continuous Queries
 
@@ -292,7 +292,7 @@ with ArcClient(host="localhost", token="your-token") as client:
     print("Created CQ hierarchy: cpu → cpu_1h → cpu_1d")
 ```
 
-See [Continuous Queries](/docs/data-lifecycle/continuous-queries) for more details.
+See [Continuous Queries](/arc/data-lifecycle/continuous-queries) for more details.
 
 ## Delete Operations
 
@@ -369,7 +369,7 @@ client.delete.delete(
 )
 ```
 
-See [Delete Operations](/docs/data-lifecycle/delete-operations) for more details.
+See [Delete Operations](/arc/data-lifecycle/delete-operations) for more details.
 
 ## Authentication
 
@@ -879,7 +879,7 @@ with DAG(
 
 ## Next Steps
 
-- **[Data Ingestion](/docs/sdks/python/ingestion)** - Write data to Arc
-- **[Querying](/docs/sdks/python/querying)** - Query data with DataFrames
-- **[Retention Policies](/docs/data-lifecycle/retention-policies)** - Deep dive on retention
-- **[Continuous Queries](/docs/data-lifecycle/continuous-queries)** - Deep dive on CQs
+- **[Data Ingestion](/arc/sdks/python/ingestion)** - Write data to Arc
+- **[Querying](/arc/sdks/python/querying)** - Query data with DataFrames
+- **[Retention Policies](/arc/data-lifecycle/retention-policies)** - Deep dive on retention
+- **[Continuous Queries](/arc/data-lifecycle/continuous-queries)** - Deep dive on CQs

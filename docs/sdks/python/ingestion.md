@@ -386,6 +386,6 @@ def write_with_backoff(client, data, max_retries=3):
 
 ## Next Steps
 
-- **[Querying](/docs/sdks/python/querying)** - Query data and work with DataFrames
-- **[Data Management](/docs/sdks/python/data-management)** - Retention, CQs, and deletion
-- **[API Reference](/docs/api-reference/overview)** - Raw REST API documentation
+- **[Querying](/arc/sdks/python/querying)** - Query data and work with DataFrames
+- **[Data Management](/arc/sdks/python/data-management)** - Retention, CQs, and deletion
+- **[API Reference](/arc/api-reference/overview)** - Raw REST API documentation

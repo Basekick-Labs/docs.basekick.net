@@ -218,6 +218,6 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 ## Next Steps
 
-- **[Data Ingestion](/docs/sdks/python/ingestion)** - Learn how to write data to Arc
-- **[Querying](/docs/sdks/python/querying)** - Query data and work with DataFrames
-- **[Data Management](/docs/sdks/python/data-management)** - Manage retention, CQs, and more
+- **[Data Ingestion](/arc/sdks/python/ingestion)** - Learn how to write data to Arc
+- **[Querying](/arc/sdks/python/querying)** - Query data and work with DataFrames
+- **[Data Management](/arc/sdks/python/data-management)** - Manage retention, CQs, and more
