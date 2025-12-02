@@ -4,6 +4,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import GitHubStars from '@site/src/components/GitHubStars';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -31,7 +32,7 @@ function HomepageHeader() {
           </Link>
         </div>
         <div style={{marginTop: '2rem', fontSize: '1.2rem', opacity: 0.9}}>
-          <strong>6.57M</strong> records/sec unified • <strong>120.25s</strong> ClickBench cold run • <strong>373</strong> GitHub stars
+          <strong>9.47M</strong> records/sec • <strong>p50: 2.79ms</strong> latency • <GitHubStars repo="basekick-labs/arc" />
         </div>
       </div>
     </header>
@@ -41,8 +42,8 @@ function HomepageHeader() {
 export default function Home(): ReactNode {
   return (
     <Layout
-      title="Arc - Unified Observability Database"
-      description="One database for metrics, logs, traces, and events. Query all your observability data with SQL. 6.57M records/sec unified throughput, powered by DuckDB and Parquet.">
+      title="Arc - High-Performance Time-Series Database"
+      description="High-performance time-series database built on DuckDB and Parquet. 9.47M records/sec ingestion with sub-3ms latency. SQL queries, S3/MinIO storage, zero dependencies.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

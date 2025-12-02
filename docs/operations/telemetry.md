@@ -236,7 +236,7 @@ However, we respect your choice and make opting out straightforward.
 
 ### Does Arc Enterprise have different telemetry?
 
-No. Both Arc Core and Arc Enterprise use identical telemetry collection. Arc Enterprise customers can request custom telemetry configurations for their deployments.
+No. Both Arc OSS and Arc Enterprise use identical telemetry collection. Arc Enterprise customers can request custom telemetry configurations for their deployments.
 
 ## Privacy Policy
 

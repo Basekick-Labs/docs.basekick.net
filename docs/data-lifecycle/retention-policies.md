@@ -7,7 +7,7 @@ sidebar_position: 1
 Retention policies allow you to automatically manage data lifecycle by defining how long data should be kept.
 
 :::info Manual Execution Only
-Automatic execution is reserved for Arc Enterprise. In Arc Core, retention policies must be manually triggered via the API.
+Automatic execution is reserved for Arc Enterprise. In Arc OSS, retention policies must be manually triggered via the API.
 :::
 
 ## Overview

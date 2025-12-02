@@ -2,323 +2,501 @@
 sidebar_position: 1
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Configuration Overview
 
-Arc uses a centralized `arc.conf` configuration file (TOML format) with environment variable overrides for flexibility.
+Arc uses a TOML configuration file (`arc.toml`) with environment variable overrides for flexibility.
 
 ## Configuration Files
 
-### Primary: arc.conf
+### Primary: arc.toml
 
 The main configuration file with production-ready defaults:
 
 ```toml
 # Server Configuration
 [server]
-host = "0.0.0.0"
 port = 8000
-workers = 8
+
+# Logging
+[log]
+level = "info"       # debug, info, warn, error
+format = "console"   # json or console
+
+# Database (DuckDB)
+[database]
+# Auto-detected if not set (recommended)
+# max_connections = 28    # 2x CPU cores
+# memory_limit = "8GB"    # ~50% system RAM
+# thread_count = 14       # CPU cores
+enable_wal = false
+
+# Storage Backend
+[storage]
+backend = "local"           # local, s3, minio, azure, azblob
+local_path = "./data/arc"
+
+# Ingestion
+[ingest]
+max_buffer_size = 50000     # records before flush
+max_buffer_age_ms = 5000    # ms before force flush
+
+# Compaction
+[compaction]
+enabled = true
+hourly_enabled = true
+hourly_min_age_hours = 0
+hourly_min_files = 5
 
 # Authentication
 [auth]
 enabled = true
-default_token = ""  # Auto-generated if empty
 
-# Query Cache
-[query_cache]
+# Delete Operations
+[delete]
 enabled = true
-ttl_seconds = 60
+confirmation_threshold = 10000
+max_rows_per_delete = 1000000
 
-# Storage Backend
-[storage]
-backend = "local"  # Options: local, minio, s3, gcs
+# Retention Policies
+[retention]
+enabled = true
 
-[storage.local]
-base_path = "./data/arc"
-database = "default"
+# Continuous Queries
+[continuous_query]
+enabled = true
 ```
 
 ### Environment Variables
 
-Override any setting via environment variables:
+Override any setting via environment variables with the `ARC_` prefix:
 
 ```bash
 # Server
-ARC_HOST=0.0.0.0
-ARC_PORT=8000
-ARC_WORKERS=42
+ARC_SERVER_PORT=8000
 
-# Storage
-STORAGE_BACKEND=minio
-MINIO_ENDPOINT=localhost:9000
-MINIO_BUCKET=arc
+# Logging
+ARC_LOG_LEVEL=info
+ARC_LOG_FORMAT=json
 
-# Cache
-QUERY_CACHE_ENABLED=true
-QUERY_CACHE_TTL=60
+# Database
+ARC_DATABASE_MAX_CONNECTIONS=28
+ARC_DATABASE_MEMORY_LIMIT=8GB
+ARC_DATABASE_THREAD_COUNT=14
+
+# Features
+ARC_AUTH_ENABLED=true
+ARC_COMPACTION_ENABLED=true
+ARC_DELETE_ENABLED=true
+ARC_RETENTION_ENABLED=true
+ARC_CONTINUOUS_QUERY_ENABLED=true
 ```
-
-### Legacy: .env File
-
-Backward compatible with `.env` files, but `arc.conf` is recommended.
 
 ## Configuration Priority
 
 Settings are applied in this order (highest to lowest):
 
-1. **Environment variables** (e.g., `ARC_WORKERS=16`)
-2. **arc.conf file**
+1. **Environment variables** (e.g., `ARC_SERVER_PORT=8000`)
+2. **arc.toml file**
 3. **Built-in defaults**
+
+## Storage Backends
+
+<Tabs>
+  <TabItem value="local" label="Local" default>
+
+**Local Filesystem** - Default, simplest option for single-node deployments.
+
+```toml
+[storage]
+backend = "local"
+local_path = "./data/arc"
+```
+
+Environment variables:
+
+```bash
+ARC_STORAGE_BACKEND=local
+ARC_STORAGE_LOCAL_PATH=./data/arc
+```
+
+  </TabItem>
+  <TabItem value="s3" label="AWS S3">
+
+**AWS S3** - Recommended for production cloud deployments.
+
+```toml
+[storage]
+backend = "s3"
+s3_bucket = "arc-production"
+s3_region = "us-east-1"
+# Credentials via env: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+# Or use IAM roles (recommended)
+```
+
+Environment variables:
+
+```bash
+ARC_STORAGE_BACKEND=s3
+ARC_STORAGE_S3_BUCKET=arc-data
+ARC_STORAGE_S3_REGION=us-east-1
+ARC_STORAGE_S3_ENDPOINT=s3.amazonaws.com
+ARC_STORAGE_S3_ACCESS_KEY=your_key
+ARC_STORAGE_S3_SECRET_KEY=your_secret
+ARC_STORAGE_S3_USE_SSL=true
+ARC_STORAGE_S3_PATH_STYLE=false
+```
+
+:::tip IAM Roles
+For EC2/EKS deployments, use IAM roles instead of access keys. Arc automatically uses instance credentials.
+:::
+
+  </TabItem>
+  <TabItem value="minio" label="MinIO">
+
+**MinIO** - Self-hosted S3-compatible storage.
+
+```toml
+[storage]
+backend = "minio"
+s3_bucket = "arc"
+s3_endpoint = "minio:9000"
+s3_access_key = "minioadmin"
+s3_secret_key = "minioadmin123"
+s3_use_ssl = false
+s3_path_style = true      # Required for MinIO
+```
+
+Environment variables:
+
+```bash
+ARC_STORAGE_BACKEND=minio
+ARC_STORAGE_S3_ENDPOINT=minio:9000
+ARC_STORAGE_S3_BUCKET=arc
+ARC_STORAGE_S3_ACCESS_KEY=minioadmin
+ARC_STORAGE_S3_SECRET_KEY=minioadmin123
+ARC_STORAGE_S3_USE_SSL=false
+ARC_STORAGE_S3_PATH_STYLE=true
+```
+
+  </TabItem>
+  <TabItem value="azure" label="Azure Blob">
+
+**Azure Blob Storage** - For Azure cloud deployments.
+
+:::note Coming in v26.01.1
+Azure Blob Storage support will be available in Arc v26.01.1.
+:::
+
+```toml
+[storage]
+backend = "azure"         # or "azblob"
+azure_container = "arc-data"
+azure_account_name = "your_account"
+azure_account_key = "your_key"
+# Or use managed identity:
+# azure_use_managed_identity = true
+```
+
+Environment variables:
+
+```bash
+ARC_STORAGE_BACKEND=azure
+ARC_STORAGE_AZURE_CONTAINER=arc-data
+ARC_STORAGE_AZURE_ACCOUNT_NAME=your_account
+ARC_STORAGE_AZURE_ACCOUNT_KEY=your_key
+```
+
+:::tip Managed Identity
+For Azure VMs/AKS, use managed identity for keyless authentication:
+```toml
+azure_use_managed_identity = true
+```
+:::
+
+  </TabItem>
+</Tabs>
 
 ## Key Configuration Areas
 
 ### Server
 
-- **Workers**: Set to 3x CPU cores for optimal performance
-- **Host/Port**: Network binding configuration
-- **Logging**: Log level and output format
+Basic HTTP server settings:
 
-[Learn more →](/arc/configuration/server)
+```toml
+[server]
+port = 8000    # HTTP port to listen on
+```
 
-### Storage
+### Database (DuckDB)
 
-- **Backend selection**: Local, MinIO, AWS S3, GCS
-- **Connection settings**: Endpoints, credentials, buckets
-- **Database namespaces**: Multi-tenant organization
+DuckDB connection pool and resource settings:
 
-[Learn more →](/arc/configuration/storage)
+```toml
+[database]
+# AUTO-DETECTION: If not set, Arc automatically configures:
+#   - max_connections: 2x CPU cores (min 4, max 64)
+#   - memory_limit: ~50% of system memory
+#   - thread_count: Number of CPU cores
+
+# Manual override examples:
+max_connections = 28      # Connection pool size
+memory_limit = "8GB"      # DuckDB memory limit
+thread_count = 14         # Query execution threads
+enable_wal = false        # DuckDB WAL (not Arc WAL)
+```
+
+### Ingestion
+
+Buffer settings for write performance:
+
+```toml
+[ingest]
+# Maximum records to buffer before flushing to Parquet
+max_buffer_size = 50000
+
+# Maximum age (ms) before forcing a flush
+max_buffer_age_ms = 5000
+```
+
+Data flushes when **either** condition is met:
+1. Buffer reaches `max_buffer_size` records
+2. Buffer age exceeds `max_buffer_age_ms`
+
+### Compaction
+
+Automatic file optimization:
+
+```toml
+[compaction]
+enabled = true
+hourly_enabled = true
+hourly_min_age_hours = 0    # Files must be this old
+hourly_min_files = 5        # Minimum files to trigger
+daily_enabled = false       # Daily tier (optional)
+daily_min_age_hours = 24
+daily_min_files = 3
+```
 
 ### Authentication
 
-- **API tokens**: Create and manage access tokens
-- **Permissions**: Read/write access control
-- **Token rotation**: Security best practices
+Token-based API authentication:
 
-[Learn more →](/arc/configuration/authentication)
+```toml
+[auth]
+enabled = true              # Enable/disable auth
+db_path = "./data/arc_auth.db"  # Token database
+cache_ttl = 30              # Token cache TTL (seconds)
+max_cache_size = 1000       # Max cached tokens
+```
 
-### Performance
+### Delete Operations
 
-- **Buffer sizes**: Ingestion throughput tuning
-- **Query cache**: Speed up repeated queries
-- **Compaction**: Optimize query performance
+Safe deletion with confirmation:
 
-[Learn more →](/arc/configuration/performance)
+```toml
+[delete]
+enabled = true
+confirmation_threshold = 10000   # Require confirmation above this
+max_rows_per_delete = 1000000    # Hard limit per operation
+```
 
-### Advanced Features
+### Retention Policies
 
-- **Write-Ahead Log (WAL)**: Zero data loss guarantee
-- **Compaction**: Automatic file optimization
-- **Monitoring**: Metrics and health checks
+Automatic data expiration:
+
+```toml
+[retention]
+enabled = true
+db_path = "./data/arc_retention.db"
+```
+
+### Continuous Queries
+
+Scheduled automated queries:
+
+```toml
+[continuous_query]
+enabled = true
+db_path = "./data/arc_cq.db"
+```
+
+### Write-Ahead Log (WAL)
+
+Optional durability guarantee:
+
+```toml
+[wal]
+enabled = false              # Enable for zero data loss
+directory = "./data/wal"
+sync_mode = "fdatasync"      # none, fdatasync, fsync
+max_size_mb = 500
+max_age_seconds = 3600
+```
+
+### Metrics
+
+Timeseries metrics collection:
+
+```toml
+[metrics]
+timeseries_retention_minutes = 60
+timeseries_interval_seconds = 10
+```
 
 ## Quick Configuration Examples
 
-### Maximum Performance (Native)
+<Tabs>
+  <TabItem value="dev" label="Development" default>
 
 ```toml
 [server]
-workers = 42  # 3x CPU cores (14 cores × 3)
+port = 8000
+
+[log]
+level = "debug"
+format = "console"
 
 [storage]
 backend = "local"
+local_path = "./dev_data"
 
-[storage.local]
-base_path = "/mnt/nvme/arc-data"  # NVMe storage
-
-[ingestion]
-buffer_size = 200000
-buffer_age_seconds = 10
+[auth]
+enabled = false
 
 [compaction]
-enabled = true
-schedule = "5 * * * *"
+enabled = false
 ```
 
-### Distributed Deployment
+  </TabItem>
+  <TabItem value="prod-local" label="Production (Local)">
 
 ```toml
 [server]
-workers = 32
+port = 8000
+
+[log]
+level = "info"
+format = "json"
+
+[database]
+max_connections = 32
+memory_limit = "16GB"
 
 [storage]
-backend = "minio"
+backend = "local"
+local_path = "/var/lib/arc/data"
 
-[storage.minio]
-endpoint = "http://minio-cluster:9000"
-access_key = "minioadmin"
-secret_key = "minioadmin123"
-bucket = "arc"
-use_ssl = false
+[ingest]
+max_buffer_size = 100000
+max_buffer_age_ms = 10000
+
+[auth]
+enabled = true
 
 [compaction]
 enabled = true
-max_concurrent_jobs = 4
-```
-
-### Cloud Deployment (AWS S3)
-
-```toml
-[server]
-workers = 16
-
-[storage]
-backend = "s3"
-
-[storage.s3]
-bucket = "arc-production"
-region = "us-east-1"
-# Uses IAM role or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
-
-[query_cache]
-enabled = true
-ttl_seconds = 300
-
-[compaction]
-enabled = true
-compression = "zstd"
-compression_level = 3
-```
-
-### High Durability (WAL Enabled)
-
-```toml
-[server]
-workers = 24
+hourly_enabled = true
+daily_enabled = true
 
 [wal]
 enabled = true
 sync_mode = "fdatasync"
-dir = "./data/wal"
-max_size_mb = 500
-max_age_seconds = 3600
-
-[storage]
-backend = "minio"
-
-[storage.minio]
-endpoint = "http://localhost:9000"
-bucket = "arc"
 ```
 
-## Configuration Validation
-
-Arc validates configuration on startup:
-
-```bash
-# Test configuration
-./start.sh native --validate
-
-# Or manually
-python3 -c "from api.config import load_config; load_config()"
-```
-
-## Environment-Specific Configurations
-
-### Development
+  </TabItem>
+  <TabItem value="prod-s3" label="Production (S3)">
 
 ```toml
 [server]
-workers = 4
+port = 8000
+
+[log]
+level = "info"
+format = "json"
+
+[storage]
+backend = "s3"
+s3_bucket = "arc-production"
+s3_region = "us-east-1"
+# Use IAM roles for credentials
+
+[auth]
+enabled = true
+
+[compaction]
+enabled = true
+hourly_enabled = true
+```
+
+  </TabItem>
+  <TabItem value="high-durability" label="High Durability">
+
+```toml
+[server]
 port = 8000
 
 [storage]
-backend = "local"
-
-[storage.local]
-base_path = "./dev_data"
-
-[auth]
-enabled = false  # Disable for local development
-
-[query_cache]
-enabled = false  # See fresh queries
-```
-
-### Staging
-
-```toml
-[server]
-workers = 16
-
-[storage]
 backend = "minio"
-
-[storage.minio]
-bucket = "arc-staging"
-database = "staging"
-
-[auth]
-enabled = true
-
-[compaction]
-enabled = true
-schedule = "0 */2 * * *"  # Every 2 hours
-```
-
-### Production
-
-```toml
-[server]
-workers = 42
-
-[storage]
-backend = "s3"
-
-[storage.s3]
-bucket = "arc-production"
-region = "us-east-1"
-database = "production"
-
-[auth]
-enabled = true
+s3_bucket = "arc"
+s3_endpoint = "minio:9000"
 
 [wal]
 enabled = true
 sync_mode = "fdatasync"
+directory = "/var/lib/arc/wal"
+max_size_mb = 1000
+max_age_seconds = 3600
 
 [compaction]
 enabled = true
-schedule = "5 * * * *"  # Every hour at :05
-max_concurrent_jobs = 4
-
-[query_cache]
-enabled = true
-ttl_seconds = 300
 ```
+
+  </TabItem>
+</Tabs>
 
 ## Best Practices
 
-### 1. Use arc.conf for Permanent Settings
+### 1. Use arc.toml for Permanent Settings
 
-Store configuration in `arc.conf` and version control it (without secrets):
+Store configuration in `arc.toml` and version control it (without secrets):
 
 ```toml
-[storage.minio]
-endpoint = "http://minio:9000"
-bucket = "arc"
-# Access keys via environment variables
+[storage]
+backend = "s3"
+s3_bucket = "arc"
+s3_region = "us-east-1"
+# Credentials via environment variables
 ```
 
 ### 2. Use Environment Variables for Secrets
 
 ```bash
-export MINIO_ACCESS_KEY="your_access_key"
-export MINIO_SECRET_KEY="your_secret_key"
-export ARC_ADMIN_TOKEN="your_admin_token"
+export ARC_STORAGE_S3_ACCESS_KEY="your_access_key"
+export ARC_STORAGE_S3_SECRET_KEY="your_secret_key"
 ```
 
-### 3. Set Workers Based on Workload
+### 3. Let Arc Auto-Detect Resources
 
-- **Light** (4 workers): Development, testing
-- **Medium** (8-16 workers): Small production workloads
-- **Heavy** (24-42 workers): High-throughput production
+Arc automatically detects optimal DuckDB settings based on your system. Only override if you have specific requirements:
+
+```toml
+[database]
+# Leave commented for auto-detection
+# max_connections = 28
+# memory_limit = "8GB"
+# thread_count = 14
+```
 
 ### 4. Enable Features Progressively
 
 Start simple, add features as needed:
 1. Basic configuration (storage + auth)
-2. Query caching (for repeated queries)
-3. Compaction (for query optimization)
-4. WAL (for zero data loss)
+2. Compaction (for query optimization)
+3. Retention policies (for data management)
+4. WAL (for zero data loss guarantee)
 
 ### 5. Monitor Configuration Impact
 
@@ -326,13 +504,13 @@ Check metrics after configuration changes:
 
 ```bash
 # Memory usage
-curl http://localhost:8000/metrics/memory
+curl http://localhost:8000/api/v1/metrics/memory
 
 # Query performance
-curl http://localhost:8000/metrics/query-pool
+curl http://localhost:8000/api/v1/metrics/query-pool
 
 # Compaction status
-curl http://localhost:8000/api/compaction/status
+curl http://localhost:8000/api/v1/compaction/status
 ```
 
 ## Troubleshooting
@@ -340,14 +518,13 @@ curl http://localhost:8000/api/compaction/status
 ### Configuration Not Loading
 
 ```bash
-# Check syntax
-python3 -c "import toml; toml.load('arc.conf')"
+# Verify TOML syntax (use any TOML validator)
+# Check file exists in expected location
+ls -la arc.toml
 
-# Verify file location
-ls -la arc.conf
-
-# Check permissions
-chmod 644 arc.conf
+# Arc looks for arc.toml in:
+# 1. Current directory
+# 2. /etc/arc/arc.toml (native install)
 ```
 
 ### Environment Variables Not Working
@@ -355,27 +532,26 @@ chmod 644 arc.conf
 ```bash
 # Verify they're set
 env | grep ARC_
-env | grep STORAGE_
-env | grep MINIO_
 
-# Export before starting Arc
-export ARC_WORKERS=16
-./start.sh native
+# Use correct prefix and format
+export ARC_SERVER_PORT=8000     # Correct
+export SERVER_PORT=8000         # Wrong - missing ARC_ prefix
 ```
 
-### Performance Issues
+### Resource Issues
 
 ```bash
-# Check worker count
-ps aux | grep uvicorn | wc -l
+# Check current settings via metrics
+curl http://localhost:8000/api/v1/metrics/memory
 
-# Should be 3x CPU cores for optimal performance
-nproc  # Get CPU count
+# Adjust in arc.toml:
+[database]
+memory_limit = "4GB"
+max_connections = 16
 ```
 
 ## Next Steps
 
-- **[Configure storage backends](/arc/configuration/storage)**
-- **[Set up authentication](/arc/configuration/authentication)**
-- **[Tune performance](/arc/configuration/performance)**
-- **[Enable advanced features](/arc/advanced/overview)**
+- **[Storage Backends](/arc/configuration/storage)** - Detailed storage configuration
+- **[Authentication](/arc/configuration/authentication)** - Token management
+- **[Advanced Features](/arc/advanced/compaction)** - Compaction and WAL

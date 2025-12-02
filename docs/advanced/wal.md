@@ -21,7 +21,7 @@ There are **two different WAL features** in Arc:
 WAL is an optional durability feature that persists all incoming data to disk **before** acknowledging writes. When enabled, Arc guarantees that data can be recovered even if the instance crashes.
 
 :::info
-WAL is **disabled by default** to maximize throughput (2.42M records/sec). Enable it when zero data loss is required.
+WAL is **disabled by default** to maximize throughput (9.47M records/sec). Enable it when zero data loss is required.
 :::
 
 ### When to Enable WAL
@@ -32,7 +32,7 @@ Enable WAL if you need:
 - **Recovery from unexpected failures** (power loss, OOM kills)
 
 Keep WAL disabled if you:
-- **Prioritize maximum throughput** (2.42M records/sec)
+- **Prioritize maximum throughput** (9.47M records/sec)
 - **Can tolerate 0-5 seconds data loss** on rare crashes
 - **Have client-side retry logic** or message queue upstream
 
@@ -40,12 +40,12 @@ Keep WAL disabled if you:
 
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
-| **No WAL (default)** | 2.42M rec/s | 0-5 seconds |
-| **WAL + async** | 1.67M rec/s (-17%) | &lt;1 second |
-| **WAL + fdatasync** | 1.63M rec/s (-19%) | Near-zero |
-| **WAL + fsync** | 1.67M rec/s (-17%) | Zero |
+| **No WAL (default)** | 9.47M rec/s | 0-5 seconds |
+| **WAL + async** | ~7.7M rec/s (-19%) | &lt;1 second |
+| **WAL + fdatasync** | ~7.5M rec/s (-21%) | Near-zero |
+| **WAL + fsync** | ~7.7M rec/s (-19%) | Zero |
 
-**Tradeoff**: 19% throughput reduction for near-zero data loss (fdatasync mode)
+**Tradeoff**: ~20% throughput reduction for near-zero data loss (fdatasync mode)
 
 ## Architecture
 
@@ -95,47 +95,44 @@ Keep WAL disabled if you:
 Once WAL confirms the write (step 1), the data is **guaranteed durable** even if Arc crashes before step 4 completes.
 :::
 
-### Per-Worker WAL Files
+### WAL Files
 
-Arc uses multiple worker processes. Each worker has its own WAL file to avoid lock contention:
+Arc uses a single WAL writer with goroutines for concurrent access:
 
 ```
 ./data/wal/
-├── worker-1-20251008_140530.wal
-├── worker-2-20251008_140530.wal
-├── worker-3-20251008_140530.wal
-└── worker-4-20251008_140530.wal
+├── arc-20251008_140530.wal
+└── arc-20251008_150530.wal
 ```
 
 **Benefits:**
-- Zero lock contention (parallel writes)
 - Simple implementation
-- Natural partitioning
+- Automatic rotation
 - Parallel recovery on startup
 
 ## Configuration
 
 ### Enable WAL
 
-Edit `arc.conf`:
+Edit `arc.toml`:
 
 ```toml
 [wal]
 enabled = true
 sync_mode = "fdatasync"    # Recommended for production
-dir = "./data/wal"
-max_size_mb = 100          # Rotate at 100MB
+directory = "./data/wal"
+max_size_mb = 500          # Rotate at 500MB
 max_age_seconds = 3600     # Rotate after 1 hour
 ```
 
 Or via environment variables:
 
 ```bash
-WAL_ENABLED=true
-WAL_DIR=./data/wal
-WAL_SYNC_MODE=fdatasync
-WAL_MAX_SIZE_MB=100
-WAL_MAX_AGE_SECONDS=3600
+ARC_WAL_ENABLED=true
+ARC_WAL_DIRECTORY=./data/wal
+ARC_WAL_SYNC_MODE=fdatasync
+ARC_WAL_MAX_SIZE_MB=500
+ARC_WAL_MAX_AGE_SECONDS=3600
 ```
 
 ### Sync Modes
@@ -340,11 +337,9 @@ curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
    dir = "/mnt/nvme/arc-wal"   # NVMe SSD
    ```
 
-3. **Increase worker count:**
-   ```toml
-   [server]
-   workers = 16  # More workers = parallel recovery
-   ```
+3. **Use faster storage:**
+   - NVMe SSD for WAL directory
+   - Separate disk from data storage
 
 ### WAL Disk Space Growing
 
@@ -403,7 +398,7 @@ $ du -sh ./data/wal
 ### Performance Degradation with WAL
 
 **Symptoms:**
-- Throughput dropped from 2.42M to 600K rec/s
+- Throughput dropped from 9.47M to 2M rec/s
 - High CPU usage from fsync calls
 
 **Solutions:**

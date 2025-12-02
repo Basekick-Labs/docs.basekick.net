@@ -11,22 +11,24 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Blazing Fast Analytics',
-    icon: '120.25s',
+    title: 'Blazing Fast Ingestion',
+    icon: '9.47M',
     description: (
       <>
-        Fastest time-series database with 120.25s cold run on ClickBench (99.9M rows).
-        Powered by DuckDB's columnar engine for lightning-fast SQL queries with full ANSI SQL support.
+        Ingest 9.47M records/sec with MessagePack columnar format.
+        Sub-3ms p50 latency. Built for IoT sensors, metrics collection,
+        and observability platforms that need extreme write performance.
       </>
     ),
   },
   {
-    title: 'Massive Throughput',
-    icon: '6.57M',
+    title: 'Lightning Fast Queries',
+    icon: '120.25s',
     description: (
       <>
-        Ingest 6.57M records/sec unified (metrics, logs, traces, events simultaneously).
-        Built for IoT sensors, metrics collection, and observability platforms that need extreme write performance.
+        120.25s cold run on ClickBench (99.9M rows). Powered by DuckDB's
+        columnar engine for lightning-fast SQL queries with full ANSI SQL support.
+        Query Arrow IPC or JSON.
       </>
     ),
   },
@@ -35,8 +37,9 @@ const FeatureList: FeatureItem[] = [
     icon: 'S3',
     description: (
       <>
-        Deploy anywhere with Local filesystem, MinIO, AWS S3, or Google Cloud Storage.
-        True separation of compute and storage. Automatic Parquet compaction delivers 10-50x faster queries and 80% compression.
+        Deploy anywhere with Local filesystem, MinIO, AWS S3, or Azure Blob Storage.
+        True separation of compute and storage. Automatic Parquet compaction
+        delivers 10-50x faster queries and 80% compression.
       </>
     ),
   },

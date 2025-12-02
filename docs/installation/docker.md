@@ -2,6 +2,9 @@
 sidebar_position: 1
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Docker Installation
 
 Install and run Arc using Docker for quick setup and isolated environments.
@@ -13,264 +16,368 @@ Install and run Arc using Docker for quick setup and isolated environments.
 
 ## Quick Start
 
-### Single Command Installation (Recommended)
-
-The simplest way to get started with Arc is using Docker:
-
 ```bash
 docker run -d \
+  --name arc \
   -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.12.1
 ```
 
-Arc API will be available at `http://localhost:8000`
-
-**Verify it's running:**
+Verify it's running:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-**Data persistence:**
-- `/app/data/arc/` - Parquet files containing your data
-- `/app/data/arc.db` - SQLite metadata and authentication tokens
+## Get Your Admin Token
 
-### Get Your Admin Token
+When Arc starts for the first time, it generates an admin token.
 
-When Arc starts for the first time, it automatically creates an admin token and displays it in the logs.
-
-**IMPORTANT: Copy this token immediately - you won't see it again!**
+:::warning Save This Token
+Copy this token immediately - you won't see it again!
+:::
 
 ```bash
-# Docker - check the logs for your admin token
-docker logs <container-id> 2>&1 | grep "Admin token"
+docker logs arc 2>&1 | grep -i "admin"
 ```
 
-You should see output like:
+You should see:
+
 ```
-Admin token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+======================================================================
+  FIRST RUN - INITIAL ADMIN TOKEN GENERATED
+======================================================================
+  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+======================================================================
 ```
 
-Save this token! You'll need it for all API requests.
+Save it:
 
 ```bash
-# Export for convenience
-export ARC_TOKEN="your-token-here"
+export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Advanced Configuration
+## Storage Backends
 
-### Environment Variables
+<Tabs>
+  <TabItem value="local" label="Local" default>
 
-You can customize Arc behavior with environment variables:
+**Local Filesystem** - Default, data stored in Docker volume.
 
 ```bash
 docker run -d \
+  --name arc \
   -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
-  -e LOG_LEVEL=INFO \
-  -e ARC_WORKERS=8 \
+  -e ARC_STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.12.1
 ```
 
-**Common environment variables:**
-- `STORAGE_BACKEND` - Storage type: `local`, `s3`, `minio` (default: `local`)
-- `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
-- `ARC_WORKERS` - Number of worker processes (default: auto-detected)
-- `AUTH_ENABLED` - Enable authentication (default: `true`)
+**Data locations:**
 
-## Managing Your Container
+| Path | Description |
+|------|-------------|
+| `/app/data/arc/` | Parquet files |
+| `/app/data/arc_auth.db` | Auth tokens |
+
+  </TabItem>
+  <TabItem value="s3" label="AWS S3">
+
+**AWS S3** - Production cloud storage.
+
+```bash
+docker run -d \
+  --name arc \
+  -p 8000:8000 \
+  -e ARC_STORAGE_BACKEND=s3 \
+  -e ARC_STORAGE_S3_BUCKET=arc-data \
+  -e ARC_STORAGE_S3_REGION=us-east-1 \
+  -e AWS_ACCESS_KEY_ID=your_key \
+  -e AWS_SECRET_ACCESS_KEY=your_secret \
+  ghcr.io/basekick-labs/arc:25.12.1
+```
+
+:::tip IAM Roles
+On EC2, use IAM roles instead of access keys for better security.
+:::
+
+  </TabItem>
+  <TabItem value="minio" label="MinIO">
+
+**MinIO** - Self-hosted S3-compatible storage.
+
+```bash
+docker run -d \
+  --name arc \
+  -p 8000:8000 \
+  -e ARC_STORAGE_BACKEND=minio \
+  -e ARC_STORAGE_S3_ENDPOINT=minio:9000 \
+  -e ARC_STORAGE_S3_BUCKET=arc \
+  -e ARC_STORAGE_S3_ACCESS_KEY=minioadmin \
+  -e ARC_STORAGE_S3_SECRET_KEY=minioadmin123 \
+  -e ARC_STORAGE_S3_USE_SSL=false \
+  ghcr.io/basekick-labs/arc:25.12.1
+```
+
+  </TabItem>
+  <TabItem value="azure" label="Azure Blob">
+
+**Azure Blob Storage** - For Azure deployments.
+
+:::note Coming in v26.01.1
+Azure Blob Storage support will be available in Arc v26.01.1.
+:::
+
+```bash
+docker run -d \
+  --name arc \
+  -p 8000:8000 \
+  -e ARC_STORAGE_BACKEND=azure \
+  -e ARC_STORAGE_AZURE_CONTAINER=arc-data \
+  -e ARC_STORAGE_AZURE_ACCOUNT_NAME=your_account \
+  -e ARC_STORAGE_AZURE_ACCOUNT_KEY=your_key \
+  ghcr.io/basekick-labs/arc:25.12.1
+```
+
+  </TabItem>
+</Tabs>
+
+## Configuration
+
+### Environment Variables
+
+Common configuration options:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ARC_SERVER_PORT` | `8000` | HTTP port |
+| `ARC_STORAGE_BACKEND` | `local` | Storage: `local`, `s3`, `minio`, `azure` |
+| `ARC_LOG_LEVEL` | `info` | Logging: `debug`, `info`, `warn`, `error` |
+| `ARC_AUTH_ENABLED` | `true` | Enable authentication |
+| `ARC_COMPACTION_ENABLED` | `true` | Enable auto-compaction |
+| `ARC_WAL_ENABLED` | `false` | Enable WAL for durability |
+
+### Custom Configuration File
+
+Mount a custom `arc.toml`:
+
+```bash
+docker run -d \
+  --name arc \
+  -p 8000:8000 \
+  -v arc-data:/app/data \
+  -v /path/to/arc.toml:/app/arc.toml \
+  ghcr.io/basekick-labs/arc:25.12.1
+```
+
+## Container Management
 
 ### View Logs
 
 ```bash
-# Follow logs in real-time
-docker logs -f <container-id>
-
-# Last 100 lines
-docker logs --tail=100 <container-id>
-
-# Find your container ID
-docker ps
+docker logs -f arc           # Follow logs
+docker logs --tail=100 arc   # Last 100 lines
 ```
 
-### Restart Container
+### Start/Stop/Restart
 
 ```bash
-docker restart <container-id>
-```
-
-### Stop Container
-
-```bash
-# Stop the container
-docker stop <container-id>
-
-# Remove the container (data is preserved in the volume)
-docker rm <container-id>
+docker start arc
+docker stop arc
+docker restart arc
 ```
 
 ### Update Arc
 
 ```bash
-# Stop and remove old container
-docker stop <container-id>
-docker rm <container-id>
-
-# Pull latest version
-docker pull ghcr.io/basekick-labs/arc:25.11.1
-
-# Start new container with same volume
+docker stop arc && docker rm arc
+docker pull ghcr.io/basekick-labs/arc:25.12.1
 docker run -d \
+  --name arc \
   -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
-```
-
-## Storage Backend Options
-
-### Local Filesystem (Default)
-
-```bash
-docker run -d \
-  -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
-  -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
-```
-
-### AWS S3
-
-```bash
-docker run -d \
-  -p 8000:8000 \
-  -e STORAGE_BACKEND=s3 \
-  -e STORAGE_S3_BUCKET=arc-data \
-  -e STORAGE_S3_REGION=us-east-1 \
-  -e AWS_ACCESS_KEY_ID=your_key \
-  -e AWS_SECRET_ACCESS_KEY=your_secret \
-  ghcr.io/basekick-labs/arc:25.11.1
-```
-
-### MinIO (Self-Hosted S3)
-
-```bash
-docker run -d \
-  -p 8000:8000 \
-  -e STORAGE_BACKEND=minio \
-  -e MINIO_ENDPOINT=minio:9000 \
-  -e MINIO_ACCESS_KEY=minioadmin \
-  -e MINIO_SECRET_KEY=minioadmin123 \
-  -e MINIO_BUCKET=arc \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.12.1
 ```
 
 ## Production Deployment
 
-### Always Use Specific Versions
-
-```bash
-# Pin to specific version for production
-docker run -d \
-  -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
-  -v arc-data:/app/data \
-  --restart unless-stopped \
-  ghcr.io/basekick-labs/arc:25.11.1  # ← Pin version
-```
-
-### Resource Limits
+### Pin Version + Resource Limits
 
 ```bash
 docker run -d \
+  --name arc \
   -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
   --memory="8g" \
   --cpus="4" \
   --restart unless-stopped \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:25.12.1
 ```
 
-### Health Check Example
+### Health Check
 
 ```bash
-# Check if Arc is healthy
 docker ps --filter "name=arc" --filter "health=healthy"
 ```
 
+## Docker Compose
+
+<Tabs>
+  <TabItem value="basic" label="Basic" default>
+
+```yaml
+version: '3.8'
+
+services:
+  arc:
+    image: ghcr.io/basekick-labs/arc:25.12.1
+    container_name: arc
+    ports:
+      - "8000:8000"
+    environment:
+      - ARC_STORAGE_BACKEND=local
+      - ARC_AUTH_ENABLED=true
+      - ARC_COMPACTION_ENABLED=true
+    volumes:
+      - arc-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  arc-data:
+```
+
+  </TabItem>
+  <TabItem value="minio" label="With MinIO">
+
+```yaml
+version: '3.8'
+
+services:
+  arc:
+    image: ghcr.io/basekick-labs/arc:25.12.1
+    container_name: arc
+    ports:
+      - "8000:8000"
+    environment:
+      - ARC_STORAGE_BACKEND=minio
+      - ARC_STORAGE_S3_ENDPOINT=minio:9000
+      - ARC_STORAGE_S3_BUCKET=arc
+      - ARC_STORAGE_S3_ACCESS_KEY=minioadmin
+      - ARC_STORAGE_S3_SECRET_KEY=minioadmin123
+      - ARC_STORAGE_S3_USE_SSL=false
+    depends_on:
+      - minio
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  minio-data:
+```
+
+  </TabItem>
+  <TabItem value="production" label="Production">
+
+```yaml
+version: '3.8'
+
+services:
+  arc:
+    image: ghcr.io/basekick-labs/arc:25.12.1
+    container_name: arc
+    ports:
+      - "8000:8000"
+    environment:
+      - ARC_STORAGE_BACKEND=local
+      - ARC_AUTH_ENABLED=true
+      - ARC_COMPACTION_ENABLED=true
+      - ARC_WAL_ENABLED=true
+      - ARC_WAL_SYNC_MODE=fdatasync
+      - ARC_LOG_LEVEL=info
+      - ARC_LOG_FORMAT=json
+    volumes:
+      - arc-data:/app/data
+      - arc-wal:/app/data/wal
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  arc-data:
+  arc-wal:
+```
+
+  </TabItem>
+</Tabs>
+
 ## Troubleshooting
 
-### Arc Container Won't Start
+### Container Won't Start
 
 ```bash
 # Check logs
-docker logs <container-id>
+docker logs arc
 
-# Common issues:
-# 1. Port 8000 already in use
-sudo lsof -i :8000  # Find process using port
-docker stop <container-id>
+# Check port availability
+sudo lsof -i :8000
 
-# 2. Check container status
+# Check container status
 docker ps -a
 ```
 
 ### Permission Errors
 
 ```bash
-# If you see permission errors with volumes
-docker volume ls
-docker volume inspect arc-data
-
-# Remove and recreate volume if needed
-docker stop <container-id>
-docker rm <container-id>
+# Remove and recreate volume
+docker stop arc && docker rm arc
 docker volume rm arc-data
-# Then restart with docker run command
+# Restart with docker run command
 ```
 
 ### Out of Memory
 
 ```bash
 # Check memory usage
-docker stats <container-id>
+docker stats arc
 
 # Restart with memory limit
-docker stop <container-id>
-docker rm <container-id>
-
-docker run -d \
-  -p 8000:8000 \
-  -e STORAGE_BACKEND=local \
-  -e ARC_WORKERS=4 \
-  -v arc-data:/app/data \
-  --memory="4g" \
-  ghcr.io/basekick-labs/arc:25.11.1
+docker run -d --name arc --memory="4g" ...
 ```
 
 ### Can't Find Admin Token
 
 ```bash
-# View all logs to find the admin token
-docker logs <container-id> 2>&1 | grep -i "admin"
-
-# Or create a new token manually
-docker exec -it <container-id> python3 -c "
-from api.auth import AuthManager
-auth = AuthManager(db_path='/app/data/arc.db')
-token = auth.create_token('my-admin', description='Admin token')
-print(f'Admin Token: {token}')
-"
+docker logs arc 2>&1 | grep -i "admin"
+docker logs arc | head -100
 ```
 
 ## Next Steps
 
-- **[Write your first data](/arc/getting-started#write-your-first-data)** - Start sending metrics to Arc
-- **[Query your data](/arc/getting-started#query-your-data)** - Learn DuckDB SQL queries
-- **[Configure storage backends](/arc/configuration/storage)** - Switch to S3 or MinIO
-- **[Integrate with Telegraf](/arc/integrations/telegraf)** - Collect system metrics automatically
+- [Write your first data](/arc/getting-started#write-your-first-data)
+- [Configure storage backends](/arc/configuration/overview)
+- [Deploy on Kubernetes](/arc/installation/kubernetes)

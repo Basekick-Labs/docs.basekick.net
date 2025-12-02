@@ -25,10 +25,10 @@ Compaction is **enabled by default** and runs automatically every hour.
 
 ### The Small File Problem
 
-Arc's high-performance ingestion (2.42M records/sec) creates many small files:
+Arc's high-performance ingestion (9.47M records/sec) creates many small files:
 
 ```
-At 2.42M records/sec with 5-second flush:
+At 9.47M records/sec with 5-second flush:
 → 10M records every 5 seconds
 → 12 files per minute per measurement
 → 720 files per hour per measurement
@@ -117,7 +117,7 @@ Compaction merges all files in a partition (e.g., `2025/10/08/14/`) into one opt
 
 ### Default Configuration
 
-Compaction is **enabled by default** in `arc.conf`:
+Compaction is **enabled by default** in `arc.toml`:
 
 ```toml
 [compaction]
@@ -384,9 +384,9 @@ target_file_size_mb = 512    # Good default
 **Best practice:** Increase buffer sizes to generate fewer files:
 
 ```toml
-[ingestion]
-buffer_size = 200000        # Up from 50,000 (4x fewer files)
-buffer_age_seconds = 10     # Up from 5 (2x fewer files)
+[ingest]
+max_buffer_size = 200000        # Up from 50,000 (4x fewer files)
+max_buffer_age_ms = 10000       # Up from 5000 (2x fewer files)
 ```
 
 **Impact:**
@@ -408,19 +408,19 @@ curl http://localhost:8000/api/compaction/status
 **Verify configuration:**
 ```bash
 # Check if enabled
-grep "enabled" arc.conf
+grep "enabled" arc.toml
 
 # Check schedule
-grep "schedule" arc.conf
+grep "schedule" arc.toml
 ```
 
 **Check logs:**
 ```bash
 # Docker
-docker-compose logs arc-api | grep compaction
+docker logs arc | grep compaction
 
 # Native
-tail -f logs/arc-api.log | grep compaction
+sudo journalctl -u arc | grep compaction
 ```
 
 ### Compaction Taking Too Long
@@ -443,8 +443,8 @@ tail -f logs/arc-api.log | grep compaction
 
 3. **Reduce files at source:**
    ```toml
-   [ingestion]
-   buffer_size = 200000
+   [ingest]
+   max_buffer_size = 200000
    ```
 
 ### Out of Disk Space During Compaction
@@ -489,7 +489,7 @@ sqlite3 ./data/arc.db "DELETE FROM compaction_locks WHERE expires_at < datetime(
 
 ## API Reference
 
-### GET /api/compaction/status
+### GET /api/v1/compaction/status
 
 Get current compaction status.
 
@@ -503,15 +503,15 @@ Get current compaction status.
 }
 ```
 
-### GET /api/compaction/stats
+### GET /api/v1/compaction/stats
 
 Get detailed compaction statistics.
 
-### GET /api/compaction/candidates
+### GET /api/v1/compaction/candidates
 
 List partitions eligible for compaction.
 
-### POST /api/compaction/trigger
+### POST /api/v1/compaction/trigger
 
 Manually trigger compaction.
 
@@ -523,11 +523,11 @@ Manually trigger compaction.
 }
 ```
 
-### GET /api/compaction/jobs
+### GET /api/v1/compaction/jobs
 
 View active compaction jobs.
 
-### GET /api/compaction/history
+### GET /api/v1/compaction/history
 
 View compaction job history.
 
@@ -551,7 +551,7 @@ min_files = 10
 ```
 
 **Monitor regularly:**
-- Check `/api/compaction/status`
+- Check `/api/v1/compaction/status`
 - Alert on failed jobs
 - Watch for partitions with &gt;1000 files
 

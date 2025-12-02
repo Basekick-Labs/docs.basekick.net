@@ -7,7 +7,7 @@ sidebar_position: 3
 Continuous queries enable automatic downsampling and aggregation of time-series data into materialized views, reducing storage requirements while maintaining queryable historical data.
 
 :::info Manual Execution Only
-Automatic execution is an Arc Enterprise feature. In Arc Core, continuous queries must be manually triggered via the API.
+Automatic execution is an Arc Enterprise feature. In Arc OSS, continuous queries must be manually triggered via the API.
 :::
 
 ## Overview
