@@ -272,52 +272,46 @@ Arc API uses URL versioning with the `/api/v1/` prefix:
 
 ## Client Libraries
 
-### Python
+### Python (Official SDK)
 
-```python
-import msgpack
-import requests
+For production use, we recommend the official Python SDK which provides high-level abstractions, DataFrame integration, buffered writes, and comprehensive error handling.
 
-class ArcClient:
-    def __init__(self, base_url, token):
-        self.base_url = base_url
-        self.token = token
-        self.headers = {"Authorization": f"Bearer {token}"}
-
-    def write(self, measurement, fields, tags=None, timestamp=None):
-        data = {
-            "batch": [{
-                "m": measurement,
-                "t": timestamp or int(time.time() * 1000),
-                "h": tags.get("host") if tags else None,
-                "tags": tags,
-                "fields": fields
-            }]
-        }
-
-        response = requests.post(
-            f"{self.base_url}/api/v1/write/msgpack",
-            headers={**self.headers, "Content-Type": "application/msgpack"},
-            data=msgpack.packb(data)
-        )
-        response.raise_for_status()
-
-    def query(self, sql):
-        response = requests.post(
-            f"{self.base_url}/api/v1/query",
-            headers={**self.headers, "Content-Type": "application/json"},
-            json={"sql": sql, "format": "json"}
-        )
-        response.raise_for_status()
-        return response.json()
-
-# Usage
-client = ArcClient("http://localhost:8000", "YOUR_TOKEN")
-client.write("cpu", {"usage": 45.2}, tags={"host": "server01"})
-data = client.query("SELECT * FROM cpu LIMIT 10")
+```bash
+pip install arc-tsdb-client[all]
 ```
 
-### JavaScript
+```python
+from arc_client import ArcClient
+
+with ArcClient(host="localhost", token="your-token") as client:
+    # Write data (columnar format - 9M+ records/sec)
+    client.write.write_columnar(
+        measurement="cpu",
+        columns={
+            "time": [1704067200000000, 1704067260000000],
+            "host": ["server01", "server01"],
+            "usage": [45.2, 47.8],
+        },
+    )
+
+    # Query to pandas DataFrame
+    df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 10")
+    print(df)
+```
+
+**Features:**
+- High-performance columnar ingestion
+- pandas, Polars, and PyArrow integration
+- Buffered writes with automatic batching
+- Full async support (`AsyncArcClient`)
+- Retention policies, continuous queries, delete operations
+- Token management
+
+📖 **[Full Python SDK Documentation →](/docs/sdks/python/)**
+
+### JavaScript (Example Implementation)
+
+No official JavaScript SDK is available yet. Here's an example implementation:
 
 ```javascript
 const msgpack = require('@msgpack/msgpack');
@@ -365,7 +359,9 @@ await client.write('cpu', { usage: 45.2 }, { host: 'server01' });
 const data = await client.query('SELECT * FROM cpu LIMIT 10');
 ```
 
-### Go
+### Go (Example Implementation)
+
+No official Go SDK is available yet. Here's an example implementation:
 
 ```go
 package main
@@ -533,7 +529,8 @@ for chunk in response.iter_content(chunk_size=8192):
 
 ## Next Steps
 
-- **[Getting Started →](/arc/getting-started)** - Learn how to use Arc
-- **[Data Lifecycle →](/arc/data-lifecycle/retention-policies)** - Manage data retention and deletion
+- **[Python SDK →](/docs/sdks/python/)** - Official Python client with DataFrame support
+- **[Getting Started →](/docs/getting-started)** - Learn how to use Arc
+- **[Data Lifecycle →](/docs/data-lifecycle/retention-policies)** - Manage data retention and deletion
 - **[Interactive Docs →](http://localhost:8000/docs)** - Try the API with Swagger UI
 - **[OpenAPI Spec →](http://localhost:8000/openapi.json)** - Download OpenAPI specification
