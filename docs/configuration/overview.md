@@ -76,6 +76,9 @@ Override any setting via environment variables with the `ARC_` prefix:
 ```bash
 # Server
 ARC_SERVER_PORT=8000
+ARC_SERVER_TLS_ENABLED=false
+ARC_SERVER_TLS_CERT_FILE=/path/to/cert.pem
+ARC_SERVER_TLS_KEY_FILE=/path/to/key.pem
 
 # Logging
 ARC_LOG_LEVEL=info
@@ -227,8 +230,38 @@ Basic HTTP server settings:
 
 ```toml
 [server]
-port = 8000    # HTTP port to listen on
+port = 8000    # HTTP/HTTPS port to listen on
 ```
+
+### TLS/SSL (HTTPS)
+
+Arc supports native HTTPS/TLS without requiring a reverse proxy:
+
+```toml
+[server]
+port = 443
+tls_enabled = true
+tls_cert_file = "/etc/letsencrypt/live/example.com/fullchain.pem"
+tls_key_file = "/etc/letsencrypt/live/example.com/privkey.pem"
+```
+
+Environment variables:
+
+```bash
+ARC_SERVER_TLS_ENABLED=true
+ARC_SERVER_TLS_CERT_FILE=/path/to/cert.pem
+ARC_SERVER_TLS_KEY_FILE=/path/to/key.pem
+```
+
+:::tip When to Use Native TLS
+- **Native packages** (deb/rpm): Use native TLS for simple deployments
+- **Docker/Kubernetes**: Use a reverse proxy (Traefik, nginx, Ingress) for TLS termination
+- **Development**: Use self-signed certificates for local HTTPS testing
+:::
+
+When TLS is enabled, Arc automatically:
+- Adds the `Strict-Transport-Security` (HSTS) header
+- Validates certificate and key files on startup
 
 ### Database (DuckDB)
 
@@ -422,6 +455,32 @@ backend = "s3"
 s3_bucket = "arc-production"
 s3_region = "us-east-1"
 # Use IAM roles for credentials
+
+[auth]
+enabled = true
+
+[compaction]
+enabled = true
+hourly_enabled = true
+```
+
+  </TabItem>
+  <TabItem value="prod-tls" label="Production (TLS)">
+
+```toml
+[server]
+port = 443
+tls_enabled = true
+tls_cert_file = "/etc/letsencrypt/live/example.com/fullchain.pem"
+tls_key_file = "/etc/letsencrypt/live/example.com/privkey.pem"
+
+[log]
+level = "info"
+format = "json"
+
+[storage]
+backend = "local"
+local_path = "/var/lib/arc/data"
 
 [auth]
 enabled = true
