@@ -79,6 +79,7 @@ ARC_SERVER_PORT=8000
 ARC_SERVER_TLS_ENABLED=false
 ARC_SERVER_TLS_CERT_FILE=/path/to/cert.pem
 ARC_SERVER_TLS_KEY_FILE=/path/to/key.pem
+ARC_SERVER_MAX_PAYLOAD_SIZE=1GB    # v26.01.1+
 
 # Logging
 ARC_LOG_LEVEL=info
@@ -262,6 +263,34 @@ ARC_SERVER_TLS_KEY_FILE=/path/to/key.pem
 When TLS is enabled, Arc automatically:
 - Adds the `Strict-Transport-Security` (HSTS) header
 - Validates certificate and key files on startup
+
+### Max Payload Size
+
+:::note Available in v26.01.1
+This configuration option is available starting from Arc v26.01.1.
+:::
+
+Configure the maximum request payload size for write endpoints (msgpack, line protocol):
+
+```toml
+[server]
+# Maximum payload size (applies to both compressed and decompressed)
+# Supports units: B, KB, MB, GB
+# Default: 1GB
+max_payload_size = "1GB"
+```
+
+Environment variable:
+
+```bash
+ARC_SERVER_MAX_PAYLOAD_SIZE=2GB
+```
+
+:::tip Large Bulk Imports
+If you're importing large datasets and encounter 413 errors, you can:
+1. Increase `max_payload_size` (e.g., `"2GB"`)
+2. Batch your imports into smaller chunks (recommended for reliability)
+:::
 
 ### Database (DuckDB)
 
