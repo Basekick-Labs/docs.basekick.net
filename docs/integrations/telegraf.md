@@ -4,18 +4,24 @@ sidebar_position: 2
 
 # Telegraf Integration
 
-Use Telegraf to collect system metrics and send them to Arc as a drop-in InfluxDB replacement.
+Use Telegraf to collect system metrics and send them directly to Arc using the native Arc output plugin.
 
 ## Overview
 
-Arc is compatible with InfluxDB Line Protocol, making it a perfect drop-in replacement for Telegraf outputs. Simply point your existing Telegraf configuration to Arc with zero code changes.
+Arc provides a native Telegraf output plugin that sends metrics in MessagePack columnar format for maximum performance. The plugin supports gzip compression and integrates seamlessly with Arc's multi-database architecture.
 
 **Benefits:**
-- No configuration changes needed
-- All Telegraf plugins work unchanged
-- 8x faster than InfluxDB (2.42M RPS)
-- Lower cost with object storage
+- Native MessagePack columnar format (9.47M records/sec)
+- Built-in gzip compression
+- Direct database targeting
+- All 300+ Telegraf input plugins supported
 - Full SQL analytics with DuckDB
+
+## Prerequisites
+
+- **Telegraf 1.37 or higher** (required for Arc output plugin)
+- Arc server running and accessible
+- Arc API token
 
 ## Quick Start
 
@@ -33,33 +39,30 @@ brew install telegraf
 # Or download from https://portal.influxdata.com/downloads/
 ```
 
+Verify you have Telegraf 1.37+:
+
+```bash
+telegraf --version
+```
+
 ### 2. Configure Telegraf for Arc
 
 Edit `/etc/telegraf/telegraf.conf`:
 
 ```toml
-# InfluxDB Output Plugin (Arc compatible)
-[[outputs.influxdb]]
-  # Arc API endpoint
-  urls = ["http://localhost:8000"]
+# Arc Output Plugin
+[[outputs.arc]]
+  # Arc MessagePack endpoint
+  url = "http://localhost:8000/api/v1/write/msgpack"
 
-  # Database name (becomes Arc database namespace)
+  # Arc API token
+  api_key = "ARC_TOKEN"
+
+  # Enable gzip compression (recommended)
+  content_encoding = "gzip"
+
+  # Target database in Arc
   database = "telegraf"
-
-  # Skip database creation (Arc creates on first write)
-  skip_database_creation = true
-
-  # Authentication - use Arc API token as password
-  username = ""  # Leave empty
-  password = "YOUR_ARC_API_TOKEN"
-
-  # Alternative: Use HTTP headers (recommended)
-  [outputs.influxdb.headers]
-    Authorization = "Bearer YOUR_ARC_API_TOKEN"
-
-  # Performance settings
-  timeout = "5s"
-  write_consistency = "any"
 ```
 
 ### 3. Enable Input Plugins
@@ -110,13 +113,13 @@ sudo journalctl -u telegraf -f
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SHOW TABLES", "format": "json"}'
+  -d '{"sql": "SHOW TABLES FROM telegraf", "format": "json"}'
 
 # Query CPU data
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM cpu ORDER BY time DESC LIMIT 10", "format": "json"}'
+  -d '{"sql": "SELECT * FROM telegraf.cpu ORDER BY time DESC LIMIT 10", "format": "json"}'
 ```
 
 ## Configuration Examples
@@ -128,11 +131,11 @@ curl -X POST http://localhost:8000/api/v1/query \
   interval = "10s"
   flush_interval = "10s"
 
-[[outputs.influxdb]]
-  urls = ["http://localhost:8000"]
+[[outputs.arc]]
+  url = "http://localhost:8000/api/v1/write/msgpack"
+  api_key = "YOUR_ARC_TOKEN"
+  content_encoding = "gzip"
   database = "telegraf"
-  skip_database_creation = true
-  password = "YOUR_ARC_TOKEN"
 
 [[inputs.cpu]]
 [[inputs.mem]]
@@ -148,19 +151,11 @@ curl -X POST http://localhost:8000/api/v1/query \
   metric_batch_size = 5000     # Larger batches for higher throughput
   metric_buffer_limit = 50000  # Buffer more metrics
 
-[[outputs.influxdb]]
-  urls = ["http://localhost:8000"]
+[[outputs.arc]]
+  url = "http://localhost:8000/api/v1/write/msgpack"
+  api_key = "YOUR_ARC_TOKEN"
+  content_encoding = "gzip"
   database = "metrics"
-  skip_database_creation = true
-
-  [outputs.influxdb.headers]
-    Authorization = "Bearer YOUR_ARC_TOKEN"
-
-  # Performance tuning
-  timeout = "10s"
-  write_consistency = "any"
-  max_retries = 3
-  retry_interval = "1s"
 
 # Enable all system metrics
 [[inputs.cpu]]
@@ -181,22 +176,18 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 ```toml
 # Production metrics → production database
-[[outputs.influxdb]]
-  urls = ["http://arc-prod.example.com:8000"]
+[[outputs.arc]]
+  url = "https://arc-prod.example.com/api/v1/write/msgpack"
+  api_key = "PROD_TOKEN"
+  content_encoding = "gzip"
   database = "production"
 
-  [outputs.influxdb.headers]
-    Authorization = "Bearer PROD_TOKEN"
-    x-arc-database = "production"
-
 # Staging metrics → staging database
-[[outputs.influxdb]]
-  urls = ["http://arc-staging.example.com:8000"]
+[[outputs.arc]]
+  url = "https://arc-staging.example.com/api/v1/write/msgpack"
+  api_key = "STAGING_TOKEN"
+  content_encoding = "gzip"
   database = "staging"
-
-  [outputs.influxdb.headers]
-    Authorization = "Bearer STAGING_TOKEN"
-    x-arc-database = "staging"
 ```
 
 ## Available Input Plugins
@@ -293,7 +284,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 ### View Available Measurements
 
 ```sql
-SHOW TABLES;
+SHOW TABLES FROM telegraf;
 ```
 
 **Common measurements from Telegraf:**
@@ -314,8 +305,8 @@ SELECT
     time_bucket(INTERVAL '5 minutes', time) as bucket,
     host,
     AVG(usage_user + usage_system) as avg_usage
-FROM cpu
-WHERE time > NOW() - INTERVAL 1 HOUR
+FROM telegraf.cpu
+WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY bucket, host
 ORDER BY bucket DESC;
 
@@ -324,8 +315,8 @@ SELECT
     host,
     cpu,
     MAX(usage_user + usage_system) as max_usage
-FROM cpu
-WHERE time > NOW() - INTERVAL 24 HOUR
+FROM telegraf.cpu
+WHERE time > NOW() - INTERVAL '24 hours'
 GROUP BY host, cpu
 ORDER BY max_usage DESC
 LIMIT 10;
@@ -339,8 +330,8 @@ SELECT
     time_bucket(INTERVAL '1 hour', time) as hour,
     host,
     AVG(used_percent) as avg_mem_usage
-FROM mem
-WHERE time > NOW() - INTERVAL 7 DAY
+FROM telegraf.mem
+WHERE time > NOW() - INTERVAL '7 days'
 GROUP BY hour, host
 ORDER BY hour DESC;
 
@@ -349,8 +340,8 @@ SELECT
     host,
     AVG(used_percent) as avg_usage,
     MAX(used_percent) as max_usage
-FROM mem
-WHERE time > NOW() - INTERVAL 24 HOUR
+FROM telegraf.mem
+WHERE time > NOW() - INTERVAL '24 hours'
 GROUP BY host
 HAVING AVG(used_percent) > 80
 ORDER BY avg_usage DESC;
@@ -364,8 +355,8 @@ SELECT
     host,
     path,
     AVG(used_percent) as avg_usage
-FROM disk
-WHERE time > NOW() - INTERVAL 1 HOUR
+FROM telegraf.disk
+WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY host, path
 ORDER BY avg_usage DESC;
 
@@ -375,8 +366,8 @@ SELECT
     name,
     SUM(reads) as total_reads,
     SUM(writes) as total_writes
-FROM diskio
-WHERE time > NOW() - INTERVAL 1 HOUR
+FROM telegraf.diskio
+WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY bucket, name
 ORDER BY bucket DESC;
 ```
@@ -390,8 +381,8 @@ SELECT
     interface,
     SUM(bytes_sent) / (5 * 60) as bytes_sent_per_sec,
     SUM(bytes_recv) / (5 * 60) as bytes_recv_per_sec
-FROM net
-WHERE time > NOW() - INTERVAL 1 HOUR
+FROM telegraf.net
+WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY bucket, interface
 ORDER BY bucket DESC;
 ```
@@ -404,8 +395,8 @@ SELECT
     time_bucket(INTERVAL '5 minutes', time) as bucket,
     container_name,
     AVG(usage_percent) as avg_cpu
-FROM docker_container_cpu
-WHERE time > NOW() - INTERVAL 1 HOUR
+FROM telegraf.docker_container_cpu
+WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY bucket, container_name
 ORDER BY bucket DESC;
 
@@ -414,8 +405,8 @@ SELECT
     container_name,
     AVG(usage) as avg_memory_bytes,
     MAX(usage) as max_memory_bytes
-FROM docker_container_mem
-WHERE time > NOW() - INTERVAL 24 HOUR
+FROM telegraf.docker_container_mem
+WHERE time > NOW() - INTERVAL '24 hours'
 GROUP BY container_name
 ORDER BY avg_memory_bytes DESC;
 ```
@@ -435,7 +426,7 @@ ORDER BY avg_memory_bytes DESC;
 - **Medium volume** (1000-10000/sec): batch_size = 5000
 - **High volume** (&gt;10000/sec): batch_size = 10000
 
-### Reduce Flush Interval
+### Collection Intervals
 
 ```toml
 [agent]
@@ -445,18 +436,12 @@ ORDER BY avg_memory_bytes DESC;
 
 For real-time monitoring, use smaller intervals (5s). For cost optimization, use larger intervals (60s).
 
-### Use HTTP/2
-
-```toml
-[[outputs.influxdb]]
-  urls = ["https://arc.example.com"]  # HTTPS enables HTTP/2
-  http_proxy_override = "http://localhost:8888"
-```
-
 ### Enable Compression
 
+Always use gzip compression for better network efficiency:
+
 ```toml
-[[outputs.influxdb]]
+[[outputs.arc]]
   content_encoding = "gzip"  # Compress payloads
 ```
 
@@ -469,9 +454,10 @@ For real-time monitoring, use smaller intervals (5s). For cost optimization, use
 curl http://localhost:8000/health
 
 # Test with token
-curl -X POST http://localhost:8000/api/v1/write \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
-  -d "test,host=local value=1"
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT 1", "format": "json"}'
 
 # Check Telegraf logs
 sudo journalctl -u telegraf -f | grep -i error
@@ -490,29 +476,21 @@ telegraf --config /etc/telegraf/telegraf.conf --test
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT COUNT(*) FROM cpu", "format": "json"}'
+  -d '{"sql": "SELECT COUNT(*) FROM telegraf.cpu", "format": "json"}'
 ```
 
 ### Authentication Errors
 
+Ensure your API key is correct in the configuration:
+
 ```toml
-# Correct: Use headers
-[outputs.influxdb.headers]
-  Authorization = "Bearer YOUR_TOKEN"
-
-# Wrong: Password without Bearer
-password = "YOUR_TOKEN"
-
-# Also correct: Password with Bearer
-password = "Bearer YOUR_TOKEN"
+[[outputs.arc]]
+  api_key = "YOUR_ARC_TOKEN"  # Must be a valid Arc API token
 ```
 
 ### Metrics Being Dropped
 
 ```bash
-# Check Telegraf metrics
-curl http://localhost:8086/metrics | grep dropped
-
 # Increase buffer
 [agent]
   metric_buffer_limit = 100000  # Increase from default
@@ -521,77 +499,28 @@ curl http://localhost:8086/metrics | grep dropped
 curl http://localhost:8000/health
 ```
 
-## Migration from InfluxDB
+### Version Check
 
-### 1. Update Connection
-
-```toml
-# Old InfluxDB configuration
-[[outputs.influxdb]]
-  urls = ["http://influxdb:8086"]
-  database = "telegraf"
-
-# New Arc configuration
-[[outputs.influxdb]]
-  urls = ["http://arc:8000"]
-  database = "telegraf"
-  skip_database_creation = true
-  [outputs.influxdb.headers]
-    Authorization = "Bearer YOUR_ARC_TOKEN"
-```
-
-### 2. Keep InfluxDB Queries Working
-
-Arc supports most InfluxDB queries via DuckDB:
-
-```sql
--- InfluxDB
-SELECT mean("usage_idle") FROM "cpu" WHERE time > now() - 1h GROUP BY time(5m)
-
--- Arc (DuckDB SQL)
-SELECT
-    time_bucket(INTERVAL '5 minutes', time) as time,
-    AVG(usage_idle) as mean_usage_idle
-FROM cpu
-WHERE time > NOW() - INTERVAL 1 HOUR
-GROUP BY time
-ORDER BY time;
-```
-
-### 3. Migrate Historical Data
-
-Use Arc's import tools:
+The Arc output plugin requires Telegraf 1.37+:
 
 ```bash
-# Export from InfluxDB
-influx -execute "SELECT * FROM cpu" -format csv > cpu.csv
-
-# Import to Arc
-python3 import_csv.py --file cpu.csv --measurement cpu
+telegraf --version
+# Telegraf 1.37.0 (or higher required)
 ```
 
-## Example Dashboard Integration
+## Dashboard Integration
 
 ### Grafana with Arc
 
-```yaml
-# datasource.yml
-apiVersion: 1
+Use the [Arc Grafana datasource plugin](/arc/integrations/grafana) for native integration:
 
-datasources:
-  - name: Arc
-    type: postgres  # Use PostgreSQL datasource
-    url: arc:8000
-    database: telegraf
-    user: ""
-    jsonData:
-      postgresVersion: 1300
-      sslmode: disable
-    secureJsonData:
-      password: "YOUR_ARC_TOKEN"
+```
+1. Install the Arc datasource from Grafana marketplace
+2. Configure connection to your Arc instance
+3. Use DuckDB SQL in your dashboard panels
 ```
 
-**Note:** Use [Arc Superset dialect](/arc/integrations/superset) for native Arc support.
+See [Grafana Integration](/arc/integrations/grafana) for detailed setup instructions.
 
 ## Best Practices
 
@@ -617,10 +546,10 @@ Tags enable powerful GROUP BY queries but increase cardinality.
   ignore_fs = ["tmpfs", "devtmpfs"]  # Skip temporary filesystems
 ```
 
-### 3. Use Measurement Prefixes
+### 3. Use Measurement Filters
 
 ```toml
-[outputs.influxdb]
+[[outputs.arc]]
   namepass = ["cpu*", "mem*", "disk*"]  # Only send specific metrics
   # OR
   namedrop = ["docker_*"]  # Exclude Docker metrics
@@ -641,11 +570,11 @@ Tags enable powerful GROUP BY queries but increase cardinality.
 - **[Telegraf Documentation](https://docs.influxdata.com/telegraf/)**
 - **[Telegraf Plugins](https://docs.influxdata.com/telegraf/latest/plugins/)**
 - **[Arc Query Guide](/arc/guides/querying)**
-- **[InfluxDB Line Protocol](/arc/api-reference/ingestion#line-protocol)**
+- **[Arc Grafana Integration](/arc/integrations/grafana)**
 
 ## Next Steps
 
 - **[Query Telegraf metrics](/arc/guides/querying)**
-- **[Create Superset dashboards](/arc/integrations/superset)**
+- **[Create Grafana dashboards](/arc/integrations/grafana)**
 - **[Set up alerts](/arc/guides/alerting)**
 - **[Optimize performance](/arc/configuration/performance)**
