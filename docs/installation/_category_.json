@@ -3,6 +3,6 @@
   "position": 2,
   "link": {
     "type": "generated-index",
-    "description": "Learn how to install Arc using Docker or native deployment."
+    "description": "Learn how to install Arc using Docker, Kubernetes, native packages, or AWS Marketplace."
   }
 }
