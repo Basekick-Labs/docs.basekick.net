@@ -89,7 +89,6 @@ ARC_LOG_FORMAT=json
 ARC_DATABASE_MAX_CONNECTIONS=28
 ARC_DATABASE_MEMORY_LIMIT=8GB
 ARC_DATABASE_THREAD_COUNT=14
-ARC_DATABASE_PRESERVE_INSERTION_ORDER=false
 
 # Features
 ARC_AUTH_ENABLED=true
@@ -309,27 +308,7 @@ max_connections = 28      # Connection pool size
 memory_limit = "8GB"      # DuckDB memory limit
 thread_count = 14         # Query execution threads
 enable_wal = false        # DuckDB WAL (not Arc WAL)
-preserve_insertion_order = false  # Analytical query optimization (default: false)
 ```
-
-#### Analytical Query Optimization
-
-The `preserve_insertion_order` setting controls whether DuckDB maintains row insertion order during query execution. When set to `false` (default), DuckDB can:
-
-- Execute aggregations fully in parallel
-- Reorder intermediate results for efficiency
-- Skip unnecessary ordering operations
-
-This provides **20-50% performance improvement** for analytical queries like `GROUP BY`, `COUNT`, and `AVG`. Queries with explicit `ORDER BY` clauses are not affected.
-
-```bash
-# Environment variable
-ARC_DATABASE_PRESERVE_INSERTION_ORDER=false
-```
-
-:::tip When to Enable
-Only set `preserve_insertion_order = true` if your application relies on implicit row ordering (rare). For analytical and time-series workloads, keep it `false`.
-:::
 
 ### Ingestion
 
