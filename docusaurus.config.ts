@@ -9,6 +9,20 @@ const config: Config = {
   tagline: 'High-performance time-series database',
   favicon: 'img/favicon.ico',
 
+  // Multi-instance docs: Liftbridge
+  plugins: [
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'liftbridge',
+        path: 'docs-liftbridge',
+        routeBasePath: 'liftbridge',
+        sidebarPath: './sidebarsLiftbridge.ts',
+        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
+      },
+    ],
+  ],
+
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
@@ -59,13 +73,35 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Arc Documentation',
+      title: 'Basekick Docs',
       items: [
+        {
+          type: 'dropdown',
+          label: 'Products',
+          position: 'left',
+          items: [
+            {
+              label: 'Arc',
+              to: '/arc',
+            },
+            {
+              label: 'Liftbridge',
+              to: '/liftbridge',
+            },
+          ],
+        },
         {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: 'Documentation',
+          label: 'Arc Docs',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'liftbridgeSidebar',
+          docsPluginId: 'liftbridge',
+          position: 'left',
+          label: 'Liftbridge Docs',
         },
         {
           href: 'https://basekick.net',
@@ -73,7 +109,7 @@ const config: Config = {
           position: 'right',
         },
         {
-          href: 'https://github.com/Basekick-Labs/arc',
+          href: 'https://github.com/Basekick-Labs',
           label: 'GitHub',
           position: 'right',
         },
@@ -83,11 +119,15 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Products',
           items: [
             {
-              label: 'Getting Started',
+              label: 'Arc',
               to: '/arc',
+            },
+            {
+              label: 'Liftbridge',
+              to: '/liftbridge',
             },
           ],
         },
@@ -99,8 +139,8 @@ const config: Config = {
               href: 'https://github.com/Basekick-Labs/arc/discussions',
             },
             {
-              label: 'GitHub Issues',
-              href: 'https://github.com/Basekick-Labs/arc/issues',
+              label: 'Discord',
+              href: 'https://discord.gg/nxnWfUxsdm',
             },
           ],
         },
@@ -117,7 +157,7 @@ const config: Config = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/Basekick-Labs/arc',
+              href: 'https://github.com/Basekick-Labs',
             },
           ],
         },
