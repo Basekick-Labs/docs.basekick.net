@@ -73,35 +73,20 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Basekick Docs',
+      title: 'Basekick Labs Docs',
       items: [
-        {
-          type: 'dropdown',
-          label: 'Products',
-          position: 'left',
-          items: [
-            {
-              label: 'Arc',
-              to: '/arc',
-            },
-            {
-              label: 'Liftbridge',
-              to: '/liftbridge',
-            },
-          ],
-        },
         {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: 'Arc Docs',
+          label: 'Arc',
         },
         {
           type: 'docSidebar',
           sidebarId: 'liftbridgeSidebar',
           docsPluginId: 'liftbridge',
           position: 'left',
-          label: 'Liftbridge Docs',
+          label: 'Liftbridge',
         },
         {
           href: 'https://basekick.net',
