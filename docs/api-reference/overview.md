@@ -448,6 +448,136 @@ Get delete operation configuration.
 
 ---
 
+## Database Management
+
+Endpoints for managing databases programmatically.
+
+### GET /api/v1/databases
+
+List all databases with measurement counts.
+
+**Response:**
+```json
+{
+  "databases": [
+    {"name": "default", "measurement_count": 5},
+    {"name": "production", "measurement_count": 12}
+  ],
+  "count": 2
+}
+```
+
+### POST /api/v1/databases
+
+Create a new database.
+
+**Request:**
+```json
+{
+  "name": "my_database"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "name": "my_database",
+  "measurement_count": 0,
+  "created_at": "2024-12-21T10:30:00Z"
+}
+```
+
+**Validation rules:**
+- Must start with a letter (a-z, A-Z)
+- Can contain letters, numbers, underscores, and hyphens
+- Maximum 64 characters
+- Reserved names blocked: `system`, `internal`, `_internal`
+
+**Error Response (400):**
+```json
+{
+  "error": "Invalid database name: must start with a letter and contain only alphanumeric characters, underscores, or hyphens"
+}
+```
+
+### GET /api/v1/databases/:name
+
+Get information about a specific database.
+
+**Response:**
+```json
+{
+  "name": "production",
+  "measurement_count": 12
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "Database 'nonexistent' not found"
+}
+```
+
+### GET /api/v1/databases/:name/measurements
+
+List all measurements in a database.
+
+**Response:**
+```json
+{
+  "database": "production",
+  "measurements": [
+    {"name": "cpu"},
+    {"name": "memory"},
+    {"name": "disk"}
+  ],
+  "count": 3
+}
+```
+
+### DELETE /api/v1/databases/:name
+
+Delete a database and all its data.
+
+:::caution
+This operation is destructive and cannot be undone. Requires:
+- `delete.enabled = true` in configuration
+- `?confirm=true` query parameter
+:::
+
+**Request:**
+```bash
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/databases/old_data?confirm=true"
+```
+
+**Response:**
+```json
+{
+  "message": "Database 'old_data' deleted successfully",
+  "files_deleted": 47
+}
+```
+
+**Error Responses:**
+
+*Delete disabled (403):*
+```json
+{
+  "error": "Delete operations are disabled. Set delete.enabled=true in arc.toml to enable."
+}
+```
+
+*Missing confirmation (400):*
+```json
+{
+  "error": "Confirmation required. Add ?confirm=true to delete the database."
+}
+```
+
+---
+
 ## Retention Policies
 
 ### POST /api/v1/retention
