@@ -102,7 +102,7 @@ else:
 response = requests.post(
     "http://localhost:8000/api/v1/query",
     headers={"Authorization": "Bearer YOUR_TOKEN"},
-    json={"sql": "SELECT * FROM cpu LIMIT 10", "format": "json"}
+    json={"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}
 )
 ```
 

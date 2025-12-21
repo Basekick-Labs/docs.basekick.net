@@ -58,7 +58,7 @@ POST /api/v1/continuous_queries
   "database": "telegraf",
   "source_measurement": "cpu",
   "destination_measurement": "cpu_hourly",
-  "query": "SELECT time_bucket('1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM cpu GROUP BY time_bucket('1 hour', time), host",
+  "query": "SELECT time_bucket('1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM telegraf.cpu GROUP BY time_bucket('1 hour', time), host",
   "interval": "1h",
   "retention_policy": "90d",
   "is_active": true
@@ -208,7 +208,7 @@ SELECT
     MAX(usage_user) AS max_usage_user,
     MIN(usage_system) AS min_usage_system,
     COUNT(*) AS sample_count
-FROM cpu
+FROM telegraf.cpu
 GROUP BY date_trunc('hour', epoch_us(time)), host
 ```
 
@@ -246,7 +246,7 @@ SELECT
     host,
     AVG(usage_idle) AS avg_usage_idle,
     COUNT(*) AS sample_count  -- Important for data quality
-FROM cpu
+FROM telegraf.cpu
 GROUP BY date_trunc('hour', epoch_us(time)), host
 ```
 
@@ -277,7 +277,7 @@ response = requests.post(
                 AVG(usage_system) AS avg_usage_system,
                 MAX(usage_user) AS max_usage_user,
                 COUNT(*) AS sample_count
-            FROM cpu
+            FROM telegraf.cpu
             GROUP BY date_trunc('hour', epoch_us(time)), host
         """,
         "interval": "1h",

@@ -54,7 +54,8 @@ response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": "Bearer YOUR_TOKEN",
-        "Content-Type": "application/msgpack"
+        "Content-Type": "application/msgpack",
+        "x-arc-database": "default"
     },
     data=msgpack.packb(data)
 )
@@ -66,7 +67,7 @@ response = requests.post(
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM cpu LIMIT 10", "format": "json"}'
+  -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
 ```
 
 ### Query Data (Apache Arrow)
@@ -80,7 +81,7 @@ import pyarrow as pa
 response = requests.post(
     "http://localhost:8000/api/v1/query/arrow",
     headers={"Authorization": "Bearer YOUR_TOKEN"},
-    json={"sql": "SELECT * FROM cpu LIMIT 100000"}
+    json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
 )
 
 reader = pa.ipc.open_stream(response.content)

@@ -93,7 +93,7 @@ Schemas available:
 
 ```sql
 -- Query default database
-SELECT * FROM cpu LIMIT 10;
+SELECT * FROM default.cpu LIMIT 10;
 
 -- Query production database
 SELECT * FROM production.cpu LIMIT 10;
@@ -119,7 +119,7 @@ SELECT
     time_bucket(INTERVAL '5 minutes', timestamp) as time,
     host,
     AVG(usage_idle) as avg_idle
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 6 HOUR
 GROUP BY time, host
 ORDER BY time DESC;
@@ -140,8 +140,8 @@ SELECT
     c.host,
     c.usage_idle as cpu_idle,
     m.used_percent as mem_used
-FROM cpu c
-JOIN mem m ON c.timestamp = m.timestamp AND c.host = m.host
+FROM default.cpu c
+JOIN default.mem m ON c.timestamp = m.timestamp AND c.host = m.host
 WHERE c.timestamp > NOW() - INTERVAL 1 HOUR
 ORDER BY c.timestamp DESC;
 ```
@@ -160,7 +160,7 @@ SELECT
     host,
     AVG(usage_user + usage_system) as avg_usage,
     MAX(usage_user + usage_system) as max_usage
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 GROUP BY host
 ORDER BY avg_usage DESC
@@ -181,7 +181,7 @@ SELECT
     DATE_TRUNC('hour', timestamp) as hour,
     host,
     AVG(100 - usage_idle) as cpu_activity
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 7 DAY
 GROUP BY hour, host;
 ```
@@ -208,7 +208,7 @@ Drag and drop charts from the chart list or create new ones.
 
 ```sql
 -- Host filter
-SELECT DISTINCT host FROM cpu ORDER BY host;
+SELECT DISTINCT host FROM default.cpu ORDER BY host;
 
 -- Time range filter
 -- Use Superset's built-in time range filter
@@ -256,7 +256,7 @@ SELECT
         ORDER BY timestamp
         ROWS BETWEEN 5 PRECEDING AND CURRENT ROW
     ) as moving_avg
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 1 HOUR;
 
 -- CTEs (Common Table Expressions)
@@ -265,7 +265,7 @@ WITH hourly_avg AS (
         DATE_TRUNC('hour', timestamp) as hour,
         host,
         AVG(usage_idle) as avg_idle
-    FROM cpu
+    FROM default.cpu
     WHERE timestamp > NOW() - INTERVAL 24 HOUR
     GROUP BY hour, host
 )
@@ -279,7 +279,7 @@ SELECT
     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY usage_idle) as p50,
     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY usage_idle) as p95,
     PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY usage_idle) as p99
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 GROUP BY host;
 ```
@@ -302,7 +302,7 @@ Configure alerts in Superset:
 SELECT
     host,
     AVG(100 - usage_idle) as cpu_usage
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 5 MINUTE
 GROUP BY host
 HAVING AVG(100 - usage_idle) > 80;
@@ -332,14 +332,14 @@ Always filter by time to reduce data scanned:
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 
 -- Bad: No filter (scans all data)
-SELECT * FROM cpu
+SELECT * FROM default.cpu
 ```
 
 ### 2. Limit Result Size
 
 ```sql
 -- Add LIMIT to exploratory queries
-SELECT * FROM cpu
+SELECT * FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 1 HOUR
 LIMIT 1000;
 ```
@@ -362,18 +362,18 @@ For slow dashboards, create materialized views:
 
 ```sql
 -- Pre-aggregate data
-CREATE TABLE cpu_hourly AS
+CREATE TABLE default.cpu_hourly AS
 SELECT
     DATE_TRUNC('hour', timestamp) as hour,
     host,
     AVG(usage_idle) as avg_idle,
     MAX(usage_idle) as max_idle,
     MIN(usage_idle) as min_idle
-FROM cpu
+FROM default.cpu
 GROUP BY hour, host;
 
 -- Query materialized data
-SELECT * FROM cpu_hourly
+SELECT * FROM default.cpu_hourly
 WHERE hour > NOW() - INTERVAL 7 DAY;
 ```
 
@@ -384,13 +384,13 @@ WHERE hour > NOW() - INTERVAL 7 DAY;
 SELECT
     DATE_TRUNC('hour', timestamp) as hour,
     AVG(usage_idle) as avg_idle
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR
 GROUP BY hour;
 
 -- Bad: Return all rows
 SELECT timestamp, usage_idle
-FROM cpu
+FROM default.cpu
 WHERE timestamp > NOW() - INTERVAL 24 HOUR;
 -- Then aggregate in Superset (slow)
 ```

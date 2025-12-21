@@ -317,13 +317,13 @@ curl http://localhost:8000/api/compaction/history \
 
 **Before Compaction:**
 ```sql
-SELECT * FROM cpu WHERE time > NOW() - INTERVAL 1 HOUR;
+SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL 1 HOUR;
 -- 5.2 seconds (scan 720 files)
 ```
 
 **After Compaction:**
 ```sql
-SELECT * FROM cpu WHERE time > NOW() - INTERVAL 1 HOUR;
+SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL 1 HOUR;
 -- 0.05 seconds (scan 1 file) - 104x faster!
 ```
 

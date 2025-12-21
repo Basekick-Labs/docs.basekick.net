@@ -270,8 +270,7 @@ echo '{"m":"cpu","columns":{"time":[1734372000000],"host":["server01"],"usage":[
 curl -X POST "$ARC_URL/api/v1/query" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "x-arc-database: default" \
-  -d '{"sql":"SELECT * FROM cpu","format":"json"}'
+  -d '{"sql":"SELECT * FROM default.cpu","format":"json"}'
 ```
 
 ## Instance Types

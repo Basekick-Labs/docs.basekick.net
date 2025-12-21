@@ -131,7 +131,8 @@ response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
         "Authorization": f"Bearer {token}",
-        "Content-Type": "application/msgpack"
+        "Content-Type": "application/msgpack",
+        "x-arc-database": "default"
     },
     data=msgpack.packb(data)
 )
