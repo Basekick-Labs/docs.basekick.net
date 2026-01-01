@@ -42,6 +42,9 @@ local_path = "./data/arc"
 [ingest]
 max_buffer_size = 50000     # records before flush
 max_buffer_age_ms = 5000    # ms before force flush
+# flush_workers = 16        # async flush workers (auto-detected)
+# flush_queue_size = 64     # pending flush queue (auto-detected)
+# shard_count = 32          # buffer shards
 
 # Compaction
 [compaction]
@@ -96,6 +99,11 @@ ARC_COMPACTION_ENABLED=true
 ARC_DELETE_ENABLED=true
 ARC_RETENTION_ENABLED=true
 ARC_CONTINUOUS_QUERY_ENABLED=true
+
+# Ingestion Concurrency (v26.01.2+)
+ARC_INGEST_FLUSH_WORKERS=32
+ARC_INGEST_FLUSH_QUEUE_SIZE=200
+ARC_INGEST_SHARD_COUNT=64
 ```
 
 ## Configuration Priority
@@ -312,7 +320,7 @@ enable_wal = false        # DuckDB WAL (not Arc WAL)
 
 ### Ingestion
 
-Buffer settings for write performance:
+Buffer and concurrency settings for write performance:
 
 ```toml
 [ingest]
@@ -321,11 +329,26 @@ max_buffer_size = 50000
 
 # Maximum age (ms) before forcing a flush
 max_buffer_age_ms = 5000
+
+# Concurrency settings (auto-detected if not set)
+# flush_workers = 16       # async flush workers (2x CPU cores, min 8, max 64)
+# flush_queue_size = 64    # pending flush queue (4x workers, min 100)
+# shard_count = 32         # buffer shards for lock distribution
 ```
 
 Data flushes when **either** condition is met:
 1. Buffer reaches `max_buffer_size` records
 2. Buffer age exceeds `max_buffer_age_ms`
+
+:::tip High Concurrency
+For deployments with many concurrent clients (50+), increase `flush_workers` and `flush_queue_size`:
+```toml
+[ingest]
+flush_workers = 32
+flush_queue_size = 200
+shard_count = 64
+```
+:::
 
 ### Compaction
 
@@ -540,6 +563,42 @@ max_age_seconds = 3600
 
 [compaction]
 enabled = true
+```
+
+  </TabItem>
+  <TabItem value="high-concurrency" label="High Concurrency">
+
+```toml
+# Optimized for 50+ concurrent clients (e.g., many Telegraf agents)
+[server]
+port = 8000
+
+[log]
+level = "info"
+format = "json"
+
+[database]
+max_connections = 64
+memory_limit = "16GB"
+
+[storage]
+backend = "local"
+local_path = "/var/lib/arc/data"
+
+[ingest]
+max_buffer_size = 100000
+max_buffer_age_ms = 10000
+# Scale concurrency for many clients
+flush_workers = 32        # More workers for parallel I/O
+flush_queue_size = 200    # Larger queue for burst handling
+shard_count = 64          # More shards to reduce lock contention
+
+[auth]
+enabled = true
+
+[compaction]
+enabled = true
+hourly_enabled = true
 ```
 
   </TabItem>
