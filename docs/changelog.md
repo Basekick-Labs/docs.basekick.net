@@ -6,6 +6,29 @@ sidebar_position: 10
 
 Release history for Arc.
 
+## 26.01.2
+
+Released: January 2026
+
+Bugfix release addressing Azure Blob Storage backend issues and authentication configuration.
+
+### Bug Fixes
+
+#### Azure Blob Storage Backend
+
+- **Fix queries failing with Azure backend** - Queries were incorrectly using local filesystem paths (`./data/...`) instead of Azure blob paths (`azure://...`) when using Azure Blob Storage as the storage backend.
+- **Fix compaction subprocess Azure authentication** - Compaction subprocess was failing with "DefaultAzureCredential: failed to acquire token" because credentials weren't being passed to the subprocess. Now passes `AZURE_STORAGE_KEY` via environment variable.
+
+#### Configuration
+
+- **Authentication enabled by default** - `auth.enabled` is now `true` by default in arc.toml for improved security out of the box.
+
+### Upgrade Notes
+
+If you were relying on authentication being disabled by default, you'll need to explicitly set `auth.enabled = false` in your arc.toml.
+
+---
+
 ## 26.01.1
 
 Released: January 2026

@@ -667,6 +667,167 @@ Get execution history.
 
 ---
 
+## MQTT Subscriptions
+
+:::info Available since v26.02.1
+MQTT subscription management is available starting Arc v26.02.1.
+:::
+
+Manage MQTT broker subscriptions for direct IoT data ingestion. See the [MQTT Integration Guide](/arc/integrations/mqtt) for detailed usage.
+
+### POST /api/v1/mqtt/subscriptions
+
+Create a new MQTT subscription.
+
+**Request:**
+```json
+{
+  "name": "factory-sensors",
+  "broker": "tcp://localhost:1883",
+  "topics": ["sensors/#"],
+  "database": "iot",
+  "qos": 1,
+  "auto_start": true
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "sub_abc123",
+  "name": "factory-sensors",
+  "broker": "tcp://localhost:1883",
+  "topics": ["sensors/#"],
+  "database": "iot",
+  "status": "running",
+  "created_at": "2026-02-01T10:00:00Z"
+}
+```
+
+**Full options:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Unique subscription name |
+| `broker` | string | Yes | - | Broker URL (tcp://, ssl://, ws://) |
+| `topics` | array | Yes | - | Topics to subscribe |
+| `database` | string | Yes | - | Target Arc database |
+| `qos` | int | No | 1 | QoS level: 0, 1, or 2 |
+| `client_id` | string | No | auto | MQTT client ID |
+| `username` | string | No | - | MQTT username |
+| `password` | string | No | - | MQTT password (encrypted at rest) |
+| `tls_enabled` | bool | No | false | Enable TLS/SSL |
+| `tls_cert_path` | string | No | - | Client certificate path |
+| `tls_key_path` | string | No | - | Client key path |
+| `tls_ca_path` | string | No | - | CA certificate path |
+| `topic_mapping` | object | No | {} | Topic-to-measurement mapping |
+| `auto_start` | bool | No | true | Start on creation and server restart |
+
+### GET /api/v1/mqtt/subscriptions
+
+List all MQTT subscriptions.
+
+**Response:**
+```json
+{
+  "subscriptions": [
+    {
+      "id": "sub_abc123",
+      "name": "factory-sensors",
+      "broker": "tcp://localhost:1883",
+      "status": "running"
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET /api/v1/mqtt/subscriptions/:id
+
+Get subscription details.
+
+### PUT /api/v1/mqtt/subscriptions/:id
+
+Update a subscription. Subscription must be stopped first.
+
+### DELETE /api/v1/mqtt/subscriptions/:id
+
+Delete a subscription. Subscription must be stopped first.
+
+### POST /api/v1/mqtt/subscriptions/:id/start
+
+Start a stopped subscription.
+
+**Response:**
+```json
+{
+  "id": "sub_abc123",
+  "status": "running",
+  "message": "Subscription started"
+}
+```
+
+### POST /api/v1/mqtt/subscriptions/:id/stop
+
+Stop a running subscription.
+
+### POST /api/v1/mqtt/subscriptions/:id/restart
+
+Restart a subscription (stop + start).
+
+### GET /api/v1/mqtt/subscriptions/:id/stats
+
+Get statistics for a specific subscription.
+
+**Response:**
+```json
+{
+  "id": "sub_abc123",
+  "messages_received": 15420,
+  "bytes_received": 2458320,
+  "decode_errors": 0,
+  "last_message_at": "2026-02-01T10:30:15Z",
+  "topics": {
+    "sensors/temperature": 8500,
+    "sensors/humidity": 6920
+  }
+}
+```
+
+### GET /api/v1/mqtt/stats
+
+Aggregate statistics across all running subscriptions.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "running_count": 2,
+  "subscriptions_stats": {
+    "sub_abc123": { ... },
+    "sub_def456": { ... }
+  }
+}
+```
+
+### GET /api/v1/mqtt/health
+
+MQTT service health check.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "healthy": true,
+  "running_count": 2,
+  "connected_count": 2,
+  "disconnected_count": 0,
+  "service": "mqtt_subscriptions"
+}
+```
+
+---
+
 ## Response Formats
 
 ### Success Response
