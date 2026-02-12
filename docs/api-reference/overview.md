@@ -14,16 +14,32 @@ http://localhost:8000
 
 ## Authentication
 
-All endpoints (except public ones) require Bearer token authentication:
+All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients:
+
+### Bearer Token (Standard)
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-Or use the `x-api-key` header:
+### Token Header (InfluxDB 2.x Style)
+
+```bash
+curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/v1/query
+```
+
+### API Key Header
 
 ```bash
 curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
+```
+
+### Query Parameter (InfluxDB 1.x Style)
+
+For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query parameter:
+
+```bash
+curl "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -205,13 +221,19 @@ MessagePack ingestion statistics.
 
 MessagePack format specification.
 
-### POST /api/v1/write
+### POST /write
 
-InfluxDB 1.x Line Protocol compatible.
+InfluxDB 1.x Line Protocol compatible endpoint. This path matches InfluxDB's native API for drop-in client compatibility.
+
+**Query Parameters:**
+- `db` - Target database name (required)
+- `rp` - Retention policy (optional, ignored)
+- `precision` - Timestamp precision: `ns`, `us`, `ms`, `s` (default: `ns`)
+- `p` - Authentication token (InfluxDB 1.x style)
 
 **Headers:**
 - `Content-Type: text/plain`
-- `x-arc-database: default` (optional)
+- `Authorization: Bearer TOKEN` (or use `p` query param)
 
 **Body:**
 ```
@@ -219,13 +241,40 @@ cpu,host=server01 usage=45.2 1697472000000000000
 mem,host=server01 used=8.2,total=16.0 1697472000000000000
 ```
 
-### POST /api/v1/write/influxdb
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" \
+  -d 'cpu,host=server01 usage=45.2'
+```
 
-InfluxDB 2.x compatible endpoint.
+### POST /api/v2/write
+
+InfluxDB 2.x compatible endpoint. This path matches InfluxDB's native API for drop-in client compatibility.
+
+**Query Parameters:**
+- `bucket` - Target database/bucket name (required)
+- `org` - Organization (optional, ignored)
+- `precision` - Timestamp precision: `ns`, `us`, `ms`, `s` (default: `ns`)
+
+**Headers:**
+- `Content-Type: text/plain`
+- `Authorization: Token YOUR_TOKEN` (InfluxDB 2.x style)
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/api/v2/write?bucket=mydb&org=myorg" \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -d 'cpu,host=server01 usage=45.2'
+```
 
 ### POST /api/v1/write/line-protocol
 
-Standard Line Protocol endpoint.
+Arc-native Line Protocol endpoint. Uses headers instead of query parameters.
+
+**Headers:**
+- `Content-Type: text/plain`
+- `Authorization: Bearer TOKEN`
+- `x-arc-database: default` - Target database
 
 ### POST /api/v1/write/line-protocol/flush
 

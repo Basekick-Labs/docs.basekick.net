@@ -142,9 +142,13 @@ response = requests.post(
   <TabItem value="lineprotocol" label="Line Protocol">
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/write" \
+# InfluxDB 1.x compatible endpoint
+curl -X POST "http://localhost:8000/write?db=default&p=$ARC_TOKEN" \
+  --data-binary "cpu,host=server01 usage_idle=95.0,usage_user=3.2"
+
+# Or with Authorization header
+curl -X POST "http://localhost:8000/write?db=default" \
   -H "Authorization: Bearer $ARC_TOKEN" \
-  -H "Content-Type: text/plain" \
   --data-binary "cpu,host=server01 usage_idle=95.0,usage_user=3.2"
 ```
 
