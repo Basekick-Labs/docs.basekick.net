@@ -13,33 +13,7 @@ Scale Arc horizontally with multi-node clusters. Separate write, read, and compa
 
 Arc Enterprise clustering uses a role-based architecture where each node in the cluster serves a specific purpose:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Arc Enterprise Cluster                     │
-│                                                              │
-│  ┌──────────────┐    ┌──────────────┐                        │
-│  │   Writer 1   │    │   Writer 2   │                        │
-│  │  (Primary)   │◄──►│  (Standby)   │                        │
-│  └──────┬───────┘    └──────────────┘                        │
-│         │                                                    │
-│         │ WAL Replication                                    │
-│         ▼                                                    │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              Shared Storage Layer                     │   │
-│  │         (S3 / Azure Blob / MinIO / NFS)              │   │
-│  └──────────────────────────────────────────────────────┘   │
-│         │                                                    │
-│         ▼                                                    │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
-│  │   Reader 1   │    │   Reader 2   │    │   Reader N   │   │
-│  └──────────────┘    └──────────────┘    └──────────────┘   │
-│                                                              │
-│  ┌──────────────┐    ┌──────────────┐                        │
-│  │ Compactor 1  │    │ Compactor 2  │   (Background)         │
-│  └──────────────┘    └──────────────┘                        │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
+![Arc Enterprise Architecture](/img/arc-enterprise-architecture.jpg)
 
 ## Node Roles
 
