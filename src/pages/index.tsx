@@ -32,7 +32,7 @@ function HomepageHeader() {
           </Link>
         </div>
         <div style={{marginTop: '2rem', fontSize: '1.2rem', opacity: 0.9}}>
-          <strong>9.47M</strong> records/sec • <strong>p50: 2.79ms</strong> latency • <GitHubStars repo="basekick-labs/arc" />
+          <strong>18.6M</strong> records/sec • <strong>2.64M</strong> rows/sec queries • <strong>p99: &lt;10ms</strong> • <GitHubStars repo="basekick-labs/arc" />
         </div>
       </div>
     </header>
@@ -43,7 +43,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Arc - High-Performance Time-Series Database"
-      description="High-performance time-series database built on DuckDB and Parquet. 9.47M records/sec ingestion with sub-3ms latency. SQL queries, S3/MinIO storage, zero dependencies.">
+      description="High-performance time-series database built on DuckDB and Parquet. 18.6M records/sec ingestion, 2.64M rows/sec queries, <10ms p99 latency. SQL queries, S3/Azure/MinIO storage, MQTT, Python SDK.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

@@ -7,18 +7,22 @@ slug: /
 
 **High-performance time-series database built on DuckDB**
 
-Arc is a high-performance time-series database designed for industrial IoT, smart cities, observability, and financial data. Built on DuckDB and Parquet with flexible storage backends. **9.47M records/sec** ingestion throughput.
+Arc is a high-performance time-series database designed for industrial IoT, smart cities, observability, and financial data. Built on DuckDB and Parquet with flexible storage backends. **18.6M records/sec** ingestion throughput.
 
 ## Key Features
 
-- **Extreme Performance**: 9.47M records/sec ingestion (MessagePack columnar)
-- **Fast Analytical Queries**: Powered by DuckDB with full SQL support (2.88M rows/sec)
-- **Flexible Storage**: Local filesystem, MinIO, AWS S3, Azure Blob Storage (v26.01.1)
+- **Extreme Performance**: 18.6M records/sec ingestion (MessagePack columnar)
+- **Fast Analytical Queries**: Powered by DuckDB with full SQL support (2.64M rows/sec)
+- **Flexible Storage**: Local filesystem, MinIO, AWS S3, Azure Blob Storage
 - **Multi-Database Architecture**: Organize data by environment, tenant, or application
 - **Automatic Compaction**: Tiered (hourly/daily) file merging for 10-50x faster queries
 - **Optional WAL**: Zero data loss with Write-Ahead Log
 - **Data Lifecycle**: Retention policies, continuous queries, GDPR-compliant delete
 - **Production Ready**: Prometheus metrics, structured logging, graceful shutdown
+- **MQTT Integration**: Direct MQTT broker subscription for IoT data streams
+- **Python SDK**: Native Python client with DataFrame support (Pandas, Polars, PyArrow)
+- **Bulk Import**: CSV and Parquet import with auto-partitioning
+- **Native TLS/HTTPS**: Built-in TLS support, no reverse proxy needed
 
 ## Why Arc?
 
@@ -32,7 +36,7 @@ Arc is a high-performance time-series database designed for industrial IoT, smar
 
 Traditional time-series databases can't keep up. They're slow, expensive, and lock your data in proprietary formats.
 
-**Arc solves this: 9.47M records/sec ingestion, sub-second queries on billions of rows, portable Parquet files you own.**
+**Arc solves this: 18.6M records/sec ingestion, sub-second queries on billions of rows, portable Parquet files you own.**
 
 ```sql
 -- Analyze equipment anomalies across facilities
@@ -81,7 +85,7 @@ data = {
     }
 }
 
-# Send columnar data (9.47M records/sec throughput)
+# Send columnar data (18.6M records/sec throughput)
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
@@ -118,33 +122,11 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 
 ## Performance
 
-### Ingestion Performance
-
-| Protocol | Throughput | p50 Latency | p95 Latency | p99 Latency |
-|----------|------------|-------------|-------------|-------------|
-| MessagePack Columnar | **9.47M rec/s** | 2.79ms | 4.66ms | 6.11ms |
-| Line Protocol | 1.92M rec/s | 49.53ms | - | 108.53ms |
-
-**Test Configuration:**
-- Hardware: Apple M3 Max (14 cores, 36GB RAM)
-- Workers: 35
-- Duration: 60 seconds
-- Success Rate: 100%
-
-### Query Performance
-
-| Format | Throughput | Response Size (50K rows) |
-|--------|------------|--------------------------|
-| Arrow IPC | **2.88M rows/s** | 1.71 MB |
-| JSON | 2.23M rows/s | 2.41 MB |
-
-### vs Python Implementation
-
-| Metric | Go | Python | Improvement |
-|--------|-----|--------|-------------|
-| Ingestion | 9.47M rec/s | 4.21M rec/s | **125% faster** |
-| Memory | Stable | 372MB leak/500 queries | **No leaks** |
-| Deployment | Single binary | Multi-worker processes | **Simpler** |
+- **Ingestion**: 18.6M records/sec (columnar MessagePack format)
+- **Query throughput**: 2.64M rows/sec
+- **Write latency**: Under 10ms p99
+- **Query latency**: Sub-second for time-windowed aggregations
+- **Compression**: 10x-100x vs JSON (Parquet columnar format)
 
 ### ClickBench Results (AWS c6a.4xlarge)
 
@@ -154,10 +136,15 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 
 Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in analytical workloads.
 
+## Arc Enterprise
+
+Need clustering, RBAC, tiered storage, audit logging, or automated scheduling? [Arc Enterprise](/arc-enterprise) extends Arc with production-grade features for scale, security, and compliance. Same binary, same performance — add a license key and enable the features you need.
+
 ## Next Steps
 
 - [Getting Started](/arc/getting-started) - Install and run Arc in 5 minutes
 - [Installation Guide](/arc/installation/docker) - Docker, native packages, and source
+- [Arc Enterprise](/arc-enterprise) - Enterprise features for production at scale
 - [GitHub Repository](https://github.com/basekick-labs/arc) - Star us on GitHub
 
 ## Support

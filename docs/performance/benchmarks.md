@@ -10,33 +10,37 @@ Arc delivers industry-leading performance for time-series workloads. This page d
 
 | Metric | Result |
 |--------|--------|
-| **Ingestion (MessagePack)** | 9.47M records/sec |
-| **Query (Arrow)** | 2.88M rows/sec |
+| **Ingestion (MessagePack)** | 18.6M records/sec |
+| **Query (Arrow)** | 2.64M rows/sec |
 | **Query (JSON)** | 2.23M rows/sec |
 | **Line Protocol** | 1.92M records/sec |
 
 ## Test Hardware
 
-**Apple MacBook Pro (2023)**
-- **CPU**: M3 Max (14 cores)
-- **RAM**: 36GB unified memory
-- **Storage**: 1TB NVMe SSD
+**AMD Ryzen 9 5950X Workstation**
+- **CPU**: AMD Ryzen 9 5950X (16 cores, 32 threads)
+- **RAM**: 64 GB DDR4
+- **Storage**: NVMe SSD
 
-## Ingestion Performance
+## Ingestion Throughput
+
+Arc achieves **18.6 million records/second** on a single node using columnar MessagePack format.
+
+### Test Environment
+- CPU: AMD Ryzen 9 5950X (16 cores, 32 threads)
+- RAM: 64 GB DDR4
+- Storage: NVMe SSD
+- Batch size: 10,000 records
+
+### Results
+- **Peak throughput**: 18.6M records/sec
+- **Sustained throughput**: 15M+ records/sec
+- **Write latency p50**: 2ms
+- **Write latency p99**: Under 10ms
 
 ### MessagePack Columnar (Recommended)
 
 The fastest ingestion method, using binary MessagePack with columnar data layout.
-
-| Metric | Value |
-|--------|-------|
-| **Throughput** | 9.47M records/sec |
-| **p50 Latency** | 2.79ms |
-| **p95 Latency** | 4.66ms |
-| **p99 Latency** | 6.11ms |
-| **Workers** | 35 |
-| **Duration** | 60 seconds |
-| **Success Rate** | 100% |
 
 ### Line Protocol
 
@@ -52,8 +56,8 @@ InfluxDB-compatible text protocol, suitable for existing tooling.
 
 | Protocol | Throughput | Relative Speed |
 |----------|------------|----------------|
-| MessagePack Columnar | 9.47M rec/s | 100% (baseline) |
-| Line Protocol | 1.92M rec/s | 20% |
+| MessagePack Columnar | 18.6M rec/s | 100% (baseline) |
+| Line Protocol | 1.92M rec/s | 10% |
 
 **Why MessagePack is faster:**
 - Binary format (no parsing overhead)
@@ -61,13 +65,31 @@ InfluxDB-compatible text protocol, suitable for existing tooling.
 - Native gzip compression support
 - Batch-optimized for high throughput
 
-## Query Performance
+## Query Throughput
+
+Arc delivers **2.64 million rows/second** for time-windowed aggregations.
+
+### Test Query
+```sql
+SELECT
+  time_bucket(INTERVAL '1 minute', time) AS bucket,
+  AVG(value) AS avg_value
+FROM prod.metrics
+WHERE time > NOW() - INTERVAL '1 hour'
+GROUP BY bucket
+ORDER BY bucket DESC;
+```
+
+### Results
+- **Throughput**: 2.64M rows/sec
+- **Latency (100K rows)**: Under 50ms
+- **Latency (1M rows)**: Under 200ms
 
 ### Arrow IPC vs JSON
 
 | Format | Throughput | Response Size (50K rows) |
 |--------|------------|--------------------------|
-| Arrow IPC | **2.88M rows/s** | 1.71 MB |
+| Arrow IPC | **2.64M rows/s** | 1.71 MB |
 | JSON | 2.23M rows/s | 2.41 MB |
 
 **Arrow advantages:**
@@ -82,7 +104,7 @@ Arc was rewritten from Python to Go, delivering significant improvements:
 
 | Metric | Go | Python | Improvement |
 |--------|-----|--------|-------------|
-| Ingestion | 9.47M rec/s | 4.21M rec/s | **+125%** |
+| Ingestion | 18.6M rec/s | 4.21M rec/s | **+342%** |
 | Memory Stability | Stable | 372MB leak/500 queries | **Fixed** |
 | Deployment | Single binary | Multi-worker processes | **Simpler** |
 | Cold Start | &lt;100ms | 2-3 seconds | **20x faster** |
@@ -161,7 +183,7 @@ Arc leverages DuckDB's columnar execution engine:
 
 1. **Use MessagePack columnar format**
    ```python
-   data = {"m": "cpu", "columns": {...}}  # 9.47M rec/s
+   data = {"m": "cpu", "columns": {...}}  # 18.6M rec/s
    # vs
    data = "cpu,host=x value=1"  # 1.92M rec/s
    ```
