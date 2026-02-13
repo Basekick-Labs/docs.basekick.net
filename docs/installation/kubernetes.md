@@ -20,7 +20,7 @@ Deploy Arc on Kubernetes using Helm for production-grade time-series data manage
 
 ```bash
 # Install Arc
-helm install arc https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
 
 # Port forward to access locally
 kubectl port-forward svc/arc 8000:8000
@@ -59,7 +59,7 @@ Copy this token immediately - you won't see it again!
   <TabItem value="quick" label="Quick Install" default>
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
 ```
 
   </TabItem>
@@ -67,7 +67,7 @@ helm install arc https://github.com/basekick-labs/arc/releases/download/v25.12.1
 
 ```bash
 # Download chart
-helm pull https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz
+helm pull https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
 tar -xzf arc-25.12.1.tgz
 
 # Edit values
@@ -86,7 +86,7 @@ kubectl create namespace arc
 
 # Install in namespace
 helm install arc \
-  https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz \
+  https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz \
   --namespace arc
 ```
 
@@ -188,9 +188,6 @@ helm install arc ./arc -f values.yaml
 
 **Azure Blob Storage** - For AKS deployments.
 
-:::note Coming in v26.01.1
-Azure Blob Storage support will be available in Arc v26.01.1.
-:::
 
 ```yaml
 # values.yaml
@@ -565,7 +562,7 @@ kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.n
 
 ```bash
 # Upgrade to new version
-helm upgrade arc https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz
+helm upgrade arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
 
 # With custom values
 helm upgrade arc ./arc -f values-prod.yaml

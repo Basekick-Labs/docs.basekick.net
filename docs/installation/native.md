@@ -4,10 +4,15 @@ sidebar_position: 2
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import LatestVersion from '@site/src/components/LatestVersion';
 
 # Native Installation
 
 Install Arc directly on Linux using native packages (.deb, .rpm) or build from source.
+
+:::tip Latest Version
+Current release: **<LatestVersion repo="basekick-labs/arc" format="tag" />**
+:::
 
 ## Prerequisites
 
@@ -17,49 +22,49 @@ Install Arc directly on Linux using native packages (.deb, .rpm) or build from s
 
 ## Quick Install
 
+The following commands automatically fetch and install the latest Arc release.
+
 <Tabs>
   <TabItem value="debian" label="Debian/Ubuntu" default>
 
+**x86_64 (AMD/Intel):**
+
 ```bash
-# Download and install
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc_25.12.1_amd64.deb
-sudo dpkg -i arc_25.12.1_amd64.deb
-
-# Enable and start
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc_${LATEST_VERSION}_amd64.deb
+sudo dpkg -i arc_${LATEST_VERSION}_amd64.deb
 sudo systemctl enable arc && sudo systemctl start arc
-
-# Verify
 curl http://localhost:8000/health
 ```
 
-For ARM64:
+**ARM64:**
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc_25.12.1_arm64.deb
-sudo dpkg -i arc_25.12.1_arm64.deb
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc_${LATEST_VERSION}_arm64.deb
+sudo dpkg -i arc_${LATEST_VERSION}_arm64.deb
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 
   </TabItem>
   <TabItem value="rhel" label="RHEL/Fedora">
 
+**x86_64 (AMD/Intel):**
+
 ```bash
-# Download and install
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1-1.x86_64.rpm
-sudo rpm -i arc-25.12.1-1.x86_64.rpm
-
-# Enable and start
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.x86_64.rpm
+sudo rpm -i arc-${LATEST_VERSION}-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
-
-# Verify
 curl http://localhost:8000/health
 ```
 
-For ARM64:
+**ARM64:**
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1-1.aarch64.rpm
-sudo rpm -i arc-25.12.1-1.aarch64.rpm
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.aarch64.rpm
+sudo rpm -i arc-${LATEST_VERSION}-1.aarch64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 
@@ -196,9 +201,6 @@ s3_path_style = true
 
 **Azure Blob Storage** - For Azure deployments.
 
-:::note Coming in v26.01.1
-Azure Blob Storage support will be available in Arc v26.01.1.
-:::
 
 Edit `/etc/arc/arc.toml`:
 
@@ -290,8 +292,10 @@ See [Configuration Overview](/arc/configuration/overview) for all options.
   <TabItem value="debian" label="Debian/Ubuntu" default>
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc_25.12.1_amd64.deb
-sudo dpkg -i arc_25.12.1_amd64.deb
+# Automatic update to latest version
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc_${LATEST_VERSION}_amd64.deb
+sudo dpkg -i arc_${LATEST_VERSION}_amd64.deb
 sudo systemctl restart arc
 ```
 
@@ -299,8 +303,10 @@ sudo systemctl restart arc
   <TabItem value="rhel" label="RHEL/Fedora">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1-1.x86_64.rpm
-sudo rpm -U arc-25.12.1-1.x86_64.rpm
+# Automatic update to latest version
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.x86_64.rpm
+sudo rpm -U arc-${LATEST_VERSION}-1.x86_64.rpm
 sudo systemctl restart arc
 ```
 

@@ -1,0 +1,8 @@
+{
+  "label": "Security",
+  "position": 12,
+  "link": {
+    "type": "generated-index",
+    "description": "Security features including RBAC and audit logging."
+  }
+}

@@ -12,23 +12,23 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'Blazing Fast Ingestion',
-    icon: '9.47M',
+    icon: '18.6M',
     description: (
       <>
-        Ingest 9.47M records/sec with MessagePack columnar format.
-        Sub-3ms p50 latency. Built for IoT sensors, metrics collection,
+        Ingest 18.6M records/sec with MessagePack columnar format.
+        &lt;10ms p99 latency. Built for IoT sensors, metrics collection,
         and observability platforms that need extreme write performance.
       </>
     ),
   },
   {
     title: 'Lightning Fast Queries',
-    icon: '120.25s',
+    icon: '2.64M',
     description: (
       <>
-        120.25s cold run on ClickBench (99.9M rows). Powered by DuckDB's
-        columnar engine for lightning-fast SQL queries with full ANSI SQL support.
-        Query Arrow IPC or JSON.
+        Query 2.64M rows/sec with DuckDB's columnar engine. Sub-second
+        time-windowed aggregations with full ANSI SQL support.
+        MQTT ingestion, Python SDK, Apache Arrow, and JSON outputs.
       </>
     ),
   },

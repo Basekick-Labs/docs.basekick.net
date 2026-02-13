@@ -21,7 +21,7 @@ docker run -d \
   --name arc \
   -p 8000:8000 \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 Verify it's running:
@@ -71,7 +71,7 @@ docker run -d \
   -p 8000:8000 \
   -e ARC_STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 **Data locations:**
@@ -95,7 +95,7 @@ docker run -d \
   -e ARC_STORAGE_S3_REGION=us-east-1 \
   -e AWS_ACCESS_KEY_ID=your_key \
   -e AWS_SECRET_ACCESS_KEY=your_secret \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 :::tip IAM Roles
@@ -117,7 +117,7 @@ docker run -d \
   -e ARC_STORAGE_S3_ACCESS_KEY=minioadmin \
   -e ARC_STORAGE_S3_SECRET_KEY=minioadmin123 \
   -e ARC_STORAGE_S3_USE_SSL=false \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
   </TabItem>
@@ -125,9 +125,6 @@ docker run -d \
 
 **Azure Blob Storage** - For Azure deployments.
 
-:::note Coming in v26.01.1
-Azure Blob Storage support will be available in Arc v26.01.1.
-:::
 
 ```bash
 docker run -d \
@@ -137,7 +134,7 @@ docker run -d \
   -e ARC_STORAGE_AZURE_CONTAINER=arc-data \
   -e ARC_STORAGE_AZURE_ACCOUNT_NAME=your_account \
   -e ARC_STORAGE_AZURE_ACCOUNT_KEY=your_key \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
   </TabItem>
@@ -168,7 +165,7 @@ docker run -d \
   -p 8000:8000 \
   -v arc-data:/app/data \
   -v /path/to/arc.toml:/app/arc.toml \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 ## Container Management
@@ -197,7 +194,7 @@ docker run -d \
   --name arc \
   -p 8000:8000 \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 ## Production Deployment
@@ -212,7 +209,7 @@ docker run -d \
   --memory="8g" \
   --cpus="4" \
   --restart unless-stopped \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 ### Health Check

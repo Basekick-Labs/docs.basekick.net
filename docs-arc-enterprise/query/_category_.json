@@ -1,0 +1,8 @@
+{
+  "label": "Query",
+  "position": 11,
+  "link": {
+    "type": "generated-index",
+    "description": "Query governance and management for Arc Enterprise."
+  }
+}

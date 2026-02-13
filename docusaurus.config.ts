@@ -9,7 +9,7 @@ const config: Config = {
   tagline: 'High-performance time-series database',
   favicon: 'img/favicon.ico',
 
-  // Multi-instance docs: Liftbridge
+  // Multi-instance docs: Liftbridge, Arc Enterprise, Memtrace
   plugins: [
     [
       '@docusaurus/plugin-content-docs',
@@ -18,6 +18,26 @@ const config: Config = {
         path: 'docs-liftbridge',
         routeBasePath: 'liftbridge',
         sidebarPath: './sidebarsLiftbridge.ts',
+        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
+      },
+    ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'arc-enterprise',
+        path: 'docs-arc-enterprise',
+        routeBasePath: 'arc-enterprise',
+        sidebarPath: './sidebarsArcEnterprise.ts',
+        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
+      },
+    ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'memtrace',
+        path: 'docs-memtrace',
+        routeBasePath: 'memtrace',
+        sidebarPath: './sidebarsMemtrace.ts',
         editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
       },
     ],
@@ -83,6 +103,20 @@ const config: Config = {
           label: 'Arc',
         },
         {
+          type: 'doc',
+          docId: 'overview',
+          docsPluginId: 'arc-enterprise',
+          position: 'left',
+          label: 'Arc Enterprise',
+        },
+        {
+          type: 'doc',
+          docId: 'overview',
+          docsPluginId: 'memtrace',
+          position: 'left',
+          label: 'Memtrace',
+        },
+        {
           type: 'docSidebar',
           sidebarId: 'liftbridgeSidebar',
           docsPluginId: 'liftbridge',
@@ -110,6 +144,14 @@ const config: Config = {
             {
               label: 'Arc',
               to: '/arc',
+            },
+            {
+              label: 'Arc Enterprise',
+              to: '/arc-enterprise',
+            },
+            {
+              label: 'Memtrace',
+              to: '/memtrace',
             },
             {
               label: 'Liftbridge',

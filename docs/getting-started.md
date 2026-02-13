@@ -24,14 +24,14 @@ docker run -d \
   --name arc \
   -p 8000:8000 \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.12.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
   </TabItem>
   <TabItem value="kubernetes" label="Kubernetes">
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
 kubectl port-forward svc/arc 8000:8000
 ```
 
@@ -39,7 +39,7 @@ kubectl port-forward svc/arc 8000:8000
   <TabItem value="debian" label="Debian/Ubuntu">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc_25.12.1_amd64.deb
+wget https://github.com/basekick-labs/arc/releases/latest/download/arc_25.12.1_amd64.deb
 sudo dpkg -i arc_25.12.1_amd64.deb
 sudo systemctl enable arc && sudo systemctl start arc
 ```
@@ -48,7 +48,7 @@ sudo systemctl enable arc && sudo systemctl start arc
   <TabItem value="rhel" label="RHEL/Fedora">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/download/v25.12.1/arc-25.12.1-1.x86_64.rpm
+wget https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1-1.x86_64.rpm
 sudo rpm -i arc-25.12.1-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
@@ -107,7 +107,7 @@ export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ## Write Data
 
 <Tabs>
-  <TabItem value="msgpack" label="MessagePack (9.47M rec/s)" default>
+  <TabItem value="msgpack" label="MessagePack (18.6M rec/s)" default>
 
 ```python
 import msgpack
@@ -203,7 +203,7 @@ print(response.json())
 ```
 
   </TabItem>
-  <TabItem value="arrow" label="Arrow (2.88M rows/s)">
+  <TabItem value="arrow" label="Arrow (2.64M rows/s)">
 
 ```python
 import requests
