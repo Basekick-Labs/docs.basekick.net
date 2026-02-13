@@ -1,0 +1,9 @@
+# Docusaurus multi-instance routing
+# Redirect all /arc/* routes to arc.html for client-side routing
+/arc/*  /arc.html  200
+/arc-enterprise/*  /arc-enterprise.html  200
+/memtrace/*  /memtrace.html  200
+/liftbridge/*  /liftbridge.html  200
+
+# Catch-all for root
+/*  /index.html  200
