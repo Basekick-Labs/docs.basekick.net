@@ -59,7 +59,7 @@ const config: Config = {
   organizationName: 'Basekick-Labs', // Usually your GitHub org/user name.
   projectName: 'docs.basekick.net', // Usually your repo name.
 
-  trailingSlash: false,
+  trailingSlash: true,
   onBrokenLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
