@@ -557,6 +557,6 @@ min_files = 10
 
 ## Next Steps
 
-- **[Monitor Compaction](/arc/operations/monitoring)** - Set up health checks
+- **[Monitor Compaction](/arc/operations/telemetry)** - Set up health checks
 - **[Configure WAL](/arc/advanced/wal)** - Add durability guarantees
-- **[Tune Performance](/arc/configuration/performance)** - Optimize for your workload
+- **[Configuration Reference](/arc/configuration/overview)** - Tune settings for your workload

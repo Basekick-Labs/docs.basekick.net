@@ -1,6 +1,6 @@
 {
   "label": "Integrations",
-  "position": 6,
+  "position": 9,
   "link": {
     "type": "generated-index",
     "description": "Integrate Arc with Grafana, VS Code, OpenTelemetry, Apache Superset, Telegraf, MQTT brokers, and other tools."

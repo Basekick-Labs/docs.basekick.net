@@ -699,6 +699,5 @@ max_connections = 16
 
 ## Next Steps
 
-- **[Storage Backends](/arc/configuration/storage)** - Detailed storage configuration
 - **[Authentication](/arc/configuration/authentication)** - Token management
 - **[Advanced Features](/arc/advanced/compaction)** - Compaction and WAL

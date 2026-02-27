@@ -184,6 +184,6 @@ Total cache overhead: ~6MB typical, ~10MB maximum.
 
 ## Next Steps
 
-- **[Compaction](./compaction)** - Optimize query performance through file merging
-- **[WAL](./wal)** - Write-ahead log for durability
+- **[Compaction](/arc/advanced/compaction)** - Optimize query performance through file merging
+- **[WAL](/arc/advanced/wal)** - Write-ahead log for durability
 - **[Performance Benchmarks](/arc/performance/benchmarks)** - Benchmark methodology and results

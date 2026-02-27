@@ -576,5 +576,5 @@ Tags enable powerful GROUP BY queries but increase cardinality.
 
 - **[Query Telegraf metrics](/arc/guides/querying)**
 - **[Create Grafana dashboards](/arc/integrations/grafana)**
-- **[Set up alerts](/arc/guides/alerting)**
-- **[Optimize performance](/arc/configuration/performance)**
+- **[Set up alerts](/arc/integrations/grafana)**
+- **[Configuration Reference](/arc/configuration/overview)**

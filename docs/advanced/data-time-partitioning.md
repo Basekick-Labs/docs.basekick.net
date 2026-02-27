@@ -294,4 +294,4 @@ ORDER BY year, month
 
 - [File Compaction](/arc/advanced/compaction) - Optimize partitioned files
 - [Retention Policies](/arc/data-lifecycle/retention-policies) - Manage data by partition age
-- [Query Performance](/arc/performance) - Benchmark partition pruning benefits
+- [Performance Benchmarks](/arc/performance/benchmarks) - Benchmark partition pruning benefits

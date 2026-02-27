@@ -382,7 +382,7 @@ thread_count = 8
 
 ## Next Steps
 
-- [Write your first data](/arc/getting-started#write-your-first-data)
+- [Write your first data](/arc/getting-started#write-data)
 - [Configure storage backends](/arc/configuration/overview)
 - [Deploy on Kubernetes](/arc/installation/kubernetes)
 - [Set up compaction](/arc/advanced/compaction)

@@ -675,7 +675,7 @@ resources:
 
 ## Next Steps
 
-- [Write your first data](/arc/getting-started#write-your-first-data)
+- [Write your first data](/arc/getting-started#write-data)
 - [Configure storage backends](/arc/configuration/overview)
-- [Set up monitoring](/arc/operations/monitoring)
+- [Set up monitoring](/arc/operations/telemetry)
 - [Enable WAL for durability](/arc/advanced/wal)

@@ -288,6 +288,84 @@ Line Protocol ingestion statistics.
 
 Line Protocol handler health.
 
+### POST /api/v1/write/tle
+
+Stream TLE (Two-Line Element) satellite orbital data. Parses TLE entries into tags (NORAD ID, name, classification) and fields (orbital elements + derived metrics).
+
+**Headers:**
+- `Authorization: Bearer TOKEN`
+- `X-Arc-Database: satellites` (default: `default`)
+- `X-Arc-Measurement: satellite_tle` (default: `satellite_tle`)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/write/tle" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Arc-Database: satellites" \
+  --data-binary @stations.tle
+```
+
+Returns `204 No Content` on success.
+
+See [TLE Integration](/arc/integrations/tle) for full documentation including schema, format details, and example queries.
+
+### GET /api/v1/write/tle/stats
+
+TLE handler statistics.
+
+---
+
+## Data Import
+
+Bulk import endpoints for CSV, Parquet, Line Protocol, and TLE files. All endpoints use `multipart/form-data` with field name `file`, support gzip auto-detection, and enforce a 500 MB size limit.
+
+### POST /api/v1/import/csv
+
+Bulk import a CSV file. See [CSV Import](/arc/data-import/csv) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Arc-Database: iot" \
+  -F "file=@data.csv"
+```
+
+### POST /api/v1/import/parquet
+
+Bulk import a Parquet file. See [Parquet Import](/arc/data-import/parquet) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Arc-Database: production" \
+  -F "file=@data.parquet"
+```
+
+### POST /api/v1/import/lp
+
+Bulk import a Line Protocol file. See [Line Protocol Bulk Import](/arc/data-import/line-protocol) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/lp" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Arc-Database: mydb" \
+  -F "file=@export.lp"
+```
+
+### POST /api/v1/import/tle
+
+Bulk import a TLE file. See [TLE Integration](/arc/integrations/tle) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/tle" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "X-Arc-Database: satellites" \
+  -F "file=@catalog.tle"
+```
+
+### GET /api/v1/import/stats
+
+Import handler statistics (total requests, records imported, errors).
+
 ---
 
 ## Querying
@@ -873,6 +951,39 @@ MQTT service health check.
   "disconnected_count": 0,
   "service": "mqtt_subscriptions"
 }
+```
+
+---
+
+## Backup & Restore
+
+Admin-only endpoints for backing up and restoring Arc data, metadata, and configuration. Operations run asynchronously with progress tracking.
+
+See [Backup & Restore](/arc/operations/backup-restore) for full documentation.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/backup` | Trigger a full backup (async, returns 202) |
+| `GET` | `/api/v1/backup` | List all available backups |
+| `GET` | `/api/v1/backup/status` | Progress of active operation |
+| `GET` | `/api/v1/backup/:id` | Get backup manifest |
+| `DELETE` | `/api/v1/backup/:id` | Delete a backup |
+| `POST` | `/api/v1/backup/restore` | Restore from a backup (async, requires `confirm: true`) |
+
+```bash
+# Create backup
+curl -X POST "http://localhost:8000/api/v1/backup" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Poll progress
+curl "http://localhost:8000/api/v1/backup/status" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Restore
+curl -X POST "http://localhost:8000/api/v1/backup/restore" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"backup_id": "backup-20260211-143022-a1b2c3d4", "confirm": true}'
 ```
 
 ---

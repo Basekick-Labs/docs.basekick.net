@@ -494,5 +494,5 @@ dir = "/mnt/nvme/arc-wal"   # Fast disk
 ## Next Steps
 
 - **[Configure Compaction](/arc/advanced/compaction)** - Optimize query performance
-- **[Monitor Arc](/arc/operations/monitoring)** - Set up health checks
-- **[Performance Tuning](/arc/configuration/performance)** - Maximize throughput
+- **[Monitor Arc](/arc/operations/telemetry)** - Set up health checks
+- **[Configuration Reference](/arc/configuration/overview)** - Maximize throughput

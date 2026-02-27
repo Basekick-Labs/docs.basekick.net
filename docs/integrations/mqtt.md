@@ -674,5 +674,5 @@ allow_anonymous true
 
 - **[Query MQTT data](/arc/guides/querying)** - Learn SQL analytics
 - **[Create Grafana dashboards](/arc/integrations/grafana)** - Visualize MQTT data
-- **[Set up retention policies](/arc/guides/retention)** - Manage data lifecycle
-- **[Configure alerts](/arc/guides/alerting)** - Get notified on anomalies
+- **[Set up retention policies](/arc/data-lifecycle/retention-policies)** - Manage data lifecycle
+- **[Configure alerts](/arc/integrations/grafana)** - Set up Grafana alerting on MQTT data

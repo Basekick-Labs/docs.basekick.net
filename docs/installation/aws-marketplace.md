@@ -367,4 +367,4 @@ sudo journalctl -u arc | grep -i "admin\|token"
 
 - [Configure Telegraf integration](/arc/integrations/telegraf)
 - [Set up Grafana dashboards](/arc/integrations/grafana)
-- [Configure retention policies](/arc/data-lifecycle/retention)
+- [Configure retention policies](/arc/data-lifecycle/retention-policies)

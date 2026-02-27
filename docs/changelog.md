@@ -1,10 +1,113 @@
 ---
-sidebar_position: 10
+sidebar_position: 13
 ---
 
 # Changelog
 
 Release history for Arc.
+
+## 26.03.1
+
+Released: March 2026
+
+Major quality release with backup/restore, 14 bug fixes, security hardening, and Go 1.26 upgrade.
+
+### New Features
+
+#### Backup & Restore API
+
+Full backup and restore system via REST API. Backups capture parquet data files, SQLite metadata (auth, audit, MQTT config), and the `arc.toml` configuration file. Async operations with real-time progress tracking and selective restore.
+
+Documentation: [Backup & Restore](/arc/operations/backup-restore)
+
+### Bug Fixes
+
+- **Null handling in LP ingestion** -- Missing fields were stored as `0` instead of `NULL`. Introduced `TypedColumnBatch` with validity bitmaps throughout the ingestion pipeline.
+- **Stale cache after compaction** -- Queries failed with 404 after compaction deleted old S3 parquet files. Added post-compaction cache invalidation for DuckDB caches and partition pruner. Extended to enterprise clustering with cross-node broadcast.
+- **Descriptive query error messages** -- All query endpoints now return actual DuckDB errors instead of generic "Query execution failed".
+- **time_bucket / date_trunc bucketing** -- GROUP BY queries returned one row per second instead of proper buckets. Fixed DuckDB float division (`/`) to integer division (`//`).
+- **WAL recovery after flush failure** -- Recovery replayed already-flushed data causing duplication. Added `PurgeOlderThan` before recovery to limit replay window.
+- **Self-adjusting flush timer** -- Replaced fixed-period ticker with adaptive timer. Worst-case flush delay drops from ~1.5x to ~1.0x of `max_buffer_age_ms`.
+- **MQTT CleanSession default** -- Changed from `true` to `false` to preserve at-least-once delivery across reconnects.
+- **Delete API partial failure** -- Now returns HTTP 207 with `failed_files` list instead of `success: true` when some files fail.
+- **Replication observability** -- Added Prometheus metrics for dropped entries and sequence gaps.
+- **Orphaned hot file cleanup** -- Reconciliation pass after tiering migration detects and removes orphaned hot copies.
+- **Compaction manifest cleanup** -- Fixed three related bugs that could leave orphaned input files alongside compacted output.
+- **Unified cache_httpfs TTLs** -- Metadata/file handle TTLs now match `s3_cache_ttl_seconds`. Glob TTL fixed at 10s.
+
+### Security
+
+- **Database name validation** -- Added `isValidDatabaseName()` to LP write, CSV/Parquet import, and MsgPack handlers to prevent path traversal.
+- **Backup restore permissions** -- Files now written with `0600` instead of `0644`.
+
+### Performance
+
+- **Pooled gzip** -- CSV, Parquet, and TLE import endpoints now use pooled klauspost gzip (3-5x faster decompression).
+- **Single-pass LP unescape** -- Byte scanner replaces three sequential `ReplaceAll` calls in the ingestion hot path.
+- **Single-pass SQL regex** -- 7 separate regex passes consolidated into one alternation pattern.
+
+### Infrastructure
+
+- **Go 1.26** -- 10-40% GC overhead reduction (Green Tea GC), 30% faster cgo calls (DuckDB/SQLite), 2x faster `io.ReadAll`.
+
+---
+
+## 26.02.1
+
+Released: February 2026
+
+Major feature release adding MQTT integration, TLE satellite data ingestion, and bulk import endpoints for CSV, Parquet, and Line Protocol files.
+
+### New Features
+
+#### MQTT Integration
+
+Native MQTT subscriber with API-driven subscription management. Connect to IoT devices, industrial sensors, and message brokers without middleware.
+
+- Dynamic subscription management via REST API (create, update, delete, start/stop)
+- Multiple simultaneous brokers with topic wildcards
+- Auto-detection of JSON and MessagePack message formats
+- ~6M records/sec with MessagePack columnar format
+- TLS/SSL support with encrypted credentials at rest (AES-256-GCM)
+- QoS 0, 1, and 2
+
+Documentation: [MQTT Integration](/arc/integrations/mqtt)
+
+#### TLE (Satellite Orbital Data) Ingestion
+
+Native support for ingesting satellite orbital data in the standard Two-Line Element format used by Space-Track.org, CelesTrak, and ground station pipelines.
+
+- **Streaming ingestion** (`POST /api/v1/write/tle`) for continuous feeds and cron jobs
+- **Bulk import** (`POST /api/v1/import/tle`) for historical backfill
+- Pure Go parser with both 2-line and 3-line format support
+- Derived orbital metrics (semi-major axis, period, apogee, perigee, orbit classification)
+- ~3.5M records/sec via typed columnar fast path
+
+Documentation: [TLE Integration](/arc/integrations/tle)
+
+#### Bulk Import Endpoints
+
+New REST API endpoints for importing data from files:
+
+| Endpoint | Format | Description |
+|----------|--------|-------------|
+| `POST /api/v1/import/csv` | CSV | Import CSV/TSV files with configurable delimiter, time column, and skip rows |
+| `POST /api/v1/import/parquet` | Parquet | Import Parquet files directly (DuckDB native read) |
+| `POST /api/v1/import/lp` | Line Protocol | Import InfluxDB LP exports with precision support |
+
+All import endpoints support:
+- Gzip auto-detection via magic bytes
+- RBAC write permission checks
+- 500 MB size limit
+- Hourly data partitioning
+
+Documentation: [CSV Import](/arc/data-import/csv) | [Parquet Import](/arc/data-import/parquet) | [Line Protocol Import](/arc/data-import/line-protocol)
+
+### Breaking Changes
+
+None
+
+---
 
 ## 26.01.2
 
