@@ -56,7 +56,7 @@ Edit `/etc/telegraf/telegraf.conf`:
   url = "http://localhost:8000/api/v1/write/msgpack"
 
   # Arc API token
-  api_key = "ARC_TOKEN"
+  api_key = "$ARC_TOKEN"
 
   # Enable gzip compression (recommended)
   content_encoding = "gzip"
@@ -111,13 +111,13 @@ sudo journalctl -u telegraf -f
 ```bash
 # Check measurements
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SHOW TABLES FROM telegraf", "format": "json"}'
 
 # Query CPU data
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM telegraf.cpu ORDER BY time DESC LIMIT 10", "format": "json"}'
 ```
@@ -133,7 +133,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 [[outputs.arc]]
   url = "http://localhost:8000/api/v1/write/msgpack"
-  api_key = "YOUR_ARC_TOKEN"
+  api_key = "$ARC_TOKEN"
   content_encoding = "gzip"
   database = "telegraf"
 
@@ -153,7 +153,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 [[outputs.arc]]
   url = "http://localhost:8000/api/v1/write/msgpack"
-  api_key = "YOUR_ARC_TOKEN"
+  api_key = "$ARC_TOKEN"
   content_encoding = "gzip"
   database = "metrics"
 
@@ -178,14 +178,14 @@ curl -X POST http://localhost:8000/api/v1/query \
 # Production metrics → production database
 [[outputs.arc]]
   url = "https://arc-prod.example.com/api/v1/write/msgpack"
-  api_key = "PROD_TOKEN"
+  api_key = "$ARC_TOKEN"
   content_encoding = "gzip"
   database = "production"
 
 # Staging metrics → staging database
 [[outputs.arc]]
   url = "https://arc-staging.example.com/api/v1/write/msgpack"
-  api_key = "STAGING_TOKEN"
+  api_key = "$ARC_TOKEN"
   content_encoding = "gzip"
   database = "staging"
 ```
@@ -455,7 +455,7 @@ curl http://localhost:8000/health
 
 # Test with token
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT 1", "format": "json"}'
 
@@ -474,7 +474,7 @@ telegraf --config /etc/telegraf/telegraf.conf --test
 
 # Check Arc received data
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT COUNT(*) FROM telegraf.cpu", "format": "json"}'
 ```
@@ -485,7 +485,7 @@ Ensure your API key is correct in the configuration:
 
 ```toml
 [[outputs.arc]]
-  api_key = "YOUR_ARC_TOKEN"  # Must be a valid Arc API token
+  api_key = "$ARC_TOKEN"  # Must be a valid Arc API token
 ```
 
 ### Metrics Being Dropped

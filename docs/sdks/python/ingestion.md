@@ -28,7 +28,7 @@ The fastest way to write data. Data is organized by columns (like a DataFrame) r
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
         measurement="cpu",
         columns={
@@ -113,7 +113,7 @@ df = pd.DataFrame({
     "memory_mb": [1024 + i for i in range(100)],
 })
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_dataframe(
         df,
         measurement="server_metrics",
@@ -150,7 +150,7 @@ df = pl.DataFrame({
     "temperature": [20.0 + i * 0.1 for i in range(61)],
 })
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_dataframe(
         df,
         measurement="temperatures",
@@ -168,7 +168,7 @@ For streaming or high-throughput scenarios, use buffered writes. The buffer auto
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     with client.write.buffered(batch_size=5000, flush_interval=2.0) as buffer:
         for i in range(50000):
             buffer.write(
@@ -212,7 +212,7 @@ import asyncio
 from arc_client import AsyncArcClient
 
 async def ingest_stream():
-    async with AsyncArcClient(host="localhost", token="your-token") as client:
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         async with client.write.buffered(batch_size=5000) as buffer:
             async for event in event_stream():
                 await buffer.write(
@@ -234,7 +234,7 @@ For compatibility with InfluxDB tooling (Telegraf, etc.), use line protocol form
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Single line
     client.write.write_line_protocol(
         "cpu,host=server01,region=us-east usage_idle=95.2 1704067200000000000"
@@ -285,7 +285,7 @@ import asyncio
 from arc_client import AsyncArcClient
 
 async def main():
-    async with AsyncArcClient(host="localhost", token="your-token") as client:
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # Columnar write
         await client.write.write_columnar(
             measurement="cpu",
@@ -317,7 +317,7 @@ from arc_client.exceptions import (
     ArcConnectionError,
 )
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     try:
         client.write.write_columnar(
             measurement="cpu",

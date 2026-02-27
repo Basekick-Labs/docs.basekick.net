@@ -37,7 +37,7 @@ local_path = "./data/backups"   # default: ./data/backups
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/backup" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response (202 Accepted):**
@@ -54,7 +54,7 @@ The backup runs asynchronously in the background. Poll the status endpoint to mo
 
 ```bash
 curl "http://localhost:8000/api/v1/backup/status" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ```json
@@ -73,14 +73,14 @@ curl "http://localhost:8000/api/v1/backup/status" \
 
 ```bash
 curl "http://localhost:8000/api/v1/backup" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ## Viewing a Backup Manifest
 
 ```bash
 curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### Backup Structure
@@ -101,7 +101,7 @@ Restore overwrites existing data. Existing SQLite and config files are preserved
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/backup/restore" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "backup_id": "backup-20260211-143022-a1b2c3d4",
@@ -127,7 +127,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 ```bash
 # Restore only data (keep current auth tokens and config)
 curl -X POST "http://localhost:8000/api/v1/backup/restore" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "backup_id": "backup-20260211-143022-a1b2c3d4",
@@ -139,7 +139,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 
 # Restore everything including config
 curl -X POST "http://localhost:8000/api/v1/backup/restore" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "backup_id": "backup-20260211-143022-a1b2c3d4",
@@ -154,7 +154,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 
 ```bash
 curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ## Key Behaviors

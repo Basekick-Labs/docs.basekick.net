@@ -20,7 +20,7 @@ POST /api/v1/import/csv
 
 | Header | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `Authorization` | Yes | - | `Bearer YOUR_TOKEN` |
+| `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
 ## Query Parameters
@@ -37,7 +37,7 @@ POST /api/v1/import/csv
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: iot" \
   -F "file=@sensor_data.csv"
 ```
@@ -47,7 +47,7 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
 ```bash
 # TSV file with epoch seconds and 2 metadata rows to skip
 curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time_column=ts&time_format=epoch_s&delimiter=%09&skip_rows=2" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   -F "file=@telemetry_export.tsv"
 ```

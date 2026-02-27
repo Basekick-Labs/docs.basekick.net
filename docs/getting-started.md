@@ -158,7 +158,7 @@ curl -X POST "http://localhost:8000/write?db=default" \
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
         measurement="cpu",
         columns={

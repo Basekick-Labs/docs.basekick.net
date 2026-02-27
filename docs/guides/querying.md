@@ -32,7 +32,7 @@ SELECT * FROM default.cpu LIMIT 10
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' LIMIT 100"}'
 ```
@@ -43,7 +43,7 @@ For large result sets, Arrow IPC provides ~2x throughput vs JSON:
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query/arrow" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM default.cpu LIMIT 1000000"}' \
   -o results.arrow

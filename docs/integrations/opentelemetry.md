@@ -726,7 +726,7 @@ exporters:
 curl http://localhost:8000/health
 
 # Test authentication
-curl -H "Authorization: Bearer YOUR_TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/auth/verify
 ```
 

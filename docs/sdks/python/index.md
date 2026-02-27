@@ -37,7 +37,7 @@ While you can interact with Arc's REST API directly, the SDK provides significan
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Write metrics
     client.write.write_columnar(
         measurement="cpu",

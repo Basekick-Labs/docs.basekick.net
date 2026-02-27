@@ -262,7 +262,7 @@ import requests
 # Create continuous query
 response = requests.post(
     "http://localhost:8000/api/v1/continuous_queries",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "name": "cpu_hourly",
         "database": "telegraf",
@@ -296,7 +296,7 @@ start_time = end_time - timedelta(days=30)
 
 result = requests.post(
     f"http://localhost:8000/api/v1/continuous_queries/{query_id}/execute",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "start_time": start_time.isoformat() + "Z",
         "end_time": end_time.isoformat() + "Z"
@@ -315,7 +315,7 @@ Aggregate API request logs into daily summaries:
 # Create daily request summary
 response = requests.post(
     "http://localhost:8000/api/v1/continuous_queries",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "name": "requests_daily",
         "database": "logs",
@@ -348,7 +348,7 @@ Downsample IoT sensor data to 5-minute intervals:
 # Create 5-minute sensor aggregation
 response = requests.post(
     "http://localhost:8000/api/v1/continuous_queries",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "name": "sensors_5min",
         "database": "iot",
@@ -386,7 +386,7 @@ Test a continuous query before execution:
 # Create the query
 response = requests.post(
     "http://localhost:8000/api/v1/continuous_queries",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={...}
 )
 
@@ -395,7 +395,7 @@ query_id = response.json()["id"]
 # Test with dry run
 dry_run = requests.post(
     f"http://localhost:8000/api/v1/continuous_queries/{query_id}/execute",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "start_time": "2024-01-01T00:00:00Z",
         "end_time": "2024-01-02T00:00:00Z",
@@ -410,7 +410,7 @@ print(f"Would generate {dry_run.json()['rows_written']} aggregated rows")
 if dry_run.json()['rows_written'] > 0:
     result = requests.post(
         f"http://localhost:8000/api/v1/continuous_queries/{query_id}/execute",
-        headers={"Authorization": "Bearer YOUR_TOKEN"},
+        headers={"Authorization": "Bearer $ARC_TOKEN"},
         json={
             "start_time": "2024-01-01T00:00:00Z",
             "end_time": "2024-01-02T00:00:00Z",

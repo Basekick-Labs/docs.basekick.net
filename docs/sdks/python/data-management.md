@@ -39,7 +39,7 @@ Retention policies define rules for deleting data older than a specified age. Us
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     policy = client.retention.create(
         name="logs-30d",
         database="default",
@@ -107,7 +107,7 @@ client.retention.delete(policy.id)
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Create policy for logs
     policy = client.retention.create(
         name="logs-retention",
@@ -151,7 +151,7 @@ CQs define *what* to aggregate and *where* to store results. The `interval` para
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     cq = client.continuous_queries.create(
         name="cpu-hourly-avg",
         database="default",
@@ -250,7 +250,7 @@ client.continuous_queries.delete(cq.id)
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Create hourly rollup
     hourly_cq = client.continuous_queries.create(
         name="cpu-hourly",
@@ -306,7 +306,7 @@ Delete data matching specific conditions. Use this for:
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # ALWAYS dry_run first!
     result = client.delete.delete(
         database="default",
@@ -380,7 +380,7 @@ Manage API tokens for accessing Arc.
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.auth.verify()
 
     if result.valid:
@@ -455,7 +455,7 @@ from arc_client.exceptions import (
     ArcAuthenticationError,
 )
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     try:
         client.retention.delete(999)  # Non-existent policy
     except ArcNotFoundError:
@@ -485,7 +485,7 @@ import asyncio
 from arc_client import AsyncArcClient
 
 async def main():
-    async with AsyncArcClient(host="localhost", token="your-token") as client:
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # Retention
         policy = await client.retention.create(
             name="async-policy",

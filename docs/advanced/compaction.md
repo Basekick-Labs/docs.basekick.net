@@ -219,7 +219,7 @@ Disabling compaction will cause queries to slow down significantly as files accu
 
 ```bash
 curl http://localhost:8000/api/compaction/status \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -244,14 +244,14 @@ curl http://localhost:8000/api/compaction/status \
 
 ```bash
 curl http://localhost:8000/api/compaction/stats \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### List Eligible Partitions
 
 ```bash
 curl http://localhost:8000/api/compaction/candidates \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -282,21 +282,21 @@ curl http://localhost:8000/api/compaction/candidates \
 
 ```bash
 curl -X POST http://localhost:8000/api/compaction/trigger \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### View Active Jobs
 
 ```bash
 curl http://localhost:8000/api/compaction/jobs \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### View Job History
 
 ```bash
 curl http://localhost:8000/api/compaction/history \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ## Performance Impact

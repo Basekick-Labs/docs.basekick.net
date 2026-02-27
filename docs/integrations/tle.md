@@ -40,7 +40,7 @@ ISS (ZARYA)
 
 | Header | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `Authorization` | Yes | - | `Bearer YOUR_TOKEN` |
+| `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | No | `default` | Target database |
 | `X-Arc-Measurement` | No | `satellite_tle` | Target measurement name |
 
@@ -58,7 +58,7 @@ POST /api/v1/write/tle
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/write/tle" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   --data-binary @stations.tle
 ```
@@ -69,7 +69,7 @@ Returns `204 No Content` on success.
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/write/tle" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   -H "X-Arc-Measurement: iss_orbital_elements" \
   --data-binary @iss.tle
@@ -79,7 +79,7 @@ curl -X POST "http://localhost:8000/api/v1/write/tle" \
 
 ```bash
 curl "http://localhost:8000/api/v1/write/tle/stats" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ## Bulk Import
@@ -96,7 +96,7 @@ POST /api/v1/import/tle
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/tle" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   -F "file=@catalog.tle"
 ```

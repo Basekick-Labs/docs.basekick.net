@@ -404,7 +404,7 @@ WHERE timestamp > NOW() - INTERVAL 24 HOUR;
 curl http://localhost:8000/health
 
 # Verify token
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/auth/verify
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/auth/verify
 ```
 
 ### No Schemas Showing
@@ -425,7 +425,7 @@ curl http://localhost:8000/api/compaction/status
 
 # Manually trigger compaction
 curl -X POST http://localhost:8000/api/compaction/trigger \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### Token Expired

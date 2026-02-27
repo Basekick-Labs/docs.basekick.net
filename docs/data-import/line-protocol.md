@@ -24,7 +24,7 @@ POST /api/v1/import/lp
 
 | Header | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `Authorization` | Yes | - | `Bearer YOUR_TOKEN` |
+| `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
 ## Query Parameters
@@ -38,7 +38,7 @@ POST /api/v1/import/lp
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/lp" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: mydb" \
   -F "file=@export.lp"
 ```
@@ -48,7 +48,7 @@ curl -X POST "http://localhost:8000/api/v1/import/lp" \
 ```bash
 # Import LP file with second-precision timestamps
 curl -X POST "http://localhost:8000/api/v1/import/lp?precision=s" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: mydb" \
   -F "file=@export_seconds.lp"
 ```
@@ -79,7 +79,7 @@ influx -execute "SELECT * FROM cpu" -database mydb -format lp > export.lp
 # Import to Arc
 curl -X POST "http://localhost:8000/api/v1/import/lp" \
   -H "X-Arc-Database: mydb" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -F "file=@export.lp"
 ```
 

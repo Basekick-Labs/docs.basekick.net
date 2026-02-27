@@ -202,7 +202,7 @@ import requests
 # Delete data older than a specific date
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -220,7 +220,7 @@ print(f"Execution time: {response.json()['execution_time_ms']}ms")
 # Delete data from a specific host
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -235,7 +235,7 @@ response = requests.post(
 # Always test with dry run before deleting
 dry_run = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -255,7 +255,7 @@ for file in dry_run.json()['files']:
 if input("Proceed? (yes/no): ") == "yes":
     result = requests.post(
         "http://localhost:8000/api/v1/delete",
-        headers={"Authorization": "Bearer YOUR_TOKEN"},
+        headers={"Authorization": "Bearer $ARC_TOKEN"},
         json={
             "database": "telegraf",
             "measurement": "cpu",
@@ -272,7 +272,7 @@ if input("Proceed? (yes/no): ") == "yes":
 # Large delete requiring confirmation
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -288,7 +288,7 @@ response = requests.post(
 # Delete based on multiple conditions
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "database": "telegraf",
         "measurement": "cpu",

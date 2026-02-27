@@ -50,7 +50,7 @@ Restart Arc to apply the configuration.
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "factory-sensors",
     "broker": "tcp://localhost:1883",
@@ -86,7 +86,7 @@ mosquitto_pub -h localhost -t "sensors/temperature" \
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "sql": "SELECT * FROM iot.temperature ORDER BY time DESC LIMIT 10",

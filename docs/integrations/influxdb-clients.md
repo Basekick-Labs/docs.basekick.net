@@ -221,7 +221,7 @@ http = urllib3.PoolManager(
 
 client = InfluxDBClient(
     url="http://localhost:8000",
-    token="your-token",
+    token=os.environ["ARC_TOKEN"],
     org="myorg"
 )
 ```
@@ -241,7 +241,7 @@ const agent = new http.Agent({
 
 const client = new InfluxDB({
   url: 'http://localhost:8000',
-  token: 'your-token',
+  token: process.env.ARC_TOKEN,
   transportOptions: {
     agent: agent
   }
@@ -266,7 +266,7 @@ Arc uses SQL instead of Flux or InfluxQL. Use the Arc query API:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer your-token" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "sql": "SELECT time, host, usage FROM mydb.cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' ORDER BY time DESC LIMIT 100",
@@ -279,7 +279,7 @@ Or use the [Arc Python SDK](/arc/sdks/python/) for DataFrame support:
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas(
         "SELECT * FROM mydb.cpu WHERE time > NOW() - INTERVAL '1 hour'"
     )

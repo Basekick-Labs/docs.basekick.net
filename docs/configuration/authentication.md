@@ -35,19 +35,19 @@ Arc supports multiple authentication methods for compatibility with various clie
 ### Bearer Token (Standard)
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Token Header (InfluxDB 2.x Style)
 
 ```bash
-curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### API Key Header
 
 ```bash
-curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Query Parameter (InfluxDB 1.x Style)
@@ -55,7 +55,7 @@ curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
 For InfluxDB 1.x client compatibility:
 
 ```bash
-curl "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" -d 'cpu,host=server01 usage=45.2'
+curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
 ## Token Management
@@ -128,7 +128,7 @@ curl -X DELETE "http://localhost:8000/api/v1/auth/tokens/abc123" \
 The verify endpoint is public (no authentication required) and checks if a token is valid:
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/auth/verify"
 ```
 

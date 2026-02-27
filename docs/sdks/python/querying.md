@@ -41,7 +41,7 @@ The simplest way to query data. Returns a `QueryResult` object with columns and 
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.query.query(
         "SELECT * FROM default.cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 100"
     )
@@ -79,7 +79,7 @@ Returns query results as a pandas DataFrame. Requires `pip install arc-tsdb-clie
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas(
         "SELECT * FROM default.cpu WHERE host = 'server01' LIMIT 1000"
     )
@@ -116,7 +116,7 @@ Returns query results as a polars DataFrame. Requires `pip install arc-tsdb-clie
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_polars(
         "SELECT * FROM default.cpu LIMIT 100000"
     )
@@ -161,7 +161,7 @@ Returns query results as a PyArrow Table. This is the most efficient option for 
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     table = client.query.query_arrow(
         "SELECT * FROM default.cpu LIMIT 1000000"
     )
@@ -204,7 +204,7 @@ Preview the cost of a query before executing it:
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     estimate = client.query.estimate(
         "SELECT * FROM default.cpu WHERE time > now() - INTERVAL '30 days'"
     )
@@ -230,7 +230,7 @@ Discover what measurements exist in a database:
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     measurements = client.query.list_measurements(database="default")
 
     for m in measurements:
@@ -312,7 +312,7 @@ import asyncio
 from arc_client import AsyncArcClient
 
 async def main():
-    async with AsyncArcClient(host="localhost", token="your-token") as client:
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # JSON result
         result = await client.query.query("SELECT * FROM default.cpu LIMIT 10")
 
@@ -337,7 +337,7 @@ import asyncio
 from arc_client import AsyncArcClient
 
 async def main():
-    async with AsyncArcClient(host="localhost", token="your-token") as client:
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # Run queries concurrently
         cpu_task = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 1000")
         mem_task = client.query.query_pandas("SELECT * FROM default.mem LIMIT 1000")
@@ -362,7 +362,7 @@ from arc_client.exceptions import (
     ArcAuthenticationError,
 )
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     try:
         df = client.query.query_pandas("SELECT * FROM nonexistent.table")
     except ArcQueryError as e:

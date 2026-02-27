@@ -89,7 +89,7 @@ data = {
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
-        "Authorization": "Bearer YOUR_TOKEN",
+        "Authorization": "Bearer $ARC_TOKEN",
         "Content-Type": "application/msgpack",
         "x-arc-database": "default"  # Optional: specify database
     },
@@ -105,7 +105,7 @@ else:
 # Query data
 response = requests.post(
     "http://localhost:8000/api/v1/query",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}
 )
 ```

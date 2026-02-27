@@ -19,19 +19,19 @@ All endpoints (except public ones) require authentication. Arc supports multiple
 ### Bearer Token (Standard)
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Token Header (InfluxDB 2.x Style)
 
 ```bash
-curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### API Key Header
 
 ```bash
-curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Query Parameter (InfluxDB 1.x Style)
@@ -39,7 +39,7 @@ curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
 For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query parameter:
 
 ```bash
-curl "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" -d 'cpu,host=server01 usage=45.2'
+curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -69,7 +69,7 @@ data = {
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
-        "Authorization": "Bearer YOUR_TOKEN",
+        "Authorization": "Bearer $ARC_TOKEN",
         "Content-Type": "application/msgpack",
         "x-arc-database": "default"
     },
@@ -81,7 +81,7 @@ response = requests.post(
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
 ```
@@ -96,7 +96,7 @@ import pyarrow as pa
 
 response = requests.post(
     "http://localhost:8000/api/v1/query/arrow",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
 )
 
@@ -243,7 +243,7 @@ mem,host=server01 used=8.2,total=16.0 1697472000000000000
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" \
+curl -X POST "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" \
   -d 'cpu,host=server01 usage=45.2'
 ```
 
@@ -258,12 +258,12 @@ InfluxDB 2.x compatible endpoint. This path matches InfluxDB's native API for dr
 
 **Headers:**
 - `Content-Type: text/plain`
-- `Authorization: Token YOUR_TOKEN` (InfluxDB 2.x style)
+- `Authorization: Token $ARC_TOKEN` (InfluxDB 2.x style)
 
 **Example:**
 ```bash
 curl -X POST "http://localhost:8000/api/v2/write?bucket=mydb&org=myorg" \
-  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Authorization: Token $ARC_TOKEN" \
   -d 'cpu,host=server01 usage=45.2'
 ```
 
@@ -299,7 +299,7 @@ Stream TLE (Two-Line Element) satellite orbital data. Parses TLE entries into ta
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/write/tle" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   --data-binary @stations.tle
 ```
@@ -324,7 +324,7 @@ Bulk import a CSV file. See [CSV Import](/arc/data-import/csv) for full document
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: iot" \
   -F "file=@data.csv"
 ```
@@ -335,7 +335,7 @@ Bulk import a Parquet file. See [Parquet Import](/arc/data-import/parquet) for f
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: production" \
   -F "file=@data.parquet"
 ```
@@ -346,7 +346,7 @@ Bulk import a Line Protocol file. See [Line Protocol Bulk Import](/arc/data-impo
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/lp" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: mydb" \
   -F "file=@export.lp"
 ```
@@ -357,7 +357,7 @@ Bulk import a TLE file. See [TLE Integration](/arc/integrations/tle) for full do
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/tle" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: satellites" \
   -F "file=@catalog.tle"
 ```
@@ -973,15 +973,15 @@ See [Backup & Restore](/arc/operations/backup-restore) for full documentation.
 ```bash
 # Create backup
 curl -X POST "http://localhost:8000/api/v1/backup" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 
 # Poll progress
 curl "http://localhost:8000/api/v1/backup/status" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 
 # Restore
 curl -X POST "http://localhost:8000/api/v1/backup/restore" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"backup_id": "backup-20260211-143022-a1b2c3d4", "confirm": true}'
 ```
@@ -1098,7 +1098,7 @@ pip install arc-tsdb-client[all]
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
         measurement="cpu",
         columns={"time": [...], "host": [...], "usage": [...]},

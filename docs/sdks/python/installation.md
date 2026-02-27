@@ -99,7 +99,7 @@ import arc_client
 print(f"arc-tsdb-client version: {arc_client.__version__}")
 
 # Test connection
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     health = client.health()
     print(f"Server status: {health.status}")
 ```
@@ -114,7 +114,7 @@ from arc_client import ArcClient
 client = ArcClient(
     host="localhost",       # Arc server hostname
     port=8000,              # Arc server port (default: 8000)
-    token="your-token",     # API token (required)
+    token=os.environ["ARC_TOKEN"],     # API token (required)
     database="default",     # Default database for queries
     timeout=30.0,           # Request timeout in seconds
     compression=True,       # Enable gzip compression for writes
@@ -152,13 +152,13 @@ Always use the client as a context manager to ensure proper connection cleanup:
 
 ```python
 # Sync client
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Use client...
     pass
 # Connection automatically closed
 
 # Async client
-async with AsyncArcClient(host="localhost", token="your-token") as client:
+async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Use client...
     pass
 # Connection automatically closed
@@ -169,7 +169,7 @@ async with AsyncArcClient(host="localhost", token="your-token") as client:
 If you can't use a context manager:
 
 ```python
-client = ArcClient(host="localhost", token="your-token")
+client = ArcClient(host="localhost", token=os.environ["ARC_TOKEN"])
 try:
     # Use client...
     pass
@@ -208,7 +208,7 @@ curl http://localhost:8000/health
 Verify your token is correct:
 
 ```python
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.auth.verify()
     if result.valid:
         print(f"Token is valid: {result.token_info.name}")

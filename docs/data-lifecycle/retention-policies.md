@@ -225,7 +225,7 @@ import requests
 # Create a retention policy for old CPU metrics
 response = requests.post(
     "http://localhost:8000/api/v1/retention",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "name": "cpu_cleanup",
         "database": "telegraf",
@@ -241,7 +241,7 @@ policy_id = response.json()["id"]
 # Test with dry run first
 dry_run = requests.post(
     f"http://localhost:8000/api/v1/retention/{policy_id}/execute",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={"dry_run": True, "confirm": False}
 )
 
@@ -251,7 +251,7 @@ print(f"Would delete {dry_run.json()['total_files']} files")
 if input("Proceed? (yes/no): ") == "yes":
     result = requests.post(
         f"http://localhost:8000/api/v1/retention/{policy_id}/execute",
-        headers={"Authorization": "Bearer YOUR_TOKEN"},
+        headers={"Authorization": "Bearer $ARC_TOKEN"},
         json={"dry_run": False, "confirm": True}
     )
     print(f"Deleted {result.json()['total_files']} files")
@@ -263,7 +263,7 @@ if input("Proceed? (yes/no): ") == "yes":
 # Apply retention to all measurements in a database
 response = requests.post(
     "http://localhost:8000/api/v1/retention",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
     json={
         "name": "database_cleanup",
         "database": "telegraf",
@@ -281,7 +281,7 @@ response = requests.post(
 # List all policies
 policies = requests.get(
     "http://localhost:8000/api/v1/retention",
-    headers={"Authorization": "Bearer YOUR_TOKEN"}
+    headers={"Authorization": "Bearer $ARC_TOKEN"}
 )
 
 for policy in policies.json():
@@ -292,7 +292,7 @@ for policy in policies.json():
     # Get execution history
     history = requests.get(
         f"http://localhost:8000/api/v1/retention/{policy['id']}/executions?limit=10",
-        headers={"Authorization": "Bearer YOUR_TOKEN"}
+        headers={"Authorization": "Bearer $ARC_TOKEN"}
     )
     print(f"  Recent executions: {len(history.json())}")
 ```

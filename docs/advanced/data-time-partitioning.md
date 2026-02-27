@@ -210,7 +210,7 @@ historical_data = {
     "value": [22.5, 23.1, 21.8],
 }
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
         measurement="sensors",
         columns=historical_data,

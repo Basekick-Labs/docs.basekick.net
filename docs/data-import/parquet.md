@@ -20,7 +20,7 @@ POST /api/v1/import/parquet
 
 | Header | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `Authorization` | Yes | - | `Bearer YOUR_TOKEN` |
+| `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
 ## Query Parameters
@@ -34,7 +34,7 @@ POST /api/v1/import/parquet
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "X-Arc-Database: production" \
   -F "file=@data_export.parquet"
 ```
