@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Arc Documentation',
-  tagline: 'High-performance time-series database',
+  tagline: 'High-performance analytical database',
   favicon: 'img/favicon.ico',
 
   // Multi-instance docs: Liftbridge, Arc Enterprise, Memtrace

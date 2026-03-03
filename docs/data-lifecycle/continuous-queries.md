@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Continuous Queries
 
-Continuous queries enable automatic downsampling and aggregation of time-series data into materialized views, reducing storage requirements while maintaining queryable historical data.
+Continuous queries enable automatic downsampling and aggregation of data into materialized views, reducing storage requirements while maintaining queryable historical data.
 
 :::info Manual Execution Only
 Automatic execution is an [Arc Enterprise](/arc-enterprise/automated-scheduling) feature. In Arc OSS, continuous queries must be manually triggered via the API.
@@ -194,7 +194,7 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 
 ## Query Syntax
 
-Continuous queries use DuckDB SQL with time-series optimizations.
+Continuous queries use DuckDB SQL with temporal optimizations.
 
 ### Recommended Approach
 

@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Data Ingestion
 
-How to write time-series data to Arc using the Python SDK.
+How to write data to Arc using the Python SDK.
 
 ## Overview
 
@@ -86,7 +86,7 @@ timestamps = [
 
 ### Tags vs Fields
 
-In time-series databases:
+In Arc:
 - **Tags** are indexed string columns used for filtering (e.g., `host`, `region`, `sensor_id`)
 - **Fields** are the actual metric values (e.g., `temperature`, `cpu_usage`, `count`)
 

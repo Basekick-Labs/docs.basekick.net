@@ -4,16 +4,16 @@ sidebar_position: 1
 
 # Python SDK
 
-Official Python SDK for Arc time-series database.
+Official Python SDK for Arc analytical database.
 
 [![PyPI version](https://badge.fury.io/py/arc-tsdb-client.svg)](https://badge.fury.io/py/arc-tsdb-client)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
 ## What is it?
 
-The `arc-tsdb-client` package is the official Python client for [Arc](https://github.com/basekick-labs/arc), a high-performance time-series database. It provides a high-level, Pythonic interface for:
+The `arc-tsdb-client` package is the official Python client for [Arc](https://github.com/basekick-labs/arc), a high-performance analytical database. It provides a high-level, Pythonic interface for:
 
-- **Writing time-series data** at scale (9M+ records/sec)
+- **Writing data** at scale (9M+ records/sec)
 - **Querying with SQL** and getting results as DataFrames
 - **Managing data lifecycle** (retention, aggregation, deletion)
 - **Handling authentication** (tokens, permissions)

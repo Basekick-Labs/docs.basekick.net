@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # SQL Querying Guide
 
-Arc uses DuckDB as its SQL engine, giving you full analytical SQL capabilities on time-series data stored as Parquet files.
+Arc uses DuckDB as its SQL engine, giving you full analytical SQL capabilities on data stored as Parquet files.
 
 ## SQL Syntax
 
@@ -25,7 +25,7 @@ SELECT * FROM default.cpu LIMIT 10
 | Endpoint | Response Format | Best For |
 |----------|----------------|----------|
 | `POST /api/v1/query` | JSON | Small results, debugging, dashboards |
-| `POST /api/v1/query/arrow` | Apache Arrow IPC | Large results (2.64M rows/sec) |
+| `POST /api/v1/query/arrow` | Apache Arrow IPC | Large results (6M+ rows/sec) |
 | `GET /api/v1/query/:measurement` | JSON | Quick measurement queries |
 
 ### JSON Query
@@ -177,7 +177,7 @@ WHERE c.time > NOW() - INTERVAL '24 hours';
 
 ## Useful DuckDB Functions
 
-Arc supports all DuckDB functions. Here are the most useful for time-series data:
+Arc supports all DuckDB functions. Here are the most useful for analytical queries:
 
 | Function | Description | Example |
 |----------|-------------|---------|

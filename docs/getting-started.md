@@ -107,7 +107,7 @@ export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ## Write Data
 
 <Tabs>
-  <TabItem value="msgpack" label="MessagePack (18.6M rec/s)" default>
+  <TabItem value="msgpack" label="MessagePack (18M+ rec/s)" default>
 
 ```python
 import msgpack
@@ -203,7 +203,7 @@ print(response.json())
 ```
 
   </TabItem>
-  <TabItem value="arrow" label="Arrow (2.64M rows/s)">
+  <TabItem value="arrow" label="Arrow (6M+ rows/s)">
 
 ```python
 import requests

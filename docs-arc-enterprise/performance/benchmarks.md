@@ -4,14 +4,14 @@ sidebar_position: 1
 
 # Performance Benchmarks
 
-Arc delivers industry-leading performance for time-series workloads. This page documents our benchmark methodology and results.
+Arc delivers industry-leading performance for analytical workloads. This page documents our benchmark methodology and results.
 
 ## Summary
 
 | Metric | Result |
 |--------|--------|
-| **Ingestion (MessagePack)** | 18.6M records/sec |
-| **Query (Arrow)** | 2.64M rows/sec |
+| **Ingestion (MessagePack)** | 18M+ records/sec |
+| **Query (Arrow)** | 6M+ rows/sec |
 | **Query (JSON)** | 2.23M rows/sec |
 | **Line Protocol** | 1.92M records/sec |
 
@@ -30,7 +30,7 @@ The fastest ingestion method, using binary MessagePack with columnar data layout
 
 | Metric | Value |
 |--------|-------|
-| **Throughput** | 18.6M records/sec |
+| **Throughput** | 18M+ records/sec |
 | **p50 Latency** | 2.79ms |
 | **p95 Latency** | 4.66ms |
 | **p99 Latency** | 6.11ms |
@@ -52,7 +52,7 @@ InfluxDB-compatible text protocol, suitable for existing tooling.
 
 | Protocol | Throughput | Relative Speed |
 |----------|------------|----------------|
-| MessagePack Columnar | 18.6M rec/s | 100% (baseline) |
+| MessagePack Columnar | 18M+ rec/s | 100% (baseline) |
 | Line Protocol | 1.92M rec/s | 10% |
 
 **Why MessagePack is faster:**
@@ -67,7 +67,7 @@ InfluxDB-compatible text protocol, suitable for existing tooling.
 
 | Format | Throughput | Response Size (50K rows) |
 |--------|------------|--------------------------|
-| Arrow IPC | **2.64M rows/s** | 1.71 MB |
+| Arrow IPC | **6M+ rows/s** | 1.71 MB |
 | JSON | 2.23M rows/s | 2.41 MB |
 
 **Arrow advantages:**
@@ -82,7 +82,7 @@ Arc was rewritten from Python to Go, delivering significant improvements:
 
 | Metric | Go | Python | Improvement |
 |--------|-----|--------|-------------|
-| Ingestion | 18.6M rec/s | 4.21M rec/s | **+342%** |
+| Ingestion | 18M+ rec/s | 4.21M rec/s | **+342%** |
 | Memory Stability | Stable | 372MB leak/500 queries | **Fixed** |
 | Deployment | Single binary | Multi-worker processes | **Simpler** |
 | Cold Start | &lt;100ms | 2-3 seconds | **20x faster** |
@@ -108,7 +108,7 @@ Industry-standard analytical query benchmark on the hits dataset.
 | Cold (cache flushed) | 120.25s | 43 |
 | Warm | 35.70s | 43 |
 
-### Comparison with Other TSDBs
+### Comparison with Other Databases
 
 | Database | Warm Run | Relative Speed |
 |----------|----------|----------------|
@@ -161,7 +161,7 @@ Arc leverages DuckDB's columnar execution engine:
 
 1. **Use MessagePack columnar format**
    ```python
-   data = {"m": "cpu", "columns": {...}}  # 18.6M rec/s
+   data = {"m": "cpu", "columns": {...}}  # 18M+ rec/s
    # vs
    data = "cpu,host=x value=1"  # 1.92M rec/s
    ```

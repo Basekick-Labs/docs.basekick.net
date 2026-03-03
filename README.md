@@ -1,10 +1,10 @@
 # Arc Documentation
 
-Official documentation for [Arc](https://github.com/basekick-labs/arc) - the fastest time-series database.
+Official documentation for [Arc](https://github.com/basekick-labs/arc) - a high-performance analytical database.
 
 ## About
 
-This repository contains the documentation website for Arc, a high-performance time-series data warehouse built on DuckDB and Parquet. Arc achieves 120.25s cold run on ClickBench (99.9M rows) and delivers 2.42M records/sec ingestion.
+This repository contains the documentation website for Arc, a high-performance analytical database built on DuckDB and Parquet. DuckDB SQL engine + Parquet storage + Arrow format. 18M+ records/sec ingestion, 6M+ rows/sec queries.
 
 Visit the live documentation at [docs.basekick.net](https://docs.basekick.net)
 

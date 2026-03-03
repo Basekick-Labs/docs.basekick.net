@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Querying
 
-How to query time-series data from Arc using the Python SDK.
+How to query data from Arc using the Python SDK.
 
 ## Overview
 

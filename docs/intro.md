@@ -3,40 +3,83 @@ sidebar_position: 1
 slug: /
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Welcome to Arc
 
-**High-performance time-series database built on DuckDB**
+**High-performance analytical database built on DuckDB**
 
-Arc is a high-performance time-series database designed for industrial IoT, smart cities, observability, and financial data. Built on DuckDB and Parquet with flexible storage backends. **18.6M records/sec** ingestion throughput.
+Arc is a high-performance analytical database built on DuckDB and Parquet with flexible storage backends. Use it for analytics, observability, AI/ML, IoT, and log management. **18M+ records/sec** ingestion, **6M+ rows/sec** queries. Single Go binary. S3/Azure native. No vendor lock-in. AGPL-3.0.
 
 ## Key Features
 
-- **Extreme Performance**: 18.6M records/sec ingestion (MessagePack columnar)
-- **Fast Analytical Queries**: Powered by DuckDB with full SQL support (2.64M rows/sec)
+- **Extreme Performance**: 18M+ records/sec ingestion (MessagePack columnar)
+- **Fast Analytical Queries**: Powered by DuckDB with full SQL support (6M+ rows/sec)
 - **Flexible Storage**: Local filesystem, MinIO, AWS S3, Azure Blob Storage
 - **Multi-Database Architecture**: Organize data by environment, tenant, or application
 - **Automatic Compaction**: Tiered (hourly/daily) file merging for 10-50x faster queries
 - **Optional WAL**: Zero data loss with Write-Ahead Log
 - **Data Lifecycle**: Retention policies, continuous queries, GDPR-compliant delete
 - **Production Ready**: Prometheus metrics, structured logging, graceful shutdown
-- **MQTT Integration**: Direct MQTT broker subscription for IoT data streams
+- **MQTT Integration**: Direct MQTT broker subscription for streaming data
 - **Python SDK**: Native Python client with DataFrame support (Pandas, Polars, PyArrow)
 - **Bulk Import**: CSV and Parquet import with auto-partitioning
 - **Native TLS/HTTPS**: Built-in TLS support, no reverse proxy needed
 
 ## Why Arc?
 
-**The Problem**: Industrial IoT generates massive data at scale:
+**The Problem**: Modern data workloads generate massive volumes at scale:
 
-- **Racing & Motorsport**: 100M+ sensor readings per race
-- **Smart Cities**: Billions of infrastructure events daily
-- **Mining & Manufacturing**: Equipment telemetry at unprecedented scale
-- **Energy & Utilities**: Grid monitoring, smart meters, renewable output
-- **Observability**: Metrics, logs, traces from distributed systems
+- **Product Analytics**: Billions of events from user interactions, funnels, and sessions
+- **Observability**: Metrics, logs, and traces from distributed systems
+- **AI/ML Pipelines**: Feature stores, training data, and model inference logs
+- **IoT & Industrial**: Sensor telemetry from factories, vehicles, and infrastructure
+- **Log Management**: Application logs, security events, and audit trails
 
-Traditional time-series databases can't keep up. They're slow, expensive, and lock your data in proprietary formats.
+Traditional databases can't keep up. They're slow, expensive, and lock your data in proprietary formats.
 
-**Arc solves this: 18.6M records/sec ingestion, sub-second queries on billions of rows, portable Parquet files you own.**
+**Arc solves this: 18M+ records/sec ingestion, sub-second queries on billions of rows, portable Parquet files you own.**
+
+<Tabs>
+  <TabItem value="analytics" label="Analytics" default>
+
+```sql
+-- Analyze page views and session funnels
+SELECT
+  time_bucket(INTERVAL '1 hour', time) AS bucket,
+  page_url,
+  COUNT(DISTINCT session_id) AS unique_sessions,
+  COUNT(*) AS page_views,
+  AVG(time_on_page_ms) AS avg_time_on_page,
+  SUM(CASE WHEN converted THEN 1 ELSE 0 END)::FLOAT / COUNT(*) AS conversion_rate
+FROM data.page_views
+WHERE time > NOW() - INTERVAL '24 hours'
+GROUP BY bucket, page_url
+ORDER BY page_views DESC;
+```
+
+  </TabItem>
+  <TabItem value="logs" label="Logs">
+
+```sql
+-- Analyze error rates and patterns
+SELECT
+  time_bucket(INTERVAL '5 minutes', time) AS bucket,
+  service_name,
+  level,
+  COUNT(*) AS log_count,
+  COUNT(*) FILTER (WHERE level = 'ERROR') AS error_count,
+  COUNT(DISTINCT trace_id) AS affected_traces
+FROM data.app_logs
+WHERE time > NOW() - INTERVAL '1 hour'
+  AND level IN ('ERROR', 'WARN')
+GROUP BY bucket, service_name, level
+ORDER BY error_count DESC;
+```
+
+  </TabItem>
+  <TabItem value="iot" label="IoT">
 
 ```sql
 -- Analyze equipment anomalies across facilities
@@ -56,6 +99,9 @@ WHERE timestamp > NOW() - INTERVAL '24 hours'
 GROUP BY device_id, facility_name, timestamp
 HAVING MAX(pressure) > 850 OR STDDEV(vibration) > 2.5;
 ```
+
+  </TabItem>
+</Tabs>
 
 **Standard DuckDB SQL. Window functions, CTEs, joins. No proprietary query language.**
 
@@ -85,7 +131,7 @@ data = {
     }
 }
 
-# Send columnar data (18.6M records/sec throughput)
+# Send columnar data (18M+ records/sec throughput)
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
@@ -122,10 +168,10 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 
 ## Performance
 
-- **Ingestion**: 18.6M records/sec (columnar MessagePack format)
-- **Query throughput**: 2.64M rows/sec
+- **Ingestion**: 18M+ records/sec (columnar MessagePack format)
+- **Query throughput**: 6M+ rows/sec
 - **Write latency**: Under 10ms p99
-- **Query latency**: Sub-second for time-windowed aggregations
+- **Query latency**: Sub-second for analytical queries
 - **Compression**: 10x-100x vs JSON (Parquet columnar format)
 
 ### ClickBench Results (AWS c6a.4xlarge)

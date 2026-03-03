@@ -5,9 +5,9 @@ slug: /
 
 # Arc Enterprise
 
-**Production-grade time-series infrastructure for scale, security, and compliance.**
+**Production-grade analytical database infrastructure for scale, security, and compliance.**
 
-Arc Enterprise extends the high-performance [Arc](/arc) time-series database with enterprise features designed for production deployments. Same binary, same performance — with clustering, access control, tiered storage, audit logging, and more.
+Arc Enterprise extends the high-performance [Arc](/arc) analytical database with enterprise features designed for production deployments. Same binary, same performance — with clustering, access control, tiered storage, audit logging, and more.
 
 ![Arc Enterprise Architecture](/img/arc-enterprise-architecture.jpg)
 

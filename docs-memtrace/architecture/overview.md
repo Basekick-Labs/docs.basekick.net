@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Architecture Overview
 
-Memtrace is a Go microservice that provides a memory layer for AI agents. It connects to a running [Arc](https://github.com/Basekick-Labs/arc) time-series database instance over HTTP.
+Memtrace is a Go microservice that provides a memory layer for AI agents. It connects to a running [Arc](https://github.com/Basekick-Labs/arc) analytical database instance over HTTP.
 
 ## System Architecture
 
@@ -29,7 +29,7 @@ The core HTTP API server built with Go Fiber. Handles:
 
 ### Arc Integration
 
-Arc is a high-performance time-series database that stores all memory events. Memtrace uses Arc's columnar storage format (Parquet) for efficient time-windowed queries.
+Arc is a high-performance analytical database that stores all memory events. Memtrace uses Arc's columnar storage format (Parquet) for efficient time-windowed queries.
 
 **Why Arc?**
 - Native time-series data model

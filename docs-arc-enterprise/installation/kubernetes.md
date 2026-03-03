@@ -7,7 +7,7 @@ import TabItem from '@theme/TabItem';
 
 # Kubernetes Installation
 
-Deploy Arc on Kubernetes using Helm for production-grade time-series data management.
+Deploy Arc on Kubernetes using Helm for production-grade analytical data management.
 
 ## Prerequisites
 
