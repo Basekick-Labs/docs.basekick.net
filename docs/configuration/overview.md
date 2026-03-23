@@ -334,6 +334,10 @@ max_buffer_age_ms = 5000
 # flush_workers = 16       # async flush workers (2x CPU cores, min 8, max 64)
 # flush_queue_size = 64    # pending flush queue (4x workers, min 100)
 # shard_count = 32         # buffer shards for lock distribution
+
+# Decimal128 precision columns (v26.04.1+)
+# decimal_columns = ["trades:price=18,8;amount=18,8", "balances:balance=38,18"]
+# default_decimal_columns = ""
 ```
 
 Data flushes when **either** condition is met:
@@ -348,6 +352,10 @@ flush_workers = 32
 flush_queue_size = 200
 shard_count = 64
 ```
+:::
+
+:::info Decimal Precision (v26.04.1+)
+For financial or scientific data requiring exact decimal precision, configure decimal columns to store values as native Parquet DECIMAL instead of float64. See the [Decimal Precision guide](/arc/guides/decimal-precision) for details.
 :::
 
 ### Compaction

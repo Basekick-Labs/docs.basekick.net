@@ -6,6 +6,72 @@ sidebar_position: 13
 
 Release history for Arc.
 
+## 26.04.1
+
+Released: April 2026
+
+Major performance release with DuckDB native Arrow query path (+59% JSON, +157% Arrow IPC throughput), automatic compaction deduplication, native Decimal128 type support, and 10 bug fixes.
+
+### New Features
+
+#### Native Decimal128 Type Support
+
+Per-measurement configuration for exact decimal precision — financial data, scientific measurements, and cryptocurrency prices are stored as native Parquet DECIMAL type instead of float64. Supports float64, int64, and string input with up to 38 significant digits. DuckDB reads DECIMAL natively with no query changes.
+
+Documentation: [Decimal Precision](/arc/guides/decimal-precision)
+
+#### DuckDB Native Arrow Query Path
+
+Query results bypass `database/sql` row-by-row scanning entirely using DuckDB's native Arrow API. JSON queries are 59% faster (2.28M rows/sec), Arrow IPC queries are 157% faster (6.29M rows/sec).
+
+#### Automatic Compaction Deduplication
+
+Compaction now automatically deduplicates rows with identical tag values and timestamps (last-write-wins). Tag columns are auto-detected from Parquet metadata — zero configuration required.
+
+#### WAL Dropped Entries Metric
+
+WAL buffer drops exposed as Prometheus counter (`arc_wal_dropped_entries_total`). Buffer size now configurable via `ARC_WAL_BUFFER_SIZE`.
+
+#### Slow Query Logging
+
+Configurable slow query detection with WARN-level logging and Prometheus counter (`arc_slow_queries_total`). Covers all query paths.
+
+#### S3 Path Prefix Support
+
+`ARC_STORAGE_S3_PREFIX` enables shared-bucket multi-tenant deployments with path-based isolation.
+
+### Performance
+
+- **Typed JSON streaming** -- 2.3x faster serialization, constant memory usage regardless of result set size
+- **Basekick-Labs/msgpack v6** -- 8.6% higher sustained throughput, 13% flatter degradation curve under GC pressure
+- **Bulk UTF-8 pre-validation** -- Single-pass payload validation on Line Protocol path (58-84 GB/s on arm64)
+
+### Bug Fixes
+
+- **CQ scheduler reload on update** -- Updated continuous query definitions now take effect immediately without restart
+- **Atomic CQ execution recording** -- SQLite transaction wraps execution recording and time window update
+- **Database delete batch fallback** -- Falls back to individual file deletion when S3/Azure batch delete fails
+- **S3 delete file rewrite streaming** -- Streams temp file to S3 instead of loading into memory (prevents OOM)
+- **CQ scheduler graceful shutdown** -- Cancels in-flight queries on stop instead of waiting for 10-minute timeout
+- **Compactor subprocess signal handling** -- Responds to SIGTERM/SIGINT for prompt cancellation
+- **Streaming backup restore** -- Streams Parquet files through temp file instead of loading into memory
+- **Local storage optimizations** -- WriteReader directory cache, context-aware file listing, batch delete error reporting
+- **Token expiration display fix** -- Non-expiring tokens correctly display as "Never expires" instead of "Expired"
+
+### Security
+
+- **Admin authorization on mutating endpoints** -- `RequireAdmin` middleware on CQ, delete, retention, compaction, and scheduler endpoints
+- **Hardened delete WHERE clause** -- Expanded forbidden keyword list blocks `UNION`, `SELECT`, `CREATE`, `COPY`, `ATTACH`, `LOAD`, `PRAGMA`, `CALL`, `SET`
+- **Temp directory permissions** -- Changed from `0755` to `0700` (owner-only)
+
+### Dependencies
+
+- **DuckDB 1.4.3 → 1.4.4** -- Parquet UTF-8 tolerance, Arrow string view pushdown fix, `mode()` use-after-free fix, secret secure clear
+- **gRPC 1.79.1 → 1.79.3** -- Authorization bypass fix for malformed `:path` headers
+- **Arrow Go v18.4.1 → v18.5.2** -- Large string Parquet writes fix, decompression regression fix, reduced GC pressure
+
+---
+
 ## 26.03.1
 
 Released: March 2026
