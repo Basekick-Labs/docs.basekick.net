@@ -18,75 +18,51 @@ Traditional product analytics platforms lock you into proprietary query language
 
 ## Schema Design
 
-Design your events table around a consistent schema. Arc Cloud auto-creates columns on first insert, so you can start simple and add fields over time.
+Design your events around a measurement with tags and fields. Arc Cloud auto-creates columns on first insert, so you can start simple and add fields over time.
 
 ### Recommended Event Schema
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `timestamp` | ISO 8601 string | When the event occurred |
-| `event_name` | string | Event type (e.g., `page_view`, `signup`, `purchase`) |
-| `user_id` | string | Unique user identifier |
-| `session_id` | string | Session identifier for grouping |
-| `page` | string | Page URL or screen name |
-| `referrer` | string | Traffic source |
-| `properties` | JSON string | Flexible key-value pairs for event-specific data |
+| `time` | timestamp (ns) | When the event occurred |
+| `source` | tag | Event origin (e.g., `web`, `mobile`, `api`) |
+| `event_name` | field (string) | Event type (e.g., `page_view`, `signup`, `purchase`) |
+| `user_id` | field (string) | Unique user identifier |
+| `session_id` | field (string) | Session identifier for grouping |
+| `page` | field (string) | Page URL or screen name |
+| `referrer` | field (string) | Traffic source |
+| `properties` | field (string) | JSON-encoded key-value pairs for event-specific data |
 
-### Example Event Payload
+### Example in Line Protocol
 
-```json
-{
-  "timestamp": "2026-03-23T14:32:01Z",
-  "event_name": "purchase",
-  "user_id": "u_8f3k2",
-  "session_id": "sess_a1b2c3",
-  "page": "/checkout",
-  "referrer": "google",
-  "properties": "{\"product_id\": \"prod_99\", \"amount\": 49.99, \"currency\": \"USD\"}"
-}
+```
+events,source=web event_name="purchase",user_id="u_8f3k2",session_id="sess_a1b2c3",page="/checkout",referrer="google",properties="{\"product_id\":\"prod_99\",\"amount\":49.99,\"currency\":\"USD\"}" 1711200721000000000
 ```
 
 ## Ingesting Events
 
-Send events to your Arc Cloud instance using the ingest API. Batch multiple events per request for optimal throughput.
+Send events to your Arc Cloud instance using line protocol or MessagePack. Batch multiple events per request for optimal throughput.
 
 ### Single Event
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest \
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=analytics" \
   -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "database": "analytics",
-    "records": [
-      {
-        "timestamp": "2026-03-23T14:32:01Z",
-        "event_name": "page_view",
-        "user_id": "u_8f3k2",
-        "session_id": "sess_a1b2c3",
-        "page": "/pricing",
-        "referrer": "google"
-      }
-    ]
-  }'
+  -H "Content-Type: text/plain" \
+  -d 'events,source=web event_name="page_view",user_id="u_8f3k2",session_id="sess_a1b2c3",page="/pricing",referrer="google" 1711200721000000000'
 ```
 
 ### Batch Ingestion
 
-For production use, batch up to 10,000 events per request:
+For production use, batch multiple events per request (one line per event):
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest \
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=analytics" \
   -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "database": "analytics",
-    "records": [
-      {"timestamp": "2026-03-23T14:32:01Z", "event_name": "page_view", "user_id": "u_8f3k2", "page": "/pricing"},
-      {"timestamp": "2026-03-23T14:32:05Z", "event_name": "signup", "user_id": "u_8f3k2", "page": "/signup"},
-      {"timestamp": "2026-03-23T14:33:12Z", "event_name": "page_view", "user_id": "u_9x7m1", "page": "/home"}
-    ]
-  }'
+  -H "Content-Type: text/plain" \
+  -d 'events,source=web event_name="page_view",user_id="u_8f3k2",page="/pricing" 1711200721000000000
+events,source=web event_name="signup",user_id="u_8f3k2",page="/signup" 1711200725000000000
+events,source=mobile event_name="page_view",user_id="u_9x7m1",page="/home" 1711200792000000000'
 ```
 
 ### JavaScript Example
@@ -99,15 +75,11 @@ const ARC_TOKEN = "<your-token>";
 const eventBuffer = [];
 
 function trackEvent(eventName, userId, properties = {}) {
-  eventBuffer.push({
-    timestamp: new Date().toISOString(),
-    event_name: eventName,
-    user_id: userId,
-    session_id: getSessionId(),
-    page: window.location.pathname,
-    referrer: document.referrer,
-    properties: JSON.stringify(properties),
-  });
+  const timestampNs = Date.now() * 1_000_000; // ms to ns
+  const propsJson = JSON.stringify(properties).replace(/"/g, '\\"');
+  eventBuffer.push(
+    `events,source=web event_name="${eventName}",user_id="${userId}",session_id="${getSessionId()}",page="${window.location.pathname}",referrer="${document.referrer}",properties="${propsJson}" ${timestampNs}`
+  );
 
   if (eventBuffer.length >= 100) {
     flushEvents();
@@ -118,18 +90,61 @@ async function flushEvents() {
   if (eventBuffer.length === 0) return;
 
   const batch = eventBuffer.splice(0, eventBuffer.length);
-  await fetch(`${ARC_URL}/api/v1/ingest`, {
+  await fetch(`${ARC_URL}/api/v1/write/line-protocol?db=analytics`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${ARC_TOKEN}`,
-      "Content-Type": "application/json",
+      "Content-Type": "text/plain",
     },
-    body: JSON.stringify({
-      database: "analytics",
-      records: batch,
-    }),
+    body: batch.join("\n"),
   });
 }
+```
+
+### Python SDK Example
+
+```python
+from arc_tsdb_client import ArcClient
+
+client = ArcClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    database="analytics",
+)
+
+with client.buffered_writer(batch_size=5000, flush_interval=5.0) as writer:
+    writer.write(
+        measurement="events",
+        tags={"source": "web"},
+        fields={
+            "event_name": "page_view",
+            "user_id": "u_8f3k2",
+            "session_id": "sess_a1b2c3",
+            "page": "/pricing",
+            "referrer": "google",
+        },
+    )
+```
+
+## Querying Events
+
+Query your data using SQL via the `/api/v1/query` endpoint:
+
+```bash
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/query" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT * FROM analytics.events ORDER BY time DESC LIMIT 10", "format": "json"}'
+```
+
+For large result sets, use the Arrow endpoint for efficient binary transfer:
+
+```bash
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/query/arrow" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT * FROM analytics.events ORDER BY time DESC LIMIT 100000"}' \
+  -o results.arrow
 ```
 
 ## Example Queries
@@ -324,7 +339,7 @@ Do not set a retention policy on `events_daily` or `events_hourly` -- they will 
 
 ## Next Steps
 
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- Optimize throughput and batch sizes
+- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- All ingestion methods and optimization
 - [SQL Querying Guide](/arc/guides/querying) -- Full SQL reference for Arc
 - [Continuous Queries](/arc/data-lifecycle/continuous-queries) -- Advanced rollup configuration
 - [Retention Policies](/arc/data-lifecycle/retention-policies) -- Manage data lifecycle

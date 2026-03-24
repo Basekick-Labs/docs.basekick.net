@@ -34,41 +34,62 @@ The admin token is shown **only once** during provisioning. Copy it immediately 
 Verify your instance is running with a simple query:
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/sql \
+curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/query" \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "SELECT 1 AS hello"}'
+  -d '{"sql": "SELECT 1 AS hello", "format": "json"}'
 ```
 
 You should receive a JSON response with the result `hello: 1`.
 
 ## 6. Ingest Data
 
-Send your first records to Arc Cloud:
+Send your first records to Arc Cloud using line protocol, the simplest way to write data via `curl`:
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest \
+curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/write/line-protocol" \
   -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "database": "my_app",
-    "records": [
-      {"timestamp": "2026-03-23T12:00:00Z", "event": "page_view", "user_id": "u123", "page": "/home"}
-    ]
-  }'
+  -H "Content-Type: text/plain" \
+  -H "x-arc-database: default" \
+  -d 'events,source=web page_view=1,user_id="u123",page="/home" 1711180800000000000'
 ```
 
 Arc Cloud automatically creates the database and table on first write.
+
+:::tip MessagePack for Production
+Line protocol is convenient for quick tests. For production workloads, use the MessagePack endpoint (`POST /api/v1/write/msgpack`) with columnar format for higher throughput and lower overhead. See the [Arc API Reference](/arc/api-reference) for details.
+:::
 
 ## 7. Query Your Data
 
 Retrieve the data you just ingested:
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/sql \
+curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/query" \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "SELECT * FROM my_app.events LIMIT 10"}'
+  -d '{"sql": "SELECT * FROM default.events LIMIT 10", "format": "json"}'
+```
+
+## 8. Use the Python SDK
+
+Arc Cloud exposes the same API as Arc OSS, so all Arc clients and SDKs work without modification. Install the Python SDK:
+
+```bash
+pip install arc-tsdb-client[all]
+```
+
+```python
+from arc_tsdb_client import ArcClient
+
+client = ArcClient(
+    url="https://<your-instance>.arc.us-east-1.basekick.net",
+    token="<your-token>",
+)
+
+# Query
+result = client.query("SELECT * FROM default.events LIMIT 10")
+print(result)
 ```
 
 ## Next Steps

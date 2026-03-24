@@ -13,81 +13,118 @@ Traditional logging platforms charge per GB ingested and lock you into proprieta
 - **High Ingestion Throughput**: Handle thousands to millions of log records per second depending on your tier
 - **Columnar Compression**: Parquet storage compresses repetitive log fields (service names, log levels) by 10-50x
 - **Full SQL Queries**: Use DuckDB SQL for log search, aggregation, and analysis -- no custom query syntax to learn
-- **Schema Flexibility**: Auto-detect columns from your log payloads, add new fields at any time
+- **Telegraf Native Support**: Ship metrics and logs via Telegraf with Arc's native output plugin or InfluxDB v2 compatibility
 - **Cost-Effective Retention**: Keep detailed logs short-term and aggregated metrics long-term
 
 ## Schema Design
 
 ### Recommended Log Schema
 
+Arc uses a time-series data model. Logs map naturally to measurements with tags and fields:
+
 | Column | Type | Description |
 |--------|------|-------------|
-| `timestamp` | ISO 8601 string | When the log entry was created |
-| `level` | string | Log level: `debug`, `info`, `warn`, `error`, `fatal` |
-| `service` | string | Service or application name |
-| `host` | string | Hostname or container ID |
-| `message` | string | Log message text |
-| `trace_id` | string | Distributed trace identifier |
-| `span_id` | string | Span identifier within a trace |
-| `metadata` | JSON string | Additional structured data |
+| `time` | timestamp (ns) | When the log entry was created |
+| `service` | tag | Service or application name |
+| `host` | tag | Hostname or container ID |
+| `level` | tag | Log level: `debug`, `info`, `warn`, `error`, `fatal` |
+| `message` | field (string) | Log message text |
+| `trace_id` | field (string) | Distributed trace identifier |
+| `span_id` | field (string) | Span identifier within a trace |
+| `endpoint` | field (string) | Request endpoint |
+| `status_code` | field (integer) | HTTP status code |
+| `latency_ms` | field (float) | Request latency in milliseconds |
 
-### Example Log Payload
+### Example in Line Protocol
 
-```json
-{
-  "timestamp": "2026-03-23T14:32:01.892Z",
-  "level": "error",
-  "service": "api-gateway",
-  "host": "pod-api-7f8b9c",
-  "message": "upstream timeout after 30s",
-  "trace_id": "abc123def456",
-  "span_id": "span_001",
-  "metadata": "{\"endpoint\": \"/api/users\", \"status_code\": 504, \"latency_ms\": 30012}"
-}
+```
+logs,service=api-gateway,host=pod-api-7f8b9c,level=error message="upstream timeout after 30s",trace_id="abc123def456",span_id="span_001",endpoint="/api/users",status_code=504i,latency_ms=30012.0 1711200721892000000
 ```
 
 ## Shipping Logs
 
-### Direct HTTP Ingestion
+### Telegraf (Recommended)
 
-Send logs directly from your application:
+[Telegraf](https://www.influxdata.com/time-series-platform/telegraf/) is the recommended way to ship metrics and logs to Arc Cloud. Arc is wire-compatible with InfluxDB, so Telegraf works out of the box.
+
+#### Using the InfluxDB v2 Output Plugin
+
+```toml
+# /etc/telegraf/telegraf.conf
+
+# -- System metrics --
+[[inputs.cpu]]
+  percpu = true
+  totalcpu = true
+
+[[inputs.mem]]
+
+[[inputs.disk]]
+  ignore_fs = ["tmpfs", "devtmpfs"]
+
+[[inputs.net]]
+
+# -- Application logs --
+[[inputs.tail]]
+  files = ["/var/log/myapp/*.log"]
+  data_format = "json"
+  json_time_key = "timestamp"
+  json_time_format = "2006-01-02T15:04:05Z07:00"
+  json_tag_keys = ["service", "host", "level"]
+  json_string_fields = ["message", "trace_id", "span_id", "endpoint"]
+
+# -- Output to Arc Cloud --
+[[outputs.influxdb_v2]]
+  urls = ["https://<instance-id>.arc.<region>.basekick.net"]
+  token = "<your-token>"
+  organization = "-"
+  bucket = "logs"
+```
+
+#### Using the InfluxDB v1 Output Plugin
+
+If you prefer the v1 write path (uses the `/write` endpoint with `db` and `p` query parameters):
+
+```toml
+[[outputs.influxdb]]
+  urls = ["https://<instance-id>.arc.<region>.basekick.net"]
+  database = "logs"
+  username = ""
+  password = "<your-token>"
+  skip_database_creation = true
+```
+
+#### Shipping Syslog via Telegraf
+
+```toml
+[[inputs.syslog]]
+  server = "udp://0.0.0.0:6514"
+
+[[outputs.influxdb_v2]]
+  urls = ["https://<instance-id>.arc.<region>.basekick.net"]
+  token = "<your-token>"
+  organization = "-"
+  bucket = "logs"
+```
+
+### Direct Line Protocol Ingestion
+
+Send logs directly from your application using line protocol:
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest \
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=logs" \
   -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "database": "logs",
-    "records": [
-      {
-        "timestamp": "2026-03-23T14:32:01.892Z",
-        "level": "error",
-        "service": "api-gateway",
-        "host": "pod-api-7f8b9c",
-        "message": "upstream timeout after 30s",
-        "trace_id": "abc123def456",
-        "metadata": "{\"endpoint\": \"/api/users\", \"status_code\": 504, \"latency_ms\": 30012}"
-      },
-      {
-        "timestamp": "2026-03-23T14:32:02.105Z",
-        "level": "info",
-        "service": "auth-service",
-        "host": "pod-auth-3a2c1d",
-        "message": "token refreshed for user u_8f3k2",
-        "trace_id": "abc123def456",
-        "metadata": "{\"user_id\": \"u_8f3k2\"}"
-      }
-    ]
-  }'
+  -H "Content-Type: text/plain" \
+  -d 'logs,service=api-gateway,host=pod-api-7f8b9c,level=error message="upstream timeout after 30s",trace_id="abc123def456",endpoint="/api/users",status_code=504i,latency_ms=30012.0 1711200721892000000
+logs,service=auth-service,host=pod-auth-3a2c1d,level=info message="token refreshed for user u_8f3k2",trace_id="abc123def456",user_id="u_8f3k2" 1711200722105000000'
 ```
 
 ### Python Logger Integration
 
 ```python
 import logging
-import json
+import time
 import requests
-from datetime import datetime
 from queue import Queue
 from threading import Thread, Event
 
@@ -95,41 +132,44 @@ ARC_URL = "https://<instance-id>.arc.<region>.basekick.net"
 ARC_TOKEN = "<your-token>"
 
 class ArcCloudHandler(logging.Handler):
-    """Log handler that ships logs to Arc Cloud in batches."""
+    """Log handler that ships logs to Arc Cloud via line protocol."""
 
-    def __init__(self, batch_size=100, flush_interval=5):
+    def __init__(self, database="logs", batch_size=100, flush_interval=5):
         super().__init__()
+        self.database = database
         self.buffer = Queue()
         self.batch_size = batch_size
         self.stop_event = Event()
-
-        # Background thread flushes periodically
         self.flush_thread = Thread(target=self._flush_loop, args=(flush_interval,), daemon=True)
         self.flush_thread.start()
 
     def emit(self, record):
-        self.buffer.put({
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": record.levelname.lower(),
-            "service": record.name,
-            "host": record.module,
-            "message": record.getMessage(),
-            "metadata": json.dumps(getattr(record, "extra", {})),
-        })
+        level = record.levelname.lower()
+        service = record.name
+        host = record.module
+        message = record.getMessage().replace('"', '\\"')
+        timestamp_ns = int(record.created * 1_000_000_000)
+
+        # Build line protocol
+        line = f'logs,service={service},host={host},level={level} message="{message}" {timestamp_ns}'
+        self.buffer.put(line)
 
         if self.buffer.qsize() >= self.batch_size:
             self._flush()
 
     def _flush(self):
-        records = []
-        while not self.buffer.empty() and len(records) < self.batch_size:
-            records.append(self.buffer.get())
+        lines = []
+        while not self.buffer.empty() and len(lines) < self.batch_size:
+            lines.append(self.buffer.get())
 
-        if records:
+        if lines:
             requests.post(
-                f"{ARC_URL}/api/v1/ingest",
-                headers={"Authorization": f"Bearer {ARC_TOKEN}"},
-                json={"database": "logs", "records": records},
+                f"{ARC_URL}/api/v1/write/line-protocol?db={self.database}",
+                headers={
+                    "Authorization": f"Bearer {ARC_TOKEN}",
+                    "Content-Type": "text/plain",
+                },
+                data="\n".join(lines),
             )
 
     def _flush_loop(self, interval):
@@ -142,12 +182,12 @@ logger.addHandler(ArcCloudHandler())
 logger.setLevel(logging.INFO)
 
 logger.info("Server started on port 8080")
-logger.error("Database connection failed", extra={"extra": {"db_host": "db-01", "retry": 3}})
+logger.error("Database connection failed")
 ```
 
 ### Vector Configuration
 
-Ship logs from [Vector](https://vector.dev) to Arc Cloud:
+Ship logs from [Vector](https://vector.dev) to Arc Cloud via the InfluxDB sink:
 
 ```toml
 [sources.app_logs]
@@ -162,15 +202,30 @@ source = '''
 '''
 
 [sinks.arc_cloud]
+type = "influxdb_logs"
+inputs = ["parse_logs"]
+endpoint = "https://<instance-id>.arc.<region>.basekick.net"
+bucket = "logs"
+org = "-"
+token = "<your-token>"
+
+[sinks.arc_cloud.encoding]
+codec = "json"
+```
+
+Alternatively, send line protocol directly via HTTP:
+
+```toml
+[sinks.arc_cloud]
 type = "http"
 inputs = ["parse_logs"]
-uri = "https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest"
+uri = "https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=logs"
 method = "post"
-encoding.codec = "json"
+encoding.codec = "text"
 
 [sinks.arc_cloud.request]
 headers.Authorization = "Bearer <your-token>"
-headers.Content-Type = "application/json"
+headers.Content-Type = "text/plain"
 
 [sinks.arc_cloud.batch]
 max_events = 1000
@@ -179,7 +234,7 @@ timeout_secs = 5
 
 ### Fluentd Configuration
 
-Ship logs from [Fluentd](https://www.fluentd.org) to Arc Cloud:
+Ship logs from [Fluentd](https://www.fluentd.org) to Arc Cloud via line protocol:
 
 ```xml
 <source>
@@ -194,37 +249,32 @@ Ship logs from [Fluentd](https://www.fluentd.org) to Arc Cloud:
 
 <match myapp>
   @type http
-  endpoint https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest
-  headers {"Authorization": "Bearer <your-token>", "Content-Type": "application/json"}
-  json_array true
+  endpoint https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=logs
+  headers {"Authorization": "Bearer <your-token>", "Content-Type": "text/plain"}
   <buffer>
     flush_interval 5s
     chunk_limit_records 1000
   </buffer>
   <format>
-    @type json
+    @type single_value
+    message_key message
   </format>
 </match>
 ```
 
-### Telegraf Configuration
+:::tip
+For Fluentd, consider using the [fluent-plugin-influxdb](https://github.com/fangli/fluent-plugin-influxdb) plugin which natively outputs line protocol and works with Arc's InfluxDB-compatible endpoint.
+:::
 
-Ship logs and metrics via [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/):
+## Querying Logs
 
-```toml
-[[inputs.tail]]
-  files = ["/var/log/myapp/*.log"]
-  data_format = "json"
-  json_time_key = "timestamp"
-  json_time_format = "2006-01-02T15:04:05Z07:00"
+Query your logs using SQL via the `/api/v1/query` endpoint:
 
-[[outputs.http]]
-  url = "https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest"
-  method = "POST"
-  data_format = "json"
-  [outputs.http.headers]
-    Authorization = "Bearer <your-token>"
-    Content-Type = "application/json"
+```bash
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/query" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT time, level, service, message FROM logs.logs WHERE level = '\''error'\'' ORDER BY time DESC LIMIT 20", "format": "json"}'
 ```
 
 ## Example Queries
@@ -237,7 +287,7 @@ SELECT
     COUNT(*) FILTER (WHERE level = 'error') AS errors,
     COUNT(*) AS total,
     ROUND(100.0 * COUNT(*) FILTER (WHERE level = 'error') / COUNT(*), 2) AS error_rate_pct
-FROM logs.events
+FROM logs.logs
 WHERE time > NOW() - INTERVAL '1 hour'
 GROUP BY service
 ORDER BY error_rate_pct DESC;
@@ -245,20 +295,16 @@ ORDER BY error_rate_pct DESC;
 
 ### P95 Latency by Endpoint
 
-Extract latency from the metadata JSON column:
-
 ```sql
 SELECT
-    json_extract_string(metadata, '$.endpoint') AS endpoint,
+    endpoint,
     COUNT(*) AS requests,
-    ROUND(AVG(CAST(json_extract(metadata, '$.latency_ms') AS DOUBLE)), 1) AS avg_latency_ms,
-    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (
-        ORDER BY CAST(json_extract(metadata, '$.latency_ms') AS DOUBLE)
-    ), 1) AS p95_latency_ms,
-    ROUND(MAX(CAST(json_extract(metadata, '$.latency_ms') AS DOUBLE)), 1) AS max_latency_ms
-FROM logs.events
+    ROUND(AVG(latency_ms), 1) AS avg_latency_ms,
+    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms), 1) AS p95_latency_ms,
+    ROUND(MAX(latency_ms), 1) AS max_latency_ms
+FROM logs.logs
 WHERE time > NOW() - INTERVAL '1 hour'
-  AND json_extract(metadata, '$.latency_ms') IS NOT NULL
+  AND latency_ms IS NOT NULL
 GROUP BY endpoint
 ORDER BY p95_latency_ms DESC;
 ```
@@ -271,7 +317,7 @@ SELECT
     level,
     service,
     message
-FROM logs.events
+FROM logs.logs
 WHERE time > NOW() - INTERVAL '24 hours'
   AND message ILIKE '%timeout%'
 ORDER BY time DESC
@@ -285,14 +331,14 @@ Find services with a sudden increase in errors compared to the previous hour:
 ```sql
 WITH current_hour AS (
     SELECT service, COUNT(*) AS errors
-    FROM logs.events
+    FROM logs.logs
     WHERE level = 'error'
       AND time > NOW() - INTERVAL '1 hour'
     GROUP BY service
 ),
 previous_hour AS (
     SELECT service, COUNT(*) AS errors
-    FROM logs.events
+    FROM logs.logs
     WHERE level = 'error'
       AND time BETWEEN NOW() - INTERVAL '2 hours' AND NOW() - INTERVAL '1 hour'
     GROUP BY service
@@ -326,9 +372,9 @@ curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/continuous_q
   -d '{
     "name": "error_rate_5min",
     "database": "logs",
-    "source_measurement": "events",
+    "source_measurement": "logs",
     "destination_measurement": "error_rates",
-    "query": "SELECT date_trunc('\''minute'\'', epoch_us(time)) - (EXTRACT(minute FROM epoch_us(time)) % 5) * INTERVAL '\''1 minute'\'' AS time, service, COUNT(*) FILTER (WHERE level = '\''error'\'') AS errors, COUNT(*) AS total FROM logs.events GROUP BY 1, service",
+    "query": "SELECT date_trunc('\''minute'\'', epoch_us(time)) - (EXTRACT(minute FROM epoch_us(time)) % 5) * INTERVAL '\''1 minute'\'' AS time, service, COUNT(*) FILTER (WHERE level = '\''error'\'') AS errors, COUNT(*) AS total FROM logs.logs GROUP BY 1, service",
     "interval": "5m",
     "is_active": true
   }'
@@ -345,9 +391,9 @@ curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/continuous_q
   -d '{
     "name": "latency_5min",
     "database": "logs",
-    "source_measurement": "events",
+    "source_measurement": "logs",
     "destination_measurement": "latency_metrics",
-    "query": "SELECT date_trunc('\''minute'\'', epoch_us(time)) - (EXTRACT(minute FROM epoch_us(time)) % 5) * INTERVAL '\''1 minute'\'' AS time, json_extract_string(metadata, '\''$.endpoint'\'') AS endpoint, ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY CAST(json_extract(metadata, '\''$.latency_ms'\'') AS DOUBLE)), 1) AS p95_latency_ms, COUNT(*) AS request_count FROM logs.events WHERE json_extract(metadata, '\''$.latency_ms'\'') IS NOT NULL GROUP BY 1, endpoint",
+    "query": "SELECT date_trunc('\''minute'\'', epoch_us(time)) - (EXTRACT(minute FROM epoch_us(time)) % 5) * INTERVAL '\''1 minute'\'' AS time, endpoint, ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms), 1) AS p95_latency_ms, COUNT(*) AS request_count FROM logs.logs WHERE latency_ms IS NOT NULL GROUP BY 1, endpoint",
     "interval": "5m",
     "is_active": true
   }'
@@ -381,7 +427,7 @@ curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/retention \
   -d '{
     "name": "raw_logs_7d",
     "database": "logs",
-    "measurement": "events",
+    "measurement": "logs",
     "retention_days": 7,
     "buffer_days": 1,
     "is_active": true
@@ -422,13 +468,13 @@ curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/retention \
 
 | Data | Retention | Purpose |
 |------|-----------|---------|
-| `events` (raw logs) | 7 days | Full-text search, debugging, trace correlation |
+| `logs` (raw) | 7 days | Full-text search, debugging, trace correlation |
 | `error_rates` | 90 days | Error rate trends, alerting |
 | `latency_metrics` | 90 days | Latency monitoring, SLA tracking |
 
 ## Next Steps
 
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- Optimize batch sizes and throughput
+- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- All ingestion methods and optimization
 - [SQL Querying Guide](/arc/guides/querying) -- Full SQL reference
 - [Telegraf Integration](/arc/integrations/telegraf) -- Ship system metrics alongside logs
 - [OpenTelemetry Integration](/arc/integrations/opentelemetry) -- Send traces and metrics via OTLP

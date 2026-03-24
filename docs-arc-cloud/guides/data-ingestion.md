@@ -4,109 +4,302 @@ sidebar_position: 4
 
 # Data Ingestion Patterns
 
-Optimize how you send data to Arc Cloud -- batch sizes, parallelism, error handling, and throughput by tier.
+Optimize how you send data to Arc Cloud -- ingestion methods, batch sizes, parallelism, error handling, and throughput by tier.
 
-## Ingestion Endpoint
+## Ingestion Methods
 
-All data ingestion goes through a single endpoint:
+Arc Cloud supports multiple ingestion protocols. Choose the one that best fits your use case:
+
+| Method | Endpoint | Best For |
+|--------|----------|----------|
+| **MessagePack** | `POST /api/v1/write/msgpack` | Highest throughput (18M+ rec/s), production pipelines |
+| **Line Protocol** | `POST /api/v1/write/line-protocol` | Telegraf, InfluxDB clients, human-readable |
+| **InfluxDB-compatible** | `POST /write?db=...&p=TOKEN` | Drop-in replacement for InfluxDB clients |
+| **Python SDK** | `arc-tsdb-client` | DataFrames, columnar writes, buffered ingestion |
+| **CSV Import** | `POST /api/v1/import/csv` | Bulk historical data |
+| **Parquet Import** | `POST /api/v1/import/parquet` | Large columnar datasets |
+| **Line Protocol Import** | `POST /api/v1/import/lp` | Bulk line protocol files |
+
+## Data Model
+
+Arc uses a time-series data model with **measurements**, **tags**, and **fields**:
+
+- **Measurement**: The table name (e.g., `events`, `logs`, `metrics`)
+- **Tags**: Indexed string columns for filtering (e.g., `source=web`, `host=server-01`)
+- **Fields**: Value columns (strings, integers, floats, booleans)
+- **Timestamp**: Nanosecond-precision time column
+
+Tables are addressed as `database.measurement` (e.g., `default.events`, `analytics.page_views`).
+
+## MessagePack (Fastest)
+
+MessagePack is Arc's primary ingestion protocol, achieving 18M+ records per second. It uses a compact binary format.
+
+### Python Example
+
+```python
+import msgpack
+import requests
+
+ARC_URL = "https://<instance-id>.arc.<region>.basekick.net"
+ARC_TOKEN = "<your-token>"
+
+# MessagePack payload: array of [measurement, tags, fields, timestamp_ns]
+records = [
+    ["events", {"source": "web"}, {"event_name": "page_view", "user_id": "u_8f3k2", "page": "/pricing"}, 1711200721000000000],
+    ["events", {"source": "web"}, {"event_name": "signup", "user_id": "u_8f3k2", "page": "/signup"}, 1711200725000000000],
+    ["events", {"source": "mobile"}, {"event_name": "page_view", "user_id": "u_9x7m1", "page": "/home"}, 1711200792000000000],
+]
+
+resp = requests.post(
+    f"{ARC_URL}/api/v1/write/msgpack",
+    headers={
+        "Authorization": f"Bearer {ARC_TOKEN}",
+        "Content-Type": "application/msgpack",
+    },
+    data=msgpack.packb(records),
+)
+print(resp.status_code)  # 200
+```
+
+## Line Protocol
+
+Line protocol is a text-based format compatible with Telegraf and InfluxDB client libraries. Each line represents one data point:
 
 ```
-POST /api/v1/ingest
+measurement,tag1=val1,tag2=val2 field1=value1,field2="string_value" timestamp_ns
 ```
 
-### Request Format
+### curl Example
 
 ```bash
-curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/ingest \
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/write/line-protocol?db=analytics" \
   -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "database": "my_database",
-    "records": [
-      {"timestamp": "2026-03-23T12:00:00Z", "sensor": "temp_01", "value": 22.5},
-      {"timestamp": "2026-03-23T12:00:01Z", "sensor": "temp_01", "value": 22.6}
-    ]
-  }'
+  -H "Content-Type: text/plain" \
+  -d 'events,source=web event_name="page_view",user_id="u_8f3k2",page="/pricing" 1711200721000000000
+events,source=web event_name="signup",user_id="u_8f3k2",page="/signup" 1711200725000000000
+events,source=mobile event_name="page_view",user_id="u_9x7m1",page="/home" 1711200792000000000'
 ```
 
-**Parameters**:
+### InfluxDB-Compatible Endpoint
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `database` | string | Yes | Target database name. Created automatically if it does not exist. |
-| `records` | array | Yes | Array of JSON objects to ingest. |
-
-Each record is a flat JSON object. Arc Cloud creates the table (measurement) and columns automatically based on the fields present in the first batch.
-
-## Schema Auto-Detection
-
-Arc Cloud automatically detects and creates schemas from your data:
-
-- **First insert**: Arc creates the database, table, and columns based on the fields in your records
-- **New fields**: If a subsequent batch contains fields that do not exist yet, Arc adds them as new columns
-- **Type inference**: Column types are inferred from values (string, integer, float, boolean, timestamp)
+Use the InfluxDB v1 write endpoint for drop-in compatibility with existing InfluxDB clients:
 
 ```bash
-# First insert creates the table with columns: timestamp, sensor, value
-curl -X POST .../api/v1/ingest -d '{
-  "database": "iot",
-  "records": [{"timestamp": "2026-03-23T12:00:00Z", "sensor": "temp_01", "value": 22.5}]
-}'
-
-# Later insert adds a new "location" column automatically
-curl -X POST .../api/v1/ingest -d '{
-  "database": "iot",
-  "records": [{"timestamp": "2026-03-23T13:00:00Z", "sensor": "temp_01", "value": 23.1, "location": "building-a"}]
-}'
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/write?db=analytics&p=<your-token>" \
+  -H "Content-Type: text/plain" \
+  -d 'events,source=web event_name="page_view",user_id="u_8f3k2",page="/pricing" 1711200721000000000'
 ```
 
-## Single Record vs Batch Ingestion
+This endpoint accepts the token via the `p` query parameter, making it compatible with InfluxDB client libraries that do not support Bearer token auth.
 
-### Single Record
+## Python SDK (arc-tsdb-client)
 
-Sending one record per request works but is inefficient due to HTTP overhead:
+The `arc-tsdb-client` SDK provides high-level Python bindings with columnar writes, DataFrame support, and automatic buffering.
+
+### Install
 
 ```bash
-# Works but slow -- one HTTP round-trip per record
-curl -X POST .../api/v1/ingest -d '{
-  "database": "events",
-  "records": [
-    {"timestamp": "2026-03-23T12:00:00Z", "event": "click", "user_id": "u_123"}
-  ]
-}'
+pip install arc-tsdb-client
 ```
 
-### Batch Ingestion (Recommended)
+### Columnar Writes
 
-Batch multiple records in a single request. This significantly reduces HTTP overhead and improves throughput.
+```python
+from arc_tsdb_client import ArcClient
+
+client = ArcClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    database="analytics",
+)
+
+# Write columnar data (efficient for large batches)
+client.write_columnar(
+    measurement="events",
+    tags={"source": ["web", "web", "mobile"]},
+    fields={
+        "event_name": ["page_view", "signup", "page_view"],
+        "user_id": ["u_8f3k2", "u_8f3k2", "u_9x7m1"],
+        "page": ["/pricing", "/signup", "/home"],
+    },
+    timestamps=[1711200721000000000, 1711200725000000000, 1711200792000000000],
+)
+```
+
+### DataFrame Writes
+
+```python
+import pandas as pd
+from arc_tsdb_client import ArcClient
+
+client = ArcClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    database="analytics",
+)
+
+df = pd.DataFrame({
+    "event_name": ["page_view", "signup", "purchase"],
+    "user_id": ["u_8f3k2", "u_8f3k2", "u_8f3k2"],
+    "page": ["/pricing", "/signup", "/checkout"],
+    "amount": [None, None, 49.99],
+}, index=pd.to_datetime(["2026-03-23T14:32:01Z", "2026-03-23T14:32:05Z", "2026-03-23T14:33:12Z"]))
+
+client.write_dataframe(
+    measurement="events",
+    df=df,
+    tag_columns=[],  # columns to use as tags
+)
+```
+
+### Buffered Writes
+
+For streaming workloads, use the buffered writer to batch records automatically:
+
+```python
+from arc_tsdb_client import ArcClient
+
+client = ArcClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    database="analytics",
+)
+
+with client.buffered_writer(batch_size=5000, flush_interval=5.0) as writer:
+    for event in event_stream():
+        writer.write(
+            measurement="events",
+            tags={"source": event["source"]},
+            fields={"event_name": event["name"], "user_id": event["user_id"]},
+        )
+# Buffer is flushed automatically on exit
+```
+
+## InfluxDB Client Libraries
+
+Since Arc Cloud is wire-compatible with InfluxDB, you can use existing InfluxDB client libraries unchanged.
+
+### Python (influxdb-client)
+
+```python
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+client = InfluxDBClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    org="-",  # not used by Arc, but required by the client
+)
+write_api = client.write_api(write_options=SYNCHRONOUS)
+
+point = (
+    Point("events")
+    .tag("source", "web")
+    .field("event_name", "page_view")
+    .field("user_id", "u_8f3k2")
+    .field("page", "/pricing")
+)
+write_api.write(bucket="analytics", record=point)
+```
+
+### Go (influxdb-client-go)
+
+```go
+package main
+
+import (
+    "context"
+    "time"
+    influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+)
+
+func main() {
+    client := influxdb2.NewClient(
+        "https://<instance-id>.arc.<region>.basekick.net",
+        "<your-token>",
+    )
+    writeAPI := client.WriteAPIBlocking("-", "analytics")
+
+    p := influxdb2.NewPoint("events",
+        map[string]string{"source": "web"},
+        map[string]interface{}{
+            "event_name": "page_view",
+            "user_id":    "u_8f3k2",
+            "page":       "/pricing",
+        },
+        time.Now(),
+    )
+    writeAPI.WritePoint(context.Background(), p)
+    client.Close()
+}
+```
+
+### Node.js (@influxdata/influxdb-client)
+
+```javascript
+const { InfluxDB, Point } = require("@influxdata/influxdb-client");
+
+const client = new InfluxDB({
+  url: "https://<instance-id>.arc.<region>.basekick.net",
+  token: "<your-token>",
+});
+
+const writeApi = client.getWriteApi("-", "analytics");
+
+const point = new Point("events")
+  .tag("source", "web")
+  .stringField("event_name", "page_view")
+  .stringField("user_id", "u_8f3k2")
+  .stringField("page", "/pricing");
+
+writeApi.writePoint(point);
+writeApi.close();
+```
+
+## Bulk Import
+
+For loading historical data or large datasets, use the bulk import endpoints. These accept file uploads and are optimized for high-volume one-time loads.
+
+### CSV Import
 
 ```bash
-# Much faster -- one HTTP round-trip for many records
-curl -X POST .../api/v1/ingest -d '{
-  "database": "events",
-  "records": [
-    {"timestamp": "2026-03-23T12:00:00Z", "event": "click", "user_id": "u_123"},
-    {"timestamp": "2026-03-23T12:00:01Z", "event": "page_view", "user_id": "u_456"},
-    {"timestamp": "2026-03-23T12:00:01Z", "event": "click", "user_id": "u_789"},
-    ...
-  ]
-}'
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/import/csv?db=analytics&measurement=events" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: text/csv" \
+  --data-binary @events.csv
 ```
 
-:::tip Recommended Batch Size
-Send up to **10,000 records per request** for optimal throughput. Larger batches increase memory usage on both client and server without significant speed gains.
-:::
+The CSV must include a header row. A column named `time` or `timestamp` is used as the time column.
 
-### Throughput Comparison
+### Parquet Import
 
-| Strategy | Records/sec (typical) | HTTP Requests |
-|----------|----------------------|---------------|
-| Single record | ~100-500 | 1 per record |
-| Batch of 100 | ~5,000-20,000 | 1 per 100 records |
-| Batch of 1,000 | ~30,000-100,000 | 1 per 1,000 records |
-| Batch of 10,000 | ~50,000-200,000 | 1 per 10,000 records |
+```bash
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/import/parquet?db=analytics&measurement=events" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @events.parquet
+```
 
-Actual throughput depends on your plan tier, record size, network latency, and number of parallel workers.
+### Line Protocol Import
+
+For bulk-loading line protocol files (e.g., InfluxDB exports):
+
+```bash
+curl -X POST "https://<instance-id>.arc.<region>.basekick.net/api/v1/import/lp?db=analytics" \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: text/plain" \
+  --data-binary @export.lp
+```
+
+## InfluxDB Migration Path
+
+If you are migrating from InfluxDB, Arc Cloud accepts the same write protocol and client libraries. To migrate:
+
+1. **Export** your InfluxDB data using `influx_inspect export` or `influxd backup`
+2. **Bulk import** the exported line protocol files via `/api/v1/import/lp`
+3. **Point your clients** to your Arc Cloud instance URL -- no code changes needed for InfluxDB v2 clients
+4. **Update queries** from InfluxQL/Flux to SQL (Arc uses DuckDB SQL)
 
 ## Throughput by Tier
 
@@ -123,86 +316,63 @@ Each Arc Cloud tier has a maximum ingestion rate:
 | **Ultimate** | 2,000,000 rec/s | Enterprise workloads |
 
 :::info
-If you consistently need throughput beyond your tier's limit, consider upgrading your plan from the Arc Cloud dashboard.
+MessagePack ingestion achieves the highest throughput. Line protocol is slightly slower due to text parsing. If you consistently need throughput beyond your tier's limit, consider upgrading your plan from the Arc Cloud dashboard.
 :::
 
 ## Best Practices
 
-### 1. Batch Records
+### 1. Use MessagePack for High Throughput
 
-Buffer records on the client side and flush in batches:
+MessagePack is the fastest ingestion path. Use it for production data pipelines where throughput matters.
+
+### 2. Batch Records
+
+Buffer records on the client side and flush in batches. Aim for 1,000--10,000 records per request:
 
 ```python
-import requests
-import time
-from threading import Lock
+from arc_tsdb_client import ArcClient
 
-class ArcIngester:
-    def __init__(self, arc_url, arc_token, database, batch_size=1000, flush_interval=5):
-        self.arc_url = arc_url
-        self.database = database
-        self.headers = {
-            "Authorization": f"Bearer {arc_token}",
-            "Content-Type": "application/json",
-        }
-        self.batch_size = batch_size
-        self.flush_interval = flush_interval
-        self.buffer = []
-        self.lock = Lock()
-        self.last_flush = time.time()
+client = ArcClient(
+    url="https://<instance-id>.arc.<region>.basekick.net",
+    token="<your-token>",
+    database="events",
+)
 
-    def add(self, record: dict):
-        with self.lock:
-            self.buffer.append(record)
-            if len(self.buffer) >= self.batch_size:
-                self._flush()
-            elif time.time() - self.last_flush > self.flush_interval:
-                self._flush()
-
-    def _flush(self):
-        if not self.buffer:
-            return
-        batch = self.buffer[:]
-        self.buffer.clear()
-        self.last_flush = time.time()
-
-        requests.post(
-            f"{self.arc_url}/api/v1/ingest",
-            headers=self.headers,
-            json={"database": self.database, "records": batch},
+with client.buffered_writer(batch_size=5000, flush_interval=5.0) as writer:
+    for record in records:
+        writer.write(
+            measurement="events",
+            tags={"source": record["source"]},
+            fields={"event_name": record["name"], "user_id": record["user_id"]},
         )
-
-    def close(self):
-        with self.lock:
-            self._flush()
 ```
 
-### 2. Use Multiple Workers for Parallelism
+### 3. Use Multiple Workers for Parallelism
 
-For high-throughput scenarios, use multiple threads or processes to send batches in parallel:
+For high-throughput scenarios, send batches in parallel:
 
 ```python
 import concurrent.futures
-from datetime import datetime
+import msgpack
+import requests
 
 ARC_URL = "https://<instance-id>.arc.<region>.basekick.net"
 ARC_TOKEN = "<your-token>"
-HEADERS = {"Authorization": f"Bearer {ARC_TOKEN}", "Content-Type": "application/json"}
 
 def send_batch(batch):
-    """Send a single batch to Arc Cloud."""
     resp = requests.post(
-        f"{ARC_URL}/api/v1/ingest",
-        headers=HEADERS,
-        json={"database": "events", "records": batch},
+        f"{ARC_URL}/api/v1/write/msgpack",
+        headers={
+            "Authorization": f"Bearer {ARC_TOKEN}",
+            "Content-Type": "application/msgpack",
+        },
+        data=msgpack.packb(batch),
     )
     return resp.status_code
 
 # Split records into batches of 5,000
-all_records = [...]  # Your records
 batches = [all_records[i:i+5000] for i in range(0, len(all_records), 5000)]
 
-# Send batches in parallel with 4 workers
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
     results = list(executor.map(send_batch, batches))
 
@@ -210,62 +380,37 @@ success = sum(1 for r in results if r == 200)
 print(f"Sent {len(batches)} batches, {success} successful")
 ```
 
-### 3. Keep Record Size Reasonable
+### 4. Use Tags for Indexed Lookups
 
-- Avoid embedding large blobs (images, binary data) in records
-- Use JSON strings for nested data rather than deeply nested objects
-- Keep individual records under 1 MB
-- If you have large payloads, store the payload elsewhere and reference it by ID
+Tags are indexed and should be used for columns you filter on frequently (e.g., `source`, `host`, `service`). Fields are for values you aggregate or display (e.g., `user_id`, `event_name`, `amount`).
 
-### 4. Include Timestamps
+### 5. Include Timestamps
 
-Always include a `timestamp` field in ISO 8601 format. Arc Cloud uses this for time-based partitioning, retention, and queries:
-
-```json
-{"timestamp": "2026-03-23T14:32:01.892Z", "event": "click", "user_id": "u_123"}
-```
-
-If you omit the timestamp, Arc Cloud assigns one at ingestion time, but explicit timestamps are preferred for accuracy.
-
-### 5. Consistent Field Names
-
-Use consistent field names across records. Inconsistent naming creates separate columns:
-
-```json
-// Good -- consistent naming
-{"timestamp": "...", "user_id": "u_123", "event_name": "click"}
-{"timestamp": "...", "user_id": "u_456", "event_name": "page_view"}
-
-// Bad -- creates two columns: "event_name" and "eventName"
-{"timestamp": "...", "user_id": "u_123", "event_name": "click"}
-{"timestamp": "...", "user_id": "u_456", "eventName": "page_view"}
-```
+Always include explicit timestamps. If you omit the timestamp, Arc Cloud assigns one at ingestion time, but explicit timestamps are preferred for accuracy.
 
 ## Error Handling
 
 ### Rate Limiting (429)
 
-If you exceed your tier's ingestion rate, the API returns a `429 Too Many Requests` response. Implement retry with exponential backoff:
+If you exceed your tier's ingestion rate, the API returns `429 Too Many Requests`. Implement retry with exponential backoff:
 
 ```python
 import time
 import requests
 
-def ingest_with_retry(url, headers, payload, max_retries=5):
-    """Ingest with exponential backoff on rate limits."""
+def ingest_with_retry(url, headers, data, max_retries=5):
     for attempt in range(max_retries):
-        resp = requests.post(url, headers=headers, json=payload)
+        resp = requests.post(url, headers=headers, data=data)
 
         if resp.status_code == 200:
             return resp
 
         if resp.status_code == 429:
-            wait = min(2 ** attempt, 30)  # 1s, 2s, 4s, 8s, 16s (max 30s)
+            wait = min(2 ** attempt, 30)
             print(f"Rate limited. Retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
             time.sleep(wait)
             continue
 
-        # Other errors -- raise immediately
         resp.raise_for_status()
 
     raise Exception(f"Failed after {max_retries} retries")
@@ -276,22 +421,10 @@ def ingest_with_retry(url, headers, payload, max_retries=5):
 | Status Code | Meaning | Action |
 |-------------|---------|--------|
 | `200` | Success | Records ingested |
-| `400` | Bad request | Check payload format, field types |
+| `400` | Bad request | Check payload format, line protocol syntax |
 | `401` | Unauthorized | Verify your API token |
 | `429` | Rate limited | Back off and retry |
 | `500` | Server error | Retry after a short delay |
-
-### Handling Partial Failures
-
-If a batch contains a mix of valid and invalid records, Arc Cloud ingests the valid records and returns details about any failures in the response body. Check the response for partial errors:
-
-```python
-resp = requests.post(f"{ARC_URL}/api/v1/ingest", headers=HEADERS, json=payload)
-data = resp.json()
-
-if resp.status_code == 200:
-    print(f"Ingested {data.get('records_written', 0)} records")
-```
 
 ## Storage Overage
 
@@ -301,8 +434,6 @@ Each Arc Cloud plan includes a fixed amount of storage. If your data exceeds the
 - You are billed **$0.10 per GB per month** for storage beyond your plan's limit
 - Overage charges appear on your next invoice
 - You can reduce storage by applying [retention policies](/arc/data-lifecycle/retention-policies) or deleting old data
-
-Check your current storage usage from the Arc Cloud dashboard or via the API.
 
 ## Next Steps
 
