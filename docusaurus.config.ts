@@ -14,6 +14,16 @@ const config: Config = {
     [
       '@docusaurus/plugin-content-docs',
       {
+        id: 'arc-cloud',
+        path: 'docs-arc-cloud',
+        routeBasePath: 'arc-cloud',
+        sidebarPath: './sidebarsArcCloud.ts',
+        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
+      },
+    ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
         id: 'liftbridge',
         path: 'docs-liftbridge',
         routeBasePath: 'liftbridge',
@@ -105,6 +115,13 @@ const config: Config = {
         {
           type: 'doc',
           docId: 'overview',
+          docsPluginId: 'arc-cloud',
+          position: 'left',
+          label: 'Arc Cloud',
+        },
+        {
+          type: 'doc',
+          docId: 'overview',
           docsPluginId: 'arc-enterprise',
           position: 'left',
           label: 'Arc Enterprise',
@@ -144,6 +161,10 @@ const config: Config = {
             {
               label: 'Arc',
               to: '/arc',
+            },
+            {
+              label: 'Arc Cloud',
+              to: '/arc-cloud',
             },
             {
               label: 'Arc Enterprise',
