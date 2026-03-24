@@ -28,11 +28,14 @@ Use standard DuckDB SQL — window functions, CTEs, joins, and aggregations all 
 
 ## Log Explorer
 
-View instance logs in real-time. The Log Explorer helps you:
+Browse and search ingested log and event data stored in your databases. The Log Explorer provides:
 
-- Monitor ingestion activity and query execution
-- Debug errors and connection issues
-- Filter logs by severity and time range
+- A structured view of ingested events with automatic field detection
+- Filtering by severity level, time range, and custom field values
+- Pattern detection to group similar log entries
+- Field browser for exploring your data schema
+
+The Log Explorer reads data from your database tables — it is not for viewing Arc system logs. For Arc instance logs (startup, errors, health), see the **Monitoring** tab on the instance detail page.
 
 ## Retention Policies
 
