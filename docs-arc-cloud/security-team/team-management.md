@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 2
 ---
 
 # Team & Organization Management
@@ -163,5 +163,5 @@ If you need strict isolation between projects (different billing, different team
 ## Next Steps
 
 - [Quickstart](/arc-cloud/getting-started/quickstart) -- Create your first instance
-- [Billing & Usage](/arc-cloud/billing) -- Understand pricing and manage your plan
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- Start sending data to your instances
+- [Billing & Usage](/arc-cloud/billing/pricing) -- Understand pricing and manage your plan
+- [Data Ingestion Patterns](/arc-cloud/ingestion/data-ingestion) -- Start sending data to your instances

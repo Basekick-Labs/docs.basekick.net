@@ -19,7 +19,7 @@ Every instance moves through a defined set of states:
 | **Error** | Something went wrong during provisioning or runtime. Check the dashboard for details. |
 | **Deleted** | Compute removed. Data is retained for 7 days, then permanently purged. |
 
-When an instance is deleted, its persistent volume is kept for 7 days. During this window you can download your data from the [Storage](/arc-cloud/configuration/storage) page. After 7 days the volume is permanently purged.
+When an instance is deleted, its persistent volume is kept for 7 days. During this window you can download your data from the [Storage](/arc-cloud/data-lifecycle/storage) page. After 7 days the volume is permanently purged.
 
 ## Starting and Stopping Instances
 

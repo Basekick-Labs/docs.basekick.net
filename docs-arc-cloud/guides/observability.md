@@ -474,7 +474,7 @@ curl -X POST https://<instance-id>.arc.<region>.basekick.net/api/v1/retention \
 
 ## Next Steps
 
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- All ingestion methods and optimization
+- [Data Ingestion Patterns](/arc-cloud/ingestion/data-ingestion) -- All ingestion methods and optimization
 - [SQL Querying Guide](/arc/guides/querying) -- Full SQL reference
 - [Telegraf Integration](/arc/integrations/telegraf) -- Ship system metrics alongside logs
 - [OpenTelemetry Integration](/arc/integrations/opentelemetry) -- Send traces and metrics via OTLP

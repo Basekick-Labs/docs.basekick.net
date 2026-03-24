@@ -72,7 +72,7 @@ The **Storage** page lists all persistent volumes in your organization, includin
 - **Export data** as a `.tar.gz` archive (Owner and Admin roles only)
 - Monitor the retention countdown for orphaned volumes
 
-See [Storage & Data Export](/arc-cloud/configuration/storage) for details.
+See [Storage & Data Export](/arc-cloud/data-lifecycle/storage) for details.
 
 ## Team
 
@@ -93,4 +93,4 @@ Configure organization-level settings and manage your profile. The Settings page
 - **Organization** — Organization name and settings
 - **Security** — Two-factor authentication (TOTP) and passkey management
 
-See [Account Security](/arc-cloud/configuration/security) for setup instructions.
+See [Account Security](/arc-cloud/security-team/security) for setup instructions.

@@ -339,7 +339,7 @@ Do not set a retention policy on `events_daily` or `events_hourly` -- they will 
 
 ## Next Steps
 
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- All ingestion methods and optimization
+- [Data Ingestion Patterns](/arc-cloud/ingestion/data-ingestion) -- All ingestion methods and optimization
 - [SQL Querying Guide](/arc/guides/querying) -- Full SQL reference for Arc
 - [Continuous Queries](/arc/data-lifecycle/continuous-queries) -- Advanced rollup configuration
 - [Retention Policies](/arc/data-lifecycle/retention-policies) -- Manage data lifecycle

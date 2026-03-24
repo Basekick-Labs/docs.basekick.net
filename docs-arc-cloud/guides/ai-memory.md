@@ -356,6 +356,6 @@ reply = chat(session, "What libraries would you recommend?")
 ## Next Steps
 
 - [Memtrace Documentation](/memtrace) -- Structured AI memory built on Arc
-- [Data Ingestion Patterns](/arc-cloud/guides/data-ingestion) -- All ingestion methods and optimization
+- [Data Ingestion Patterns](/arc-cloud/ingestion/data-ingestion) -- All ingestion methods and optimization
 - [SQL Querying Guide](/arc/guides/querying) -- Full SQL reference
 - [Retention Policies](/arc/data-lifecycle/retention-policies) -- Manage memory data lifecycle
