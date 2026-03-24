@@ -61,6 +61,16 @@ Manage your subscription from the **Billing** page:
 - View and download invoices
 - Monitor storage usage and overage charges
 
+## Storage
+
+The **Storage** page lists all persistent volumes in your organization, including volumes from deleted instances that are still within the 7-day retention window. From this page you can:
+
+- See which volumes are **Active** (attached to a running instance) or **Orphaned** (instance deleted)
+- **Export data** as a `.tar.gz` archive (Owner and Admin roles only)
+- Monitor the retention countdown for orphaned volumes
+
+See [Storage & Data Export](/arc-cloud/configuration/storage) for details.
+
 ## Team
 
 Invite team members and assign roles:
@@ -74,4 +84,10 @@ Invite team members and assign roles:
 
 ## Settings
 
-Configure organization-level settings and manage your profile, including display name, email, and notification preferences.
+Configure organization-level settings and manage your profile. The Settings page includes:
+
+- **Profile** — Display name and email
+- **Organization** — Organization name and settings
+- **Security** — Two-factor authentication (TOTP) and passkey management
+
+See [Account Security](/arc-cloud/configuration/security) for setup instructions.
