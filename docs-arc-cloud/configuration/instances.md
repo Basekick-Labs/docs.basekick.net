@@ -43,7 +43,7 @@ You can upgrade your instance tier at any time without downtime. When you upgrad
 
 Arc Cloud instances are currently deployed in a single region:
 
-- **us-east-1** — US East (Virginia)
+- **us-east** — US East
 
 Additional regions are on the roadmap. If you have specific region requirements, [contact us](mailto:sales@basekick.net).
 

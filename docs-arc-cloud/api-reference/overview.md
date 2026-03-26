@@ -14,10 +14,10 @@ Each instance has a unique base URL:
 https://<instance-id>.arc.<region>.basekick.net
 ```
 
-For example, if your instance ID is `abc123` in `us-east-1`:
+For example, if your instance ID is `abc123` in `us-east`:
 
 ```
-https://abc123.arc.us-east-1.basekick.net
+https://abc123.arc.us-east.basekick.net
 ```
 
 You can find your instance's base URL on the dashboard overview page.
@@ -57,13 +57,13 @@ Generate API tokens from **Settings > API Tokens** in your instance dashboard.
 ### Health Check
 
 ```bash
-curl https://abc123.arc.us-east-1.basekick.net/health
+curl https://abc123.arc.us-east.basekick.net/health
 ```
 
 ### Write Data (Line Protocol)
 
 ```bash
-curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/write/line-protocol \
+curl -X POST https://abc123.arc.us-east.basekick.net/api/v1/write/line-protocol \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: text/plain" \
   -d 'cpu,host=server01 usage=0.64 1711180800000000000
@@ -75,7 +75,7 @@ cpu,host=server02 usage=0.38 1711180800000000000'
 MessagePack is the fastest ingestion path. Use the Arc SDK or serialize your data as MessagePack and POST to the endpoint:
 
 ```bash
-curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/write/msgpack \
+curl -X POST https://abc123.arc.us-east.basekick.net/api/v1/write/msgpack \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/msgpack" \
   --data-binary @data.msgpack
@@ -84,7 +84,7 @@ curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/write/msgpack \
 ### Write Data (InfluxDB 2.x Compatible)
 
 ```bash
-curl -X POST "https://abc123.arc.us-east-1.basekick.net/api/v2/write?bucket=mydb&precision=ns" \
+curl -X POST "https://abc123.arc.us-east.basekick.net/api/v2/write?bucket=mydb&precision=ns" \
   -H "Authorization: Token <token>" \
   -H "Content-Type: text/plain" \
   -d 'cpu,host=server01 usage=0.64 1711180800000000000'
@@ -93,7 +93,7 @@ curl -X POST "https://abc123.arc.us-east-1.basekick.net/api/v2/write?bucket=mydb
 ### Write Data (InfluxDB 1.x Compatible)
 
 ```bash
-curl -X POST "https://abc123.arc.us-east-1.basekick.net/write?db=mydb&p=<token>" \
+curl -X POST "https://abc123.arc.us-east.basekick.net/write?db=mydb&p=<token>" \
   -H "Content-Type: text/plain" \
   -d 'cpu,host=server01 usage=0.64 1711180800000000000'
 ```
@@ -101,7 +101,7 @@ curl -X POST "https://abc123.arc.us-east-1.basekick.net/write?db=mydb&p=<token>"
 ### SQL Query (JSON)
 
 ```bash
-curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/query \
+curl -X POST https://abc123.arc.us-east.basekick.net/api/v1/query \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"q": "SELECT * FROM cpu WHERE host = '\''server01'\'' LIMIT 10"}'
@@ -112,7 +112,7 @@ curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/query \
 For large result sets, the Arrow response format is significantly more efficient:
 
 ```bash
-curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/query/arrow \
+curl -X POST https://abc123.arc.us-east.basekick.net/api/v1/query/arrow \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"q": "SELECT * FROM cpu ORDER BY time DESC LIMIT 1000"}' \
@@ -122,21 +122,21 @@ curl -X POST https://abc123.arc.us-east-1.basekick.net/api/v1/query/arrow \
 ### List Databases
 
 ```bash
-curl https://abc123.arc.us-east-1.basekick.net/api/v1/databases \
+curl https://abc123.arc.us-east.basekick.net/api/v1/databases \
   -H "Authorization: Bearer <token>"
 ```
 
 ### List Measurements
 
 ```bash
-curl "https://abc123.arc.us-east-1.basekick.net/api/v1/measurements?db=mydb" \
+curl "https://abc123.arc.us-east.basekick.net/api/v1/measurements?db=mydb" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Bulk Import (CSV)
 
 ```bash
-curl -X POST "https://abc123.arc.us-east-1.basekick.net/api/v1/import/csv?db=mydb&measurement=sensors&time_column=timestamp" \
+curl -X POST "https://abc123.arc.us-east.basekick.net/api/v1/import/csv?db=mydb&measurement=sensors&time_column=timestamp" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: text/csv" \
   --data-binary @data.csv
@@ -145,7 +145,7 @@ curl -X POST "https://abc123.arc.us-east-1.basekick.net/api/v1/import/csv?db=myd
 ### Bulk Import (Parquet)
 
 ```bash
-curl -X POST "https://abc123.arc.us-east-1.basekick.net/api/v1/import/parquet?db=mydb&measurement=sensors" \
+curl -X POST "https://abc123.arc.us-east.basekick.net/api/v1/import/parquet?db=mydb&measurement=sensors" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @data.parquet

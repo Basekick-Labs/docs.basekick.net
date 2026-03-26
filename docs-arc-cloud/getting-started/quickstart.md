@@ -30,7 +30,7 @@ To connect to your instance externally (curl, SDK, Telegraf), create an API toke
 Verify your instance is running with a simple query:
 
 ```bash
-curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/query" \
+curl -X POST "https://<your-instance>.arc.us-east.basekick.net/api/v1/query" \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT 1 AS hello", "format": "json"}'
@@ -43,7 +43,7 @@ You should receive a JSON response with the result `hello: 1`.
 Send your first records to Arc Cloud using line protocol, the simplest way to write data via `curl`:
 
 ```bash
-curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/write/line-protocol" \
+curl -X POST "https://<your-instance>.arc.us-east.basekick.net/api/v1/write/line-protocol" \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: text/plain" \
   -H "x-arc-database: default" \
@@ -61,7 +61,7 @@ Line protocol is convenient for quick tests. For production workloads, use the M
 Retrieve the data you just ingested:
 
 ```bash
-curl -X POST "https://<your-instance>.arc.us-east-1.basekick.net/api/v1/query" \
+curl -X POST "https://<your-instance>.arc.us-east.basekick.net/api/v1/query" \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM default.events LIMIT 10", "format": "json"}'
@@ -79,7 +79,7 @@ pip install arc-tsdb-client[all]
 from arc_tsdb_client import ArcClient
 
 client = ArcClient(
-    url="https://<your-instance>.arc.us-east-1.basekick.net",
+    url="https://<your-instance>.arc.us-east.basekick.net",
     token="<your-token>",
 )
 
