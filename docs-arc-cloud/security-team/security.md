@@ -53,10 +53,27 @@ On the login page, click **Sign in with passkey**. Your browser will prompt you 
 
 View and delete registered passkeys from **Settings** > **Security**. Deleting a passkey removes it permanently — you will no longer be able to use that credential to sign in.
 
+## Single Sign-On (OAuth)
+
+Arc Cloud supports signing in with third-party identity providers so you can skip creating a separate password.
+
+### GitHub
+
+Click **Continue with GitHub** on the login or signup page. Arc Cloud requests read-only access to your GitHub profile and email. Your account is linked by your GitHub ID — if you already have an Arc Cloud account with the same email, you will be asked to sign in with your password first and then link GitHub from Settings.
+
+### Google
+
+Click **Continue with Google** on the login or signup page. Arc Cloud requests access to your basic profile information (name and email). As with GitHub, your account is linked by your Google ID. If an account with the same email already exists, you must sign in with your password first.
+
+:::info
+OAuth accounts are auto-verified — no email confirmation step is required. A default organization is created automatically on first sign-in.
+:::
+
 ## Login Methods
 
-| Method | MFA Required |
-|--------|-------------|
-| Email + password | Yes, if 2FA is enabled |
-| Passkey | No — inherently multi-factor |
-| GitHub OAuth | No — relies on GitHub's own 2FA |
+| Method | MFA Required | Notes |
+|--------|-------------|-------|
+| Email + password | Yes, if 2FA is enabled | Standard sign-in flow |
+| Passkey | No — inherently multi-factor | Touch ID, Face ID, or security key |
+| GitHub OAuth | No — relies on GitHub's own security | Links by GitHub ID |
+| Google OAuth | No — relies on Google's own security | Links by Google ID |

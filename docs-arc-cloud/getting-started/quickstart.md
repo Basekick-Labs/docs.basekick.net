@@ -8,7 +8,7 @@ Get up and running with Arc Cloud in under a minute.
 
 ## 1. Sign Up
 
-Create a free account at [cloud.arc.basekick.net/signup](https://cloud.arc.basekick.net/signup). No credit card required.
+Create a free account at [cloud.arc.basekick.net/signup](https://cloud.arc.basekick.net/signup). No credit card required. You can sign up with email and password, or use **Google** or **GitHub** for one-click registration.
 
 ## 2. Create an Instance
 
@@ -23,11 +23,7 @@ Your instance will be ready in approximately 30 seconds. The status indicator wi
 Once provisioning completes, you will see:
 
 - **Endpoint URL**: `https://<instance-id>.arc.<region>.basekick.net`
-- **Admin Token**: A one-time token displayed on screen
-
-:::warning Save Your Admin Token
-The admin token is shown **only once** during provisioning. Copy it immediately and store it securely. If you lose it, you will need to restart the instance to generate a new one.
-:::
+To connect to your instance externally (curl, SDK, Telegraf), create an API token from the **Tokens** tab in the instance console.
 
 ## 5. Send Your First Query
 
