@@ -392,7 +392,15 @@ enabled = true              # Enable/disable auth
 db_path = "./data/arc_auth.db"  # Token database
 cache_ttl = 30              # Token cache TTL (seconds)
 max_cache_size = 1000       # Max cached tokens
+bootstrap_token = ""        # Pre-set admin token value (v26.04.1+)
+force_bootstrap = false     # Add a recovery token without removing existing ones (v26.04.1+)
 ```
+
+:::info Available since v26.04.1
+**`bootstrap_token`** — Set a known admin token at deploy time via `ARC_AUTH_BOOTSTRAP_TOKEN` instead of catching a randomly generated one from startup logs. On first run, Arc uses this value as the initial admin token. On subsequent restarts, it is a no-op.
+
+**`force_bootstrap`** — Recovery path when the admin token is lost. Set `ARC_AUTH_FORCE_BOOTSTRAP=true` alongside `ARC_AUTH_BOOTSTRAP_TOKEN` to add a new `arc-recovery` admin token **without removing existing tokens**. Remove this flag after recovery. See the [Authentication configuration guide](/docs/configuration/authentication#bootstrap--recovery) for full details.
+:::
 
 ### Delete Operations
 

@@ -152,6 +152,8 @@ Common configuration options:
 | `ARC_STORAGE_BACKEND` | `local` | Storage: `local`, `s3`, `minio`, `azure` |
 | `ARC_LOG_LEVEL` | `info` | Logging: `debug`, `info`, `warn`, `error` |
 | `ARC_AUTH_ENABLED` | `true` | Enable authentication |
+| `ARC_AUTH_BOOTSTRAP_TOKEN` | _(unset)_ | Pre-set admin token value on first run (v26.04.1+) |
+| `ARC_AUTH_FORCE_BOOTSTRAP` | `false` | Add a recovery admin token without removing existing ones (v26.04.1+) |
 | `ARC_COMPACTION_ENABLED` | `true` | Enable auto-compaction |
 | `ARC_WAL_ENABLED` | `false` | Enable WAL for durability |
 

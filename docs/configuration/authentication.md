@@ -18,6 +18,8 @@ enabled = true                    # Enable/disable authentication
 db_path = "./data/arc_auth.db"    # SQLite database for token storage
 cache_ttl = 30                    # Token cache TTL in seconds
 max_cache_size = 1000             # Maximum cached tokens
+bootstrap_token = ""              # Pre-set admin token value (v26.04.1+)
+force_bootstrap = false           # Add a recovery token without removing existing ones (v26.04.1+)
 ```
 
 **Environment variables:**
@@ -26,6 +28,8 @@ export ARC_AUTH_ENABLED=true
 export ARC_AUTH_DB_PATH="./data/arc_auth.db"
 export ARC_AUTH_CACHE_TTL=30
 export ARC_AUTH_MAX_CACHE_SIZE=1000
+export ARC_AUTH_BOOTSTRAP_TOKEN=""   # v26.04.1+
+export ARC_AUTH_FORCE_BOOTSTRAP=false  # v26.04.1+
 ```
 
 ## Authentication Methods
@@ -57,6 +61,49 @@ For InfluxDB 1.x client compatibility:
 ```bash
 curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
+
+## Bootstrap & Recovery
+
+:::info Available since v26.04.1
+`ARC_AUTH_BOOTSTRAP_TOKEN` and `ARC_AUTH_FORCE_BOOTSTRAP` are available in Arc and Arc Enterprise v26.04.1 and later.
+:::
+
+### Pre-configured Bootstrap Token
+
+By default, Arc generates a random admin token on first start and prints it once to stderr. If you miss it, recovery requires deleting the auth database and redeploying.
+
+`ARC_AUTH_BOOTSTRAP_TOKEN` lets you set a known token value at deploy time. On first run, Arc uses this value as the initial admin token instead of generating a random one. On subsequent restarts, it is a no-op — the existing token is preserved.
+
+```bash
+export ARC_AUTH_BOOTSTRAP_TOKEN="your-secret-token-value-at-least-32-chars"
+```
+
+This is especially useful for:
+- **Automated deployments** — bake the token into your secrets manager (Vault, AWS Secrets Manager, Kubernetes Secrets) and have it ready without catching a log line
+- **Reproducible environments** — staging and production can use different known tokens set consistently at deploy time
+
+:::caution Minimum length
+Token values must be at least 32 characters. Values are stored as bcrypt hashes — the plaintext never persists to disk.
+:::
+
+### Recovery When the Admin Token is Lost
+
+If you no longer have access to any admin token, set both `ARC_AUTH_BOOTSTRAP_TOKEN` and `ARC_AUTH_FORCE_BOOTSTRAP=true` before restarting Arc. Arc will add a new admin token named `arc-recovery` **without removing any existing tokens**.
+
+```bash
+export ARC_AUTH_BOOTSTRAP_TOKEN="your-new-recovery-token-at-least-32-chars"
+export ARC_AUTH_FORCE_BOOTSTRAP=true
+```
+
+Existing tokens are preserved so that if the recovery token was injected by a bad actor, any legitimate admin still has their token and can revoke it immediately via the API.
+
+After recovering access:
+1. Use the API to review and revoke any tokens you no longer need
+2. Remove `ARC_AUTH_FORCE_BOOTSTRAP` from your deployment configuration
+
+:::tip Idempotent on restart
+If Arc restarts with `ARC_AUTH_FORCE_BOOTSTRAP=true` and the `arc-recovery` token already exists, it is a no-op. You still hold the token value you provided.
+:::
 
 ## Token Management
 
