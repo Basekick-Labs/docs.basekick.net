@@ -88,6 +88,76 @@ Telegraf has 300+ input plugins. Some commonly used with Arc Cloud:
 
 See the [full Telegraf integration guide](/integrations/telegraf) for query examples, Docker monitoring, and troubleshooting.
 
+## Redpanda Connect
+
+[Redpanda Connect](https://github.com/redpanda-data/connect) (formerly Benthos) is a stream processor with 200+ source connectors. Arc Cloud accepts data directly from the native Arc output plugin, so you can pipe Kafka events, HTTP webhooks, CDC streams, or MQTT data into Arc Cloud with a single YAML config.
+
+### Arc Output Plugin
+
+The native Arc output uses MessagePack columnar format with zstd compression for best throughput. Requires **Redpanda Connect 4.88+**.
+
+```yaml
+input:
+  kafka:
+    addresses: ["kafka:9092"]
+    topics: ["app-events"]
+    consumer_group: "arc-cloud-ingest"
+
+output:
+  arc:
+    base_url: https://<instance-id>.arc.<region>.basekick.net
+    token: "${ARC_TOKEN}"
+    database: events
+    measurement: user_actions
+    format: columnar
+    compression: zstd
+    batching:
+      count: 5000
+      period: 1s
+```
+
+Install Redpanda Connect:
+
+```bash
+brew install redpanda-data/tap/redpanda-connect
+export ARC_TOKEN="<your-instance-token>"
+redpanda-connect run arc-pipeline.yaml
+```
+
+### Dynamic Measurement Routing
+
+Route messages to different tables based on their content:
+
+```yaml
+output:
+  arc:
+    base_url: https://<instance-id>.arc.<region>.basekick.net
+    token: "${ARC_TOKEN}"
+    database: telemetry
+    # Messages with {"asset_type": "truck", ...} go to the "truck" table
+    measurement: ${!json("asset_type")}
+    format: columnar
+    compression: zstd
+```
+
+### Transformations with Bloblang
+
+Filter, reshape, or enrich data before it reaches Arc Cloud:
+
+```yaml
+pipeline:
+  processors:
+    - mapping: |
+        # Drop bot traffic
+        root = if this.user_id.has_prefix("bot-") { deleted() }
+        # Reshape fields
+        root.user_id = this.user_id
+        root.page = this.page
+        root.duration_ms = this.duration_ms
+```
+
+See the [full Redpanda Connect integration guide](/integrations/redpanda-connect) for more examples, configuration reference, and troubleshooting.
+
 ## Grafana
 
 Connect Arc Cloud to [Grafana](https://grafana.com/) for real-time dashboards, alerting, and time-series visualization using the Arc datasource plugin.
