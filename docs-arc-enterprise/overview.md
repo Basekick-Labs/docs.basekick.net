@@ -65,10 +65,10 @@ Upgrading from Arc OSS to Enterprise requires no data migration. Add your licens
         <h3>Clustering & High Availability</h3>
       </div>
       <div className="card__body">
-        <p>Multi-node clusters with dedicated writer, reader, and compactor roles. Automatic writer failover with sub-30-second recovery.</p>
+        <p>Multi-node clusters with dedicated writer, reader, and compactor roles. Deploy on shared object storage (S3/MinIO/Azure) or local disks with peer replication. Automatic writer and compactor failover.</p>
       </div>
       <div className="card__footer">
-        <a className="button button--primary button--block" href="/arc-enterprise/clustering">Learn more</a>
+        <a className="button button--primary button--block" href="/arc-enterprise/deployment-patterns">Learn more</a>
       </div>
     </div>
   </div>

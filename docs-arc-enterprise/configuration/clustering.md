@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 import Tabs from '@theme/Tabs';
@@ -7,7 +7,11 @@ import TabItem from '@theme/TabItem';
 
 # Clustering & High Availability
 
-Scale Arc horizontally with multi-node clusters. Separate write, read, and compaction workloads across dedicated nodes with automatic failover and shared storage.
+Scale Arc horizontally with multi-node clusters. Separate write, read, and compaction workloads across dedicated nodes with automatic failover.
+
+:::tip Choose a deployment pattern first
+Arc Enterprise supports two cluster topologies: **shared object storage** and **local storage with peer replication**. See [Deployment Patterns](/arc-enterprise/deployment-patterns) to choose the right one for your environment before configuring a cluster.
+:::
 
 ## Overview
 
@@ -271,17 +275,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Best Practices
 
-1. **Use shared object storage** — All nodes must share the same storage backend (S3, MinIO, Azure Blob). Local filesystem is not suitable for multi-node clusters.
+1. **Pick a deployment pattern** — Use [shared object storage](/arc-enterprise/deployment-patterns) (S3, MinIO, Azure) for cloud-native deployments, or [local storage with peer replication](/arc-enterprise/deployment-patterns) for bare metal, VMs, and edge. Don't mix the two in the same cluster.
 
 2. **Deploy at least 2 writers** — For automatic failover, run one primary and one standby writer.
 
 3. **Scale readers independently** — Add reader nodes to handle increased query load without affecting write performance.
 
-4. **Use dedicated compactors** — For high-throughput deployments, run compaction on dedicated nodes to avoid impacting read/write performance.
+4. **Use one dedicated compactor** — Run compaction on a single dedicated node to avoid duplicate outputs. Enable `ARC_CLUSTER_FAILOVER_ENABLED=true` for automatic compactor failover.
 
 5. **Configure seed nodes** — Reader and compactor nodes should list writer nodes as seeds for cluster discovery.
 
-6. **Monitor cluster health** — Use the `/api/v1/cluster/health` endpoint with your monitoring system (Prometheus, Grafana) to detect issues early.
+6. **Always set a shared secret** — `ARC_CLUSTER_SHARED_SECRET` is required for peer authentication. Arc refuses to start replication without it.
+
+7. **Monitor cluster health** — Use the `/api/v1/cluster/health` endpoint with your monitoring system (Prometheus, Grafana) to detect issues early.
 
 ## Next Steps
 
