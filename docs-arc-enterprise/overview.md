@@ -15,23 +15,35 @@ Arc Enterprise extends the high-performance [Arc](/arc) analytical database with
 
 | Capability | Arc OSS | Arc Enterprise |
 |-----------|---------|----------------|
+| **Deployment & Scale** | | |
 | Single-node deployment | Yes | Yes |
 | Clustering (multi-node) | - | Yes |
-| Automatic writer failover | - | Yes |
-| Role separation (writer/reader/compactor) | - | Yes |
+| Role separation (writer / reader / compactor) | - | Yes |
+| Automatic failover (writer + compactor) | - | Yes |
+| Shared-storage deployment (S3 / MinIO / Azure) | Yes | Yes |
+| Local-storage deployment with peer replication | - | Yes |
+| Heartbeat-based cluster health detection | - | Yes |
+| **Security & Access** | | |
 | Token-based authentication | Yes | Yes |
-| Organizations, teams, and roles (RBAC) | - | Yes |
+| Organizations, teams, and RBAC | - | Yes |
 | Measurement-level permissions | - | Yes |
-| Hot/cold tiered storage | - | Yes |
-| Automatic tier migration | - | Yes |
-| Per-database tiering policies | - | Yes |
+| Cluster TLS encryption + shared secret auth | - | Yes |
 | Audit logging | - | Yes |
-| Query governance (rate limits, quotas) | - | Yes |
-| Active query management | - | Yes |
-| Scheduled continuous queries | - | Yes |
-| Scheduled retention enforcement | - | Yes |
-| MQTT subscription management | Yes | Yes |
+| **Data Lifecycle** | | |
+| Continuous queries (manual execution) | Yes | Yes |
+| Retention policies (manual execution) | Yes | Yes |
+| Automatic scheduling (continuous queries + retention policies) | - | Yes |
+| Auto-aggregation | - | Yes |
+| Hot/cold tiered storage with per-database policies | - | Yes |
+| Backup & restore | - | Yes |
+| **Observability & Operations** | | |
 | Prometheus metrics | Yes | Yes |
+| Active query management | - | Yes |
+| Query governance (rate limits, quotas, row limits) | - | Yes |
+| SLA monitoring | - | Yes |
+| **Integrations** | | |
+| MQTT subscription management | Yes | Yes |
+| **Storage** | | |
 | S3 / Azure / MinIO storage | Yes | Yes |
 
 ## Getting Started
