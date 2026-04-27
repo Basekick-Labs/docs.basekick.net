@@ -6,9 +6,20 @@ slug: /
 
 # Memtrace
 
-**LLM-agnostic memory layer for AI agents.** Works with ChatGPT, Claude, Gemini, DeepSeek, Llama — any LLM.
+**Multi-tenant memory layer for production AI agents — backed by [Arc](https://github.com/Basekick-Labs/arc) time-series DB.** Works with ChatGPT, Claude, Gemini, DeepSeek, Llama — any LLM.
 
 No embeddings. No vector DB. Just fast, structured, temporal memory that any LLM can consume as plain text context.
+
+## Is Memtrace for me?
+
+Memtrace is **server-side and multi-tenant**, built for teams running fleets of AI agents in production:
+
+- **Many agents, one memory pool** — call centers, SDR teams, multi-agent pipelines that need shared org-scoped memory
+- **Many tenants, one deployment** — SaaS teams routing each customer org to its own Arc instance, with per-org API keys encrypted at rest
+- **Long-running agents** — autonomous workers that run for hours or days and need durable, time-windowed recall
+- **Time-series queries** — "what happened in the last 2 hours?" is a first-class operation, not a vector-similarity hack
+
+Memtrace is **not** a per-developer local memory store for your IDE. If you want a single-binary tool that lives in your laptop's `.memtrace/` and gives Claude Code memory across chat sessions, that's a different category — Memtrace is the server you'd point those products at if you wanted to share memory across an organization.
 
 ## Why Memtrace?
 
@@ -20,14 +31,17 @@ Memtrace takes a different approach: **operational, temporal memory** built on a
 
 Memtrace stores memories as time-series events in [Arc](https://github.com/Basekick-Labs/arc), a high-performance analytical database. Each memory has a type (`episodic`, `decision`, `entity`, `session`), tags, importance score, and metadata. Queries are time-windowed by default — "what happened in the last 2 hours?" is a first-class operation.
 
+A single Memtrace deployment can serve many organizations, each routed to its own Arc instance with its own API key — encrypted at rest, selected automatically by the caller's API key. See [Architecture overview](./architecture/overview.md) for the multi-tenant data model.
+
 The **session context** endpoint is the killer feature: it queries memories for a session, groups them by type, and returns LLM-ready markdown that you inject directly into any prompt. No parsing, no transformation — just paste it into your system prompt.
 
 ## Key Features
 
+- **Multi-tenant by design** — One deployment serves many orgs, each pointed at its own Arc instance, with per-org API keys encrypted at rest
 - **Temporal by default** — Time-windowed queries are first-class operations
 - **LLM-agnostic** — Works with any LLM via plain text context injection
 - **Session context** — Get LLM-ready markdown context with a single API call
-- **Shared memory** — Multiple agents can share memories across sessions and organizations
+- **Shared memory within an org** — Multiple agents can share memories across sessions
 - **Deduplication** — Prevents duplicate memories based on configurable keys
 - **Memory types** — Episodic, decision, entity, and session memories for different use cases
 - **High throughput** — Batched writes to Arc for optimal performance
@@ -86,10 +100,11 @@ Long-running ETL or data enrichment agents that process millions of records in b
 ## Next Steps
 
 - [Get started](./getting-started.md) with installation and your first API call
+- Read [How clients connect](./how-clients-connect.md) — how API keys map to organizations and Arc routing
 - Read the [Architecture overview](./architecture/overview.md) to understand how Memtrace works
-- Explore the [API Reference](./api-reference/endpoints.md) for all available endpoints
-- Check out the [SDKs](./sdks/overview.md) for Python, TypeScript, and Go
+- Explore the [API Reference](./api-reference/overview.md) for all available endpoints
+- Check out the [SDKs](./sdks/python.md) for Python, TypeScript, and Go
 
 ## License
 
-Open source. See the [GitHub repository](https://github.com/basekick-labs/arc-memory) for license details.
+Open source under Apache 2.0. See the [GitHub repository](https://github.com/Basekick-Labs/memtrace) for source.

@@ -133,10 +133,25 @@ print(ctx.context)  # Markdown-formatted for LLM consumption
 client.close_session(session.id)
 ```
 
+## Multi-tenant Deployments
+
+A Memtrace deployment can serve multiple organizations, each routed to its own Arc instance. The SDK is unchanged — you still pass `(base_url, api_key)`. Memtrace looks up the organization that owns your API key and forwards reads and writes to that org's Arc instance automatically.
+
+To work against a different org, ask an administrator to run `memtrace org create` and `memtrace key create --org <org_id>`, then use that key with the same SDK call.
+
+If a key is bound to an org that has no Arc instance configured yet, requests raise `NoArcInstanceError` — see Error Handling below. For the full mental model, read [How clients connect](../how-clients-connect.md).
+
 ## Error Handling
 
 ```python
-from memtrace import Memtrace, MemtraceError, AuthenticationError, NotFoundError, ConflictError
+from memtrace import (
+    Memtrace,
+    MemtraceError,
+    AuthenticationError,
+    NotFoundError,
+    ConflictError,
+    NoArcInstanceError,
+)
 
 client = Memtrace("http://localhost:9100", "mtk_...")
 
@@ -148,9 +163,15 @@ except AuthenticationError:
     print("Invalid API key")
 except ConflictError:
     print("Duplicate resource")
+except NoArcInstanceError:
+    # The caller's org has no Arc instance configured. An admin must run
+    # `memtrace org add-arc <org_id>`. Until then, every read/write returns 503.
+    print("Memtrace is not provisioned for this org yet")
 except MemtraceError as e:
     print(f"API error ({e.status_code}): {e.message}")
 ```
+
+`NoArcInstanceError` is a subclass of `MemtraceError`, so generic handlers catch it too.
 
 ## Development
 

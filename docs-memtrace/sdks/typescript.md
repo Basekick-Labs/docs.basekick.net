@@ -9,13 +9,13 @@ TypeScript/Node.js client for Memtrace — LLM-agnostic memory layer for AI agen
 ## Installation
 
 ```bash
-npm install @memtrace/sdk
+npm install @basekick-labs/memtrace-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Memtrace } from '@memtrace/sdk'
+import { Memtrace } from '@basekick-labs/memtrace-sdk'
 
 const client = new Memtrace('http://localhost:9100', 'mtk_your_api_key')
 
@@ -37,7 +37,7 @@ await client.decide('agent_1', 'Use PostgreSQL', 'Better JSON support for metada
 ### Memory Operations
 
 ```typescript
-import { Memtrace } from '@memtrace/sdk'
+import { Memtrace } from '@basekick-labs/memtrace-sdk'
 
 const client = new Memtrace('http://localhost:9100', 'mtk_...')
 
@@ -79,7 +79,7 @@ const searchResult = await client.searchMemories({
 ### Agent Management
 
 ```typescript
-import { Memtrace } from '@memtrace/sdk'
+import { Memtrace } from '@basekick-labs/memtrace-sdk'
 
 const client = new Memtrace('http://localhost:9100', 'mtk_...')
 
@@ -102,7 +102,7 @@ console.log(`Active sessions: ${stats.active_sessions}`)
 ### Session Management
 
 ```typescript
-import { Memtrace } from '@memtrace/sdk'
+import { Memtrace } from '@basekick-labs/memtrace-sdk'
 
 const client = new Memtrace('http://localhost:9100', 'mtk_...')
 
@@ -124,10 +124,25 @@ console.log(ctx.context) // Markdown-formatted for LLM consumption
 await client.closeSession(session.id)
 ```
 
+## Multi-tenant Deployments
+
+A Memtrace deployment can serve multiple organizations, each routed to its own Arc instance. The SDK is unchanged — you still pass `(baseURL, apiKey)`. Memtrace looks up the organization that owns your API key and forwards reads and writes to that org's Arc instance automatically.
+
+To work against a different org, ask an administrator to run `memtrace org create` and `memtrace key create --org <org_id>`, then use that key with the same SDK call.
+
+If a key is bound to an org that has no Arc instance configured yet, requests reject with `NoArcInstanceError` — see Error Handling below. For the full mental model, read [How clients connect](../how-clients-connect.md).
+
 ## Error Handling
 
 ```typescript
-import { Memtrace, MemtraceError, AuthenticationError, NotFoundError, ConflictError } from '@memtrace/sdk'
+import {
+  Memtrace,
+  MemtraceError,
+  AuthenticationError,
+  NotFoundError,
+  ConflictError,
+  NoArcInstanceError,
+} from '@basekick-labs/memtrace-sdk'
 
 const client = new Memtrace('http://localhost:9100', 'mtk_...')
 
@@ -140,11 +155,17 @@ try {
     console.log('Invalid API key')
   } else if (e instanceof ConflictError) {
     console.log('Duplicate resource')
+  } else if (e instanceof NoArcInstanceError) {
+    // Caller's org has no Arc instance configured. An admin must run
+    // `memtrace org add-arc <org_id>`. Until then every read/write is 503.
+    console.log('Memtrace is not provisioned for this org yet')
   } else if (e instanceof MemtraceError) {
     console.log(`API error (${e.statusCode}): ${e.message}`)
   }
 }
 ```
+
+`NoArcInstanceError` extends `MemtraceError`, so generic handlers catch it too.
 
 ## Configuration
 
