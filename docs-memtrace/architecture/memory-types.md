@@ -190,5 +190,5 @@ Use consistent tags across memory types:
 ## Next Steps
 
 - Learn about the [Data Model](./data-model.md) and storage format
-- Explore the [API Reference](../api-reference/endpoints.md) for memory creation
-- See [Use Cases](../use-cases/overview.md) for real-world examples
+- Explore the [API Reference](../api-reference/overview.md) for memory creation
+- See [Use Cases](../use-cases/autonomous-agents.md) for real-world examples

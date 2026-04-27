@@ -306,6 +306,6 @@ ORDER BY importance DESC, time DESC
 
 ## Next Steps
 
-- Explore the [API Reference](../api-reference/endpoints.md) to see how these queries map to REST endpoints
+- Explore the [API Reference](../api-reference/overview.md) to see how these queries map to REST endpoints
 - Read about [Memory Types](./memory-types.md) to understand the semantic model
-- Check out [Use Cases](../use-cases/overview.md) for real-world examples
+- Check out [Use Cases](../use-cases/autonomous-agents.md) for real-world examples
