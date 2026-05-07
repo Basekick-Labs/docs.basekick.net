@@ -47,6 +47,7 @@ coordinator_addr = ":9000"      # Address for inter-node communication
 health_check_interval = 10      # Health check interval (seconds)
 heartbeat_interval = 5          # Heartbeat interval (seconds)
 replication_enabled = true      # Enable WAL replication to readers
+query_gate_on_catchup = false   # See "Query Gating During Replication Catch-Up" below
 ```
 
 ### Environment Variables
@@ -61,7 +62,83 @@ ARC_CLUSTER_COORDINATOR_ADDR=:9000
 ARC_CLUSTER_HEALTH_CHECK_INTERVAL=10
 ARC_CLUSTER_HEARTBEAT_INTERVAL=5
 ARC_CLUSTER_REPLICATION_ENABLED=true
+ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
 ```
+
+## Query Gating During Replication Catch-Up
+
+In a [local-storage cluster](/arc-enterprise/configuration/deployment-patterns) with peer replication, a reader node may serve queries before its background puller has finished pulling all the Parquet files the cluster manifest references. Without gating, those queries silently return partial results: the manifest knows about the missing files, but `read_parquet()` globs against local storage and only finds what's already on disk. WAL replication (added in 26.05.1) closes part of this gap for unflushed writer data, but flushed Parquet files still depend on the asynchronous puller.
+
+`cluster.query_gate_on_catchup` (added in 26.06.1, off by default) closes the remaining gap. When enabled, all user-facing read endpoints return `503 Service Unavailable` until peer file replication has fully converged on this node.
+
+:::tip When to enable it
+Turn this on if you'd rather a reader return 503 for a few seconds at startup than serve incomplete results. Leave it off if your application can tolerate eventual consistency during catch-up and you'd rather queries always succeed (the existing pre-26.06.1 behavior). Either choice is defensible; this is a correctness-vs-availability knob.
+:::
+
+### What "fully converged" means
+
+A node is considered ready when **all** of the following are true:
+
+1. The startup catch-up walker has finished its pass over the manifest.
+2. No pulls are in-flight (queue and worker set both empty).
+3. No pulls have failed after retries since the puller started.
+4. No pulls have been dropped due to queue saturation since the puller started.
+
+Failed and dropped pulls indicate files the manifest promised but this reader does not have. Re-converging requires either restarting the node (re-runs catch-up) or a new FSM callback re-enqueueing the missing path. Both `failed` and `dropped` counts are surfaced in the 503 response body so operators can see when this happens.
+
+### Endpoints affected
+
+When the gate is enabled and the node is still catching up, these endpoints return 503:
+
+- `POST /api/v1/query`
+- `POST /api/v1/query/arrow`
+- `POST /api/v1/query/estimate`
+- `GET /api/v1/query/:measurement`
+- `GET /api/v1/measurements`
+
+Internal endpoints (cache invalidation, cluster status, replication-control APIs) are deliberately **not** gated — peer nodes need them to fire during catch-up.
+
+### 503 response shape
+
+```json
+{
+  "success": false,
+  "error": "replication_catch_up_in_progress",
+  "message": "Reader is still catching up on replicated files. Retry shortly or check /api/v1/cluster for catch-up progress.",
+  "catchup_status": {
+    "started_at": 1714912800,
+    "completed_at": 0,
+    "entries_walked": 1287,
+    "enqueued": 1287,
+    "queue_depth": 7,
+    "inflight_count": 2,
+    "pulled": 1278,
+    "failed": 0,
+    "dropped": 0
+  }
+}
+```
+
+A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients can back off automatically.
+
+`completed_at = 0` means the catch-up walker is still enumerating; once it flips non-zero, watch `queue_depth + inflight_count` go to zero. Non-zero `failed` or `dropped` means the gate will not clear without a node restart or a follow-up FSM callback.
+
+### Observability
+
+- **Cumulative gate fires**: `QueryHandler.QueryGate503Total()` is exposed for Prometheus / metrics scrapes. Alert on a non-zero rate to detect that the gate is firing without inferring from generic HTTP error logs.
+- **Sampled log line**: while the gate is active, Arc emits at most one `WARN` log per second with the gate counter and request path. Avoids flooding under sustained catch-up while still surfacing the degraded state.
+- **Live status**: the `/api/v1/cluster` endpoint exposes `replication_catchup_status` with the same fields shown in the 503 body, so dashboards can show catch-up progress without waiting for a query to fail.
+
+### Known limitation
+
+There is a sub-millisecond window between the Raft FSM committing a `RegisterFile` entry and the puller's `Enqueue` callback firing. A query landing in that window can observe `ReplicationReady() == true` while a manifest entry from the same Raft commit is not yet in the in-flight set. Closing this gap requires a per-query Raft `LastApplied()` barrier on the query path, which is out of scope for this gate.
+
+The gate's contract is *"every file the puller has observed has been pulled,"* not *"every file the manifest currently contains has been pulled."* In practice this means the gate may unblock a fraction of a second before the very last files committed before the gate-clear are queryable. This is a tracked follow-up.
+
+### Pattern A vs. Pattern B
+
+- **Shared object storage** (Pattern A): the puller is disabled (`replication_enabled = false`), so `query_gate_on_catchup` is effectively a no-op — readers see the bucket directly and don't need to catch up. Safe to leave the flag at any value.
+- **Local storage with peer replication** (Pattern B): this is where the gate matters. Enable it on readers whose application cannot tolerate partial results during cold start or after a network partition.
 
 ## Deployment Example
 
