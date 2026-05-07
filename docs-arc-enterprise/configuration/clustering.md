@@ -77,14 +77,22 @@ Turn this on if you'd rather a reader return 503 for a few seconds at startup th
 
 ### What "fully converged" means
 
+The gate is scoped to the **startup catch-up batch only** — not to all pull activity on the node. This distinction matters: in a busy cluster, steady-state ingest constantly puts new files in flight, and a naive "wait for everything to settle" predicate would mean the reader returns 503 every few seconds in normal operation. The gate's job is *"the reader has finished bootstrapping its view of the manifest as of startup,"* not *"no pulls are happening anywhere right now."*
+
 A node is considered ready when **all** of the following are true:
 
 1. The startup catch-up walker has finished its pass over the manifest.
-2. No pulls are in-flight (queue and worker set both empty).
-3. No pulls have failed after retries since the puller started.
-4. No pulls have been dropped due to queue saturation since the puller started.
+2. No paths the walker tagged are still in flight (`catchup_inflight == 0`). Steady-state pulls from reactive FSM callbacks are deliberately excluded.
+3. No catch-up-batch pulls failed after retries (`catchup_failed == 0`).
+4. No catch-up-batch pulls were dropped due to queue saturation (`catchup_dropped == 0`).
 
-Failed and dropped pulls indicate files the manifest promised but this reader does not have. Re-converging requires either restarting the node (re-runs catch-up) or a new FSM callback re-enqueueing the missing path. Both `failed` and `dropped` counts are surfaced in the 503 response body so operators can see when this happens.
+Failures and drops outside the catch-up window do **not** keep the gate red. They're operational concerns surfaced via puller stats but not correctness blockers — by the time the catch-up batch has settled, the reader has reconciled its view of the manifest as of walker start. Steady-state failures are handled by reactive FSM callbacks (which re-enqueue), the [Phase 5 reconciler](/arc-enterprise/configuration/clustering), and operator alerting via the cumulative `failed` / `dropped` counters.
+
+If a catch-up-batch failure or drop happens, the gate stays red until the node restarts (re-runs catch-up) or a reactive FSM callback successfully re-enqueues the same path. Both `catchup_failed` and `catchup_dropped` are surfaced in the 503 body so operators see exactly what happened.
+
+:::warning Combining with `replication_catchup_enabled=false`
+If you set `cluster.replication_catchup_enabled=false` (the emergency off-switch for pathologically large manifests), the catch-up walker never runs and the gate would never clear. Arc detects this combination at startup, logs a `WARN`, and **auto-disables the gate** so the node isn't permanently 503'd. Operators see a clear log line and can fix the configuration at their leisure. Don't enable the gate if you've also disabled the walker.
+:::
 
 ### Endpoints affected
 
@@ -110,11 +118,12 @@ Internal endpoints (cache invalidation, cluster status, replication-control APIs
     "completed_at": 0,
     "entries_walked": 1287,
     "enqueued": 1287,
+    "catchup_inflight": 2,
+    "catchup_failed": 0,
+    "catchup_dropped": 0,
     "queue_depth": 7,
     "inflight_count": 2,
-    "pulled": 1278,
-    "failed": 0,
-    "dropped": 0
+    "pulled": 1278
   }
 }
 ```
