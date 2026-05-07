@@ -86,9 +86,11 @@ A node is considered ready when **all** of the following are true:
 3. No catch-up-batch pulls failed after retries (`catchup_failed == 0`).
 4. No catch-up-batch pulls were dropped due to queue saturation (`catchup_dropped == 0`).
 
-Failures and drops outside the catch-up window do **not** keep the gate red. They're operational concerns surfaced via puller stats but not correctness blockers — by the time the catch-up batch has settled, the reader has reconciled its view of the manifest as of walker start. Steady-state failures are handled by reactive FSM callbacks (which re-enqueue), the [Phase 5 reconciler](/arc-enterprise/configuration/clustering), and operator alerting via the cumulative `failed` / `dropped` counters.
+Failures and drops outside the catch-up window do **not** keep the gate red. They're operational concerns surfaced via puller stats but not correctness blockers — by the time the catch-up batch has settled, the reader has reconciled its view of the manifest as of walker start. Steady-state failures are handled by reactive FSM callbacks (which re-enqueue), the Phase 5 reconciler, and operator alerting via the cumulative `failed` / `dropped` counters.
 
-If a catch-up-batch failure or drop happens, the gate stays red until the node restarts (re-runs catch-up) or a reactive FSM callback successfully re-enqueues the same path. Both `catchup_failed` and `catchup_dropped` are surfaced in the 503 body so operators see exactly what happened.
+**Self-heal**: a catch-up failure does not require a process restart to clear. When a later pull succeeds for a previously-failed path (a reactive FSM callback re-enqueueing the path after the underlying issue resolves, or a subsequent catch-up scan), `catchup_failed` is decremented and the gate re-opens automatically. Catch-up drops (`catchup_dropped`) do not self-heal in the same way: a drop means no inflight slot was ever taken, so there is no later success to attribute to the original drop. Recovery in that case requires either a node restart (which re-runs the walker) or an operator-initiated retry.
+
+Both `catchup_failed` and `catchup_dropped` are surfaced in the 503 body so operators see exactly what happened.
 
 :::warning Combining with `replication_catchup_enabled=false`
 If you set `cluster.replication_catchup_enabled=false` (the emergency off-switch for pathologically large manifests), the catch-up walker never runs and the gate would never clear. Arc detects this combination at startup, logs a `WARN`, and **auto-disables the gate** so the node isn't permanently 503'd. Operators see a clear log line and can fix the configuration at their leisure. Don't enable the gate if you've also disabled the walker.
