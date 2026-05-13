@@ -36,14 +36,50 @@ Arc provides native MQTT subscription with dynamic, API-driven configuration. Ma
 
 ### 1. Enable MQTT in Arc
 
-Edit `arc.toml`:
+MQTT is **disabled by default**. Enable it via either:
+
+**Option A — environment variable (recommended for Docker / Kubernetes):**
+
+```bash
+ARC_MQTT_ENABLED=true
+```
+
+In `docker-compose.yml`:
+
+```yaml
+services:
+  arc:
+    environment:
+      ARC_MQTT_ENABLED: "true"
+```
+
+Or with `docker run`:
+
+```bash
+docker run -e ARC_MQTT_ENABLED=true ...
+```
+
+**Option B — `arc.toml`:**
 
 ```toml
 [mqtt]
 enabled = true
 ```
 
-Restart Arc to apply the configuration.
+Arc looks for `arc.toml` in `.`, `/etc/arc/`, and `$HOME/.arc/`. In containers, editing the file inside a running container does **not** persist across restarts — use the env-var path or mount the file as a volume.
+
+Restart Arc after changing either source. Verify with:
+
+```bash
+curl http://localhost:8000/api/v1/mqtt/health
+```
+
+| Response                                            | Meaning                                                                                                  |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `200` with `{"status":"healthy", ...}`              | MQTT is enabled and running.                                                                             |
+| `200` with `{"status":"disabled","healthy":false}`  | MQTT was not enabled at startup. Check `ARC_MQTT_ENABLED` / `[mqtt].enabled` and restart.                |
+| `503` with `{"error":"MQTT subsystem disabled"}`    | Same as above, on older builds.                                                                          |
+| Plaintext `Cannot GET /api/v1/mqtt/health`          | Your Arc build pre-dates the MQTT API. Upgrade to a release that includes PR #416 (v26.05.1 or later).   |
 
 ### 2. Create a Subscription
 

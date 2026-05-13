@@ -99,6 +99,7 @@ ARC_COMPACTION_ENABLED=true
 ARC_DELETE_ENABLED=true
 ARC_RETENTION_ENABLED=true
 ARC_CONTINUOUS_QUERY_ENABLED=true
+ARC_MQTT_ENABLED=true              # Enables the MQTT subsystem and API routes
 
 # Ingestion Concurrency (v26.01.1+)
 ARC_INGEST_FLUSH_WORKERS=32
