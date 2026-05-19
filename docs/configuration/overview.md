@@ -18,6 +18,7 @@ The main configuration file with production-ready defaults:
 ```toml
 # Server Configuration
 [server]
+# host = ""      # bind address (default: all interfaces, dual-stack)
 port = 8000
 
 # Logging
@@ -78,6 +79,7 @@ Override any setting via environment variables with the `ARC_` prefix:
 
 ```bash
 # Server
+ARC_SERVER_HOST=                   # bind address (empty = all interfaces, v26.06.1+)
 ARC_SERVER_PORT=8000
 ARC_SERVER_TLS_ENABLED=false
 ARC_SERVER_TLS_CERT_FILE=/path/to/cert.pem
@@ -240,8 +242,42 @@ Basic HTTP server settings:
 
 ```toml
 [server]
+host = ""      # bind address (default: empty = all interfaces, dual-stack IPv4 + IPv6)
 port = 8000    # HTTP/HTTPS port to listen on
 ```
+
+#### Bind Address (`server.host`)
+
+:::note Available in v26.06.1
+The `server.host` setting is available starting from Arc v26.06.1.
+:::
+
+Controls which network interface Arc binds to. The default (empty string) preserves the historical behavior of binding to all interfaces with Linux dual-stack semantics (IPv4 + IPv6-mapped addresses).
+
+Common values:
+
+| Value | Effect |
+|---|---|
+| `""` (empty) | All interfaces, dual-stack (default — same as pre-26.06.1) |
+| `"0.0.0.0"` | All interfaces, **IPv4 only** |
+| `"::"` | All interfaces, IPv6 (with IPv4-mapped on Linux) |
+| `"127.0.0.1"` | Loopback only (IPv4) — useful behind a reverse proxy |
+| `"::1"` | Loopback only (IPv6) |
+| `"192.0.2.10"` | Specific interface address |
+
+Environment variable:
+
+```bash
+ARC_SERVER_HOST=127.0.0.1
+```
+
+:::tip Behind a reverse proxy
+If Arc sits behind nginx / Traefik / a Kubernetes Ingress on the same host, set `host = "127.0.0.1"` so Arc is not directly reachable from the network.
+:::
+
+:::caution Choosing `0.0.0.0` disables IPv6
+Setting `host = "0.0.0.0"` binds IPv4 only — IPv6 clients will be unable to connect. Leave the value empty (default) to keep dual-stack behavior.
+:::
 
 ### TLS/SSL (HTTPS)
 
