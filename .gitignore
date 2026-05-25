@@ -90,3 +90,6 @@ lerna-debug.log*
 *.bak
 *.backup
 *~
+
+# Claude Code project instructions (your-machine-only)
+.claude/

@@ -125,7 +125,7 @@ v26.06.1 routes auth **writes** through the cluster's Raft consensus. Auth **rea
 | Delete token | Yes |
 | Rotate token (new value, same metadata) | Yes |
 | `EnsureInitialToken` (first-run bootstrap) | Yes — only the Raft leader's proposal lands; other nodes get an "already exists" no-op |
-| RBAC tables (organizations, teams, roles, measurement permissions, token memberships) | **No — planned for v26.07.1** |
+| RBAC tables (organizations, teams, roles, measurement permissions, token memberships) | Yes — landed in v26.06.1 alongside Phase A. See [RBAC replication](#rbac-replication-enterprise) below. |
 | Audit log entries | **No — intentionally per-node** (high-volume append-only, no consensus needed) |
 | SSO / OIDC / LDAP | **No — Phase B, separate roadmap item** |
 
@@ -231,6 +231,120 @@ export ARC_CLUSTER_SHARED_SECRET="$(openssl rand -hex 32)"
 :::caution Same value on every node
 If nodes have different secrets, follower-to-leader forward-apply fails HMAC validation and token writes that originate on a non-leader silently fail. There is no graceful fallback — operators must ensure the secret is identical across the cluster (e.g. via Kubernetes Secrets or environment-variable injection from a single source).
 :::
+
+## RBAC replication (Enterprise)
+
+:::info Available since v26.06.1
+Phase A.1 of Cluster Auth Convergence — every RBAC write (organizations, teams, roles, measurement permissions, token memberships) propagates cluster-wide via the same Raft FSM seam used for tokens. Lands in the same v26.06.1 release as Phase A token replication.
+:::
+
+Before v26.06.1, RBAC writes hit only the local node's SQLite — same shape as the token gap Phase A closes. An organization created on the writer was invisible to RBAC checks on every reader; a role grant on one node didn't grant the corresponding permission anywhere else. v26.06.1 routes all 13 RBAC writes through Raft so the cluster converges on a single RBAC state.
+
+### What replicates
+
+| RBAC operation | Replicates cluster-wide? |
+|----------------|---|
+| `POST /api/v1/rbac/organizations` (create) | Yes |
+| `PATCH /api/v1/rbac/organizations/:id` (update) | Yes |
+| `DELETE /api/v1/rbac/organizations/:id` (delete + cascade to teams, roles, measurement permissions, memberships) | Yes |
+| `POST /api/v1/rbac/organizations/:org_id/teams` (create) | Yes |
+| `PATCH /api/v1/rbac/teams/:id` (update) | Yes |
+| `DELETE /api/v1/rbac/teams/:id` (delete + cascade to roles, measurement permissions, memberships) | Yes |
+| `POST /api/v1/rbac/teams/:team_id/roles` (create) | Yes |
+| `PATCH /api/v1/rbac/roles/:id` (update) | Yes |
+| `DELETE /api/v1/rbac/roles/:id` (delete + cascade to measurement permissions) | Yes |
+| `POST /api/v1/rbac/roles/:role_id/measurements` (create) | Yes |
+| `DELETE /api/v1/rbac/measurement-permissions/:id` (leaf delete) | Yes |
+| `POST /api/v1/auth/tokens/:id/teams` (add membership) | Yes |
+| `DELETE /api/v1/auth/tokens/:id/teams/:team_id` (remove membership) | Yes |
+
+### Cascade-on-delete
+
+Deleting an organization removes every descendant — teams, roles, measurement permissions, and token memberships — under a single Raft log entry. Same for `DeleteTeam` (cascades to roles + measurement permissions + memberships) and `DeleteRole` (cascades to measurement permissions). Concurrent writes targeting a being-cascaded entity are serialised and see the post-cascade state.
+
+When a token is hard-deleted via `DELETE /api/v1/auth/tokens/:id` its memberships are also removed cluster-wide — mirroring the SQLite FK cascade `rbac_token_memberships.token_id REFERENCES api_tokens(id) ON DELETE CASCADE` at the FSM layer so the in-memory state stays consistent across nodes.
+
+### Cascade-on-delete soft cap
+
+:::info Available since v26.06.1
+Phase A.2 Item 2 — a configurable cap on the number of descendants `DeleteOrganization` / `DeleteTeam` will cascade through in cluster mode.
+:::
+
+The FSM cascade-on-delete runs under `f.mu.Lock()` on the single-threaded Raft apply goroutine. hashicorp/raft runs `runFSM` async of heartbeats, so a long apply does **not** directly cost the leader its lease — but for a pathologically large tenant (~100k+ descendants under one organization), the cascade can hold the apply goroutine long enough to blow past the proposer-side 5 s `proposeTimeout`. The originating client sees an opaque timeout while the apply still completes in the background; meanwhile later commands queue behind the slow apply and risk failing their own timeout budgets. Operators see unclear "propose timeout" diagnostics on a delete that "should have worked," instead of a clear "you tried to delete too much at once."
+
+v26.06.1 ships a configurable proposer-side cap. Before proposing `CommandDeleteOrganization` or `CommandDeleteTeam`, the proposer counts the descendants in local SQLite (`teams + roles + measurement_permissions + token_memberships`). If the total exceeds the cap, the API returns **HTTP 409 Conflict** without spending a Raft log entry on a cascade that would block the apply path.
+
+| Setting | Value |
+|---|---|
+| Config key (TOML) | `cluster.rbac.max_cascade_descendants` |
+| Env var | `ARC_CLUSTER_RBAC_MAX_CASCADE_DESCENDANTS` |
+| Default | `50000` |
+| Disable | `0` (no cap; escape hatch for operators who know their workload) |
+| HTTP code on rejection | `409 Conflict` |
+| Metric | `arc_cluster_rbac_cascade_rejected_total` |
+
+The error body includes the actual descendant count, the configured cap, and the operator workaround:
+
+```json
+{
+  "success": false,
+  "error": "cascade exceeds configured limit: 73214 descendants under organization 42 (max 50000); delete child entities (teams, roles, measurement_permissions, token_memberships) first"
+}
+```
+
+Operator workaround when 409 lands: `DELETE` the affected children first (roles → teams → re-attempt the org delete), or raise the cap if your tenant size justifies it. `DeleteRole`'s cascade is 1-level (only measurement_permissions) and is not capped — it can't plausibly blow up the apply path.
+
+The pre-check costs four small `COUNT(*)` queries against indexed columns — sub-millisecond at realistic cap values, well under the 5-second Raft proposal timeout.
+
+### Pre-existing RBAC rows: auto-seed for orgs, manual re-issue for the rest
+
+On the first leader boot after upgrading to v26.06.1, Arc runs a one-time **upgrade seed** that walks the leader's local `rbac_organizations` table and proposes a `CommandCreateOrganization` for every pre-existing row. The cluster's in-memory FSM learns the org under a fresh log-index ID; the leader's local SQLite keeps the row under its pre-v26.06.1 AUTOINCREMENT ID; both IDs map to the same logical org because the `UNIQUE(name)` constraint is enforced cluster-wide. Followers see the new org via Raft replication and store it under the cluster ID.
+
+**Teams, roles, measurement permissions, and token memberships are NOT auto-seeded.** They reference parent entities by surrogate ID, and the pre-v26.06.1 local AUTOINCREMENT IDs don't generally match the cluster's log-index-stamped IDs after the org seed runs. The seed logs a `Warn` at startup listing the unseeded counts per table:
+
+```
+WARN child RBAC rows present in local SQLite are NOT auto-seeded (FK-ID rebase ambiguity);
+     re-issue them via the API post-upgrade for cluster-wide replication
+     teams_local=3 roles_local=7 measurement_permissions_local=12 token_memberships_local=4
+```
+
+Re-issue each affected team, role, measurement permission, and token membership via the API after upgrade. Existing local rows stay readable on the leader (the FK chain in local SQLite is intact) — they just won't replicate to followers until re-created.
+
+The seed runs only on the Raft leader, gated by `WaitForLeader(30s)`. It is idempotent — re-running on the same leader is a no-op (each proposal is rejected as `"organization name already exists"` and the seed counts it as skipped rather than retrying).
+
+### Prometheus counters
+
+Per node, alongside the Phase A token counters:
+
+```
+arc_cluster_rbac_apply_create_organization_total
+arc_cluster_rbac_apply_update_organization_total
+arc_cluster_rbac_apply_delete_organization_total
+arc_cluster_rbac_apply_create_team_total
+arc_cluster_rbac_apply_update_team_total
+arc_cluster_rbac_apply_delete_team_total
+arc_cluster_rbac_apply_create_role_total
+arc_cluster_rbac_apply_update_role_total
+arc_cluster_rbac_apply_delete_role_total
+arc_cluster_rbac_apply_create_measurement_permission_total
+arc_cluster_rbac_apply_delete_measurement_permission_total
+arc_cluster_rbac_apply_add_token_to_team_total
+arc_cluster_rbac_apply_remove_token_from_team_total
+arc_cluster_rbac_rejected_total
+arc_cluster_rbac_cascade_rejected_total
+```
+
+`arc_cluster_rbac_rejected_total` is a **single counter aggregating applier-side validation failures across all 13 RBAC command types** — empty names, missing parent IDs, malformed permission strings, UNIQUE collisions. Same security-alerting semantics as `arc_cluster_auth_rejected_total`: non-zero growth means somebody is proposing malformed RBAC commands; alert on growth.
+
+`arc_cluster_rbac_cascade_rejected_total` counts proposer-side cascade-cap refusals (see [Cascade-on-delete soft cap](#cascade-on-delete-soft-cap) above). Non-zero growth means operators are issuing cascades larger than `cluster.rbac.max_cascade_descendants`. Alert if you'd rather raise the cap than have operators retry after manual cleanup.
+
+In a healthy cluster every node sees the same monotonic count for each `apply_*` counter. Per-node divergence indicates a node missing applies (network partition, FSM stall).
+
+### Required configuration
+
+RBAC replication itself requires no new env vars — it is gated by the same `cluster.enabled = true` + Enterprise license + `cluster.shared_secret` that gate Phase A token replication.
+
+One **optional** knob is documented above: `cluster.rbac.max_cascade_descendants` (env `ARC_CLUSTER_RBAC_MAX_CASCADE_DESCENDANTS`, default `50000`) caps cluster-mode `DeleteOrganization` / `DeleteTeam` cascades. See [Cascade-on-delete soft cap](#cascade-on-delete-soft-cap).
 
 ## Token Management
 
