@@ -235,26 +235,60 @@ services:
       - "8002:8000"
 ```
 
-## Writer Failover
+## High Availability
 
-Arc Enterprise provides automatic writer failover for high availability. If the primary writer becomes unhealthy, a standby writer is automatically promoted.
+Arc Enterprise's HA model depends on which [deployment pattern](/arc-enterprise/deployment-patterns) you chose. Both deliver "writer crash recovered without operator intervention," but the mechanics are very different.
+
+### Pattern 2 — Shared object storage (multi-writer)
+
+When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Enterprise runs in **multi-writer** mode: N writer nodes accept writes concurrently behind a load balancer. There is no "primary writer" to fail over to — every writer is a peer, and the load balancer handles writer-crash recovery via its own health-check.
 
 **Key characteristics:**
 
-- **Recovery time**: Less than 30 seconds
-- **Health-based detection**: Continuous health monitoring with configurable thresholds
-- **Automatic promotion**: Standby writer promoted to primary without manual intervention
-- **Cooldown protection**: Prevents rapid failover flapping
+- **Recovery time**: immediate — the next request lands on a surviving writer via the LB
+- **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Kubernetes Service, Traefik, nginx, HAProxy all support this out of the box)
+- **No "promotion" step**: all writers are equivalent for ingestion; nothing in the cluster has to elect a new "primary"
+- **Singleton background tasks** (retention, continuous queries, deletes) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
 
-When the primary writer fails:
+**Enable** by setting `cluster.shared_storage_mode = true` (env: `ARC_CLUSTER_SHARED_STORAGE_MODE`). The Helm chart sets this automatically when `storage.mode=shared`. Requires an Enterprise license that includes the `shared_storage_multi_writer` feature.
 
-1. Health checks detect the failure
-2. The cluster selects the healthiest standby writer
-3. The standby is promoted to primary
-4. Write traffic is automatically rerouted
+**Deploy 3 writers** for full HA: 1 failure is tolerated on both the ingestion side (LB routes around it) and the cluster-Raft side (quorum-of-2 still elects a leader for singleton tasks). 2 writers is not recommended — ingestion stays HA via the LB but Raft cannot elect on a single failure, so singleton tasks pause until quorum is restored. 1 writer is fine for development but has no HA.
 
-:::tip Standby Writers
-For high availability, deploy at least two writer nodes. The primary handles all writes while standby writers are ready for immediate promotion.
+When a writer crashes:
+
+1. The writer's `/ready` endpoint stops responding (or returns 503).
+2. The load balancer marks the writer unhealthy and stops routing to it within one poll cycle (~5–10 s).
+3. New writes route to the surviving writer(s). **No in-cluster failover action required.**
+4. In-flight buffer on the crashed writer (records that arrived in memory but had not yet been flushed to S3) is lost. Records that completed the S3 PUT before the crash are durable.
+5. On writer restart, the local WAL replays any un-flushed entries into the new Arrow buffer before `/ready` flips back to 200 and the load balancer resumes routing.
+
+### Pattern 1 — Local storage with peer replication
+
+When each node has its own local storage, Arc Enterprise runs in **single-writer + multi-reader** mode: one writer takes all ingest, the readers replicate the WAL in real time, and on writer failure one of the readers is promoted via Arc's in-cluster failover controller. (Pattern 1 multi-writer — per-shard writer ownership — is a future initiative; the current shipping version uses single-writer + standby readers as the HA model.)
+
+**Key characteristics:**
+
+- **Recovery time**: less than 30 seconds
+- **Health-based detection**: continuous health monitoring with configurable thresholds
+- **Automatic promotion**: a reader (acting as standby) is promoted to writer via Raft consensus (`CommandPromoteWriter` FSM apply)
+- **Cooldown protection**: prevents rapid failover flapping
+
+**Enable** by setting `cluster.failover.enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature.
+
+**Deploy 1 writer + 2+ readers** with `cluster.replication_enabled=true` on the readers. The readers are the failover pool — each receives a real-time copy of the writer's WAL and can be promoted on writer failure.
+
+When the writer fails:
+
+1. Health checks detect the failure.
+2. The Raft leader selects the most caught-up reader (by replication LSN).
+3. The selected reader is promoted to writer via `CommandPromoteWriter` Raft apply.
+4. Write traffic re-routes to the new writer (clients reconnect or the LB picks up the new writer's `/ready=200`).
+
+:::tip Choosing between the patterns
+- **Cloud-native deployments** (EKS/GKE/AKS, anywhere managed S3 is available) → **Pattern 2 multi-writer**. Simpler operationally, scales writes horizontally, the LB does failover.
+- **Bare metal, on-prem, edge** without easy access to S3-compatible storage → **Pattern 1 with writer failover**. Single-writer ceiling on throughput; HA via promotion.
+
+See [Deployment Patterns](/arc-enterprise/deployment-patterns) for the full trade-off comparison.
 :::
 
 ## API Reference
@@ -365,7 +399,9 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 1. **Pick a deployment pattern** — Use [shared object storage](/arc-enterprise/deployment-patterns) (S3, MinIO, Azure) for cloud-native deployments, or [local storage with peer replication](/arc-enterprise/deployment-patterns) for bare metal, VMs, and edge. Don't mix the two in the same cluster.
 
-2. **Deploy at least 2 writers** — For automatic failover, run one primary and one standby writer.
+2. **Size for HA based on pattern**:
+   - **Pattern 2 (shared storage)**: 3 writers behind a load balancer — tolerates 1 failure on both the ingestion path (LB routes around it) and the Raft singleton-task path (quorum still elects a leader). Single writer is fine for dev; 2 writers is not recommended (Raft quorum gap).
+   - **Pattern 1 (local storage)**: 1 writer + 2 readers with `cluster.replication_enabled=true` on the readers. The readers are the failover pool — one is promoted to writer if the primary fails. Don't run 2+ writers in Pattern 1; the current single-writer model is the supported topology.
 
 3. **Scale readers independently** — Add reader nodes to handle increased query load without affecting write performance.
 
