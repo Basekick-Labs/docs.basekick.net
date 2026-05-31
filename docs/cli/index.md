@@ -34,7 +34,8 @@ Operating Arc without arcctl means:
 |---|---|
 | v0.1.0 (PR1) | `config` subcommand tree, multi-connection store at `~/.arcctl/config.toml` |
 | v0.2.0 (PR2) | `query`, `write` — table / JSON / CSV / Arrow IPC output, stdin / file input |
-| v0.3.0+ | `db`, `import`, `auth`, `cluster` subcommands (in development) |
+| v0.3.0 (PR3) | `db {list,show,create,drop}`, `measurement list` |
+| v0.4.0+ | `import`, `auth`, `cluster` subcommands (in development) |
 | v1.0.0 | release workflow + Homebrew tap + multi-arch Docker |
 
 ## Compatibility
@@ -59,3 +60,5 @@ Requires Go 1.25+.
 - [Connection management](/arc/cli/connections) — adding, switching, and overriding connection profiles
 - [Querying](/arc/cli/query) — running SQL with table / JSON / CSV / Arrow output
 - [Writing line protocol](/arc/cli/write) — stdin and file ingestion with precision control
+- [Database administration](/arc/cli/db) — list / show / create / drop databases
+- [Measurement listing](/arc/cli/measurement) — list measurements within a database
