@@ -4,10 +4,14 @@ sidebar_position: 1
 
 # CSV Import
 
-Import CSV files into Arc via the REST API. DuckDB reads the file, auto-detects column types, partitions data by hour, and writes optimized Parquet files to storage.
+Import CSV files into Arc via the REST API. Arc parses the file in-process, infers column types, partitions data by hour, and writes optimized Parquet files to storage through the same streaming ingestion pipeline used for Line Protocol writes.
 
 :::info Available since v26.02.1
 CSV bulk import is available starting Arc v26.02.1 (February 2026).
+:::
+
+:::note Changed in v26.06.2
+CSV import now parses rows in-process instead of reading the uploaded file with DuckDB. The request and response are unchanged, with stricter up-front validation: empty files, duplicate column names, and a `time_column` rename that would collide with an existing `time` column are now rejected with `400` before any data is ingested.
 :::
 
 ## Endpoint
@@ -75,16 +79,16 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time
 - The `measurement` parameter is **required** -- unlike Line Protocol import where measurements are embedded in the data.
 - The time column is renamed to `time` in the output Parquet files.
 - Data is automatically partitioned by hour for optimal query performance.
-- Gzip-compressed CSV files (`.csv.gz`) are automatically detected and decompressed.
-- Maximum file size: **500 MB** (after decompression).
+- Maximum file size: **500 MB**.
 - RBAC: write permissions are checked for the target measurement.
-- Column types are auto-detected by DuckDB. Numeric columns become `DOUBLE`, text columns become `VARCHAR`.
+- Column types are inferred per column from the values: a column is `BIGINT` if every value parses as an integer, otherwise `DOUBLE` if every value parses as a number, otherwise `BOOLEAN` if every value is `true`/`false`, otherwise `VARCHAR`. Empty cells in a numeric/boolean column are stored as null.
 
 ## Error Responses
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database, measurement, or file |
+| `400` | Missing database/measurement/file; empty file or no data rows; `time_column` not found; duplicate column names; or a `time_column` rename that collides with an existing `time` column |
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
+| `422` | Malformed CSV rows, or an unparseable value in the time column |
 | `500` | Import execution error |
