@@ -63,8 +63,8 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 
 ## Notes
 
-- The Parquet file must contain a timestamp column (default name: `time`). Use the `time_column` parameter if your column has a different name. The time column may be an Arrow `TIMESTAMP` (any unit) or an integer epoch column.
-- Arc reads the Parquet file in-process via Apache Arrow and repartitions the data into Arc's hourly partition layout regardless of the source file's structure.
+- The Parquet file must contain a timestamp column (default name: `time`). Use the `time_column` parameter if your column has a different name. The time column may be an Arrow `TIMESTAMP` (any unit), an integer epoch column (any width), a floating-point epoch column (use `time_format`, or auto-detect by magnitude), or a timestamp string column.
+- Arc reads the Parquet file in-process via Apache Arrow and repartitions the data into Arc's hourly partition layout regardless of the source file's structure. Supported column types: integer (all widths, signed and unsigned), floating point, boolean, string, binary/byte-array, decimal (imported as `DOUBLE`), and timestamp.
 - `DECIMAL` columns are imported as `DOUBLE`. If you need exact decimal precision, use Line Protocol ingestion with a configured decimal column.
 - Maximum file size: **500 MB**.
 - RBAC: write permissions are checked for the target measurement.
@@ -73,8 +73,8 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database/measurement/file; empty file or no rows; `time_column` not found; duplicate column names; or a `time_column` rename that collides with an existing `time` column |
+| `400` | Missing database/measurement/file; empty file or no rows; `time_column` not found; empty or duplicate column names; a `time_column` rename that collides with an existing `time` column; or a `NaN`/`Inf` value in a floating-point time column |
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
-| `422` | Unreadable Parquet file, an unsupported column type, or an unparseable time column |
+| `422` | Unreadable Parquet file, or an unsupported column type |
 | `500` | Import execution error |

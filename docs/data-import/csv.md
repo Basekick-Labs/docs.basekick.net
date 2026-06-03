@@ -82,12 +82,13 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time
 - Maximum file size: **500 MB**.
 - RBAC: write permissions are checked for the target measurement.
 - Column types are inferred per column from the values: a column is `BIGINT` if every value parses as an integer, otherwise `DOUBLE` if every value parses as a number, otherwise `BOOLEAN` if every value is `true`/`false`, otherwise `VARCHAR`. Empty cells in a numeric/boolean column are stored as null.
+- The time column accepts integer epochs, **fractional epochs** (e.g. `1609459200.123`, sub-second precision preserved), or timestamp strings (RFC 3339, `YYYY-MM-DD[ T]HH:MM:SS[.fff]`, or `YYYY-MM-DD`). With `time_format` empty, the unit of a numeric epoch is auto-detected by magnitude (s/ms/µs/ns).
 
 ## Error Responses
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database/measurement/file; empty file or no data rows; `time_column` not found; duplicate column names; or a `time_column` rename that collides with an existing `time` column |
+| `400` | Missing database/measurement/file; empty file or no data rows; `time_column` not found; empty, blank, or duplicate column names; or a `time_column` rename that collides with an existing `time` column |
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
 | `422` | Malformed CSV rows, or an unparseable value in the time column |
