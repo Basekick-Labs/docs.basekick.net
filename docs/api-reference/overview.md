@@ -847,7 +847,7 @@ Create a new MQTT subscription.
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object | No | {} | Topic-to-measurement mapping |
+| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override (`{"<topic>": "<database>"}`); does not configure measurements or tags |
 | `auto_start` | bool | No | true | Start on creation and server restart |
 
 ### GET /api/v1/mqtt/subscriptions
