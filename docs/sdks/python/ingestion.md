@@ -64,7 +64,10 @@ The SDK automatically handles type conversion:
 
 ### Timestamps
 
-The `time` column should contain **microsecond timestamps** (Unix epoch):
+The `time` column must contain a **numeric Unix epoch**. Arc auto-detects the
+unit by magnitude — seconds, milliseconds, microseconds, or nanoseconds — and
+normalizes everything to microseconds internally. Microseconds is the
+recommended, unambiguous form:
 
 ```python
 import time
@@ -83,6 +86,24 @@ timestamps = [
     1704067320000000,  # 2024-01-01 00:02:00 UTC
 ]
 ```
+
+**`time` must be numeric, and must never be null.** Arc stores `time` as a
+`TIMESTAMP WITH TIME ZONE` column (UTC). To keep this column type consistent
+across every file in a partition — which compaction relies on — the ingest path
+**rejects** a `time` column sent as a **string** (e.g. an ISO-8601 datetime
+string like `"2024-01-01T00:00:00Z"`) or containing **null** values. Such a
+write fails with a clear error rather than being silently accepted:
+
+- ❌ `"time": ["2024-01-01T00:00:00Z"]` — string timestamps are rejected. Convert
+  to a numeric epoch first: `int(datetime.fromisoformat("2024-01-01T00:00:00+00:00").timestamp() * 1_000_000)`.
+- ❌ `"time": [1704067200000000, None]` — null timestamps are rejected (a null
+  `time` would otherwise be silently routed to the `1970-01-01` partition).
+- ✅ `"time": [1704067200000000, 1704067260000000]` — numeric epoch (any unit).
+
+If you previously sent string timestamps and saw them ingest "successfully" on
+Arc 26.05.1, note that those writes produced files whose `time` column type
+disagreed with normally-ingested files, which prevented those partitions from
+compacting. Sending a numeric epoch avoids this entirely.
 
 ### Tags vs Fields
 

@@ -117,10 +117,11 @@ from datetime import datetime
 data = {
     "m": "cpu",                    # measurement name
     "columns": {                   # columnar data structure
+        # time is a numeric Unix epoch in microseconds (strings/nulls rejected)
         "time": [
-            int(datetime.now().timestamp() * 1000),
-            int(datetime.now().timestamp() * 1000) + 1000,
-            int(datetime.now().timestamp() * 1000) + 2000
+            int(datetime.now().timestamp() * 1_000_000),
+            int(datetime.now().timestamp() * 1_000_000) + 1_000_000,
+            int(datetime.now().timestamp() * 1_000_000) + 2_000_000
         ],
         "host": ["server01", "server02", "server03"],
         "region": ["us-east", "us-west", "eu-central"],
