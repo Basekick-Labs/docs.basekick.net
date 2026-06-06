@@ -120,7 +120,9 @@ token = os.getenv("ARC_TOKEN")
 data = {
     "m": "cpu",
     "columns": {
-        "time": [int(datetime.now().timestamp() * 1000)],
+        # time must be a numeric Unix epoch (microseconds recommended).
+        # Strings (e.g. "2024-01-01T00:00:00Z") and nulls are rejected.
+        "time": [int(datetime.now().timestamp() * 1_000_000)],
         "host": ["server01"],
         "usage_idle": [95.0],
         "usage_user": [3.2]
@@ -162,7 +164,8 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
         measurement="cpu",
         columns={
-            "time": [1704067200000],
+            # numeric epoch in microseconds (2024-01-01 00:00:00 UTC)
+            "time": [1704067200000000],
             "host": ["server01"],
             "usage_idle": [95.0],
         },
