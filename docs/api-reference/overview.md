@@ -178,7 +178,7 @@ Timeseries metrics data.
 
 ### GET /api/v1/logs
 
-Recent application logs.
+Recent application logs. **Requires an admin token** (`Authorization: Bearer <admin-token>`) when authentication is enabled.
 
 **Query Parameters:**
 - `?limit=100` - Number of logs (default: 100, max: 1000)
