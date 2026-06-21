@@ -87,12 +87,24 @@ On startup the FIPS build logs:
 If `fips_mode` is `false` on an `arc-fips` binary, the process exits — it will not
 run outside FIPS mode.
 
+:::note GODEBUG: `fips140=only` vs `fips140=on`
+The `arc-fips` binary bakes in `GODEBUG=fips140=only` (the strict mode — calls to
+non-approved algorithms fail). The startup check (`fips_mode:true`) confirms the
+module is *active*, but Go's runtime exposes no API to distinguish `only` from the
+weaker `on` mode, so an operator who explicitly sets `GODEBUG=fips140=on` in the
+process environment would override the baked-in `only` without the log changing.
+For an auditable deployment, do **not** set `GODEBUG=fips140=*` in the
+environment — leave the binary's compiled-in `only` default in place — and verify
+no such override exists in your unit files / container env. (Setting
+`fips140=off` is still caught: the process refuses to start.)
+:::
+
 ## Token rotation on cutover (required)
 
 API tokens created by a **non-FIPS** build are stored as bcrypt hashes. The FIPS
-build **refuses to verify** bcrypt (and legacy SHA-256) hashes — it logs a
-"rotate this token" warning and denies the request, because verifying them would
-use a non-approved algorithm.
+build **refuses to verify** bcrypt (and legacy SHA-256) hashes — it denies the
+request (and logs the reason at debug level), because verifying them would use a
+non-approved algorithm.
 
 When moving an existing deployment to the FIPS build:
 
