@@ -191,6 +191,29 @@ Arc supports all DuckDB functions. Here are the most useful for analytical queri
 | `LAG(col) OVER (...)` | Previous row value | `LAG(value) OVER (ORDER BY time)` |
 | `LEAD(col) OVER (...)` | Next row value | `LEAD(value) OVER (ORDER BY time)` |
 
+## Aggregate Functions
+
+Arc runs the **full DuckDB SQL dialect**, so every DuckDB aggregate is available — there is no allowlist. Beyond the standard `COUNT`/`SUM`/`AVG`/`MIN`/`MAX`, the following are commonly useful for analytics:
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `COUNT(DISTINCT col)` | Distinct count | `COUNT(DISTINCT host)` |
+| `APPROX_COUNT_DISTINCT(col)` | Fast approximate distinct count | `APPROX_COUNT_DISTINCT(user_id)` |
+| `MEDIAN(col)` | Median value | `MEDIAN(latency)` |
+| `MODE(col)` | Most frequent value | `MODE(status_code)` |
+| `QUANTILE_CONT(col, p)` | Continuous quantile | `QUANTILE_CONT(latency, 0.95)` |
+| `STDDEV(col)` / `VARIANCE(col)` | Standard deviation / variance | `STDDEV(cpu_usage)` |
+| `ARG_MAX(arg, val)` / `ARG_MIN(arg, val)` | `arg` at the row where `val` is max/min | `ARG_MAX(host, cpu_usage)` |
+| `FIRST(col)` / `LAST(col)` | First / last value in group | `LAST(value)` |
+| `STRING_AGG(col, sep)` | Concatenate values | `STRING_AGG(host, ', ')` |
+| `LIST(col)` / `ARRAY_AGG(col)` | Collect values into a list | `LIST(value)` |
+| `HISTOGRAM(col)` | Value-count map | `HISTOGRAM(status_code)` |
+| `CORR(y, x)` | Correlation coefficient | `CORR(cpu_usage, mem_usage)` |
+| `REGR_SLOPE(y, x)` / `REGR_INTERCEPT(y, x)` | Linear regression slope / intercept | `REGR_SLOPE(value, epoch(time))` |
+| `ENTROPY(col)` | Shannon entropy | `ENTROPY(status_code)` |
+
+This is a selection, not the full set — see the [DuckDB aggregate functions reference](https://duckdb.org/docs/sql/functions/aggregates) for everything available.
+
 ## Performance Tips
 
 1. **Always filter by time** -- Partition pruning skips entire Parquet files outside the range, often 10-100x faster.
