@@ -212,7 +212,9 @@ FROM telegraf.cpu
 GROUP BY date_trunc('hour', epoch_us(time)), host
 ```
 
-### Supported Aggregations
+### Common Aggregations
+
+These are common examples. Arc runs the **full DuckDB SQL dialect** — any DuckDB aggregate works (e.g. `MEDIAN`, `MODE`, `QUANTILE_CONT`, `APPROX_QUANTILE`, `ARG_MAX`, `HISTOGRAM`, `CORR`, `REGR_*`). See the [Querying guide](/arc/guides/querying#useful-duckdb-functions) for more.
 
 - `AVG()` - Average values
 - `SUM()` - Sum of values
