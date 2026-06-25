@@ -164,8 +164,13 @@ ARC_STORAGE_S3_USE_SSL=true
 ARC_STORAGE_S3_PATH_STYLE=false
 ```
 
-:::tip IAM Roles
-For EC2/EKS deployments, use IAM roles instead of access keys. Arc automatically uses instance credentials.
+:::tip IAM roles / IRSA (no static keys)
+For EC2/EKS, omit `s3_access_key`/`s3_secret_key` entirely (leave them unset). Arc
+then authenticates via the AWS credential chain — EC2 instance profile, **EKS IRSA
+(IAM Roles for Service Accounts)**, or environment credentials. This applies to
+both writes and DuckDB query reads (query-read credential-chain support requires
+Arc 26.06.2+). Setting exactly one of the two keys is rejected at startup; set
+both or neither.
 :::
 
   </TabItem>

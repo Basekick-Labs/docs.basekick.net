@@ -99,19 +99,27 @@ helm install arc \
 
 ## Storage Backends
 
+The OSS chart selects the backend with `arc.storageBackend` (`local`, `s3`, or
+`minio`). The chart auto-sets `ARC_STORAGE_BACKEND` and `ARC_STORAGE_LOCAL_PATH`;
+everything else (bucket, region, keys, endpoint) is passed through as
+`ARC_STORAGE_*` environment variables via the free-form `arc.env[]` list.
+
 <Tabs>
   <TabItem value="pvc" label="Persistent Volume" default>
 
-**Persistent Volume Claim** - Default for Kubernetes.
+**Local disk on a Persistent Volume** - the default. The chart provisions a PVC
+mounted at `/app/data/arc`.
 
 ```yaml
 # values.yaml
-storage:
-  backend: local
-  persistence:
-    enabled: true
-    size: 100Gi
-    storageClass: ""  # Use default storage class
+arc:
+  storageBackend: local
+
+persistence:
+  enabled: true
+  size: 100Gi
+  accessMode: ReadWriteOnce
+  storageClass: ""        # default storage class
 ```
 
 ```bash
@@ -121,59 +129,90 @@ helm install arc ./arc -f values.yaml
   </TabItem>
   <TabItem value="s3" label="AWS S3">
 
-**AWS S3** - Recommended for EKS deployments.
+**AWS S3** - recommended for EKS. Pass the S3 settings through `arc.env[]`.
 
 ```yaml
 # values.yaml
-storage:
-  backend: s3
-  s3:
-    bucket: arc-production
-    region: us-east-1
-
-# Use IAM Roles for Service Accounts (IRSA)
-serviceAccount:
-  create: true
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/arc-s3-role
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_STORAGE_S3_USE_SSL
+      value: "true"
 ```
 
 ```bash
 helm install arc ./arc -f values.yaml
 ```
 
-:::tip IRSA (Recommended)
-Use IAM Roles for Service Accounts instead of access keys for better security on EKS.
-:::
-
-With access keys (not recommended):
+:::tip IRSA (recommended) — no static keys
+The OSS chart never auto-injects S3 keys, so IRSA works by simply **omitting**
+`ARC_STORAGE_S3_ACCESS_KEY` / `ARC_STORAGE_S3_SECRET_KEY` from `arc.env[]` and
+attaching an IAM role to the ServiceAccount. Arc's AWS credential chain then
+resolves the pod role automatically.
 
 ```yaml
-storage:
-  backend: s3
-  s3:
-    bucket: arc-production
-    region: us-east-1
-    accessKey: your_key
-    secretKey: your_secret
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    # no access/secret key — resolved via the pod IAM role
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
+```
+
+Primary-S3 **query** reads via the credential chain require the Arc **26.06.2**
+binary; on 26.06.1 IRSA authenticates writes but not query reads. Set
+`image.tag: "26.06.2"` (once released) for full IRSA support.
+:::
+
+With static keys (not recommended — prefer IRSA):
+
+```yaml
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_STORAGE_S3_ACCESS_KEY
+      value: your_key
+    - name: ARC_STORAGE_S3_SECRET_KEY
+      value: your_secret
 ```
 
   </TabItem>
   <TabItem value="minio" label="MinIO">
 
-**MinIO** - Self-hosted S3-compatible storage.
+**MinIO** - self-hosted S3-compatible storage.
 
 ```yaml
 # values.yaml
-storage:
-  backend: minio
-  s3:
-    endpoint: minio.minio-system.svc.cluster.local:9000
-    bucket: arc
-    accessKey: minioadmin
-    secretKey: minioadmin123
-    useSSL: false
-    pathStyle: true
+arc:
+  storageBackend: minio
+  env:
+    - name: ARC_STORAGE_S3_ENDPOINT
+      value: minio.minio-system.svc.cluster.local:9000
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc
+    - name: ARC_STORAGE_S3_ACCESS_KEY
+      value: minioadmin
+    - name: ARC_STORAGE_S3_SECRET_KEY
+      value: minioadmin123
+    - name: ARC_STORAGE_S3_USE_SSL
+      value: "false"
+    - name: ARC_STORAGE_S3_PATH_STYLE
+      value: "true"
 ```
 
 Deploy with in-cluster MinIO:
@@ -188,31 +227,13 @@ helm install arc ./arc -f values.yaml
 ```
 
   </TabItem>
-  <TabItem value="azure" label="Azure Blob">
-
-**Azure Blob Storage** - For AKS deployments.
-
-
-```yaml
-# values.yaml
-storage:
-  backend: azure
-  azure:
-    container: arc-data
-    accountName: your_account
-    accountKey: your_key
-    # Or use managed identity:
-    # useManagedIdentity: true
-```
-
-:::tip Managed Identity
-Use Azure Workload Identity for keyless authentication on AKS.
-:::
-
-  </TabItem>
 </Tabs>
 
 ## Configuration Profiles
+
+The OSS chart is a single Deployment. Arc's own settings (auth, WAL, log level,
+ingest buffers, etc.) are passed as environment variables through `arc.env[]`,
+not a structured `config:` block.
 
 <Tabs>
   <TabItem value="dev" label="Development" default>
@@ -231,21 +252,17 @@ resources:
     memory: "2Gi"
     cpu: "1"
 
-storage:
-  backend: local
-  persistence:
-    enabled: true
-    size: 10Gi
+arc:
+  storageBackend: local
+  env:
+    - name: ARC_AUTH_ENABLED
+      value: "false"
+    - name: ARC_LOG_LEVEL
+      value: "debug"
 
-config:
-  auth:
-    enabled: false
-  compaction:
-    enabled: false
-  wal:
-    enabled: false
-  log:
-    level: debug
+persistence:
+  enabled: true
+  size: 10Gi
 ```
 
 ```bash
@@ -255,7 +272,7 @@ helm install arc ./arc -f values-dev.yaml
   </TabItem>
   <TabItem value="prod" label="Production">
 
-Production-ready configuration:
+Production-ready configuration backed by S3:
 
 ```yaml
 # values-prod.yaml
@@ -269,32 +286,22 @@ resources:
     memory: "16Gi"
     cpu: "8"
 
-storage:
-  backend: s3
-  s3:
-    bucket: arc-production
-    region: us-east-1
-
-config:
-  auth:
-    enabled: true
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    dailyEnabled: true
-  wal:
-    enabled: false  # S3 provides durability
-  log:
-    level: info
-    format: json
-  ingest:
-    maxBufferSize: 100000
-    maxBufferAgeMs: 10000
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_AUTH_ENABLED
+      value: "true"
+    - name: ARC_LOG_LEVEL
+      value: "info"
 
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/arc-s3-role
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
 
 ingress:
   enabled: true
@@ -308,10 +315,6 @@ ingress:
     - secretName: arc-tls
       hosts:
         - arc.example.com
-
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
 ```
 
 ```bash
@@ -321,7 +324,7 @@ helm install arc ./arc -f values-prod.yaml --namespace arc
   </TabItem>
   <TabItem value="high-durability" label="High Durability">
 
-Zero data loss configuration with WAL:
+Local disk on fast storage with WAL enabled:
 
 ```yaml
 # values-durable.yaml
@@ -335,34 +338,20 @@ resources:
     memory: "32Gi"
     cpu: "16"
 
-storage:
-  backend: local
-  persistence:
-    enabled: true
-    size: 500Gi
-    storageClass: fast-ssd  # Use fast storage class
+arc:
+  storageBackend: local
+  env:
+    - name: ARC_AUTH_ENABLED
+      value: "true"
+    - name: ARC_WAL_ENABLED
+      value: "true"
+    - name: ARC_LOG_LEVEL
+      value: "info"
 
-config:
-  auth:
-    enabled: true
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    dailyEnabled: true
-  wal:
-    enabled: true
-    syncMode: fdatasync
-    maxSizeMb: 1000
-    maxAgeSeconds: 3600
-  log:
-    level: info
-    format: json
-
-# Separate volume for WAL (recommended)
-walVolume:
+persistence:
   enabled: true
-  size: 100Gi
-  storageClass: ultra-fast-ssd  # NVMe if available
+  size: 500Gi
+  storageClass: fast-ssd     # use a fast storage class
 
 nodeSelector:
   node-type: high-memory
@@ -378,6 +367,12 @@ tolerations:
 helm install arc ./arc -f values-durable.yaml --namespace arc
 ```
 
+:::note Env var names
+Arc reads its configuration from `ARC_*` environment variables. Confirm exact
+names against the [configuration reference](/arc/configuration/overview) before
+relying on a specific key.
+:::
+
   </TabItem>
 </Tabs>
 
@@ -386,14 +381,16 @@ helm install arc ./arc -f values-durable.yaml --namespace arc
 ### Core Settings
 
 ```yaml
-# Number of replicas (only 1 supported currently)
+# Number of pod replicas (single Deployment).
 replicaCount: 1
 
-# Container image
+# Container image (tag defaults to the chart appVersion).
 image:
   repository: ghcr.io/basekick-labs/arc
-  tag: "26.06.1"
+  tag: ""                # set "26.06.2" for full IRSA query-read support
   pullPolicy: IfNotPresent
+
+imagePullSecrets: []
 
 # Service configuration
 service:
@@ -404,88 +401,48 @@ service:
 ### Resources
 
 ```yaml
-resources:
-  requests:
-    memory: "2Gi"
-    cpu: "1"
-  limits:
-    memory: "8Gi"
-    cpu: "4"
+resources: {}            # empty by default; set requests/limits as needed
+  # requests:
+  #   memory: "2Gi"
+  #   cpu: "1"
+  # limits:
+  #   memory: "8Gi"
+  #   cpu: "4"
 ```
 
 ### Storage
 
 ```yaml
-storage:
-  backend: local  # local, s3, minio, azure
+arc:
+  # local | s3 | minio. The chart sets ARC_STORAGE_BACKEND from this and
+  # ARC_STORAGE_LOCAL_PATH automatically.
+  storageBackend: local
 
-  # For local storage
-  persistence:
-    enabled: true
-    size: 100Gi
-    storageClass: ""
-    accessModes:
-      - ReadWriteOnce
+  # Free-form env vars passed straight to the Arc container. Use ARC_STORAGE_*
+  # for bucket/region/keys/endpoint, plus any other ARC_* settings.
+  env: []
+    # - name: ARC_STORAGE_S3_BUCKET
+    #   value: arc-production
+    # - name: ARC_STORAGE_S3_REGION
+    #   value: us-east-1
+    # - name: ARC_STORAGE_S3_ENDPOINT
+    #   value: https://s3.us-east-1.amazonaws.com
+    # - name: ARC_STORAGE_S3_ACCESS_KEY   # omit for IRSA
+    #   value: ""
+    # - name: ARC_STORAGE_S3_SECRET_KEY   # omit for IRSA
+    #   value: ""
+    # - name: ARC_STORAGE_S3_USE_SSL
+    #   value: "true"
+    # - name: ARC_STORAGE_S3_PATH_STYLE
+    #   value: "false"
 
-  # For S3/MinIO
-  s3:
-    bucket: ""
-    region: ""
-    endpoint: ""
-    accessKey: ""
-    secretKey: ""
-    useSSL: true
-    pathStyle: false
-
-  # For Azure
-  azure:
-    container: ""
-    accountName: ""
-    accountKey: ""
-    useManagedIdentity: false
-```
-
-### Arc Configuration
-
-```yaml
-config:
-  server:
-    port: 8000
-
-  log:
-    level: info    # debug, info, warn, error
-    format: json   # json, console
-
-  database:
-    maxConnections: 28
-    memoryLimit: "8GB"
-    threadCount: 14
-
-  auth:
-    enabled: true
-
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    hourlyMinAgeHours: 0
-    hourlyMinFiles: 5
-    dailyEnabled: false
-
-  wal:
-    enabled: false
-    syncMode: fdatasync
-    maxSizeMb: 500
-    maxAgeSeconds: 3600
-
-  ingest:
-    maxBufferSize: 50000
-    maxBufferAgeMs: 5000
-
-  retention:
-    enabled: true
-
-  continuousQuery:
-    enabled: true
+# PVC used when storageBackend is local (mounted at /app/data/arc).
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: ""
+  # existingClaim: ""
 ```
 
 ### Ingress
@@ -493,10 +450,10 @@ config:
 ```yaml
 ingress:
   enabled: false
-  className: nginx
+  className: ""
   annotations: {}
   hosts:
-    - host: arc.example.com
+    - host: arc.local
       paths:
         - path: /
           pathType: Prefix
@@ -508,9 +465,17 @@ ingress:
 ```yaml
 serviceAccount:
   create: true
+  automount: true
   name: ""
-  annotations: {}
+  annotations: {}        # eks.amazonaws.com/role-arn for IRSA on EKS
 ```
+
+:::note Clustering & HA are Enterprise features
+The OSS chart runs Arc as a single Deployment with no writer/reader/compactor
+roles, Raft clustering, or multi-writer failover. For high availability,
+multi-writer ingest, and peer replication see the
+[Arc Enterprise Kubernetes guide](/arc-enterprise/installation/kubernetes).
+:::
 
 ## Operations
 

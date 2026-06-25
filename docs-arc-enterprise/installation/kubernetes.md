@@ -96,281 +96,289 @@ helm install arc \
 ## Storage Backends
 
 <Tabs>
-  <TabItem value="pvc" label="Persistent Volume" default>
+  <TabItem value="pvc" label="Local (Peer Replication)" default>
 
-**Persistent Volume Claim** - Default for Kubernetes.
+**Local storage** - each Arc node keeps its own PersistentVolume and the cluster
+stays in sync via peer-to-peer replication (Pattern 1). No object storage is
+required. Set `storage.mode: local` and size each role's PVC.
 
 ```yaml
 # values.yaml
 storage:
-  backend: local
+  mode: local
+  local:
+    storageClass: ""        # default storage class
+
+minio:
+  enabled: false            # no object storage in local mode
+
+writer:
+  replicas: 1
   persistence:
-    enabled: true
-    size: 100Gi
-    storageClass: ""  # Use default storage class
+    size: 50Gi              # local Parquet + WAL
+reader:
+  replicas: 2
+  persistence:
+    size: 50Gi              # reader needs a full data replica
+compactor:
+  enabled: true
+  replicas: 1
+  persistence:
+    size: 50Gi
 ```
 
 ```bash
-helm install arc ./arc -f values.yaml
+helm install arc-ent helm/arc-enterprise -f values.yaml \
+  --set license.key=ARC-ENT-... \
+  --set cluster.sharedSecret.value=$(openssl rand -hex 32)
 ```
 
   </TabItem>
   <TabItem value="s3" label="AWS S3">
 
-**AWS S3** - Recommended for EKS deployments.
+**AWS S3** - Recommended for EKS. Set `storage.mode: shared` and point the
+shared block at your bucket. Authenticate with IRSA (preferred) or static keys.
+
+**IRSA (recommended) — no static keys.** Set `credentials.useIRSA: true` so the
+chart omits the access/secret-key env vars and Arc authenticates via the AWS
+credential chain (the pod's IAM role), then attach the role to the
+ServiceAccount:
 
 ```yaml
 # values.yaml
 storage:
-  backend: s3
-  s3:
+  mode: shared
+  shared:
+    external: true                 # use your own S3 (not bundled MinIO)
     bucket: arc-production
     region: us-east-1
+    endpoint: https://s3.us-east-1.amazonaws.com
+    useSSL: true
+    usePathStyle: false
+    credentials:
+      useIRSA: true                # authenticate via the pod IAM role
 
-# Use IAM Roles for Service Accounts (IRSA)
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/arc-s3-role
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
+
+minio:
+  enabled: false                   # don't deploy bundled MinIO
 ```
 
 ```bash
 helm install arc ./arc -f values.yaml
 ```
 
-:::tip IRSA (Recommended)
-Use IAM Roles for Service Accounts instead of access keys for better security on EKS.
+:::tip IRSA requires Arc 26.06.2 for query reads
+Primary-S3 **query** reads via the credential chain require the Arc **26.06.2**
+binary. On 26.06.1 IRSA authenticates writes but not query reads — set
+`image.tag: "26.06.2"` (once released) for full IRSA support. The IAM role's
+trust policy must permit the cluster OIDC provider + this ServiceAccount, and
+the role needs `s3:GetObject`/`PutObject`/`ListBucket` on the bucket. When the
+chart creates the ServiceAccount, the install fails if the
+`eks.amazonaws.com/role-arn` annotation is missing.
 :::
 
-With access keys (not recommended):
+**Static keys** (when IRSA is not available). Provide them inline or, better, via
+an existing Secret with `access-key` / `secret-key` entries:
 
 ```yaml
 storage:
-  backend: s3
-  s3:
+  mode: shared
+  shared:
+    external: true
     bucket: arc-production
     region: us-east-1
-    accessKey: your_key
-    secretKey: your_secret
+    endpoint: https://s3.us-east-1.amazonaws.com
+    useSSL: true
+    credentials:
+      existingSecret: arc-s3-credentials   # keys: access-key, secret-key
+      # or inline: accessKey / secretKey
+minio:
+  enabled: false
 ```
 
   </TabItem>
   <TabItem value="minio" label="MinIO">
 
-**MinIO** - Self-hosted S3-compatible storage.
+**MinIO** - Bundled S3-compatible storage (default for `storage.mode: shared`).
 
 ```yaml
 # values.yaml
 storage:
-  backend: minio
-  s3:
-    endpoint: minio.minio-system.svc.cluster.local:9000
-    bucket: arc
-    accessKey: minioadmin
-    secretKey: minioadmin123
+  mode: shared
+  shared:
+    external: false                # bundled MinIO (default)
+    bucket: arc-data
+    usePathStyle: true
     useSSL: false
-    pathStyle: true
+
+minio:
+  enabled: true
+  credentials:
+    rootUser: arcminio
+    rootPassword: <strong-random>  # or set credentials.existingSecret
 ```
 
-Deploy with in-cluster MinIO:
-
 ```bash
-# Install MinIO first
-helm repo add minio https://charts.min.io/
-helm install minio minio/minio --namespace minio-system --create-namespace
-
-# Then install Arc
 helm install arc ./arc -f values.yaml
 ```
 
-  </TabItem>
-  <TabItem value="azure" label="Azure Blob">
-
-**Azure Blob Storage** - For AKS deployments.
-
-```yaml
-# values.yaml
-storage:
-  backend: azure
-  azure:
-    container: arc-data
-    accountName: your_account
-    accountKey: your_key
-    # Or use managed identity:
-    # useManagedIdentity: true
-```
-
-:::tip Managed Identity
-Use Azure Workload Identity for keyless authentication on AKS.
+:::note
+`useIRSA` is only valid with external S3 (`external: true`). The bundled MinIO
+needs static credentials — the chart rejects `useIRSA: true` with bundled MinIO.
 :::
 
   </TabItem>
 </Tabs>
 
+The chart emits S3 config only (`ARC_STORAGE_BACKEND=s3`); point `endpoint` at
+any S3-compatible service. For local-disk + peer replication instead of shared
+object storage, use `storage.mode: local` (see
+[Deployment Patterns](../configuration/deployment-patterns)).
+
 ## Configuration Profiles
 
-<Tabs>
-  <TabItem value="dev" label="Development" default>
+The Enterprise chart ships two ready-to-deploy presets in the chart root:
+`values-shared-storage.yaml` (shared object storage via bundled MinIO) and
+`values-local-storage.yaml` (per-node PVCs + peer replication). Both require a
+license key and a cluster shared secret.
 
-Minimal resources for development/testing:
+<Tabs>
+  <TabItem value="shared" label="Shared Storage (MinIO)" default>
+
+Shared object storage with the bundled MinIO — the recommended cloud-native
+layout. All writer pods accept writes concurrently (Pattern 2 multi-writer) and
+read/write the same bucket; the bucket is the durability layer, so the writer
+and compactor PVCs hold only WAL/scratch.
 
 ```yaml
-# values-dev.yaml
-replicaCount: 1
-
-resources:
-  requests:
-    memory: "512Mi"
-    cpu: "250m"
-  limits:
-    memory: "2Gi"
-    cpu: "1"
-
+# values-shared-storage.yaml (excerpt)
 storage:
-  backend: local
-  persistence:
-    enabled: true
-    size: 10Gi
+  mode: shared
+  shared:
+    external: false        # bundled MinIO
+    bucket: arc-data
+    usePathStyle: true
+    useSSL: false
 
-config:
-  auth:
-    enabled: false
-  compaction:
-    enabled: false
-  wal:
-    enabled: false
-  log:
-    level: debug
+minio:
+  enabled: true
+  replicas: 1
+  persistence:
+    size: 100Gi
+
+writer:
+  replicas: 1              # 1 = single writer; 3 = HA (2 is refused)
+  persistence:
+    size: 20Gi            # WAL only; bucket holds Parquet
+
+reader:
+  replicas: 2             # emptyDir in shared mode (no PVC)
+
+compactor:
+  enabled: true
+  replicas: 1
+  persistence:
+    size: 20Gi            # scratch only; bucket holds Parquet
 ```
 
 ```bash
-helm install arc ./arc -f values-dev.yaml
+helm install arc-ent helm/arc-enterprise \
+  -f helm/arc-enterprise/values-shared-storage.yaml \
+  --set license.key=ARC-ENT-... \
+  --set cluster.sharedSecret.value=$(openssl rand -hex 32) \
+  --set minio.credentials.rootUser=arcminio \
+  --set minio.credentials.rootPassword=$(openssl rand -hex 32)
 ```
 
-  </TabItem>
-  <TabItem value="prod" label="Production">
+:::warning Required overrides
+`license.key`, `cluster.sharedSecret.value`, and (for bundled MinIO)
+`minio.credentials.rootUser` / `minio.credentials.rootPassword` are mandatory —
+the chart refuses to install if any of them is empty.
+:::
 
-Production-ready configuration:
+  </TabItem>
+  <TabItem value="local" label="Local Storage (Peer Replication)">
+
+Per-node PersistentVolumes with peer-to-peer replication (Pattern 1). Each node
+keeps its own copy of the Parquet files; the Raft-backed cluster manifest is the
+source of truth. Use this for bare metal, VMs, edge, or anywhere shared object
+storage is unavailable. No MinIO is deployed.
 
 ```yaml
-# values-prod.yaml
-replicaCount: 1
-
-resources:
-  requests:
-    memory: "4Gi"
-    cpu: "2"
-  limits:
-    memory: "16Gi"
-    cpu: "8"
-
+# values-local-storage.yaml (excerpt)
 storage:
-  backend: s3
-  s3:
+  mode: local
+
+minio:
+  enabled: false
+
+writer:
+  replicas: 1
+  persistence:
+    size: 50Gi            # local Parquet + WAL
+
+reader:
+  replicas: 2
+  persistence:
+    size: 50Gi            # reader needs a full data replica
+
+compactor:
+  enabled: true
+  replicas: 1
+  persistence:
+    size: 50Gi            # local Parquet + scratch
+```
+
+```bash
+helm install arc-ent helm/arc-enterprise \
+  -f helm/arc-enterprise/values-local-storage.yaml \
+  --set license.key=ARC-ENT-... \
+  --set cluster.sharedSecret.value=$(openssl rand -hex 32)
+```
+
+:::tip Replication tuning
+`cluster.replication.*` (pull workers, fetch/serve timeouts, startup catch-up)
+applies **only** in local mode. In shared mode the bucket is the durability
+layer and peer replication is disabled.
+:::
+
+  </TabItem>
+  <TabItem value="external-s3" label="External S3">
+
+Point shared mode at your own S3 (or any S3-compatible service) instead of the
+bundled MinIO. See the [Storage Backends](#storage-backends) tabs above for the
+full IRSA vs static-key options.
+
+```yaml
+storage:
+  mode: shared
+  shared:
+    external: true                 # use your own S3 (not bundled MinIO)
     bucket: arc-production
     region: us-east-1
+    endpoint: https://s3.us-east-1.amazonaws.com
+    useSSL: true
+    usePathStyle: false
+    credentials:
+      useIRSA: true                # authenticate via the pod IAM role
 
-config:
-  auth:
-    enabled: true
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    dailyEnabled: true
-  wal:
-    enabled: false  # S3 provides durability
-  log:
-    level: info
-    format: json
-  ingest:
-    maxBufferSize: 100000
-    maxBufferAgeMs: 10000
+minio:
+  enabled: false                   # don't deploy bundled MinIO
 
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/arc-s3-role
-
-ingress:
-  enabled: true
-  className: nginx
-  hosts:
-    - host: arc.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: arc-tls
-      hosts:
-        - arc.example.com
-
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
 ```
 
 ```bash
-helm install arc ./arc -f values-prod.yaml --namespace arc
-```
-
-  </TabItem>
-  <TabItem value="high-durability" label="High Durability">
-
-Zero data loss configuration with WAL:
-
-```yaml
-# values-durable.yaml
-replicaCount: 1
-
-resources:
-  requests:
-    memory: "8Gi"
-    cpu: "4"
-  limits:
-    memory: "32Gi"
-    cpu: "16"
-
-storage:
-  backend: local
-  persistence:
-    enabled: true
-    size: 500Gi
-    storageClass: fast-ssd  # Use fast storage class
-
-config:
-  auth:
-    enabled: true
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    dailyEnabled: true
-  wal:
-    enabled: true
-    syncMode: fdatasync
-    maxSizeMb: 1000
-    maxAgeSeconds: 3600
-  log:
-    level: info
-    format: json
-
-# Separate volume for WAL (recommended)
-walVolume:
-  enabled: true
-  size: 100Gi
-  storageClass: ultra-fast-ssd  # NVMe if available
-
-nodeSelector:
-  node-type: high-memory
-
-tolerations:
-  - key: "dedicated"
-    operator: "Equal"
-    value: "arc"
-    effect: "NoSchedule"
-```
-
-```bash
-helm install arc ./arc -f values-durable.yaml --namespace arc
+helm install arc-ent helm/arc-enterprise -f values.yaml \
+  --set license.key=ARC-ENT-... \
+  --set cluster.sharedSecret.value=$(openssl rand -hex 32)
 ```
 
   </TabItem>
@@ -378,133 +386,180 @@ helm install arc ./arc -f values-durable.yaml --namespace arc
 
 ## Helm Values Reference
 
-### Core Settings
+### Image & Service Account
 
 ```yaml
-# Number of replicas (only 1 supported currently)
-replicaCount: 1
-
-# Container image
+# Container image (tag defaults to the chart appVersion)
 image:
   repository: ghcr.io/basekick-labs/arc
-  tag: "26.06.1"
+  tag: ""                # set "26.06.2" for full IRSA query-read support
   pullPolicy: IfNotPresent
 
-# Service configuration
-service:
-  type: ClusterIP
-  port: 8000
+imagePullSecrets: []
+
+# ServiceAccount shared by all Arc pods (writer/reader/compactor).
+# Attach an AWS IAM role via the role-arn annotation for IRSA.
+serviceAccount:
+  create: false          # true = chart creates the ServiceAccount
+  name: ""
+  annotations: {}        # eks.amazonaws.com/role-arn: arn:aws:iam::...:role/arc-s3
 ```
 
-### Resources
+### License & Authentication
 
 ```yaml
-resources:
-  requests:
-    memory: "2Gi"
-    cpu: "1"
-  limits:
-    memory: "8Gi"
-    cpu: "4"
+license:
+  existingSecret: ""     # Secret with key "license-key"
+  key: ""                # your ARC-ENT-... license key (REQUIRED)
+
+auth:
+  bootstrapToken:
+    existingSecret: ""   # Secret with key "bootstrap-token"
+    value: ""            # leave empty to let the Raft leader generate one
+```
+
+### Cluster
+
+```yaml
+cluster:
+  name: arc-prod
+
+  # HMAC peer authentication — REQUIRED (chart refuses to install if empty).
+  sharedSecret:
+    existingSecret: ""   # Secret with key "shared-secret"
+    value: ""            # REQUIRED — e.g. $(openssl rand -hex 32)
+
+  # TLS between cluster nodes (recommended for multi-writer / production).
+  tls:
+    enabled: false
+    existingSecret: ""   # tls.crt, tls.key (and optionally ca.crt)
+
+  # Single switch governing writer + compactor failover.
+  failover:
+    enabled: true
+
+  # Peer replication tuning — consulted ONLY when storage.mode=local.
+  replication:
+    pullWorkers: 4
+    fetchTimeoutMs: 60000
+    serveTimeoutMs: 120000
+    catchup:
+      enabled: true
+      barrierTimeoutMs: 10000
 ```
 
 ### Storage
 
+The chart supports two modes via `storage.mode`. It emits S3 config only
+(`ARC_STORAGE_BACKEND=s3`); there is no Azure path.
+
 ```yaml
 storage:
-  backend: local  # local, s3, minio, azure
+  mode: shared           # "shared" or "local"
 
-  # For local storage
+  # Shared mode — S3-compatible object storage (bundled MinIO or external S3).
+  shared:
+    external: false      # false = bundled MinIO; true = your own S3
+    bucket: arc-data
+    region: us-east-1
+    endpoint: ""         # auto-set for bundled MinIO; set for external S3
+    prefix: ""           # optional key prefix (multi-tenant bucket sharing)
+    usePathStyle: true   # true for MinIO and many S3-compatible services
+    useSSL: false        # true for production S3
+    credentials:
+      useIRSA: false     # true = AWS credential chain (external S3 only)
+      existingSecret: "" # keys: access-key, secret-key (ignored if useIRSA)
+      accessKey: ""
+      secretKey: ""
+
+  # Local mode — per-node PVCs + peer replication.
+  local:
+    storageClass: ""     # fallback for roles that don't set their own
+```
+
+### Bundled MinIO
+
+Rendered only when `storage.mode=shared` and `storage.shared.external=false`.
+
+```yaml
+minio:
+  enabled: true
+  replicas: 1
   persistence:
-    enabled: true
     size: 100Gi
     storageClass: ""
-    accessModes:
-      - ReadWriteOnce
-
-  # For S3/MinIO
-  s3:
-    bucket: ""
-    region: ""
-    endpoint: ""
-    accessKey: ""
-    secretKey: ""
-    useSSL: true
-    pathStyle: false
-
-  # For Azure
-  azure:
-    container: ""
-    accountName: ""
-    accountKey: ""
-    useManagedIdentity: false
+  credentials:
+    existingSecret: ""   # keys: root-user, root-password
+    rootUser: ""         # REQUIRED (no weak defaults)
+    rootPassword: ""     # REQUIRED
 ```
 
-### Arc Configuration
+### Roles (writer / reader / compactor)
+
+Each role is a StatefulSet with its own replica count, resources, persistence,
+and scheduling.
 
 ```yaml
-config:
-  server:
-    port: 8000
-
-  log:
-    level: info    # debug, info, warn, error
-    format: json   # json, console
-
-  database:
-    maxConnections: 28
-    memoryLimit: "8GB"
-    threadCount: 14
-
-  auth:
-    enabled: true
-
-  compaction:
-    enabled: true
-    hourlyEnabled: true
-    hourlyMinAgeHours: 0
-    hourlyMinFiles: 5
-    dailyEnabled: false
-
+writer:
+  replicas: 1            # 3 = HA; 2 is REFUSED (no failure tolerance)
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: 4000m, memory: 8Gi }
+  persistence:
+    size: 20Gi           # shared mode: WAL only; local mode: WAL + Parquet
+    storageClass: ""
   wal:
-    enabled: false
-    syncMode: fdatasync
-    maxSizeMb: 500
-    maxAgeSeconds: 3600
-
-  ingest:
-    maxBufferSize: 50000
-    maxBufferAgeMs: 5000
-
-  retention:
     enabled: true
+    syncMode: fdatasync  # fdatasync | fsync | async
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []           # extra env vars passed through to Arc
 
-  continuousQuery:
-    enabled: true
+reader:
+  replicas: 2            # scale horizontally for query throughput
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: 4000m, memory: 8Gi }
+  persistence:
+    size: 50Gi           # shared mode: emptyDir (no PVC); local mode: PVC
+    storageClass: ""
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+
+compactor:
+  enabled: true
+  replicas: 1            # exactly one active compactor — failover replaces it
+  resources:
+    requests: { cpu: 1000m, memory: 4Gi }
+    limits:   { cpu: 4000m, memory: 16Gi }
+  persistence:
+    size: 50Gi           # scratch space for compaction jobs
+    storageClass: ""
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
 ```
 
-### Ingress
+### Services & Telemetry
 
 ```yaml
-ingress:
-  enabled: false
-  className: nginx
-  annotations: {}
-  hosts:
-    - host: arc.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
-```
+service:
+  writer:
+    type: ClusterIP
+    port: 8000
+    annotations: {}
+  reader:
+    type: ClusterIP      # expose via Ingress / annotated LoadBalancer
+    port: 8000
+    annotations: {}
 
-### Service Account
-
-```yaml
-serviceAccount:
-  create: true
-  name: ""
-  annotations: {}
+# Disable for air-gapped / defense deployments.
+telemetry:
+  enabled: true
 ```
 
 ## Operations
@@ -537,12 +592,15 @@ kubectl get events --field-selector involvedObject.name=arc-0
 
 ### Scale (Restart)
 
-```bash
-# Restart pod
-kubectl rollout restart deployment arc
+The Enterprise chart deploys each role as a StatefulSet (`writer`, `reader`,
+`compactor`).
 
-# Or delete pod (will be recreated)
-kubectl delete pod -l app=arc
+```bash
+# Restart a role
+kubectl rollout restart statefulset arc-ent-writer
+
+# Or delete a pod (will be recreated)
+kubectl delete pod -l app.kubernetes.io/component=writer
 ```
 
 ### Port Forward
@@ -671,6 +729,38 @@ resources:
   limits:
     memory: "16Gi"
 ```
+
+## High Availability (EKS)
+
+In **shared mode** the Enterprise chart runs Arc as a Pattern 2 multi-writer
+cluster: every writer pod accepts writes concurrently behind a Kubernetes
+Service, and each writer PUTs to the same S3 bucket independently. Singleton
+background tasks (retention, continuous queries, deletes) run on whichever pod
+is the cluster Raft leader, so they execute exactly once.
+
+Failover is Service-based: clients always talk to the writer Service, which
+load-balances across healthy pods. If a writer pod dies, the Service stops
+routing to it and Raft re-elects a leader for the singleton tasks — no client
+URL changes.
+
+Set `writer.replicas` to control the topology:
+
+| `writer.replicas` | Behaviour |
+|---|---|
+| `1` | Single writer (lowest cost). The Service still fronts it, so client URLs are identical to the multi-writer case. No failure tolerance. |
+| `3` | HA + horizontal scale. Raft quorum tolerates one pod failure; writes round-robin across all healthy pods. |
+| `2` | **Refused by chart validation** — a quorum of 2 stalls Raft writes on any single-pod loss, so it offers no failure tolerance over `1`. |
+
+In shared mode the reader uses `emptyDir` (no PVC — the bucket holds Parquet),
+and writer/compactor PVCs are WAL/scratch only (~20Gi). In **local mode**
+(Pattern 1), HA instead relies on per-node PVCs and peer replication, and the
+reader needs a full data replica (~50Gi); `cluster.replication.*` tuning applies
+only in this mode.
+
+For the full topology comparison see
+[Deployment Patterns](../configuration/deployment-patterns), and for the cluster
+shared secret and inter-node TLS see
+[Cluster Security](../security/cluster-security).
 
 ## Next Steps
 
