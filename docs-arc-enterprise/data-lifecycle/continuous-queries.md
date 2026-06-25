@@ -41,6 +41,45 @@ Destination Measurement (cpu_hourly)
 Optional: Retention Policy
 ```
 
+### Execution model and semantics
+
+Continuous queries are **recomputed once per interval**, not maintained as an
+incremental/streaming aggregate. There is no running state carried between runs.
+
+On each scheduled run, Arc:
+
+1. Computes the time window `[last_processed_time, now)` — the slice since the
+   previous successful run (on the very first run it defaults to the last hour).
+2. Substitutes that range into your query's `{start_time}` / `{end_time}`
+   placeholders and runs the aggregation **fresh over the full set of source rows
+   in that window** (read from Parquet).
+3. **Appends** the results to the destination measurement.
+4. Advances `last_processed_time` to the window's end.
+
+Because the watermark advances to the end of each processed window, **windows are
+tumbling and non-overlapping** — the next run starts where the previous one
+ended; earlier windows are not revisited.
+
+:::caution Important semantics
+- **Late / out-of-order data is not reprocessed.** A window is computed once and
+  the watermark then moves past it. Rows that arrive *after* their window has
+  already been processed (late events, corrections, backfills) are **not folded
+  back** into that window's aggregate. There is no lookback/grace window today.
+- **Window boundaries are processing-time based** (`now` at run time), not
+  event-time. A window's correctness assumes its data has been ingested by the
+  time the interval fires.
+- **Output is append-only.** There is no upsert/dedupe on the destination, so a
+  retry, an overlapping manual re-run, or a crash between the write and the
+  watermark update can produce duplicate aggregate rows; dedupe downstream if you
+  rely on exactly-once.
+
+This model fits **periodic roll-ups and downsampling of in-order, timely data**
+(for example building 1m/5m bars from a clean feed). If your workload involves
+late corrections, out-of-order events, or strict exactly-once aggregation, design
+around these semantics (e.g. reprocess on a delay, or do the final roll-up as a
+query-time aggregation).
+:::
+
 ## API Endpoints
 
 ### Create Continuous Query
