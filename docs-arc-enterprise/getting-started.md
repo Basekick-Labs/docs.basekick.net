@@ -52,7 +52,7 @@ docker run -d \
   <TabItem value="kubernetes" label="Kubernetes">
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
 kubectl port-forward svc/arc 8000:8000
 ```
 
@@ -60,8 +60,8 @@ kubectl port-forward svc/arc 8000:8000
   <TabItem value="debian" label="Debian/Ubuntu">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/latest/download/arc_amd64.deb
-sudo dpkg -i arc_amd64.deb
+wget https://github.com/basekick-labs/arc/releases/latest/download/arc_26.06.1_amd64.deb
+sudo dpkg -i arc_26.06.1_amd64.deb
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 
@@ -69,8 +69,8 @@ sudo systemctl enable arc && sudo systemctl start arc
   <TabItem value="rhel" label="RHEL/Fedora">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/latest/download/arc-1.x86_64.rpm
-sudo rpm -i arc-1.x86_64.rpm
+wget https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1-1.x86_64.rpm
+sudo rpm -i arc-26.06.1-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 

@@ -20,7 +20,7 @@ Deploy Arc on Kubernetes using Helm for production-grade analytical data managem
 
 ```bash
 # Install Arc
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
 
 # Port forward to access locally
 kubectl port-forward svc/arc 8000:8000
@@ -63,7 +63,7 @@ In a multi-pod Arc Enterprise cluster, **only one pod prints the banner** — th
   <TabItem value="quick" label="Quick Install" default>
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
 ```
 
   </TabItem>
@@ -71,8 +71,8 @@ helm install arc https://github.com/basekick-labs/arc/releases/latest/download/a
 
 ```bash
 # Download chart
-helm pull https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
-tar -xzf arc-25.12.1.tgz
+helm pull https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
+tar -xzf arc-26.06.1.tgz
 
 # Edit values
 vim arc/values.yaml
@@ -90,7 +90,7 @@ kubectl create namespace arc
 
 # Install in namespace
 helm install arc \
-  https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz \
+  https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz \
   --namespace arc
 ```
 
@@ -392,7 +392,7 @@ replicaCount: 1
 # Container image
 image:
   repository: ghcr.io/basekick-labs/arc
-  tag: "25.12.1"
+  tag: "26.06.1"
   pullPolicy: IfNotPresent
 
 # Service configuration
@@ -566,7 +566,7 @@ kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.n
 
 ```bash
 # Upgrade to new version
-helm upgrade arc https://github.com/basekick-labs/arc/releases/latest/download/arc-25.12.1.tgz
+helm upgrade arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
 
 # With custom values
 helm upgrade arc ./arc -f values-prod.yaml
