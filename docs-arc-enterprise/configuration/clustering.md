@@ -264,7 +264,7 @@ When a writer crashes:
 
 ### Pattern 1 — Local storage with peer replication
 
-When each node has its own local storage, Arc Enterprise runs in **single-writer + multi-reader** mode: one writer takes all ingest, the readers replicate the WAL in real time, and on writer failure one of the readers is promoted via Arc's in-cluster failover controller. (Pattern 1 multi-writer — per-shard writer ownership — is a future initiative; the current shipping version uses single-writer + standby readers as the HA model.)
+When each node has its own local storage, Arc Enterprise runs in **single-writer + multi-reader** mode: one writer takes all ingest, the readers replicate the WAL in real time, and on writer failure one of the readers is promoted via Arc's in-cluster failover controller.
 
 **Key characteristics:**
 
