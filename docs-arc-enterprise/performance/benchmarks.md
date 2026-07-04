@@ -110,13 +110,14 @@ Industry-standard analytical query benchmark on the hits dataset.
 
 ### Comparison with Other Databases
 
-| Database | Warm Run | Relative Speed |
-|----------|----------|----------------|
-| **Arc** | 35.70s | 1.00x (baseline) |
-| QuestDB | 64.26s | 1.80x slower |
-| TimescaleDB | 335.22s | 9.39x slower |
+ClickBench combined score on c6a.4xlarge (lower is better; relative to the fastest system on the board):
 
-Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in analytical workloads.
+| Database | Combined Score | Cold Run | Load Time | On-disk Size |
+|----------|----------------|----------|-----------|--------------|
+| **Arc** | ×2.38 | ×1.25 | 58s | 13.8 GiB (Parquet) |
+| QuestDB | ×5.12 | ×5.33 | 5,434s | 67.9 GiB |
+
+On the same c6a.4xlarge machine, Arc leads QuestDB by **~2.2x on combined score** and **~4.3x on cold runs**, loads the 100M-row dataset **93x faster** (58s vs over 90 minutes), and stores it in **4.9x less space** (13.8 GiB of Parquet vs 67.9 GiB). Arc stores natively in Apache Parquet you can query in place; QuestDB stores in its own column format and can produce Parquet only through an explicit export. Full results are verifiable at [benchmark.clickhouse.com](https://benchmark.clickhouse.com).
 
 ### Detailed Query Performance
 

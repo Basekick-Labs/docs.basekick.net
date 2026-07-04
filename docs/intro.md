@@ -181,7 +181,7 @@ Arc separates compute and storage, allowing you to scale them independently. Dat
 - **Warm run**: 35.70s across 43 queries
 - **Dataset**: 100M rows, 14GB Parquet
 
-Arc is **1.80x faster than QuestDB** and **9.39x faster than TimescaleDB** in analytical workloads.
+On ClickBench (c6a.4xlarge), Arc leads QuestDB by **~2.2x on combined score** and **4.3x on cold runs**, and stores the same dataset in **4.9x less space** (13.8 GiB of Parquet vs 67.9 GiB). Arc is also **9.39x faster than TimescaleDB** in analytical workloads.
 
 ## Arc Enterprise
 
