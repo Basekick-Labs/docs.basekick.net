@@ -1,0 +1,8 @@
+{
+  "label": "Migration",
+  "position": 6.5,
+  "link": {
+    "type": "generated-index",
+    "description": "Move to Arc from other databases. Step-by-step migration guides with tested commands."
+  }
+}
