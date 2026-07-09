@@ -70,11 +70,14 @@ curl -X POST "http://localhost:8000/api/v1/import/lp?precision=s" \
 
 ## InfluxDB Migration
 
-Export from InfluxDB and import directly into Arc:
+Export from InfluxDB and import directly into Arc. For InfluxDB 1.x, use `influx_inspect export` (the `influx` CLI does not support Line Protocol output):
 
 ```bash
-# Export from InfluxDB 1.x
-influx -execute "SELECT * FROM cpu" -database mydb -format lp > export.lp
+# Export from InfluxDB 1.x (reads TSM and WAL directly)
+influx_inspect export \
+  -datadir /var/lib/influxdb/data \
+  -waldir /var/lib/influxdb/wal \
+  -database mydb -lponly -out export.lp
 
 # Import to Arc
 curl -X POST "http://localhost:8000/api/v1/import/lp" \
@@ -82,6 +85,13 @@ curl -X POST "http://localhost:8000/api/v1/import/lp" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -F "file=@export.lp"
 ```
+
+:::note Multi-field measurements
+`influx_inspect export` writes one Line Protocol line per field, so a multi-field
+point becomes several rows in Arc, each with one field populated. For multi-field
+measurements, use [tsm2arc](https://github.com/Basekick-Labs/tsm2arc), which rejoins
+fields into a single point. See the full [InfluxDB migration guide](/arc/migration/influxdb).
+:::
 
 ## How It Works
 
