@@ -21,7 +21,7 @@ The SDK provides clients for managing Arc's data lifecycle features:
 
 **Important:** In Arc OSS, retention policies and continuous queries do **not** run automatically. You must execute them manually or set up an external scheduler (cron, Airflow, etc.).
 
-Automatic scheduling is planned for **Arc Cloud** and **Arc Enterprise** (2026).
+Automatic scheduling is planned for **Arc Enterprise** (2026).
 
 See [Scheduling with External Tools](#scheduling-with-external-tools) for how to automate execution.
 

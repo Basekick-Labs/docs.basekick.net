@@ -14,16 +14,6 @@ const config: Config = {
     [
       '@docusaurus/plugin-content-docs',
       {
-        id: 'arc-cloud',
-        path: 'docs-arc-cloud',
-        routeBasePath: 'arc-cloud',
-        sidebarPath: './sidebarsArcCloud.ts',
-        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
-      },
-    ],
-    [
-      '@docusaurus/plugin-content-docs',
-      {
         id: 'liftbridge',
         path: 'docs-liftbridge',
         routeBasePath: 'liftbridge',
@@ -48,6 +38,16 @@ const config: Config = {
         path: 'docs-memtrace',
         routeBasePath: 'memtrace',
         sidebarPath: './sidebarsMemtrace.ts',
+        editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
+      },
+    ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'launchpad',
+        path: 'docs-launchpad',
+        routeBasePath: 'launchpad',
+        sidebarPath: './sidebarsLaunchpad.ts',
         editUrl: 'https://github.com/Basekick-Labs/docs.basekick.net/tree/main/',
       },
     ],
@@ -115,13 +115,6 @@ const config: Config = {
         {
           type: 'doc',
           docId: 'overview',
-          docsPluginId: 'arc-cloud',
-          position: 'left',
-          label: 'Arc Cloud',
-        },
-        {
-          type: 'doc',
-          docId: 'overview',
           docsPluginId: 'arc-enterprise',
           position: 'left',
           label: 'Arc Enterprise',
@@ -139,6 +132,13 @@ const config: Config = {
           docsPluginId: 'liftbridge',
           position: 'left',
           label: 'Liftbridge',
+        },
+        {
+          type: 'doc',
+          docId: 'overview',
+          docsPluginId: 'launchpad',
+          position: 'left',
+          label: 'Launchpad',
         },
         {
           href: 'https://basekick.net',
@@ -163,10 +163,6 @@ const config: Config = {
               to: '/arc',
             },
             {
-              label: 'Arc Cloud',
-              to: '/arc-cloud',
-            },
-            {
               label: 'Arc Enterprise',
               to: '/arc-enterprise',
             },
@@ -177,6 +173,10 @@ const config: Config = {
             {
               label: 'Liftbridge',
               to: '/liftbridge',
+            },
+            {
+              label: 'Launchpad',
+              to: '/launchpad',
             },
           ],
         },
