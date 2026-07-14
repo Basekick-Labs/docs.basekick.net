@@ -38,6 +38,7 @@ enable_wal = false
 [storage]
 backend = "local"           # local, s3, minio, azure, azblob
 local_path = "./data/arc"
+file_format = "parquet"     # parquet (default) or vortex — see "Storage File Format"
 
 # Ingestion
 [ingest]
