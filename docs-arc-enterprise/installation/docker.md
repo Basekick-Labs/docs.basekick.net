@@ -376,6 +376,6 @@ docker logs arc | head -100
 
 ## Next Steps
 
-- [Write your first data](/arc-enterprise/getting-started#write-your-first-data)
+- [Write your first data](/arc-enterprise/getting-started#write-data)
 - [Configure storage backends](/arc-enterprise/configuration/overview)
 - [Deploy on Kubernetes](/arc-enterprise/installation/kubernetes)

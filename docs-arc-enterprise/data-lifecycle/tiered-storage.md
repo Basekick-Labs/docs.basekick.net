@@ -293,5 +293,5 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Next Steps
 
-- [Audit Logging](/arc-enterprise/audit-logging) — Track tiering operations for compliance
-- [Automated Scheduling](/arc-enterprise/automated-scheduling) — Combine tiering with scheduled retention policies
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track tiering operations for compliance
+- [Automated Scheduling](/arc-enterprise/operations/automated-scheduling) — Combine tiering with scheduled retention policies

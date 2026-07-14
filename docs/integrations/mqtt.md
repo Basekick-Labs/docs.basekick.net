@@ -201,7 +201,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override: maps an exact MQTT topic to a database name, overriding `database` for messages on that topic. See [Topic Mapping](#topic-mapping). |
+| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override: maps an exact MQTT topic to a database name, overriding `database` for messages on that topic. See [Topic Mapping](#topic-mapping-per-topic-database-override). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
 | `reconnect_min_seconds` | int | No | 1 | Minimum reconnect delay |

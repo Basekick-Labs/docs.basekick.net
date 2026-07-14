@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 Scale Arc horizontally with multi-node clusters. Separate write, read, and compaction workloads across dedicated nodes with automatic failover.
 
 :::tip Choose a deployment pattern first
-Arc Enterprise supports two cluster topologies: **shared object storage** and **local storage with peer replication**. See [Deployment Patterns](/arc-enterprise/deployment-patterns) to choose the right one for your environment before configuring a cluster.
+Arc Enterprise supports two cluster topologies: **shared object storage** and **local storage with peer replication**. See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns) to choose the right one for your environment before configuring a cluster.
 :::
 
 ## Overview
@@ -237,7 +237,7 @@ services:
 
 ## High Availability
 
-Arc Enterprise's HA model depends on which [deployment pattern](/arc-enterprise/deployment-patterns) you chose. Both deliver "writer crash recovered without operator intervention," but the mechanics are very different.
+Arc Enterprise's HA model depends on which [deployment pattern](/arc-enterprise/configuration/deployment-patterns) you chose. Both deliver "writer crash recovered without operator intervention," but the mechanics are very different.
 
 ### Pattern 2 — Shared object storage (multi-writer)
 
@@ -288,7 +288,7 @@ When the writer fails:
 - **Cloud-native deployments** (EKS/GKE/AKS, anywhere managed S3 is available) → **Pattern 2 multi-writer**. Simpler operationally, scales writes horizontally, the LB does failover.
 - **Bare metal, on-prem, edge** without easy access to S3-compatible storage → **Pattern 1 with writer failover**. Single-writer ceiling on throughput; HA via promotion.
 
-See [Deployment Patterns](/arc-enterprise/deployment-patterns) for the full trade-off comparison.
+See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns) for the full trade-off comparison.
 :::
 
 ## API Reference
@@ -397,7 +397,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Best Practices
 
-1. **Pick a deployment pattern** — Use [shared object storage](/arc-enterprise/deployment-patterns) (S3, MinIO, Azure) for cloud-native deployments, or [local storage with peer replication](/arc-enterprise/deployment-patterns) for bare metal, VMs, and edge. Don't mix the two in the same cluster.
+1. **Pick a deployment pattern** — Use [shared object storage](/arc-enterprise/configuration/deployment-patterns) (S3, MinIO, Azure) for cloud-native deployments, or [local storage with peer replication](/arc-enterprise/configuration/deployment-patterns) for bare metal, VMs, and edge. Don't mix the two in the same cluster.
 
 2. **Size for HA based on pattern**:
    - **Pattern 2 (shared storage)**: 3 writers behind a load balancer — tolerates 1 failure on both the ingestion path (LB routes around it) and the Raft singleton-task path (quorum still elects a leader). Single writer is fine for dev; 2 writers is not recommended (Raft quorum gap).
@@ -415,6 +415,6 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Next Steps
 
-- [RBAC](/arc-enterprise/rbac) — Secure your cluster with role-based access control
-- [Tiered Storage](/arc-enterprise/tiered-storage) — Optimize storage costs with hot/cold tiering
-- [Audit Logging](/arc-enterprise/audit-logging) — Track all operations for compliance
+- [RBAC](/arc-enterprise/security/rbac) — Secure your cluster with role-based access control
+- [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) — Optimize storage costs with hot/cold tiering
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track all operations for compliance

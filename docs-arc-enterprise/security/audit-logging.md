@@ -187,5 +187,5 @@ Monitor `auth.failed` events to detect brute-force attempts. Use the stats API t
 
 ## Next Steps
 
-- [RBAC](/arc-enterprise/rbac) — Control who can access your data
-- [Query Governance](/arc-enterprise/query-governance) — Add rate limits and quotas
+- [RBAC](/arc-enterprise/security/rbac) — Control who can access your data
+- [Query Governance](/arc-enterprise/query/query-governance) — Add rate limits and quotas

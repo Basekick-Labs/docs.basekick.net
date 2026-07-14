@@ -7,7 +7,7 @@ sidebar_position: 1
 Retention policies allow you to automatically manage data lifecycle by defining how long data should be kept.
 
 :::info Automatic Scheduling Available
-Arc Enterprise includes automatic retention enforcement. See [Automated Scheduling](/arc-enterprise/automated-scheduling) to configure scheduled execution.
+Arc Enterprise includes automatic retention enforcement. See [Automated Scheduling](/arc-enterprise/operations/automated-scheduling) to configure scheduled execution.
 :::
 
 ## Overview

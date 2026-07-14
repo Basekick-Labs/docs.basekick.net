@@ -399,7 +399,7 @@ force_bootstrap = false     # Add a recovery token without removing existing one
 :::info Available since v26.04.1
 **`bootstrap_token`** — Set a known admin token at deploy time via `ARC_AUTH_BOOTSTRAP_TOKEN` instead of catching a randomly generated one from startup logs. On first run, Arc uses this value as the initial admin token. On subsequent restarts, it is a no-op.
 
-**`force_bootstrap`** — Recovery path when the admin token is lost. Set `ARC_AUTH_FORCE_BOOTSTRAP=true` alongside `ARC_AUTH_BOOTSTRAP_TOKEN` to add a new `arc-recovery` admin token **without removing existing tokens**. Remove this flag after recovery. See the [Authentication configuration guide](/docs/configuration/authentication#bootstrap--recovery) for full details.
+**`force_bootstrap`** — Recovery path when the admin token is lost. Set `ARC_AUTH_FORCE_BOOTSTRAP=true` alongside `ARC_AUTH_BOOTSTRAP_TOKEN` to add a new `arc-recovery` admin token **without removing existing tokens**. Remove this flag after recovery. See the [Authentication configuration guide](/arc/configuration/authentication#bootstrap--recovery) for full details.
 :::
 
 ### Delete Operations
@@ -728,7 +728,7 @@ The following configuration sections are available with an Arc Enterprise licens
 
 ### Clustering
 
-See [Clustering & High Availability](/arc-enterprise/clustering) for full configuration reference.
+See [Clustering & High Availability](/arc-enterprise/configuration/clustering) for full configuration reference.
 
 ```toml
 [cluster]
@@ -741,7 +741,7 @@ seeds = ["10.0.1.10:9000"]
 
 ### Tiered Storage
 
-See [Tiered Storage](/arc-enterprise/tiered-storage) for full configuration reference.
+See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) for full configuration reference.
 
 ```toml
 [tiered_storage]
@@ -756,7 +756,7 @@ s3_bucket = "arc-archive"
 
 ### Audit Logging
 
-See [Audit Logging](/arc-enterprise/audit-logging) for full configuration reference.
+See [Audit Logging](/arc-enterprise/security/audit-logging) for full configuration reference.
 
 ```toml
 [audit_log]
@@ -766,7 +766,7 @@ retention_days = 90
 
 ### Query Governance
 
-See [Query Governance](/arc-enterprise/query-governance) for full configuration reference.
+See [Query Governance](/arc-enterprise/query/query-governance) for full configuration reference.
 
 ```toml
 [governance]
@@ -776,7 +776,7 @@ default_rate_limit_per_min = 60
 
 ### Query Management
 
-See [Query Management](/arc-enterprise/query-management) for full configuration reference.
+See [Query Management](/arc-enterprise/query/query-management) for full configuration reference.
 
 ```toml
 [query_management]
@@ -785,7 +785,7 @@ enabled = true
 
 ## Next Steps
 
-- **[Clustering & High Availability](/arc-enterprise/clustering)** - Multi-node cluster configuration
-- **[Tiered Storage](/arc-enterprise/tiered-storage)** - Hot/cold storage tiering
-- **[Audit Logging](/arc-enterprise/audit-logging)** - Compliance and security logging
+- **[Clustering & High Availability](/arc-enterprise/configuration/clustering)** - Multi-node cluster configuration
+- **[Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage)** - Hot/cold storage tiering
+- **[Audit Logging](/arc-enterprise/security/audit-logging)** - Compliance and security logging
 - **[Advanced Features](/arc-enterprise/advanced/compaction)** - Compaction and WAL

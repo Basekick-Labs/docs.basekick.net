@@ -145,5 +145,5 @@ Response:
 ## Next Steps
 
 - Read the [Configuration](./configuration.md) reference
-- Explore the [API Reference](/api-reference/overview)
-- Try the [Quick Start](/getting-started/quickstart) guide
+- Explore the [API Reference](/memtrace/api-reference/overview)
+- Try the [Quick Start](/memtrace/getting-started) guide

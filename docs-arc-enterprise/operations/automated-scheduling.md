@@ -178,7 +178,7 @@ With enterprise scheduling enabled, these queries and policies run automatically
 
 3. **Test CQ queries manually first** — Before enabling automatic execution, run your continuous query SQL manually to verify correct results.
 
-4. **Combine with tiered storage** — Use [tiered storage](/arc-enterprise/tiered-storage) to move data to cold storage before retention deletes it, keeping long-term archives at low cost.
+4. **Combine with tiered storage** — Use [tiered storage](/arc-enterprise/data-lifecycle/tiered-storage) to move data to cold storage before retention deletes it, keeping long-term archives at low cost.
 
 5. **Monitor CQ execution** — Check Arc logs for CQ execution results and errors. Failed CQ executions are logged at WARN level.
 
@@ -186,4 +186,4 @@ With enterprise scheduling enabled, these queries and policies run automatically
 
 - [Continuous Queries](/arc/data-lifecycle/continuous-queries) — Create and manage continuous queries (OSS docs)
 - [Retention Policies](/arc/data-lifecycle/retention-policies) — Create and manage retention policies (OSS docs)
-- [Tiered Storage](/arc-enterprise/tiered-storage) — Combine scheduling with tiered storage for optimal cost management
+- [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) — Combine scheduling with tiered storage for optimal cost management

@@ -1011,7 +1011,7 @@ The following endpoints are available with an Arc Enterprise license.
 | `GET` | `/api/v1/cluster/local` | Local node info |
 | `GET` | `/api/v1/cluster/health` | Health check |
 
-See [Clustering & High Availability](/arc-enterprise/clustering) for detailed API documentation.
+See [Clustering & High Availability](/arc-enterprise/configuration/clustering) for detailed API documentation.
 
 ### RBAC
 
@@ -1022,7 +1022,7 @@ See [Clustering & High Availability](/arc-enterprise/clustering) for detailed AP
 | `POST/GET/PATCH/DELETE` | `/api/v1/rbac/teams/:team_id/roles` | Role management |
 | `POST/GET/DELETE` | `/api/v1/rbac/roles/:role_id/measurements` | Measurement permissions |
 
-See [RBAC](/arc-enterprise/rbac) for detailed API documentation.
+See [RBAC](/arc-enterprise/security/rbac) for detailed API documentation.
 
 ### Tiered Storage
 
@@ -1034,7 +1034,7 @@ See [RBAC](/arc-enterprise/rbac) for detailed API documentation.
 | `GET` | `/api/v1/tiering/stats` | Migration statistics |
 | `POST/GET/PUT/DELETE` | `/api/v1/tiering/policies` | Per-database policies |
 
-See [Tiered Storage](/arc-enterprise/tiered-storage) for detailed API documentation.
+See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) for detailed API documentation.
 
 ### Audit Logging
 
@@ -1043,7 +1043,7 @@ See [Tiered Storage](/arc-enterprise/tiered-storage) for detailed API documentat
 | `GET` | `/api/v1/audit/logs` | Query audit logs |
 | `GET` | `/api/v1/audit/stats` | Audit statistics |
 
-See [Audit Logging](/arc-enterprise/audit-logging) for detailed API documentation.
+See [Audit Logging](/arc-enterprise/security/audit-logging) for detailed API documentation.
 
 ### Query Governance
 
@@ -1052,7 +1052,7 @@ See [Audit Logging](/arc-enterprise/audit-logging) for detailed API documentatio
 | `POST/GET/PUT/DELETE` | `/api/v1/governance/policies` | Policy management |
 | `GET` | `/api/v1/governance/usage/:token_id` | Usage monitoring |
 
-See [Query Governance](/arc-enterprise/query-governance) for detailed API documentation.
+See [Query Governance](/arc-enterprise/query/query-governance) for detailed API documentation.
 
 ### Query Management
 
@@ -1063,7 +1063,7 @@ See [Query Governance](/arc-enterprise/query-governance) for detailed API docume
 | `GET` | `/api/v1/queries/:id` | Query details |
 | `DELETE` | `/api/v1/queries/:id` | Cancel query |
 
-See [Query Management](/arc-enterprise/query-management) for detailed API documentation.
+See [Query Management](/arc-enterprise/query/query-management) for detailed API documentation.
 
 ## Next Steps
 

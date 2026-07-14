@@ -57,7 +57,7 @@ Start here:
 4. **Do you expect to scale readers elastically based on demand?** → Pattern A (shared).
 5. **Do you need a single-digit-ms query path?** → Pattern B (local).
 
-You can also mix — a cluster can use shared object storage for cold data (tiered storage to S3 Glacier) while keeping hot data on local disks. See [Tiered Storage](/arc-enterprise/tiered-storage).
+You can also mix — a cluster can use shared object storage for cold data (tiered storage to S3 Glacier) while keeping hot data on local disks. See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage).
 
 ## Pattern A — Shared Storage Setup
 
@@ -240,7 +240,7 @@ Both patterns share the same security posture:
 - **TLS encryption** (`cluster.tls_enabled`) — optional but recommended. Encrypts the inter-node coordinator protocol, Raft transport, and peer file transfers.
 - **Role-based authorization on manifest mutations** — only nodes with `CanIngest` (writers) or `CanCompact` (compactors) can forward `RegisterFile` / `DeleteFile` commands to the leader. Reader nodes are rejected.
 
-See [Cluster Security](/arc-enterprise/security) for full details.
+See [Cluster Security](/arc-enterprise/security/cluster-security) for full details.
 
 ## Common Mistakes
 
@@ -251,6 +251,6 @@ See [Cluster Security](/arc-enterprise/security) for full details.
 
 ## Next Steps
 
-- [Clustering Configuration Reference](/arc-enterprise/clustering) — full list of cluster config options
-- [Tiered Storage](/arc-enterprise/tiered-storage) — combine local hot storage with cold object storage
-- [Cluster Security](/arc-enterprise/security) — TLS and shared secret configuration
+- [Clustering Configuration Reference](/arc-enterprise/configuration/clustering) — full list of cluster config options
+- [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) — combine local hot storage with cold object storage
+- [Cluster Security](/arc-enterprise/security/cluster-security) — TLS and shared secret configuration

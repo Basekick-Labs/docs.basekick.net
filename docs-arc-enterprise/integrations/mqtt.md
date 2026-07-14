@@ -577,6 +577,6 @@ volumes:
 
 ## Next Steps
 
-- [Tiered Storage](/arc-enterprise/tiered-storage) — Manage MQTT data lifecycle with hot/cold tiering
-- [Automated Scheduling](/arc-enterprise/automated-scheduling) — Downsample MQTT data automatically
-- [Audit Logging](/arc-enterprise/audit-logging) — Track MQTT subscription changes
+- [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage) — Manage MQTT data lifecycle with hot/cold tiering
+- [Automated Scheduling](/arc-enterprise/operations/automated-scheduling) — Downsample MQTT data automatically
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track MQTT subscription changes

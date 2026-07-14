@@ -44,7 +44,7 @@ Launchpad is a SvelteKit app built with `adapter-node`. It validates the `Origin
 
 See the [adapter-node environment variables](https://svelte.dev/docs/kit/adapter-node#Environment-variables-ORIGIN) reference for details.
 
-## Private endpoints {#private-endpoints}
+## Private endpoints
 
 By default Launchpad **rejects** Arc endpoints that resolve to a private, loopback, or link-local address (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `*.internal`, cloud metadata, …). This is an SSRF safeguard: the built-in proxy forwards requests to whatever endpoint you register, so untrusted endpoints must not be able to reach internal services.
 

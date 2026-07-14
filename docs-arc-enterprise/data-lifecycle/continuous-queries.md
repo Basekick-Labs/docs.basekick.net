@@ -7,7 +7,7 @@ sidebar_position: 2
 Continuous queries enable automatic downsampling and aggregation of data into materialized views, reducing storage requirements while maintaining queryable historical data.
 
 :::info Automatic Scheduling Available
-Arc Enterprise includes automatic CQ execution. See [Automated Scheduling](/arc-enterprise/automated-scheduling) to configure scheduled execution.
+Arc Enterprise includes automatic CQ execution. See [Automated Scheduling](/arc-enterprise/operations/automated-scheduling) to configure scheduled execution.
 :::
 
 ## Overview

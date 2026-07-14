@@ -172,7 +172,7 @@ During performance incidents:
 1. List active queries to identify the cause
 2. Cancel offending queries immediately
 3. Review history to understand what changed
-4. Apply [query governance](/arc-enterprise/query-governance) policies to prevent recurrence
+4. Apply [query governance](/arc-enterprise/query/query-governance) policies to prevent recurrence
 
 ## Best Practices
 
@@ -186,5 +186,5 @@ During performance incidents:
 
 ## Next Steps
 
-- [Query Governance](/arc-enterprise/query-governance) — Automatically enforce rate limits and quotas
-- [Audit Logging](/arc-enterprise/audit-logging) — Track query patterns for compliance
+- [Query Governance](/arc-enterprise/query/query-governance) — Automatically enforce rate limits and quotas
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track query patterns for compliance

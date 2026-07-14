@@ -237,7 +237,7 @@ needs static credentials — the chart rejects `useIRSA: true` with bundled MinI
 The chart emits S3 config only (`ARC_STORAGE_BACKEND=s3`); point `endpoint` at
 any S3-compatible service. For local-disk + peer replication instead of shared
 object storage, use `storage.mode: local` (see
-[Deployment Patterns](../configuration/deployment-patterns)).
+[Deployment Patterns](/arc-enterprise/configuration/deployment-patterns)).
 
 ## Configuration Profiles
 
@@ -758,13 +758,13 @@ reader needs a full data replica (~50Gi); `cluster.replication.*` tuning applies
 only in this mode.
 
 For the full topology comparison see
-[Deployment Patterns](../configuration/deployment-patterns), and for the cluster
+[Deployment Patterns](/arc-enterprise/configuration/deployment-patterns), and for the cluster
 shared secret and inter-node TLS see
-[Cluster Security](../security/cluster-security).
+[Cluster Security](/arc-enterprise/security/cluster-security).
 
 ## Next Steps
 
-- [Write your first data](/arc-enterprise/getting-started#write-your-first-data)
+- [Write your first data](/arc-enterprise/getting-started#write-data)
 - [Configure storage backends](/arc-enterprise/configuration/overview)
-- [Set up monitoring](/arc-enterprise/operations/monitoring)
+- [Set up monitoring](/arc-enterprise/operations/telemetry)
 - [Enable WAL for durability](/arc-enterprise/advanced/wal)

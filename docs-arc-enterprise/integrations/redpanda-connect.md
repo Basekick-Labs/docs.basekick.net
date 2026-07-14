@@ -19,7 +19,7 @@ Stream data from any of Redpanda Connect's 200+ sources directly into Arc using 
 
 ## Why This Matters
 
-Arc already has native ingestion paths for metrics ([Telegraf](/integrations/telegraf)) and IoT data ([MQTT](/integrations/mqtt)). Redpanda Connect covers a different gap: event-driven data that needs reshaping, filtering, or enrichment before it lands in Arc.
+Arc already has native ingestion paths for metrics ([Telegraf](/arc-enterprise/integrations/telegraf)) and IoT data ([MQTT](/arc-enterprise/integrations/mqtt)). Redpanda Connect covers a different gap: event-driven data that needs reshaping, filtering, or enrichment before it lands in Arc.
 
 | Tool | Best For |
 |------|----------|
@@ -486,6 +486,6 @@ The `auto` default detects the unit from magnitude, which is usually correct but
 
 ## Next Steps
 
-- Pair with [Grafana](/integrations/grafana) to visualize the data Redpanda Connect ingests
-- Use [Arc's native MQTT](/integrations/mqtt) when you don't need transformations
-- Use [Telegraf](/integrations/telegraf) for system/infrastructure metrics
+- Pair with [Grafana](/arc-enterprise/integrations/grafana) to visualize the data Redpanda Connect ingests
+- Use [Arc's native MQTT](/arc-enterprise/integrations/mqtt) when you don't need transformations
+- Use [Telegraf](/arc-enterprise/integrations/telegraf) for system/infrastructure metrics

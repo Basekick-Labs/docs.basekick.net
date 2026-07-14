@@ -339,11 +339,11 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
 
 3. **Use wildcard patterns carefully** — Database pattern `*` grants access to all databases. Use specific patterns when possible.
 
-4. **Pair with audit logging** — Enable [audit logging](/arc-enterprise/audit-logging) to track RBAC changes and access patterns.
+4. **Pair with audit logging** — Enable [audit logging](/arc-enterprise/security/audit-logging) to track RBAC changes and access patterns.
 
 5. **Plan your hierarchy** — Design your organization and team structure before implementation. A typical pattern is one organization per company, teams per department or function.
 
 ## Next Steps
 
-- [Audit Logging](/arc-enterprise/audit-logging) — Track all access and changes for compliance
-- [Query Governance](/arc-enterprise/query-governance) — Add rate limits and quotas per token
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track all access and changes for compliance
+- [Query Governance](/arc-enterprise/query/query-governance) — Add rate limits and quotas per token

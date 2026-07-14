@@ -186,9 +186,9 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 4. **Monitor usage patterns** — Use the usage API to identify tokens approaching their limits before they start getting throttled.
 
-5. **Pair with query management** — Use [query management](/arc-enterprise/query-management) to identify which queries consume the most resources.
+5. **Pair with query management** — Use [query management](/arc-enterprise/query/query-management) to identify which queries consume the most resources.
 
 ## Next Steps
 
-- [Query Management](/arc-enterprise/query-management) — Monitor and cancel running queries
-- [Audit Logging](/arc-enterprise/audit-logging) — Track all governance enforcement events
+- [Query Management](/arc-enterprise/query/query-management) — Monitor and cancel running queries
+- [Audit Logging](/arc-enterprise/security/audit-logging) — Track all governance enforcement events

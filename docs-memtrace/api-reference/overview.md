@@ -12,7 +12,7 @@ The Memtrace REST API provides a simple HTTP interface for storing and querying 
 http://localhost:9100
 ```
 
-Change the host and port via configuration. See [Configuration](/installation/configuration).
+Change the host and port via configuration. See [Configuration](/memtrace/installation/configuration).
 
 ## Authentication
 
@@ -216,7 +216,7 @@ const data = await response.json();
 
 ## Next Steps
 
-- [Memories API](/api-reference/memories) - Store and retrieve memories
-- [Search API](/api-reference/search) - Search with filters
-- [Sessions API](/api-reference/sessions) - Session context
-- [Agents API](/api-reference/agents) - Agent management
+- [Memories API](/memtrace/api-reference/memories) - Store and retrieve memories
+- [Search API](/memtrace/api-reference/search) - Search with filters
+- [Sessions API](/memtrace/api-reference/sessions) - Session context
+- [Agents API](/memtrace/api-reference/agents) - Agent management
