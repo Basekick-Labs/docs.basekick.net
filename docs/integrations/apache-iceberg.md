@@ -32,6 +32,8 @@ Arc's Iceberg export is a background **reconciler** that registers Arc's **exist
 
 Because the reconciler is driven by what's actually on storage (not a transient event stream), it is **self-healing**: a missed or failed pass simply converges on the next tick. Measurements whose file set hasn't changed since the last pass are skipped entirely, so steady state is cheap.
 
+This holds all the way to zero: if retention ages out *every* file in a measurement, the table is reconciled to empty rather than left pointing at files that no longer exist — so external engines see an empty table instead of failing on missing paths.
+
 Tables are created per database/measurement in the namespace `<namespace_prefix>_<database>` (default prefix `arc`), e.g. `arc_mydb.sensors`.
 
 ## Quick start
@@ -120,12 +122,31 @@ Arc's columns map to Iceberg types as follows:
 |---|---|
 | `time` (Timestamp µs, UTC) | `timestamptz` |
 | int64 | `long` |
+| int32 | `int` |
 | float64 | `double` |
+| float32 | `float` |
 | string | `string` |
 | bool | `boolean` |
 | decimal128 | `decimal(P,S)` |
 
-Tables are partitioned by `day(time)`. If a measurement gains columns over time, the Iceberg table's schema is evolved automatically and older files (without the new column) remain readable.
+Arc's own ingest writes int64, float64, string, bool, and timestamps; the 32-bit and decimal types are there for Parquet that arrives through the bulk import API.
+
+Tables are partitioned by `day(time)`.
+
+### Schema changes
+
+**Adding columns is automatic.** If a measurement gains a column over time, the Iceberg table's schema is evolved to include it, and older files (written before the column existed) stay readable — the new column simply reads as `NULL` for those rows.
+
+**Changing a column's type is not supported.** If a column's type changes (say `value` was written as an integer and later arrives as a float), Iceberg cannot represent both in one column. Arc refuses to reconcile that measurement and logs an error naming the column and both types:
+
+```
+column "value" type mismatch: Iceberg table has long, new Parquet files have double
+(the measurement's column type changed; Iceberg cannot represent both in one column)
+```
+
+The Iceberg table is left untouched and stays readable at its last good state, and your other measurements keep exporting normally — one bad measurement never blocks the rest. Arc retries on every reconcile pass, so once the underlying type conflict is resolved the measurement recovers on its own without a restart.
+
+The conflict lives in the data, not in Iceberg, so fix it at the source: keep a measurement's column type stable, or write the new type under a different column or measurement name.
 
 ## Limitations (v1)
 
