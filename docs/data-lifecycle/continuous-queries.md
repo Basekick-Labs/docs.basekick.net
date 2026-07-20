@@ -53,7 +53,9 @@ On each scheduled run, Arc:
 2. Substitutes that range into your query's `{start_time}` / `{end_time}`
    placeholders and runs the aggregation **fresh over the full set of source rows
    in that window** (read from Parquet).
-3. **Appends** the results to the destination measurement.
+3. Writes the results to the destination measurement, stamped with the window
+   start time and tagged so duplicate windows can be deduped (see
+   [Idempotency and `tag_columns`](#idempotency-and-tag_columns)).
 4. Advances `last_processed_time` to the window's end.
 
 Because the watermark advances to the end of each processed window, **windows are
@@ -68,16 +70,20 @@ ended; earlier windows are not revisited.
 - **Window boundaries are processing-time based** (`now` at run time), not
   event-time. A window's correctness assumes its data has been ingested by the
   time the interval fires.
-- **Output is append-only.** There is no upsert/dedupe on the destination, so a
-  retry, an overlapping manual re-run, or a crash between the write and the
-  watermark update can produce duplicate aggregate rows; dedupe downstream if you
-  rely on exactly-once.
+- **Output is idempotent at compaction, not atomically exactly-once.** A retry,
+  an overlapping manual re-run, or a crash between the write and the watermark
+  update re-emits a window's rows, so duplicates can appear transiently. They are
+  collapsed to one row per `(dimensions, time)` the next time the destination
+  partition compacts — provided you declared the grouping dimensions in
+  [`tag_columns`](#idempotency-and-tag_columns) (a query with no grouping is
+  deduped automatically). Until compaction runs, a query over the destination may
+  see the duplicate rows.
 
 This model fits **periodic roll-ups and downsampling of in-order, timely data**
 (for example building 1m/5m bars from a clean feed). If your workload involves
-late corrections, out-of-order events, or strict exactly-once aggregation, design
-around these semantics (e.g. reprocess on a delay, or do the final roll-up as a
-query-time aggregation).
+late corrections, out-of-order events, or strict synchronous exactly-once
+aggregation, design around these semantics (e.g. reprocess on a delay, or do the
+final roll-up as a query-time aggregation).
 :::
 
 ## API Endpoints
@@ -99,6 +105,7 @@ POST /api/v1/continuous_queries
   "destination_measurement": "cpu_hourly",
   "query": "SELECT time_bucket('1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM telegraf.cpu GROUP BY time_bucket('1 hour', time), host",
   "interval": "1h",
+  "tag_columns": ["host"],
   "retention_policy": "90d",
   "is_active": true
 }
@@ -111,8 +118,25 @@ POST /api/v1/continuous_queries
 - `destination_measurement` (string, required): Where to store results
 - `query` (string, required): DuckDB SQL aggregation query
 - `interval` (string, required): Time bucket interval (`1m`, `5m`, `1h`, `1d`, etc.)
+- `tag_columns` (array of strings, optional): The **grouping dimension** columns in the query's output (e.g. `["host"]` for `GROUP BY host`). See [Idempotency and `tag_columns`](#idempotency-and-tag_columns) below — set this for any `GROUP BY` query so re-runs don't produce duplicate rows.
 - `retention_policy` (string, optional): Retention for aggregated data (e.g., `90d`, `365d`)
 - `is_active` (boolean, required): Enable/disable the query
+
+#### Idempotency and `tag_columns`
+
+Continuous-query output is made idempotent by Arc's compaction step: duplicate emissions of the same window (from a retry, an overlapping manual run, or a crash between the write and the watermark advance) are collapsed to one row per `(grouping dimensions, time)` when the destination partition compacts.
+
+For this to work, Arc must know which output columns are the grouping dimensions:
+
+- **A query with `GROUP BY <dimension>`** (e.g. `GROUP BY host`) must list those dimensions in `tag_columns` (e.g. `"tag_columns": ["host"]`). Arc writes them as Parquet tag metadata and dedups on `(tags, time)`.
+- **A query with no grouping** (one row per window, e.g. `SELECT AVG(x) …`) needs no `tag_columns` — Arc detects it produces one row per timestamp and dedups on time automatically.
+- **If you group but forget to declare `tag_columns`**, Arc detects the multiple-rows-per-timestamp output and does **not** dedup it (to avoid deleting distinct series). The query still runs and its rows are correct, but duplicate windows will accumulate; a warning is logged asking you to add `tag_columns`.
+
+`tag_columns` may not include `time` (time is always part of the dedup key). Names must be plain identifiers (letters, digits, `_`, `-`). Output-row timestamps are stamped with the window's start time; a query that does not select a `time` column now gets the correct window timestamp instead of the ingestion wall-clock.
+
+:::note Upgrading existing CQs
+This is not a breaking change. Existing continuous queries keep running with no action — the CQ database is migrated automatically and `tag_columns` is optional. Add `tag_columns` to a grouped CQ when you want its duplicate windows to collapse; until you do, it behaves exactly as before (append-only). Note that a CQ which does **not** select a `time` column now stamps output with the window start rather than the ingestion wall-clock, so its destination has a one-time timestamp discontinuity at the upgrade.
+:::
 
 ### List Continuous Queries
 
@@ -132,6 +156,7 @@ GET /api/v1/continuous_queries
     "source_measurement": "cpu",
     "destination_measurement": "cpu_hourly",
     "interval": "1h",
+    "tag_columns": ["host"],
     "retention_policy": "90d",
     "is_active": true,
     "created_at": "2024-01-15T10:30:00Z",
@@ -322,6 +347,7 @@ response = requests.post(
             GROUP BY date_trunc('hour', epoch_us(time)), host
         """,
         "interval": "1h",
+        "tag_columns": ["host"],  # grouping dimension → idempotent output
         "retention_policy": "365d",
         "is_active": True
     }
@@ -375,6 +401,7 @@ response = requests.post(
             GROUP BY date_trunc('day', epoch_us(time)), endpoint, status_code
         """,
         "interval": "1d",
+        "tag_columns": ["endpoint", "status_code"],  # grouping dimensions → idempotent output
         "retention_policy": "730d",  # 2 years
         "is_active": True
     }
@@ -413,6 +440,7 @@ response = requests.post(
                 location
         """,
         "interval": "5m",
+        "tag_columns": ["sensor_id", "location"],  # grouping dimensions → idempotent output
         "retention_policy": "90d",
         "is_active": True
     }
