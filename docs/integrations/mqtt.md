@@ -479,6 +479,8 @@ Response:
 }
 ```
 
+`last_message_at` and `connected_since` are **omitted** when the subscription has not yet received a message / is not connected (rather than reporting a zero timestamp). When present they are always UTC.
+
 ### Health Check
 
 ```bash
