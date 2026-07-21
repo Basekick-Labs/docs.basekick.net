@@ -179,7 +179,6 @@ curl -X POST http://localhost:8000/api/v1/query \
   "topic_mapping": {},
   "keep_alive_seconds": 60,
   "connect_timeout_seconds": 30,
-  "reconnect_min_seconds": 1,
   "reconnect_max_seconds": 60,
   "auto_start": true
 }
@@ -204,8 +203,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override: maps an exact MQTT topic to a database name, overriding `database` for messages on that topic. See [Topic Mapping](#topic-mapping-per-topic-database-override). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
-| `reconnect_min_seconds` | int | No | 1 | Minimum reconnect delay |
-| `reconnect_max_seconds` | int | No | 60 | Maximum reconnect delay |
+| `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
 | `auto_start` | bool | No | true | Start on creation and server restart |
 
 ## Message Formats
@@ -648,11 +646,14 @@ Common issues:
 - **QoS 1**: At least once delivery (recommended for most cases)
 - **QoS 2**: Exactly once delivery (highest overhead)
 
-### 4. Set Reasonable Reconnect Intervals
+### 4. Cap the Reconnect Backoff
+
+Reconnect uses an exponential backoff that starts at 1 second (fixed by the MQTT
+client library) and doubles up to `reconnect_max_seconds`. Set the cap to bound
+how long the client waits between attempts when a broker is down for a while:
 
 ```json
 {
-  "reconnect_min_seconds": 1,
   "reconnect_max_seconds": 60
 }
 ```
