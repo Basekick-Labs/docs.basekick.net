@@ -213,6 +213,29 @@ High-performance MessagePack binary writes (recommended).
 
 **Response:** `204 No Content`
 
+**Null values:** Columns may contain nulls, including a column whose values are
+*all* null in a given batch. Arc keeps such a column and stores every value as
+NULL, so it is queryable and returns NULLs rather than failing to resolve:
+
+```python
+# 'depth' is null for this entire batch — the column is still created
+{"m": "sensors", "columns": {
+    "time":  [1697472000000, 1697472001000],
+    "value": [1.5, 2.5],
+    "depth": [None, None],
+}}
+```
+
+A later batch carrying real values for that column determines its type
+normally; the all-null batch does not pin it. Column types only need to be
+consistent within a single write, not across writes — reads union columns by
+name across files.
+
+The `time` column is the one exception: it must be a numeric epoch on every
+row. A null, string, or otherwise non-numeric `time` is **rejected** with
+`400 Bad Request` rather than stored, because a non-timestamp `time` column
+makes the affected partition un-compactable.
+
 ### GET /api/v1/write/msgpack/stats
 
 MessagePack ingestion statistics.
