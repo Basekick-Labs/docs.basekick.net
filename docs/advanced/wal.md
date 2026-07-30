@@ -41,11 +41,15 @@ Keep WAL disabled if you:
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
 | **No WAL (default)** | 9.47M rec/s | 0-5 seconds |
-| **WAL + async** | ~7.7M rec/s (-19%) | &lt;1 second |
-| **WAL + fdatasync** | ~7.5M rec/s (-21%) | Near-zero |
-| **WAL + fsync** | ~7.7M rec/s (-19%) | Zero |
+| **WAL enabled** | ~7.5-7.7M rec/s (-19 to -21%) | &lt;1 second (async) / near-zero (fdatasync, fsync) |
 
-**Tradeoff**: ~20% throughput reduction for near-zero data loss (fdatasync mode)
+**Tradeoff**: ~20% throughput reduction for near-zero data loss.
+
+The cost is in enabling the WAL at all, not in the sync mode. Syncs are batched
+on a 100 ms ticker rather than performed per write, so all three modes land
+within measurement noise of each other on throughput — earlier figures showing
+`fdatasync` as *slower* than `fsync` reflected exactly that noise. Choose the
+sync mode for the durability semantics you need, not for speed.
 
 ## Architecture
 
@@ -148,13 +152,39 @@ sync_mode = "fdatasync"
 
 **How it works:**
 - Syncs data to disk (file contents)
-- Skips metadata sync (file size, modified time)
-- 50% faster than `fsync`, nearly same durability
+- Skips the metadata-only journal flush (timestamps)
+- Marginally cheaper than `fsync` at equal durability for Arc's access pattern
 
 **Guarantees:**
 - Data is on physical disk
 - Can recover all data on crash
-- File metadata may be stale (not critical)
+
+**Platform support:** `fdatasync(2)` is used on **Linux**. macOS and Windows do
+not expose it, so Arc falls back to a full `fsync` there and logs this once at
+startup:
+
+```
+fdatasync is unavailable on this platform; using full fsync instead
+```
+
+The WAL startup log also reports `fdatasync_supported`, so the effective
+behavior is visible without guessing.
+
+**Do not expect a throughput change from this setting.** Arc does not sync per
+write — a background writer batches appends and syncs on a 100 ms ticker (or
+after `sync_bytes`), so there are at most ~10 syncs per second regardless of
+ingest rate. The sync mode determines *durability semantics*, not throughput.
+On Linux the saving over `fsync` is the inode's timestamp metadata; because the
+WAL file grows on every append, the changed file size must still be persisted,
+so the practical difference is small — larger on rotational or network-backed
+storage than on NVMe.
+
+:::note macOS durability
+On macOS, `Sync()` maps to `fsync(2)`, which does not force the drive's own
+write cache to flush (that requires `F_FULLFSYNC`). Durability guarantees are
+softer on macOS regardless of the selected sync mode — relevant for local
+development, not for Linux production deployments.
+:::
 
 **Use case**: Production deployments (recommended)
 
@@ -403,11 +433,10 @@ $ du -sh ./data/wal
 
 **Solutions:**
 
-1. **Verify sync mode:**
-   ```toml
-   [wal]
-   sync_mode = "fdatasync"  # Should be fdatasync, not fsync
-   ```
+1. **Do not expect the sync mode to be the cause.** Syncs are batched on a
+   100 ms ticker rather than performed per write, so `fsync`, `fdatasync` and
+   `async` land within noise of one another. Switching modes to chase
+   throughput will not help — look at disk I/O and WAL placement below.
 
 2. **Check disk I/O wait:**
    ```bash
