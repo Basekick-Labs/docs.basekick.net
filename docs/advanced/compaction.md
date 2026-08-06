@@ -184,6 +184,27 @@ max_concurrent_jobs = 2    # Run 2 compactions in parallel (default)
 # max_concurrent_jobs = 1    # Sequential (lower resource usage)
 ```
 
+#### Files Per Batch
+
+:::info Available in v2026.09.1+
+`max_files_per_batch` is configurable starting in Arc **v2026.09.1**. On earlier versions the batch size is fixed at 30 files and this setting has no effect.
+:::
+
+A partition with more files than this is split into several batches, each compacted as an independent job producing its own output file.
+
+```toml
+[compaction]
+max_files_per_batch = 30   # Files per compaction job (default)
+# max_files_per_batch = 5    # Smaller outputs, more jobs per partition
+# max_files_per_batch = 60   # Fewer, larger outputs
+```
+
+Valid range is **2–500**. Values outside it fall back to the default with a startup warning; `1` is rejected because compaction's adaptive retry cannot process a single-file batch.
+
+This bounds the **file count** per job, not the output size in bytes — compacted file size tracks input file size, which follows your ingest buffer settings. The main reason to lower it is transferring compacted files over a constrained or intermittent link (edge deployments), where smaller, independently-transferable files resume better after an interruption. The trade-off is more compaction jobs per partition, and in cluster mode proportionally more Raft manifest entries.
+
+The upper bound exists because DuckDB can abort when a single `read_parquet()` call spans too many files.
+
 #### Compression
 
 ```toml
