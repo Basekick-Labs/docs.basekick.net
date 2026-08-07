@@ -43,7 +43,10 @@ bundle-submarine-01-06FXVSQXJ2C0EBDFDQ9D24S1E8/
   manifest.json     signed header: bundle ID, spoke, hub, entry digest, MAC
   entries.jsonl     one JSON object per file: path, sha256, size
   data/             the Parquet files, under their original paths
+  ack.json          on a RETURNED drive only: the hub's signed receipt
 ```
+
+`ack.json` appears after the drive has been to the hub. It is not covered by the manifest's digest — it cannot be, since it is created after the manifest is signed — but it is independently signed with the same per-spoke secret, so a replaced one is refused when the spoke reads it.
 
 A directory rather than an archive, for two reasons:
 
@@ -119,7 +122,7 @@ curl -X POST https://hub.example.com/api/v1/bundle-import \
 }
 ```
 
-**Nothing is committed until the whole bundle verifies** — the MAC, `entries.jsonl`'s hash, the canonical digest, every file's size and SHA-256, and the absence of any undeclared file. A tampered drive is refused and not one byte reaches storage.
+**Nothing is committed until the whole bundle verifies** — the MAC, `entries.jsonl`'s hash, the canonical digest, every file's size and SHA-256, and the absence of any undeclared file (`ack.json` excepted on a returned drive; it carries its own signature). A tampered drive is refused and not one byte reaches storage.
 
 | Situation | Response |
 |---|---|
