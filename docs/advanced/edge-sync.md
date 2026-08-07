@@ -88,8 +88,73 @@ curl -X POST https://edge.local:8000/api/v1/spoke-sync/export/06FXVSQXJ2C0EBDFDQ
 
 Returns just that bundle's files to `pending`, so the next bundle or contact window carries them. Other drives in transit are untouched. `GET /api/v1/spoke-sync/ledger` shows each file's `exported_bundle_id`, which is how you find the ID to revert.
 
+### Importing a drive on the hub
+
+The other half. Enable it on the hub:
+
+```toml
+[edge_sync.import]
+enabled = true                        # default false
+allowed_dirs = ["/mnt/usb"]           # REQUIRED; an empty list refuses every import
+max_files = 10000                     # refuses a manifest declaring more
+```
+
+Independent of `edge_sync.enabled`. A hub that only ever takes drives exposes **no** network-writable surface — `/api/v1/sync/file` returns 404. A hub that does both enables both.
+
+```bash
+curl -X POST https://hub.example.com/api/v1/bundle-import \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -d '{"path": "/mnt/usb/bundle-submarine-01-06FXW4H1BHR3XHWK2J826G28JG"}'
+```
+
+```json
+{
+  "imported": true,
+  "bundle_id": "06FXW4H1BHR3XHWK2J826G28JG",
+  "spoke_id": "submarine-01",
+  "committed": 5,
+  "already_present": 0,
+  "bytes_written": 5475,
+  "conflicts": []
+}
+```
+
+**Nothing is committed until the whole bundle verifies** — the MAC, `entries.jsonl`'s hash, the canonical digest, every file's size and SHA-256, and the absence of any undeclared file. A tampered drive is refused and not one byte reaches storage.
+
+| Situation | Response |
+|---|---|
+| Already imported | `409`, with when it arrived and how many files |
+| Tampered, truncated, wrong hub, unknown or disabled spoke | `422`, naming what failed |
+| Path outside `allowed_dirs` | `400` |
+
+A **refused** bundle is never recorded as imported, so a corrected drive still works.
+
+Conflicts are reported in full and never overwritten, exactly as on the network path: the same path holding different content means a spoke-ID collision or corruption, and one of the two copies is wrong.
+
+### Why a duplicate drive is refused
+
+Replay protection here is a **dedup ledger**, not a timestamp window. The online endpoints bind a nonce and a five-minute freshness check, which works because a request is in flight. A bundle legitimately sits on a drive for weeks, so the hub records every import keyed `(spoke_id, bundle_id)` instead — durable state that survives a restart, as a nonce cache does not.
+
+Keyed by spoke as well as bundle, so a compromised spoke cannot burn IDs in another spoke's namespace and block its future drives.
+
+There is no cleanup job: 200 spokes shipping weekly for five years is about 52,000 rows.
+
+### Import history
+
+```bash
+curl https://hub.example.com/api/v1/bundle-import/history/submarine-01 \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+Answers "did last month's drive ever arrive?" — which, on a link with no telemetry, nothing else can.
+
+### Cluster mode
+
+Manifest registrations are **batched at 1000 operations per Raft proposal**. The network path is naturally rate-limited to one proposal per HTTP request, but an import is a tight loop: a 2,500-file bundle costs 3 proposals rather than 2,500.
+
+If a batch fails, the import aborts rather than continuing — a Raft quorum loss is not transient. The bundle is not recorded, so re-importing re-registers everything.
+
 ### Limitations
 
-- **The hub-side import is not in this release.** A bundle can be written, verified, and inspected today; importing it lands next.
 - **No acknowledgment yet**, so exported files do not reach `synced` and are not pruned. On a long-running air-gap spoke the ledger grows until that ships.
 - **Bundles are signed, not encrypted.** The manifest gives integrity and authenticity; the Parquet files themselves are readable by anyone holding the drive. Air-gap media is normally handled under physical controls, but if that does not hold for your deployment, encrypt the drive.
