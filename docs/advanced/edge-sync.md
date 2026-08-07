@@ -43,7 +43,10 @@ bundle-submarine-01-06FXVSQXJ2C0EBDFDQ9D24S1E8/
   manifest.json     signed header: bundle ID, spoke, hub, entry digest, MAC
   entries.jsonl     one JSON object per file: path, sha256, size
   data/             the Parquet files, under their original paths
+  ack.json          on a RETURNED drive only: the hub's signed receipt
 ```
+
+`ack.json` appears after the drive has been to the hub. It is not covered by the manifest's digest — it cannot be, since it is created after the manifest is signed — but it is independently signed with the same per-spoke secret, so a replaced one is refused when the spoke reads it.
 
 A directory rather than an archive, for two reasons:
 
@@ -119,7 +122,7 @@ curl -X POST https://hub.example.com/api/v1/bundle-import \
 }
 ```
 
-**Nothing is committed until the whole bundle verifies** — the MAC, `entries.jsonl`'s hash, the canonical digest, every file's size and SHA-256, and the absence of any undeclared file. A tampered drive is refused and not one byte reaches storage.
+**Nothing is committed until the whole bundle verifies** — the MAC, `entries.jsonl`'s hash, the canonical digest, every file's size and SHA-256, and the absence of any undeclared file (`ack.json` excepted on a returned drive; it carries its own signature). A tampered drive is refused and not one byte reaches storage.
 
 | Situation | Response |
 |---|---|
@@ -154,7 +157,57 @@ Manifest registrations are **batched at 1000 operations per Raft proposal**. The
 
 If a batch fails, the import aborts rather than continuing — a Raft quorum loss is not transient. The bundle is not recorded, so re-importing re-registers everything.
 
-### Limitations
+### The return leg: acknowledgments
 
-- **No acknowledgment yet**, so exported files do not reach `synced` and are not pruned. On a long-running air-gap spoke the ledger grows until that ships.
+On a successful import the hub writes a signed `ack.json` **into the bundle directory**, so the drive going back carries its own receipt and it cannot be separated from the bundle it answers.
+
+Plug the drive back into the spoke:
+
+```bash
+curl -X POST https://edge.local:8000/api/v1/spoke-sync/ack \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -d '{"path": "/mnt/usb/bundle-submarine-01-06FXWFA2NYJHJJFAJAXBDV4PKC"}'
+```
+
+```json
+{
+  "applied": true,
+  "bundle_id": "06FXWFA2NYJHJJFAJAXBDV4PKC",
+  "hub_id": "shore-station",
+  "imported_at": "2026-08-07T21:59:56Z",
+  "synced": 4,
+  "conflicts": []
+}
+```
+
+Those files move from `exported` to `synced`. **This is what makes them prunable** — without it `synced` is unreachable on an air-gapped spoke, so the ledger grows forever on the box least able to receive a site visit.
+
+A full cycle looks like this:
+
+```
+after export:   pending 0   exported 4   synced 0
+after import:   (hub holds 4 files, writes ack.json to the drive)
+after ack:      pending 0   exported 0   synced 4
+```
+
+### What the acknowledgment guarantees
+
+The ack is signed with the **same per-spoke secret** the spoke signs bundles with. The secret is symmetric, so the key that lets a spoke prove authorship lets the hub prove receipt — no new key material to distribute.
+
+The spoke **recomputes** the path digest rather than trusting the one in the file. The MAC binds the digest, so a tampered path list carrying a stale digest would otherwise validate and license marking files synced that the hub never received.
+
+Refused, with a `400`:
+
+- an ack signed by a different hub, or naming a different spoke
+- any path added to or removed from the acknowledged list
+- a changed MAC, bundle ID, or import time
+- an acknowledged path that escapes the spoke's namespace
+
+**Conflicted paths are not acknowledged.** A conflict means the hub holds *different* content at that path, so your copy was never delivered — those entries stay `exported` and are reported for you to look at.
+
+Re-applying an ack is harmless: already-synced entries are a no-op, so a drive plugged in twice changes nothing. A bundle that has not yet been to the hub returns `{"applied": false, "reason": "this bundle carries no acknowledgment yet"}` rather than an error.
+
+Like the bundle it answers, an ack carries **no freshness window** — it rides the same drive back, over the same weeks.
+
+### Limitations
 - **Bundles are signed, not encrypted.** The manifest gives integrity and authenticity; the Parquet files themselves are readable by anyone holding the drive. Air-gap media is normally handled under physical controls, but if that does not hold for your deployment, encrypt the drive.
