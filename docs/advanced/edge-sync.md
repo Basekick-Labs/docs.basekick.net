@@ -159,7 +159,9 @@ Object storage cannot append to a block object, so a dropped transfer starts ove
 
 If you run a hub on object storage over intermittent links, lower [`compaction.max_files_per_batch`](./compaction.md#files-per-batch) on the **spokes** so individual files stay small enough to cross a window.
 
-## Current limitations
+## Network-transport limitations
+
+These apply to the network path described above. The air-gap transport has its own, at the end of this page.
 
 - **Passes are manual.** A pass runs when you trigger one, via `POST /api/v1/spoke-sync/run` or a scheduler of your own (cron, a systemd timer, a link-up hook). The built-in scheduled agent is Enterprise and not in this release.
 - **Uploads are buffered, not streamed.** A transfer is bounded by `max_file_bytes` and held in memory for its duration.
