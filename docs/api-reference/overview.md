@@ -432,6 +432,26 @@ Execute SQL queries with Apache Arrow IPC response.
 
 **Response:** `application/vnd.apache.arrow.stream`
 
+**Optional stream encodings (v26.09.1+)**, opted in per request — use them for
+network-constrained clients pulling large result sets; leave them off for
+same-host consumers (they trade CPU for wire bytes):
+
+| Header | Effect |
+|---|---|
+| `x-arc-arrow-dictionary: true` | Dictionary-encode low-cardinality string columns (adaptive, first-batch analysis). Columns arrive as standard Arrow dictionary arrays — pyarrow, polars, and pandas read them transparently. |
+| `x-arc-arrow-compression: zstd` (or `lz4`) | Arrow IPC buffer compression, decompressed natively by Arrow clients. |
+
+Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row).
+
+### Response compression (v26.09.1+)
+
+`POST /api/v1/query` (JSON) and `POST /api/v1/query/msgpack` honor the
+standard `Accept-Encoding` request header — send `Accept-Encoding: zstd, gzip`
+and the response body is compressed (zstd preferred; `Content-Encoding` set
+accordingly). curl, browsers, and HTTP libraries negotiate this
+automatically. Typical savings: JSON −68%, msgpack −38% on large results.
+Clients that omit the header get identical responses to previous versions.
+
 ### POST /api/v1/query/estimate
 
 Estimate query cost before execution.
