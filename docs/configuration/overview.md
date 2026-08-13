@@ -387,7 +387,20 @@ max_buffer_age_ms = 5000
 # Decimal128 precision columns (v26.04.1+)
 # decimal_columns = ["trades:price=18,8;amount=18,8", "balances:balance=38,18"]
 # default_decimal_columns = ""
+
+# Parquet dictionary encoding at ingest (v26.09.1+). Off by default: ingest
+# files are transient — hourly/daily compaction rewrites them via DuckDB,
+# which re-encodes every column adaptively — and skipping ingest-time
+# dictionaries improves sustained write throughput ~26%. The tradeoff is a
+# temporarily larger uncompacted hot partition until the next compaction.
+# Set use_dictionary = true to dictionary-encode string columns at ingest
+# (numeric columns stay plain); add numeric_dictionary = true to restore
+# the full pre-26.09.1 encoding.
+# use_dictionary = false
+# numeric_dictionary = false
 ```
+
+Environment variables: `ARC_INGEST_USE_DICTIONARY`, `ARC_INGEST_NUMERIC_DICTIONARY` (v26.09.1+).
 
 Data flushes when **either** condition is met:
 1. Buffer reaches `max_buffer_size` records
