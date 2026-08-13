@@ -359,6 +359,12 @@ max_connections = 28      # Connection pool size
 memory_limit = "8GB"      # DuckDB memory limit
 thread_count = 14         # Query execution threads
 enable_wal = false        # DuckDB WAL (not Arc WAL)
+
+# Allow DuckDB to reorder results of queries WITHOUT an ORDER BY (SQL-standard
+# semantics); can reduce memory usage on large un-ordered scans and exports.
+# Queries with an explicit ORDER BY are unaffected. Set true to make un-ordered
+# SELECTs return rows in file/insertion order (pre-26.09.1 behavior).
+preserve_insertion_order = false
 ```
 
 ### Ingestion
