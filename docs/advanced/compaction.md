@@ -184,6 +184,35 @@ max_concurrent_jobs = 2    # Run 2 compactions in parallel (default)
 # max_concurrent_jobs = 1    # Sequential (lower resource usage)
 ```
 
+#### Memory Limit and Threads (per subprocess)
+
+:::info Available in v2026.09.1+
+`memory_limit` and `threads` are configurable starting in Arc **v2026.09.1**. On earlier versions each compaction subprocess inherits the full `database.memory_limit` and uses all CPU cores.
+:::
+
+Each compaction job runs in an isolated subprocess with its own DuckDB instance. These keys bound that instance's resources:
+
+```toml
+[compaction]
+memory_limit = ""    # Per-subprocess DuckDB memory limit; "" (default) = auto
+threads = 0          # Per-subprocess DuckDB threads; 0 (default) = auto
+# memory_limit = "2GB"   # Explicit cap
+# threads = 4            # Explicit thread count
+```
+
+Env vars: `ARC_COMPACTION_MEMORY_LIMIT`, `ARC_COMPACTION_THREADS`.
+
+**Auto behavior:**
+
+- `memory_limit` derives as `database.memory_limit / max_concurrent`, so all concurrent compaction jobs together stay within roughly one `database.memory_limit`. With `database.memory_limit = "8GB"` and the default concurrency of 2, each subprocess gets `4GB`.
+- `threads` defaults to half the CPU cores (minimum 1), so the default two concurrent jobs together use about one machine's worth of cores, leaving headroom for ingest and queries.
+
+Accepted `memory_limit` forms are absolute sizes with a unit: `"8GB"`, `"512MB"`, `"0.5GB"`. Percent and unit-less forms are rejected at startup (DuckDB's `SET memory_limit` does not support them), as are other invalid values. The effective values appear in the startup log (`subprocess_memory_limit`, `subprocess_threads`).
+
+When a job exceeds its memory limit, DuckDB spills to a `duckdb-spill/` directory inside the job's temp directory (under `compaction.temp_directory`) — size that volume for your largest partitions. Spill files are removed by normal job cleanup and by the crash sweeps on startup.
+
+Lower these when compaction competes with ingest for RAM during backfill catch-up (many partitions become candidates at once); raise them to make individual large compactions faster on dedicated compactor nodes.
+
 #### Files Per Batch
 
 :::info Available in v2026.09.1+
