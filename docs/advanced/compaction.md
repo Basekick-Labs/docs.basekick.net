@@ -444,6 +444,26 @@ docker logs arc | grep compaction
 sudo journalctl -u arc | grep compaction
 ```
 
+### Partition Skipped: No `time` Column
+
+**Symptoms:** A warning in the logs:
+
+```
+Skipping compaction: no 'time' column in any input file (data was not written by Arc ingest); leaving source files in place
+```
+
+**Cause:** Compaction requires a `time` column — it normalizes the column's type and sorts output by it. Arc's ingest path always writes one, so this only happens for Parquet files placed into the storage directory by external tools (custom loaders, bulk copies from other systems).
+
+**What happens:** The partition is left untouched and the job counts as completed, not failed. The warning repeats each cycle as long as the partition stays above the compaction file-count threshold.
+
+**Solutions:**
+
+1. **Rewrite the data through Arc ingest** so it carries a proper `time` column, or
+2. **Rewrite the files in place** with the timestamp column renamed/cast to `time` (type `TIMESTAMP WITH TIME ZONE`), or
+3. **Leave it as-is** — the data stays queryable; it just won't be compacted.
+
+Partitions where only *some* files lack `time` are not skipped: they compact normally, and rows from files without the column get `NULL` time values.
+
 ### Compaction Taking Too Long
 
 **Symptoms:** Compaction jobs running for &gt;30 minutes
