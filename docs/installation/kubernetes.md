@@ -170,9 +170,25 @@ serviceAccount:
     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
 ```
 
-Primary-S3 **query** reads via the credential chain require the Arc **26.06.2**
-binary; on 26.06.1 IRSA authenticates writes but not query reads. Set
-`image.tag: "26.06.2"` (once released) for full IRSA support.
+Full IRSA support requires Arc **26.09.1** or later. Earlier binaries have two
+separate problems:
+
+- On **26.06.1**, IRSA authenticates writes but not query reads at all.
+- On **26.06.2 and 26.06.3**, query reads work for roughly **one hour** after each
+  pod starts and then fail with `ExpiredToken` until the pod is restarted. Writes
+  and `/health` keep working, so liveness and readiness probes do not catch it.
+  ([#600](https://github.com/Basekick-Labs/arc/issues/600))
+
+Set `image.tag: "26.09.1"` (or later) for IRSA that keeps working past the first
+hour.
+
+:::note EKS Pod Identity
+This applies to **IRSA**, which injects `AWS_ROLE_ARN` and
+`AWS_WEB_IDENTITY_TOKEN_FILE` into the pod — the pair Arc's credential
+refresher detects. EKS **Pod Identity** — the newer mechanism, which uses
+`AWS_CONTAINER_CREDENTIALS_FULL_URI` instead — is not yet detected. Use IRSA
+for S3-backed query workloads.
+:::
 :::
 
 With static keys (not recommended — prefer IRSA):
