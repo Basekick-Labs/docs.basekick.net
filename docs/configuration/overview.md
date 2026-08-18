@@ -238,6 +238,16 @@ For Azure VMs/AKS, use managed identity for keyless authentication:
 ```toml
 azure_use_managed_identity = true
 ```
+
+Managed-identity (and service-principal environment) tokens are refreshed
+automatically before each expiry on **both** writes and DuckDB query reads —
+this requires **Arc 26.09.1+**; on earlier versions query reads stop working
+roughly an hour after each process start
+([#605](https://github.com/Basekick-Labs/arc/issues/605)). A SAS token, when
+configured, is deliberately never widened to a managed identity; `/health`
+reports it as `sas / unknown`. `storage.azure_endpoint` now applies to query
+reads as well (sovereign clouds); path-style endpoints such as Azurite apply
+to writes only.
 :::
 
   </TabItem>
