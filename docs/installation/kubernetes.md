@@ -604,6 +604,16 @@ readinessProbe:
   periodSeconds: 10
 ```
 
+As of **26.09.1**, `/health` includes a `storage` field with per-tier credential
+state (`ok` / `degraded` / `expired` / `fallback` / `unknown`), computed from
+Arc's credential refresher — no S3/Azure probing from the probe path. Alert on
+`storage.*.state != "ok"` or on `expires_at` approaching. For **reader pools**,
+setting `server.storage_credentials_fail_ready = true` makes `/ready` return
+503 while any tier's credentials are `expired`, so Kubernetes recycles the pod
+(a restart re-resolves credentials). Leave it off for writers — ingest keeps
+working through credential expiry, and Arc warns at startup if it is enabled on
+a cluster writer.
+
 ## Troubleshooting
 
 ### Pod Won't Start
