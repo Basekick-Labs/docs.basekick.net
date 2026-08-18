@@ -168,10 +168,13 @@ ARC_STORAGE_S3_PATH_STYLE=false
 :::tip IAM roles / IRSA (no static keys)
 For EC2/EKS, omit `s3_access_key`/`s3_secret_key` entirely (leave them unset). Arc
 then authenticates via the AWS credential chain — EC2 instance profile, **EKS IRSA
-(IAM Roles for Service Accounts)**, or environment credentials. This applies to
-both writes and DuckDB query reads (query-read credential-chain support requires
-Arc 26.06.2+). Setting exactly one of the two keys is rejected at startup; set
-both or neither.
+(IAM Roles for Service Accounts)**, **EKS Pod Identity**, or environment
+credentials. This applies to both writes and DuckDB query reads. Temporary
+credentials (IRSA, instance roles, Pod Identity) are refreshed automatically
+before each session expiry; this requires **Arc 26.09.1+** — on 26.06.2–26.06.3,
+query reads stop working roughly one hour after each process start
+([#600](https://github.com/Basekick-Labs/arc/issues/600)). Setting exactly one
+of the two keys is rejected at startup; set both or neither.
 :::
 
   </TabItem>

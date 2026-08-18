@@ -183,11 +183,9 @@ Set `image.tag: "26.09.1"` (or later) for IRSA that keeps working past the first
 hour.
 
 :::note EKS Pod Identity
-This applies to **IRSA**, which injects `AWS_ROLE_ARN` and
-`AWS_WEB_IDENTITY_TOKEN_FILE` into the pod — the pair Arc's credential
-refresher detects. EKS **Pod Identity** — the newer mechanism, which uses
-`AWS_CONTAINER_CREDENTIALS_FULL_URI` instead — is not yet detected. Use IRSA
-for S3-backed query workloads.
+As of 26.09.1 Arc's credential refresher covers every source the AWS SDK
+resolves: **IRSA** and **EKS Pod Identity** both work, as do EC2 instance
+roles for non-EKS deployments. Static keys, when configured, always win.
 :::
 :::
 
