@@ -104,6 +104,66 @@ reader = pa.ipc.open_stream(response.content)
 arrow_table = reader.read_all()
 ```
 
+### Query Data (MessagePack)
+
+MessagePack is the best general-purpose binary format for clients: it is
+columnar, carries per-column type names, supports `SHOW` statements, and honors
+`Accept-Encoding` — roughly 2-3x faster end-to-end than JSON on large result
+sets. Arrow is faster still for raw throughput, but does not accept `SHOW` and
+has no response compression.
+
+```python
+import requests
+import msgpack
+
+response = requests.post(
+    "http://localhost:8000/api/v1/query/msgpack",
+    headers={
+        "Authorization": "Bearer $ARC_TOKEN",
+        "Accept-Encoding": "zstd",   # optional, typically ~40% smaller
+    },
+    json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
+)
+
+result = msgpack.unpackb(response.content, raw=False)
+
+# NOTE: "data" is COLUMNAR — an array of columns, not an array of rows.
+for name, type_name, column in zip(result["columns"], result["types"], result["data"]):
+    print(name, type_name, column[:5])
+```
+
+The response is a single MessagePack map:
+
+| Field | Meaning |
+|---|---|
+| `success` | bool |
+| `columns` | column names |
+| `types` | wire type name per column, parallel to `columns` |
+| `data` | **array of columns**, each an array of values |
+| `row_count` | number of rows |
+| `execution_time_ms` | server-side execution time |
+| `timestamp` | RFC3339, UTC |
+| `profile` | present only when `x-arc-profile: true` |
+
+#### Type vocabulary
+
+The `types` values are a stable contract. Scalars are
+`bool`, `int8`/`int16`/`int32`/`int64`, `uint8`/`uint16`/`uint32`/`uint64`,
+`float32`/`float64`, `utf8`, `large_utf8`, `binary`, `large_binary`, `date32`,
+and `null`. Timestamps carry their unit, e.g. `timestamp[us]`.
+
+Three values tell you a column is **not** natively typed on the wire:
+
+- `string_encoded` — a recognized type Arc transmits as text (`DATE64`, `TIME`,
+  `INTERVAL`, `DURATION`, `FLOAT16`, fixed-size binary).
+- `list` / `struct` / `map` — nested values, transmitted as text.
+- `unknown:<detail>` — a type with no published Arc name (a DuckDB `ENUM`
+  arrives here). Never bind to the text after the prefix; it is diagnostic.
+
+`SUM(int_col)` and other decimal-producing aggregates are normalized to
+`int64` (scale 0) or `float64` (scaled), matching the Arrow endpoint — the
+values are numbers, not strings.
+
 ### Health Check
 
 ```bash
