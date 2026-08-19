@@ -257,7 +257,21 @@ Since 26.09.1, local compaction on a syncing spoke **defers until the data has b
 
 What that means operationally:
 
-- A spoke with a sync backlog logs a per-scan deferral line, broken out by ledger state. `exported` means files are on a drive awaiting its ack; `failed`/`conflicted` need operator attention; the partition compacts on the first cycle after delivery.
+- A spoke with a sync backlog logs a per-scan deferral line, broken out by ledger state. `exported` means files are on a drive awaiting its ack; `failed`/`conflicted` need operator attention (see below); the partition compacts on the first cycle after delivery.
+
+### Fixing stuck entries
+
+A file that exhausts its retries — or hits a same-path-different-content conflict — lands in `failed` and stays there. Two admin endpoints resolve it:
+
+```bash
+# Transient cause fixed (hub reachable again, token rotated): retry with a fresh budget
+curl -X POST https://edge.local:8000/api/v1/spoke-sync/ledger/requeue   -H "Authorization: Bearer $ARC_TOKEN" -H "Content-Type: application/json"   -d '{"path": "metrics/cpu/2026/08/07/14/cpu_001.parquet"}'    # or {"all": true}
+
+# Known-bad: stop surfacing it (pruned after ledger_retention_days; reversible via requeue)
+curl -X POST https://edge.local:8000/api/v1/spoke-sync/ledger/dismiss   -H "Authorization: Bearer $ARC_TOKEN" -H "Content-Type: application/json"   -d '{"all": true}'
+```
+
+A dismissal marks the entry `skipped` rather than deleting it — a deleted row whose file still exists would be re-discovered next pass and come right back. It is reversible via requeue **while the file survives**: dismissing also makes the file eligible for local compaction (you renounced delivery, so the partition must not stay wedged on it), and once compaction or retention consumes it there is nothing left to requeue. Requeue a *conflict* only after resolving the divergence on the hub; otherwise it conflicts again and returns to `failed`. Both endpoints also unblock delivery-deferred compaction for the affected partition.
 - An air-gap spoke's compaction cadence is bounded by its drive round trips — plan local disk for the gap.
 - Compacted files that predate the upgrade sync once (their rows may exist nowhere else); a one-time duplicate for old partitions is possible, a loss is not.
 - Setting the key to `false` restores the pre-26.09.1 behavior: compaction runs freely and hub queries double-count any partition whose raws synced before compaction consumed them. Flipping it back to `true` later is safe: anything compacted during the ungated period is treated as legacy and syncs once — a bounded duplicate, never a silent loss.
