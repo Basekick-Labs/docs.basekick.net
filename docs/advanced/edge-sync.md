@@ -52,7 +52,11 @@ Caps one batch-discovery request. A spoke with a larger backlog sends several re
 
 The bound exists for the same reason as `max_file_bytes`: Arc buffers a request body before authentication, so an unbounded batch would be a memory claim by an unauthenticated caller. Capping does not cost the property that matters — discovery is still one request per batch rather than one per file, so 5,000 pending files is a handful of requests instead of 5,000.
 
-A batch above the cap is refused with `413` and the limit, so a spoke knows what to page under.
+A batch above the cap is refused with `413` and the limit, so a spoke knows what to page under — the spoke's agent reads the limit from the refusal and re-pages under it automatically.
+
+### `staging_sweep_max_age_hours`
+
+How old an abandoned partial upload must be before the hourly sweep reclaims its staging space. Default `72` — deliberately longer than a plausible contact gap, because a staged partial is also the spoke's resume checkpoint, and sweeping it early forces a full re-send on exactly the links resume exists for. `0` disables the sweep.
 
 ## Registering a spoke
 
@@ -134,6 +138,18 @@ A mismatch is discarded at step 4, so corrupt bytes never appear where a reader 
 
 Files are stored under the spoke's namespace — `{spoke_id}/{original path}` — so two edges producing the same measurement for the same hour do not collide. The rewrite happens on the hub, so a spoke stays unaware of it and can sync to several hubs unmodified.
 
+## Querying spoke data on the hub
+
+Each spoke's data appears on the hub as a database named after the spoke. Spoke IDs typically contain hyphens, so quote them:
+
+```sql
+SELECT count(*), min(temp), max(temp)
+FROM "rocket-01".engine_temp
+WHERE time > now() - INTERVAL 1 HOUR;
+```
+
+(Requires Arc 26.09.1+ — earlier versions had a query-layer bug where quoted identifiers resolved to nonexistent storage paths and returned zero rows.)
+
 ## Response codes
 
 | Code | Meaning | What the spoke does |
@@ -143,7 +159,7 @@ Files are stored under the spoke's namespace — `{spoke_id}/{original path}` �
 | `409` | Same path, **different** content | Stops and raises an alarm; never retries |
 | `413` | Above `max_file_bytes` | Configuration problem, not transient |
 | `422` | Checksum mismatch; the upload was discarded | Retries from its own copy |
-| `401` | Authentication failed | Checks its secret, and its clock |
+| `401` | Authentication failed | Checks `ARC_EDGE_SYNC_HUB_TOKEN`, then its secret and its clock |
 | `503` | Hub-side failure, e.g. a manifest write during a Raft election | Retries later |
 
 A `409` is deliberately not retryable. It means either two spokes are writing the same namespaced path or one side's bytes are corrupt — both need a human, and overwriting would destroy whichever copy is correct.
@@ -181,16 +197,20 @@ spoke_id = "rocket-01"                # this spoke's ID, as registered on the hu
 hub_id = "ground-station"             # the REMOTE hub's edge_sync.hub_id
 max_attempts = 5                      # attempts before a file is marked failed
 max_concurrent = 2                    # simultaneous transfers
-batch_size = 0                        # files per reconcile round-trip; 0 = hub default
+batch_size = 1000                     # files per reconcile round-trip; 0 = whole backlog at once
+ledger_retention_days = 90            # prune synced/skipped ledger rows; 0 = never
 ```
 
-The secret goes in the environment, never the file:
+A reconcile page the hub refuses as too large (over its `max_reconcile_entries` or its byte limit) is split and retried within the same pass, so no `batch_size` value can leave a backlog undrainable.
+
+Both credentials go in the environment, never the file:
 
 ```bash
 export ARC_EDGE_SYNC_SPOKE_SECRET="<the secret the hub returned at registration>"
+export ARC_EDGE_SYNC_HUB_TOKEN="<an Arc API token on the hub with write permission>"
 ```
 
-Arc **refuses to start** if a secret appears in the config file. One that is ignored still leaks, and leaving it in place makes the committed copy — the one that gets backed up and committed to a repo — look load-bearing.
+The secret drives the per-spoke HMAC; the token satisfies the hub's API-token middleware, which fronts the sync endpoints at write level. Without the token, every request against a hub running with authentication enabled (the default) fails with a `401` whose error text names the variable — only a hub with authentication disabled needs none. Arc **refuses to start** if the secret or token appears in the config file. One that is ignored still leaks, and leaving it in place makes the committed copy — the one that gets backed up and committed to a repo — look load-bearing.
 
 `hub_id` must match the hub's own `edge_sync.hub_id` exactly. It is bound into every request MAC, so a mismatch fails *every* request with a `400` that looks like a hub problem; Arc validates it at startup instead of letting you discover it during a contact window.
 
@@ -226,6 +246,14 @@ curl -X POST https://edge.local:8000/api/v1/spoke-sync/run \
 A pass recovers transfers interrupted by a crash, discovers new files, reconciles the backlog in one round-trip, then streams what the hub lacks — **newest first**, so a contact window that closes mid-backlog has already delivered the freshest telemetry. It **pages until the backlog drains**: one pass on a spoke returning from a long outage moves everything, not just the first `batch_size` files.
 
 Files are hashed once at discovery and the ledger is on disk, so a spoke restarted mid-backlog neither re-hashes nor re-sends what already landed. **Nothing is deleted from the spoke** — sync is a copy, and local retention stays yours to configure.
+
+### When a tracked file vanishes before delivery
+
+Compaction (on by default) rewrites raw Parquet and deletes the sources; retention deletes whole partitions. A file caught by either after discovery but before delivery has nothing left to send. The ledger marks it `skipped` — reported in `/status` and in each pass or export result — instead of retrying it into a permanent `failed` row, or (on the air-gap path) failing the whole export. Only a storage backend positively reporting the file gone triggers the skip; a transient storage error never does. Terminal rows (`synced`, `skipped`) are pruned after `ledger_retention_days`.
+
+:::warning Compaction on a syncing spoke duplicates rows on the hub
+Raw files synced before compaction stay on the hub; the compacted file carrying the same rows then syncs as a new path, and hub queries over that partition double-count. Until hub-side supersede logic ships, either disable compaction on databases a spoke syncs, or account for duplicates in hub queries.
+:::
 
 ### Reading the results
 
