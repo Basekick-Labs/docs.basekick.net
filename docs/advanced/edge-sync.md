@@ -251,9 +251,17 @@ Files are hashed once at discovery and the ledger is on disk, so a spoke restart
 
 Compaction (on by default) rewrites raw Parquet and deletes the sources; retention deletes whole partitions. A file caught by either after discovery but before delivery has nothing left to send. The ledger marks it `skipped` — reported in `/status` and in each pass or export result — instead of retrying it into a permanent `failed` row, or (on the air-gap path) failing the whole export. Only a storage backend positively reporting the file gone triggers the skip; a transient storage error never does. Terminal rows (`synced`, `skipped`) are pruned after `ledger_retention_days`.
 
-:::warning Compaction on a syncing spoke duplicates rows on the hub
-Raw files synced before compaction stay on the hub; the compacted file carrying the same rows then syncs as a new path, and hub queries over that partition double-count. Until hub-side supersede logic ships, either disable compaction on databases a spoke syncs, or account for duplicates in hub queries.
-:::
+### Compaction waits for delivery
+
+Since 26.09.1, local compaction on a syncing spoke **defers until the data has been delivered** (`edge_sync.spoke.defer_compaction_until_synced`, default `true`): only files the sync ledger reports `synced` — over the network, or acked back on the air-gap path — are eligible compaction inputs, and compacted outputs are recorded as already-delivered content that never syncs. The hub receives every row exactly once, as raw files; hub-side duplication from compaction cannot happen, and neither can compaction destroying rows the hub never received.
+
+What that means operationally:
+
+- A spoke with a sync backlog logs a per-scan deferral line, broken out by ledger state. `exported` means files are on a drive awaiting its ack; `failed`/`conflicted` need operator attention; the partition compacts on the first cycle after delivery.
+- An air-gap spoke's compaction cadence is bounded by its drive round trips — plan local disk for the gap.
+- Compacted files that predate the upgrade sync once (their rows may exist nowhere else); a one-time duplicate for old partitions is possible, a loss is not.
+- Setting the key to `false` restores the pre-26.09.1 behavior: compaction runs freely and hub queries double-count any partition whose raws synced before compaction consumed them. Flipping it back to `true` later is safe: anything compacted during the ungated period is treated as legacy and syncs once — a bounded duplicate, never a silent loss.
+
 
 ### Reading the results
 
