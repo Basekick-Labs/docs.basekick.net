@@ -138,6 +138,10 @@ A mismatch is discarded at step 4, so corrupt bytes never appear where a reader 
 
 Files are stored under the spoke's namespace — `{spoke_id}/{original path}` — so two edges producing the same measurement for the same hour do not collide. The rewrite happens on the hub, so a spoke stays unaware of it and can sync to several hubs unmodified.
 
+## Dual-role nodes (hub + spoke)
+
+An Arc can be a hub and a spoke at once — receiving from its own edges while syncing its own telemetry upstream. Since 26.09.1 the node's own sync discovery **excludes received spoke namespaces** (the registered spoke IDs), so other edges' data is never forwarded upstream double-namespaced. Explicit relay topologies are not supported yet. Two rules for dual-role operators: keep spoke registrations for as long as their data sits in storage (an unregistered namespace loses its exclusion), and don't name a local database the same as a registered spoke ID.
+
 ## Querying spoke data on the hub
 
 Each spoke's data appears on the hub as a database named after the spoke. Spoke IDs typically contain hyphens, so quote them:
