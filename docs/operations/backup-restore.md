@@ -157,10 +157,12 @@ curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
+Deletion is refused with `409 Conflict` while a backup or restore is running -- deleting the backup a restore is reading would tear files out from under it. Retry once the operation finishes.
+
 ## Key Behaviors
 
 - **Async operations** -- backup and restore run in background goroutines with a 2-hour timeout. Clients poll `/status` for progress.
-- **Serialized operations** -- only one backup or restore can run at a time. Attempting a second operation returns `409 Conflict`.
+- **Serialized operations** -- only one backup, restore, or delete can run at a time. Attempting a concurrent operation returns `409 Conflict`.
 - **Pre-restore safety** -- existing SQLite and config files are copied with `.before-restore` suffix before overwriting.
 - **Destructive restore protection** -- restore requires explicit `confirm: true` in the request body.
 - **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), and `arc.toml` config.
@@ -173,5 +175,5 @@ curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c
 | `401` | Authentication required |
 | `403` | Admin role required |
 | `404` | Backup not found |
-| `409` | Another backup/restore operation is already running |
+| `409` | Another operation is already running (returned by backup, restore, and delete) |
 | `500` | Backup or restore execution error |
