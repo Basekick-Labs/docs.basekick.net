@@ -138,6 +138,16 @@ A mismatch is discarded at step 4, so corrupt bytes never appear where a reader 
 
 Files are stored under the spoke's namespace — `{spoke_id}/{original path}` — so two edges producing the same measurement for the same hour do not collide. The rewrite happens on the hub, so a spoke stays unaware of it and can sync to several hubs unmodified.
 
+## Hub-side compaction of received data
+
+Since 26.09.1 the hub's own compaction processes spoke namespaces (`edge_sync.compact_received_namespaces`, default `true`): registered spoke IDs expand into per-database compaction targets, so the small raw files spokes deliver are folded into ordinary compacted Parquet on the hub's compaction schedule — no protocol involvement, and hub queries over spoke data stop paying a growing small-files cost.
+
+The sync protocol stays truthful: receipts for compacted-away files are **marked, never forgotten**. A spoke that re-offers one — a pruned ledger being rediscovered, or a stale air-gap drive imported late — is answered *already present* with zero bytes moved; a different-content re-delivery still conflicts. Three operational rules:
+
+- Keep spoke registrations for as long as their data sits in storage: an unregistered namespace is not expanded (and, on a dual-role node, loses its relay exclusion too).
+- Set the key to `false` if you rely on the raw per-file layout of received data (forensics, per-file external tooling).
+- On a multi-node cluster, enable this only where the spoke-facing endpoint runs on the compactor node — receipt bookkeeping is node-local in this release.
+
 ## Dual-role nodes (hub + spoke)
 
 An Arc can be a hub and a spoke at once — receiving from its own edges while syncing its own telemetry upstream. Since 26.09.1 the node's own sync discovery **excludes received spoke namespaces** (the registered spoke IDs), so other edges' data is never forwarded upstream double-namespaced. Explicit relay topologies are not supported yet. Two rules for dual-role operators: keep spoke registrations for as long as their data sits in storage (an unregistered namespace loses its exclusion), and don't name a local database the same as a registered spoke ID.
