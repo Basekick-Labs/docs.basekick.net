@@ -275,6 +275,8 @@ curl -X POST https://edge.local:8000/api/v1/spoke-sync/ledger/requeue   -H "Auth
 curl -X POST https://edge.local:8000/api/v1/spoke-sync/ledger/dismiss   -H "Authorization: Bearer $ARC_TOKEN" -H "Content-Type: application/json"   -d '{"all": true}'
 ```
 
+To find what to requeue, list by state: `GET /api/v1/spoke-sync/ledger?state=skipped` enumerates the entries the default view hides — vanished sources, compacted outputs, and operator-dismissed failures, told apart by `last_error`. Any single state works (`pending`, `in_flight`, `synced`, `exported`, `failed`, `skipped`).
+
 A dismissal marks the entry `skipped` rather than deleting it — a deleted row whose file still exists would be re-discovered next pass and come right back. It is reversible via requeue **while the file survives**: dismissing also makes the file eligible for local compaction (you renounced delivery, so the partition must not stay wedged on it), and once compaction or retention consumes it there is nothing left to requeue. Requeue a *conflict* only after resolving the divergence on the hub; otherwise it conflicts again and returns to `failed`. Both endpoints also unblock delivery-deferred compaction for the affected partition.
 - An air-gap spoke's compaction cadence is bounded by its drive round trips — plan local disk for the gap.
 - Compacted files that predate the upgrade sync once (their rows may exist nowhere else); a one-time duplicate for old partitions is possible, a loss is not.
