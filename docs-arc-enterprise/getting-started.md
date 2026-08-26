@@ -35,6 +35,10 @@ Or set the environment variable:
 export ARC_LICENSE_KEY="ARC-XXXX-XXXX-XXXX-XXXX"
 ```
 
+:::tip Air-gapped environment?
+On 26.09.1+ you can license Arc with an **offline license file** instead of a key — no route to the activation server needed. Set `file_path` under `[license]` (or `ARC_LICENSE_FILE_PATH`). See [Configuration Overview → Air-gapped: offline license file](/arc-enterprise/configuration/overview#air-gapped-offline-license-file-26091).
+:::
+
 ## Quick Start
 
 <Tabs>
