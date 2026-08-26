@@ -255,36 +255,9 @@ to writes only.
 
 ## Enterprise Licensing
 
-Online activation (default): set your license key and Arc activates against
-`enterprise.basekick.net` at startup.
-
-```toml
-[license]
-key = "ARC-ENT-XXXX-XXXX-XXXX-XXXX"   # or ARC_LICENSE_KEY
-```
-
-As of **26.09.1**, a transient license-server failure no longer crash-loops
-Enterprise pods: startup retries briefly and then falls back to the last
-**signature-verified** license cached on disk, honored until that license's
-own expiry. A definitive server rejection (revoked, expired, unknown key)
-still disables enterprise features immediately.
-
-### Air-gapped: offline license file (26.09.1+)
-
-For environments with no route to `enterprise.basekick.net`, download an
-offline license file from the activation server admin (an explicit **site
-license**: unbound, valid on any machine until expiry, audit-logged at mint)
-and point Arc at it:
-
-```toml
-[license]
-file_path = "/etc/arc/license.json"   # or ARC_LICENSE_FILE_PATH
-```
-
-The file is verified from disk against Arc's pinned public key — no network
-calls of any kind. `file_path` wins over `key`; a rejected file means OSS
-mode (never a silent fallback to online licensing). Keep the file readable
-only by the Arc user (`0600`).
+Licensing (the `[license]` section — license keys, boot resilience, and the
+air-gapped offline license file) is an Arc Enterprise feature and is documented
+in the [Arc Enterprise configuration docs](/arc-enterprise/configuration/overview#enterprise-license).
 
 ## Key Configuration Areas
 
