@@ -69,6 +69,30 @@ sudo systemctl enable arc && sudo systemctl start arc
 ```
 
   </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+Works on Arch Linux and Arch-based distros such as Omarchy.
+
+**x86_64 (AMD/Intel):**
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo pacman -U arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo systemctl enable arc && sudo systemctl start arc
+curl http://localhost:8000/health
+```
+
+**ARM64:**
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1-aarch64.pkg.tar.zst
+sudo pacman -U arc-${LATEST_VERSION}-1-aarch64.pkg.tar.zst
+sudo systemctl enable arc && sudo systemctl start arc
+```
+
+  </TabItem>
   <TabItem value="source" label="Build from Source">
 
 Prerequisites: Go 1.25+, Git, Make
@@ -311,6 +335,19 @@ sudo systemctl restart arc
 ```
 
   </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+# Automatic update to latest version
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo pacman -U arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo systemctl restart arc
+```
+
+Your edited `/etc/arc/arc.toml` is preserved across upgrades; if the packaged default changed, pacman writes it as `arc.toml.pacnew`.
+
+  </TabItem>
   <TabItem value="source" label="Source">
 
 ```bash
@@ -342,6 +379,16 @@ sudo rm -rf /var/lib/arc /etc/arc
 ```bash
 sudo systemctl stop arc
 sudo rpm -e arc
+
+# Optional: Remove data
+sudo rm -rf /var/lib/arc /etc/arc
+```
+
+  </TabItem>
+  <TabItem value="arch" label="Arch Linux">
+
+```bash
+sudo pacman -R arc   # stops and disables the service automatically
 
 # Optional: Remove data
 sudo rm -rf /var/lib/arc /etc/arc
