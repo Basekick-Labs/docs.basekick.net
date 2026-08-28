@@ -477,6 +477,27 @@ confirmation_threshold = 10000   # Require confirmation above this
 max_rows_per_delete = 1000000    # Hard limit per operation
 ```
 
+### Query
+
+Query execution and pruning:
+
+```toml
+[query]
+timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
+
+# File-level time pruning (opt-in). High-frequency ingest can accumulate
+# thousands of small Parquet files in the current (live) hour; every query
+# otherwise lists and reads footers for all of them. When enabled, Arc prunes
+# individual live-hour files whose flush timestamp proves they cannot contain
+# rows in the query's time range (local storage backend only). Measured on a
+# ~8K-file live hour: a 5-minute dashboard query dropped from 340ms to 29ms.
+file_time_pruning = false
+# Widens the keep-window below the query's lower time bound to absorb writer
+# clock skew. Rows stamped further ahead of the server clock than this margin
+# may be invisible until their hour closes.
+file_time_pruning_margin_seconds = 300
+```
+
 ### Retention Policies
 
 Automatic data expiration:
