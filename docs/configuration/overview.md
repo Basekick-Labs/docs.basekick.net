@@ -485,12 +485,15 @@ Query execution and pruning:
 [query]
 timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
 
-# File-level time pruning (opt-in). High-frequency ingest can accumulate
-# thousands of small Parquet files in the current (live) hour; every query
-# otherwise lists and reads footers for all of them. When enabled, Arc prunes
-# individual live-hour files whose flush timestamp proves they cannot contain
-# rows in the query's time range (local storage backend only). Measured on a
-# ~8K-file live hour: a 5-minute dashboard query dropped from 340ms to 29ms.
+# File-level time pruning — EXPERIMENTAL in v26.09.2, opt-in (default off).
+# High-frequency ingest can accumulate thousands of small Parquet files in the
+# current (live) hour; every query otherwise lists and reads footers for all
+# of them. When enabled, Arc prunes individual live-hour files whose flush
+# timestamp proves they cannot contain rows in the query's time range (local
+# storage backend only). Measured on a ~8K-file live hour: a 5-minute
+# dashboard query dropped from 340ms to 29ms. Planned to become stable and
+# enabled by default in v27.01.1 (tracked in
+# https://github.com/Basekick-Labs/arc/issues/659).
 file_time_pruning = false
 # Widens the keep-window below the query's lower time bound to absorb writer
 # clock skew. Rows stamped further ahead of the server clock than this margin
