@@ -549,7 +549,7 @@ compactor:
 ```yaml
 service:
   writer:
-    type: ClusterIP
+    type: ClusterIP      # backend for the L7 layer below — not a client-facing endpoint
     port: 8000
     annotations: {}
   reader:
@@ -561,6 +561,14 @@ service:
 telemetry:
   enabled: true
 ```
+
+:::warning Multi-writer needs an L7 load balancer in front of the writer Service
+A ClusterIP Service balances per TCP connection, and keep-alive clients pin to
+whichever writer pod they first dialed — one writer takes nearly all traffic
+while the rest idle. Front the writer Service with an ingress controller,
+Envoy/HAProxy, or a cloud ALB so each request is balanced independently. See
+[Clustering — multi-writer](/arc-enterprise/configuration/clustering#pattern-2--shared-object-storage-multi-writer).
+:::
 
 ## Operations
 
