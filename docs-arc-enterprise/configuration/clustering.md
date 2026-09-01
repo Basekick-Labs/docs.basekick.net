@@ -246,13 +246,29 @@ When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Ente
 **Key characteristics:**
 
 - **Recovery time**: immediate — the next request lands on a surviving writer via the LB
-- **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Kubernetes Service, Traefik, nginx, HAProxy all support this out of the box)
+- **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Traefik, nginx, HAProxy, and cloud ALBs all support this out of the box)
 - **No "promotion" step**: all writers are equivalent for ingestion; nothing in the cluster has to elect a new "primary"
 - **Singleton background tasks** (retention, continuous queries, deletes) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
 
 **Enable** by setting `cluster.shared_storage_mode = true` (env: `ARC_CLUSTER_SHARED_STORAGE_MODE`). The Helm chart sets this automatically when `storage.mode=shared`. Requires an Enterprise license that includes the `shared_storage_multi_writer` feature.
 
 **Deploy 3 writers** for full HA: 1 failure is tolerated on both the ingestion side (LB routes around it) and the cluster-Raft side (quorum-of-2 still elects a leader for singleton tasks). 2 writers is not recommended — ingestion stays HA via the LB but Raft cannot elect on a single failure, so singleton tasks pause until quorum is restored. 1 writer is fine for development but has no HA.
+
+:::warning The load balancer must be L7 (HTTP-aware) — a Kubernetes Service is not enough
+A ClusterIP `Service` balances per **TCP connection**, not per HTTP request.
+Well-behaved clients (`tsm2arc`, Telegraf, most SDKs) reuse keep-alive
+connections, so a heavy writer — a bulk migration, a fat Telegraf aggregate —
+rides a handful of long-lived connections that stay pinned to whichever pods
+they first dialed. The symptom is one writer near its limits while the others
+sit idle, even though "there are 3 writers behind the Service."
+
+Put an **L7 load balancer** in front of the writers — an ingress controller
+(nginx, Traefik), Envoy/HAProxy, or a cloud ALB — and send all write clients
+through it. Each request is then balanced independently and write traffic
+spreads evenly across writers. Use the plain `Service` only as the backend the
+L7 layer targets, never as the client-facing endpoint of a multi-writer
+cluster.
+:::
 
 When a writer crashes:
 

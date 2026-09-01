@@ -261,11 +261,11 @@ tsm2arc \
 
 :::tip tsm2arc operational notes
 - **Always pass `--waldir`.** InfluxDB does not flush the WAL to TSM on a normal shutdown, so recent shards can live entirely in `.wal` files. Omitting `--waldir` silently misses them.
-- **Multiple writer replicas? Put an L7 load balancer in front.** A Kubernetes
-  ClusterIP Service balances per TCP connection, and tsm2arc reuses keep-alive
-  connections — so without an HTTP-aware balancer (ingress, Envoy, ALB) nearly
-  all import traffic pins to one writer pod while the rest idle. See
-  [load balancing across writer replicas](/arc/installation/kubernetes#load-balancing-across-writer-replicas).
+- **Multi-writer cluster (Arc Enterprise)? Put an L7 load balancer in front.**
+  A Kubernetes ClusterIP Service balances per TCP connection, and tsm2arc reuses
+  keep-alive connections — so without an HTTP-aware balancer (ingress, Envoy,
+  ALB) nearly all import traffic pins to one writer pod while the rest idle. See
+  [clustering: multi-writer](/arc-enterprise/configuration/clustering#pattern-2--shared-object-storage-multi-writer).
 - **Check the writer's WAL volume before a bulk load.** The WAL absorbs
   ingest-rate × flush-lag; a small volume (the chart default is 10Gi) fills in
   minutes at bulk rates and a full WAL volume prevents the writer from booting.
