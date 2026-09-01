@@ -390,6 +390,44 @@ relying on a specific key.
   </TabItem>
 </Tabs>
 
+## Load balancing across writer replicas
+
+**A ClusterIP `Service` alone will not spread heavy write traffic.** Kubernetes
+Services balance per **TCP connection**, not per HTTP request. Well-behaved
+clients (including `tsm2arc` and most SDKs) reuse keep-alive connections, so a
+client doing large sequential imports rides a handful of long-lived connections
+that stay pinned to whichever pods they first dialed. With several writer
+replicas, it is normal to see one pod near its limits while the others sit
+idle — the Service is doing exactly what L4 balancing does.
+
+If you run more than one writer replica, **put an L7 (HTTP-aware) load balancer
+in front of the writers** and send clients through it:
+
+- an ingress controller (nginx, Traefik) — the chart's `ingress` values set this
+  up, as in the production profile above,
+- or Envoy / HAProxy / a cloud ALB.
+
+Each request is then balanced independently and write traffic spreads evenly
+across replicas. Client-side workarounds (disabling keep-alive, one process per
+pod address) work but cost connection churn and operational fiddling — the L7
+hop is the clean fix.
+
+## Sizing the data volume when the WAL is on
+
+With an object-storage backend (`storageBackend: s3`), the pod's PersistentVolume
+holds only the WAL and local cache — but that does **not** make it small. The
+WAL absorbs everything between ingest and flush, so size it against your **peak
+ingest rate × worst-case flush lag**, with generous headroom. The default
+`persistence.size: 10Gi` is a development default: at a bulk-load rate of
+100 MB/s it fills in under two minutes.
+
+A full WAL volume is a bad failure: the writer can't create its startup WAL file
+on a full disk, so the pod cannot boot again until the volume is grown or
+cleaned by hand (tracked in
+[arc#676](https://github.com/Basekick-Labs/arc/issues/676)). For one-off bulk
+migrations, either size the volume for the burst or set `ARC_WAL_ENABLED=false`
+for the migration window and re-enable it afterwards.
+
 ## Helm Values Reference
 
 ### Core Settings

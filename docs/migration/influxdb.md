@@ -261,6 +261,16 @@ tsm2arc \
 
 :::tip tsm2arc operational notes
 - **Always pass `--waldir`.** InfluxDB does not flush the WAL to TSM on a normal shutdown, so recent shards can live entirely in `.wal` files. Omitting `--waldir` silently misses them.
+- **Multiple writer replicas? Put an L7 load balancer in front.** A Kubernetes
+  ClusterIP Service balances per TCP connection, and tsm2arc reuses keep-alive
+  connections — so without an HTTP-aware balancer (ingress, Envoy, ALB) nearly
+  all import traffic pins to one writer pod while the rest idle. See
+  [load balancing across writer replicas](/arc/installation/kubernetes#load-balancing-across-writer-replicas).
+- **Check the writer's WAL volume before a bulk load.** The WAL absorbs
+  ingest-rate × flush-lag; a small volume (the chart default is 10Gi) fills in
+  minutes at bulk rates and a full WAL volume prevents the writer from booting.
+  Size it for the burst, or disable the WAL for the migration window
+  (`ARC_WAL_ENABLED=false`) and re-enable it afterwards.
 - **Size `--workers` against Arc's RAM, not the migration host.** Arc buffers each import server-side, roughly 1 to 1.3 GB per concurrent worker at the default chunk size. The default of 2 is conservative; raise it if Arc has headroom.
 - **Resume by re-running the identical command.** Progress is checkpointed per shard in SQLite; completed shards are skipped. Changing `--chunk-bytes`, `--start`/`--end`, or `--db-map` between runs is refused to keep the checkpoint consistent.
 - **Rename databases** with `--db-map old=new`, and filter with `--database-filter` or `--start`/`--end` (RFC3339 UTC).
