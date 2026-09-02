@@ -198,17 +198,26 @@ jobs:
           # that actually succeeded.
           sudo docker ps | grep docs || true
 
+          # No `exit` inside this heredoc. The script is piped to ssh's stdin,
+          # so exiting early kills the remote shell while ssh is still writing
+          # the rest of it: ssh sees a broken pipe and reports failure even
+          # though the deploy succeeded. Use a flag and fall off the end.
+          ready=no
           for i in $(seq 1 30); do
             if sudo docker exec docs-basekick-net \
                  wget -q -O /dev/null http://127.0.0.1/ 2>/dev/null; then
               echo "container serving after ${i}s"
-              exit 0
+              ready=yes
+              break
             fi
             sleep 1
           done
-          echo "container did not serve within 30s"
-          sudo docker logs --tail 50 docs-basekick-net
-          exit 1
+
+          if [ "$ready" != "yes" ]; then
+            echo "container did not serve within 30s"
+            sudo docker logs --tail 50 docs-basekick-net
+            false
+          fi
           EOF
         shell: bash
 

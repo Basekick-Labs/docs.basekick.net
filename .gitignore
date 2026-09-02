@@ -43,6 +43,14 @@ config.local.*
 *token*
 *secret*
 
+# ...but documentation *about* tokens is not a credential. Without this the
+# page is silently dropped from any clean checkout, so CI builds a site that
+# is missing a page the author sees locally.
+!docs-launchpad/using-the-console/tokens.md
+!docs/**/*token*.md
+!docs-arc-enterprise/**/*token*.md
+!docs-launchpad/**/*token*.md
+
 # IDE
 .vscode/
 .idea/
