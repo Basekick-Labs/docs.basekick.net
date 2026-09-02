@@ -1,4 +1,4 @@
-import { getPageImageUrl, getPageMarkdownUrl, source } from '@/lib/source';
+import { getPageMarkdownUrl, source } from '@/lib/source';
 import {
   DocsBody,
   DocsDescription,
@@ -67,6 +67,5 @@ export async function generateMetadata(props: PageProps<'/[...slug]'>): Promise<
     description: page.data.description,
     slugs: params.slug ?? [],
     pageUrl: page.url,
-    imageUrl: getPageImageUrl(page).url,
   });
 }

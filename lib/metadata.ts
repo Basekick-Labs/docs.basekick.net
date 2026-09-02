@@ -43,12 +43,18 @@ export function pageTitle(title: string, slugs: string[]): string {
   return product ? `${title} | ${product.name} Documentation` : `${title} | Arc Documentation`;
 }
 
+/**
+ * One social card for the whole site, not one per page. Per-page cards meant
+ * 132 near-identical images and 21MB of build output to say what the page
+ * title already says in the post text.
+ */
+const OG_IMAGE = '/img/og-docs.jpg';
+
 interface DocsMetadataInput {
   title: string;
   description?: string;
   slugs: string[];
   pageUrl: string;
-  imageUrl: string;
 }
 
 export function docsMetadata({
@@ -56,7 +62,6 @@ export function docsMetadata({
   description,
   slugs,
   pageUrl,
-  imageUrl,
 }: DocsMetadataInput): Metadata {
   const canonical = canonicalUrl(pageUrl);
 
@@ -69,14 +74,14 @@ export function docsMetadata({
       title: pageTitle(title, slugs),
       description,
       url: canonical,
-      images: imageUrl,
+      images: OG_IMAGE,
       type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
       title: pageTitle(title, slugs),
       description,
-      images: imageUrl,
+      images: OG_IMAGE,
     },
   };
 }
