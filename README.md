@@ -1,154 +1,107 @@
 # Arc Documentation
 
-Official documentation for [Arc](https://github.com/basekick-labs/arc) - a high-performance analytical database.
+Documentation for [Arc](https://github.com/Basekick-Labs/arc), Arc Enterprise and
+Arc Launchpad. Live at [docs.basekick.net](https://docs.basekick.net).
 
-## About
+## Stack
 
-This repository contains the documentation website for Arc, a high-performance analytical database built on DuckDB and Parquet. DuckDB SQL engine + Parquet storage + Arrow format. 18M+ records/sec ingestion, 6M+ rows/sec queries.
+- **[Fumadocs](https://fumadocs.dev)** on Next.js 16 (App Router), exported as a
+  fully static site
+- **React 19**, **Tailwind 4**, **TypeScript**
+- **MDX** for content
+- **GitHub Actions** → rsync over Tailscale → **nginx** behind **Traefik**
 
-Visit the live documentation at [docs.basekick.net](https://docs.basekick.net)
+## Local development
 
-## Technology Stack
-
-- **Docusaurus 3.9.1** - Modern static site generator built with React
-- **TypeScript** - Type-safe documentation and components
-- **Markdown/MDX** - Documentation content format
-- **GitHub Actions** - Automated deployment pipeline
-- **Nginx** - Static file serving in production
-- **Traefik** - Reverse proxy with Let's Encrypt SSL
-
-## Local Development
-
-### Prerequisites
-
-- Node.js 20+
-- npm or yarn
-
-### Installation
+Requires Node 22+.
 
 ```bash
 npm install
+npm run dev        # http://localhost:3000
+npm run build      # static export into out/
+npm run typecheck
+npm start          # serve the built out/ locally
 ```
 
-### Start Development Server
+There is no cache-clearing step. If a build misbehaves, remove `.next/` and
+`.source/`.
 
-```bash
-npm start
+## Layout
+
+```
+content/docs/arc/**             -> /arc/*
+content/docs/arc-enterprise/**  -> /arc-enterprise/*
+content/docs/launchpad/**       -> /launchpad/*
+
+app/(docs)/[...slug]/           the docs route
+app/(home)/                     the landing page
+components/mdx.tsx              MDX component registration
+lib/source.ts                   content source and loader
+public/img/**                   images, referenced as /img/...
+scripts/                        the URL contract and its checker
 ```
 
-This starts a local development server at `http://localhost:3000` with hot reloading.
+## Writing docs
 
-### Build for Production
+Add a `.md` file under the right product directory, then list it in that
+directory's `meta.json`. Ordering is explicit — filename order is not used.
+
+Front matter requires both `title` and `description`:
+
+```yaml
+---
+title: "Run Arc in Docker"
+description: "Pull the image, mount a data volume, set the admin token, and verify ingestion with a line-protocol write."
+---
+```
+
+`.claude/STYLE-CONTRACT.md` has the rules for writing descriptions, including
+length and voice. Use `.mdx` only when a page needs components — note that
+`{/* ... */}` is a comment in MDX but renders as literal text in `.md`, where
+you want an HTML comment instead.
+
+Available components (registered in `components/mdx.tsx`): `Callout`, `Tabs`/
+`Tab`, `Steps`/`Step`, `Accordions`/`Accordion`, `Files`/`Folder`/`File`,
+`Cards`/`Card`, plus `LatestVersion` and `GitHubStars`.
+
+`Callout` types are `info`, `warn`, `error`, `success`, `warning` and `idea` —
+there is no `note`, `tip` or `danger`.
+
+## URLs are a contract
+
+`scripts/keep-urls.txt` lists every URL that existed before the Fumadocs
+migration. All of them must keep resolving:
 
 ```bash
 npm run build
+./scripts/verify-urls.sh out scripts/keep-urls.txt
 ```
 
-Generates static content in the `build/` directory ready for deployment.
+The deploy workflow runs the same check against the live site, plus the 410s in
+`dropped-urls.txt` and the redirects in `category-urls.txt`, and fails if any
+regress.
 
-## Documentation Structure
-
-```
-docs/
-├── intro.md                    # Getting started
-├── getting-started.md          # Quick start guide
-├── installation/               # Docker and native setup
-├── configuration/              # Configuration guides
-├── performance/                # ClickBench benchmarks
-├── api-reference/              # API documentation
-├── integrations/               # Superset, Telegraf, etc.
-└── advanced/                   # WAL, compaction features
-```
-
-## Contributing
-
-We welcome contributions to improve the documentation!
-
-### How to Contribute
-
-1. **Fork the repository**
-   ```bash
-   git clone https://github.com/basekick-labs/docs.basekick.net.git
-   cd docs.basekick.net
-   ```
-
-2. **Create a branch**
-   ```bash
-   git checkout -b docs/improve-installation-guide
-   ```
-
-3. **Make your changes**
-   - Edit markdown files in `docs/`
-   - Test locally with `npm start`
-   - Verify the build with `npm run build`
-
-4. **Commit and push**
-   ```bash
-   git add .
-   git commit -m "docs: improve installation guide with examples"
-   git push origin docs/improve-installation-guide
-   ```
-
-5. **Create a Pull Request**
-   - Open a PR on GitHub
-   - Describe your changes
-   - Link any related issues
-
-### Documentation Guidelines
-
-- **No emojis** - Keep documentation professional and accessible
-- **Clear headings** - Use descriptive section titles
-- **Code examples** - Include working code snippets
-- **Links** - Use `/arc/page-name` for internal links
-- **Images** - Store in `static/img/` and reference with `/img/filename`
-
-### Testing Your Changes
-
-Before submitting:
-
-```bash
-# Check for broken links
-npm run build
-
-# Test locally
-npm start
-```
+Trailing slash is canonical (`/arc/cli/query/`); nginx 301s the un-slashed form.
+Renaming a page means adding a redirect in `nginx.conf`, not just moving a file.
 
 ## Deployment
 
-This repository deploys automatically via GitHub Actions when changes are pushed to `main`. The workflow:
+Pushing to `main` builds the site and ships it. Each deploy lands in
+`releases/<timestamp>-<sha>` on the server and is published by an atomic symlink
+swap, so rollback is a symlink repoint rather than a rebuild:
 
-1. Builds the Docusaurus site
-2. Connects to deployment server via Tailscale VPN
-3. Syncs files to `/opt/services/docs.basekick.net`
-4. Nginx serves the static site at docs.basekick.net
-
-## Project Structure
-
-```
-docs.basekick.net/
-├── .github/workflows/          # GitHub Actions
-├── docs/                       # Documentation content (Markdown)
-├── src/
-│   ├── components/             # React components
-│   ├── css/                    # Custom styles
-│   └── pages/                  # Custom pages (homepage)
-├── static/                     # Static assets (images, etc.)
-├── docusaurus.config.ts        # Docusaurus configuration
-├── sidebars.ts                 # Sidebar navigation
-└── docker-compose.yml          # Production deployment
+```bash
+ssh <user>@<host>
+cd /opt/services/docs.basekick.net
+ls -1dt releases/*/          # pick the previous release
+ln -sfn releases/<RELEASE> html.new && mv -Tf html.new html
 ```
 
-## Support
+No container restart is needed — nginx resolves the symlink per request. The
+five most recent releases are kept, and the one currently being served is never
+pruned.
 
-- Documentation: [docs.basekick.net](https://docs.basekick.net)
-- GitHub Issues: [github.com/basekick-labs/arc/issues](https://github.com/basekick-labs/arc/issues)
-- Website: [basekick.net](https://basekick.net)
+## Retired products
 
-## License
-
-This documentation is part of the Arc project.
-
----
-
-Built by [Basekick Labs](https://basekick.net) with Docusaurus.
+Memtrace and Liftbridge documentation has been retired. Those URLs return
+**410 Gone**. Their content remains in git history before commit `9286270`.

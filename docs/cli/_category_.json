@@ -1,8 +1,0 @@
-{
-  "label": "CLI (arcctl)",
-  "position": 11,
-  "link": {
-    "type": "generated-index",
-    "description": "arcctl is the operator CLI for Arc — query, write, and admin operations without curl."
-  }
-}

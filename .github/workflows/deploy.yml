@@ -153,7 +153,7 @@ jobs:
           rsync -avz --checksum --delete \
             --exclude '.DS_Store' \
             --stats \
-            ./build/ "$USER_HOST:$DEPLOY_PATH/releases/$REL/"
+            ./out/ "$USER_HOST:$DEPLOY_PATH/releases/$REL/"
 
           # Relative symlink: it must resolve inside the container, where the
           # host path does not exist.
@@ -242,13 +242,55 @@ jobs:
             echo "FAIL  $3: $1 -> $code (want $2)"; fail=1
           }
 
-          echo "--- representative pages must be 200 ---"
-          check /                                        200 "root"
-          check /arc/                                    200 "arc root"
-          check /arc/getting-started/                    200 "arc leaf"
-          check /arc-enterprise/                         200 "enterprise root"
-          check /launchpad/                              200 "launchpad root"
-          check /launchpad/using-the-console/sql-console/ 200 "launchpad leaf"
+          # Every URL that existed before the Fumadocs migration, checked
+          # against the live site rather than the build output. This is the
+          # contract: if any of these stops resolving, the deploy failed.
+          echo "--- all pre-migration URLs must still be 200 ---"
+          kept_ok=0; kept_bad=0
+          while read -r u; do
+            [ -z "$u" ] && continue
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$u")
+            if [ "$code" = "200" ]; then
+              kept_ok=$((kept_ok + 1))
+            else
+              echo "FAIL  preserved URL: $u -> $code"; kept_bad=$((kept_bad + 1)); fail=1
+            fi
+          done < scripts/keep-urls.txt
+          echo "ok    preserved URLs: $kept_ok/$((kept_ok + kept_bad))"
+
+          # Retired products. 410 rather than 404 or a redirect: the content is
+          # deliberately gone, and the pages it would have redirected to are
+          # being removed from basekick.net too.
+          echo "--- retired product URLs must be 410 ---"
+          gone_ok=0; gone_bad=0
+          while read -r u; do
+            [ -z "$u" ] && continue
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$u")
+            if [ "$code" = "410" ]; then
+              gone_ok=$((gone_ok + 1))
+            else
+              echo "FAIL  retired URL: $u -> $code (want 410)"; gone_bad=$((gone_bad + 1)); fail=1
+            fi
+          done < scripts/dropped-urls.txt
+          echo "ok    retired URLs: $gone_ok/$((gone_ok + gone_bad))"
+
+          # Legacy category pages redirect to the real section landing page,
+          # in one hop, and that page must actually exist.
+          echo "--- legacy category URLs must 301 in one hop to a 200 ---"
+          cat_ok=0; cat_bad=0
+          while read -r u; do
+            [ -z "$u" ] && continue
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$u")
+            final=$(curl -s -o /dev/null -L -w '%{http_code}' --max-time 20 "$BASE$u")
+            hops=$(curl -s -o /dev/null -L -w '%{num_redirects}' --max-time 20 "$BASE$u")
+            if [ "$code" = "301" ] && [ "$final" = "200" ] && [ "$hops" = "1" ]; then
+              cat_ok=$((cat_ok + 1))
+            else
+              echo "FAIL  category URL: $u -> $code, final $final in $hops hops"
+              cat_bad=$((cat_bad + 1)); fail=1
+            fi
+          done < scripts/category-urls.txt
+          echo "ok    category redirects: $cat_ok/$((cat_ok + cat_bad))"
 
           echo "--- trailing slash is canonical: unslashed redirects once ---"
           loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$BASE/arc/getting-started")
