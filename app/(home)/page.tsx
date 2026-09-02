@@ -6,7 +6,7 @@ const PRODUCTS = [
   {
     name: 'Arc OSS',
     href: '/arc/',
-    tagline: 'The open-source columnar analytical database.',
+    tagline: 'The open, SQL-native time-series database.',
     description:
       'Install it, ingest over Line Protocol or MessagePack, query with SQL, and connect Grafana, Telegraf, MQTT or OpenTelemetry.',
     visual: <ArcMark />,
