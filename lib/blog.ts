@@ -20,6 +20,8 @@ export interface BlogPost {
   url: string;
   date: string;
   description: string;
+  /** Post image from the feed's <enclosure>, when it has one. */
+  image: string | null;
 }
 
 function decodeEntities(input: string): string {
@@ -84,9 +86,12 @@ export async function getLatestPosts(limit = 3): Promise<BlogPost[]> {
       const pubDate = text(tag(item, 'pubDate'));
       const parsed = pubDate ? new Date(pubDate) : null;
 
+      const enclosure = /<enclosure[^>]*url="([^"]+)"[^>]*>/.exec(item)?.[1];
+
       posts.push({
         title,
         url,
+        image: safeUrl(enclosure),
         date:
           parsed && !Number.isNaN(parsed.getTime())
             ? parsed.toISOString().slice(0, 10)
