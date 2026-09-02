@@ -98,5 +98,9 @@ lerna-debug.log*
 *.backup
 *~
 
-# Claude Code project instructions (your-machine-only)
-.claude/
+# Claude Code: local machine state stays out, shared project docs go in.
+# CLAUDE.md and the migration reference files describe how this repo is
+# worked on - they are only useful if everyone (and CI) can read them.
+.claude/*
+!.claude/CLAUDE.md
+!.claude/*.md
