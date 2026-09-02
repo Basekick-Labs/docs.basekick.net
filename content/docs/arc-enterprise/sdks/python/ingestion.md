@@ -63,7 +63,10 @@ The SDK automatically handles type conversion:
 
 ### Timestamps
 
-The `time` column should contain **microsecond timestamps** (Unix epoch):
+The `time` column must contain a **numeric Unix epoch**. Arc auto-detects the
+unit by magnitude — seconds, milliseconds, microseconds, or nanoseconds — and
+normalizes everything to microseconds internally. Microseconds is the
+recommended, unambiguous form:
 
 ```python
 import time

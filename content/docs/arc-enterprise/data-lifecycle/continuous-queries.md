@@ -103,6 +103,7 @@ POST /api/v1/continuous_queries
   "source_measurement": "cpu",
   "destination_measurement": "cpu_hourly",
   "query": "SELECT time_bucket('1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM telegraf.cpu GROUP BY time_bucket('1 hour', time), host",
+  "tag_columns": ["host"],
   "interval": "1h",
   "retention_policy": "90d",
   "is_active": true
@@ -115,9 +116,26 @@ POST /api/v1/continuous_queries
 - `source_measurement` (string, required): Source measurement to aggregate
 - `destination_measurement` (string, required): Where to store results
 - `query` (string, required): DuckDB SQL aggregation query
+- `tag_columns` (array of strings, optional): The **grouping dimension** columns in the query's output (e.g. `["host"]` for `GROUP BY host`). See [Idempotency and `tag_columns`](#idempotency-and-tag_columns) below — set this for any `GROUP BY` query so re-runs don't produce duplicate rows.
 - `interval` (string, required): Time bucket interval (`1m`, `5m`, `1h`, `1d`, etc.)
 - `retention_policy` (string, optional): Retention for aggregated data (e.g., `90d`, `365d`)
 - `is_active` (boolean, required): Enable/disable the query
+
+#### Idempotency and `tag_columns`
+
+Continuous-query output is made idempotent by Arc's compaction step: duplicate emissions of the same window (from a retry, an overlapping manual run, or a crash between the write and the watermark advance) are collapsed to one row per `(grouping dimensions, time)` when the destination partition compacts.
+
+For this to work, Arc must know which output columns are the grouping dimensions:
+
+- **A query with `GROUP BY <dimension>`** (e.g. `GROUP BY host`) must list those dimensions in `tag_columns` (e.g. `"tag_columns": ["host"]`). Arc writes them as Parquet tag metadata and dedups on `(tags, time)`.
+- **A query with no grouping** (one row per window, e.g. `SELECT AVG(x) …`) needs no `tag_columns` — Arc detects it produces one row per timestamp and dedups on time automatically.
+- **If you group but forget to declare `tag_columns`**, Arc detects the multiple-rows-per-timestamp output and does **not** dedup it (to avoid deleting distinct series). The query still runs and its rows are correct, but duplicate windows will accumulate; a warning is logged asking you to add `tag_columns`.
+
+`tag_columns` may not include `time` (time is always part of the dedup key). Names must be plain identifiers (letters, digits, `_`, `-`). Output-row timestamps are stamped with the window's start time; a query that does not select a `time` column now gets the correct window timestamp instead of the ingestion wall-clock.
+
+<Callout type="info" title="Upgrading existing CQs">
+This is not a breaking change. Existing continuous queries keep running with no action — the CQ database is migrated automatically and `tag_columns` is optional. Add `tag_columns` to a grouped CQ when you want its duplicate windows to collapse; until you do, it behaves exactly as before (append-only). Note that a CQ which does **not** select a `time` column now stamps output with the window start rather than the ingestion wall-clock, so its destination has a one-time timestamp discontinuity at the upgrade.
+</Callout>
 
 ### List Continuous Queries
 
