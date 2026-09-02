@@ -31,17 +31,49 @@ const PRODUCTS = [
         src="/img/launchpad/launchpad-sql-console.png"
         alt="The Launchpad SQL console"
         loading="lazy"
+        width={1600}
+        height={900}
         className="h-full w-full object-cover object-left-top"
       />
     ),
   },
 ];
 
+// The homepage is the site's highest-authority URL and carried no structured
+// data at all; the docs pages get theirs from StructuredData.tsx.
+const SITE_JSONLD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': 'https://docs.basekick.net/#website',
+      name: 'Arc Documentation',
+      url: 'https://docs.basekick.net/',
+      description:
+        'Documentation for Arc, the open, SQL-native time-series database, plus Arc Enterprise and Arc Launchpad.',
+      inLanguage: 'en',
+      publisher: { '@id': 'https://basekick.net/#organization' },
+    },
+    {
+      '@type': 'Organization',
+      '@id': 'https://basekick.net/#organization',
+      name: 'Basekick Labs',
+      url: 'https://basekick.net',
+      logo: 'https://docs.basekick.net/img/basekick-logo-icon.svg',
+      sameAs: ['https://github.com/Basekick-Labs'],
+    },
+  ],
+};
+
 export default async function HomePage() {
   const posts = await getLatestPosts(3);
 
   return (
     <main className="flex flex-1 flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SITE_JSONLD) }}
+      />
       {/* Hero. Grid texture and the two brand glows are lifted from
           basekick.net so the docs read as the same product. */}
       <section className="relative overflow-hidden border-b border-fd-border">
@@ -148,6 +180,8 @@ export default async function HomePage() {
                       src={post.image}
                       alt=""
                       loading="lazy"
+                      width={1200}
+                      height={630}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                   </div>

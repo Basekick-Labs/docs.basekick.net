@@ -32,6 +32,13 @@ jobs:
       # The llms.txt routes publish page source verbatim, so an absolute path
       # left in a comment during authoring ends up on the public site. Cheap to
       # check, and it has happened.
+      # Runs against out/ BEFORE anything is published. The post-deploy check
+      # asserts the same contract against the live site, but by then the
+      # symlink has already swapped - a missing page would go live first and
+      # fail the job afterwards. This catches it while it is still local.
+      - name: Verify URL contract in build output
+        run: ./scripts/verify-urls.sh out scripts/keep-urls.txt
+
       - name: Check for leaked local paths
         run: |
           if grep -rl -E '/(Users|home)/[a-z]' out/ 2>/dev/null | head -5 | grep -q .; then

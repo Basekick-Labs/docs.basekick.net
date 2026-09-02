@@ -40,7 +40,13 @@ export function canonicalUrl(pageUrl: string): string {
  */
 export function pageTitle(title: string, slugs: string[]): string {
   const product = productOf(slugs);
-  return product ? `${title} | ${product.name} Documentation` : `${title} | Arc Documentation`;
+  if (!product) return `${title} | Arc Documentation`;
+
+  // Search results truncate around 60 characters. The product name is what
+  // disambiguates the three trees, so it always survives; " Documentation" is
+  // dropped when keeping it would push the title past the cut.
+  const full = `${title} | ${product.name} Documentation`;
+  return full.length <= 60 ? full : `${title} | ${product.name}`;
 }
 
 /**
@@ -71,6 +77,10 @@ export function docsMetadata({
     description,
     alternates: { canonical },
     openGraph: {
+      // Next replaces the whole openGraph object rather than merging, so
+      // siteName and locale from the root layout are lost unless repeated.
+      siteName: 'Arc Documentation',
+      locale: 'en',
       title: pageTitle(title, slugs),
       description,
       url: canonical,
