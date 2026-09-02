@@ -1,34 +1,28 @@
-version: '3.8'
-
 services:
   docs:
     image: nginx:alpine
     container_name: docs-basekick-net
     restart: unless-stopped
     volumes:
-      - /opt/services/docs.basekick.net:/usr/share/nginx/html:ro
-      - /opt/services/docs.basekick.net/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # The served site. `html` is a symlink to the current release directory,
+      # so a deploy swaps it atomically and a rollback is a symlink repoint.
+      # The parent is mounted (not html/ itself) so nginx resolves the symlink
+      # to whichever release it currently points at.
+      - /opt/services/docs.basekick.net:/srv:ro
+      # Config lives OUTSIDE the document root. It used to sit inside it, which
+      # meant nginx served it publicly and the content rsync --delete'd it on
+      # every deploy.
+      - /opt/services/docs.basekick.net/conf/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - traefik
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      # Main router (non-www)
       - "traefik.http.routers.docs-basekick.rule=Host(`docs.basekick.net`)"
       - "traefik.http.routers.docs-basekick.entrypoints=https"
       - "traefik.http.routers.docs-basekick.tls=true"
       - "traefik.http.routers.docs-basekick.tls.certresolver=letsencrypt"
       - "traefik.http.services.docs-basekick.loadbalancer.server.port=80"
-      # www redirect router
-      - "traefik.http.routers.docs-basekick-www.rule=Host(`www.docs.basekick.net`)"
-      - "traefik.http.routers.docs-basekick-www.entrypoints=https"
-      - "traefik.http.routers.docs-basekick-www.tls=true"
-      - "traefik.http.routers.docs-basekick-www.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.docs-basekick-www.middlewares=docs-redirect-www-to-non-www"
-      # Middleware to redirect www to non-www
-      - "traefik.http.middlewares.docs-redirect-www-to-non-www.redirectregex.regex=^https://www\\.(.+)"
-      - "traefik.http.middlewares.docs-redirect-www-to-non-www.redirectregex.replacement=https://$${1}"
-      - "traefik.http.middlewares.docs-redirect-www-to-non-www.redirectregex.permanent=true"
 
 networks:
   traefik:
