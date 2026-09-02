@@ -1,5 +1,5 @@
 ---
-title: Telegraf Integration
+title: "Telegraf Integration"
 description: "Send Telegraf metrics to an Arc Enterprise cluster with the native Arc output plugin: MessagePack columnar batches, gzip, and a write token scoped to one database by RBAC."
 ---
 

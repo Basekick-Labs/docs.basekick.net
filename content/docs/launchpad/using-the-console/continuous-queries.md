@@ -1,5 +1,5 @@
 ---
-title: Continuous queries
+title: "Continuous queries"
 description: "Schedule rollups in Arc from the Continuous Queries tab: pick a source measurement, an aggregation window, and a destination, then run one on demand or let it run continuously."
 ---
 

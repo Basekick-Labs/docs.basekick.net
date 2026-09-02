@@ -1,0 +1,19 @@
+---
+title: "Integrations"
+description: "Connect Arc to Grafana, Superset, Telegraf, MQTT brokers, OpenTelemetry, Redpanda Connect, VS Code, and Iceberg readers, plus InfluxDB client compatibility."
+---
+
+Arc speaks Line Protocol and standard SQL, so most tooling connects without a translation layer. These pages cover the integrations with a native plugin or dialect.
+
+<Cards>
+  <Card title="Apache Iceberg" href="/arc/integrations/apache-iceberg/" description="Publish measurements as Iceberg tables for Spark, Trino, and PyIceberg." />
+  <Card title="Apache Superset" href="/arc/integrations/superset/" description="Chart Arc data through the arc-superset-dialect SQLAlchemy driver." />
+  <Card title="Grafana" href="/arc/integrations/grafana/" description="Build panels with the Arc data source plugin." />
+  <Card title="Telegraf" href="/arc/integrations/telegraf/" description="Ship system metrics with the native Arc output plugin." />
+  <Card title="InfluxDB clients" href="/arc/integrations/influxdb-clients/" description="Point existing InfluxDB client libraries at Arc unchanged." />
+  <Card title="MQTT" href="/arc/integrations/mqtt/" description="Subscribe Arc directly to broker topics." />
+  <Card title="VS Code" href="/arc/integrations/vscode/" description="Query and manage Arc from the Arc Database Manager extension." />
+  <Card title="OpenTelemetry" href="/arc/integrations/opentelemetry/" description="Export traces, metrics, and logs from the Collector." />
+  <Card title="TLE" href="/arc/integrations/tle/" description="Ingest Two-Line Element satellite orbital data." />
+  <Card title="Redpanda Connect" href="/arc/integrations/redpanda-connect/" description="Stream from any Redpanda Connect source." />
+</Cards>

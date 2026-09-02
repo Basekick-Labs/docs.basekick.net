@@ -1,6 +1,6 @@
 ---
-title: Automated Scheduling
-description: Run Arc Enterprise continuous queries and retention policies on cron schedules instead of manual API calls, and how the scheduler behaves across cluster nodes.
+title: "Automated Scheduling"
+description: "Run Arc Enterprise continuous queries and retention policies on cron schedules instead of manual API calls, and how the scheduler behaves across cluster nodes."
 ---
 
 Automatically execute continuous queries and retention policies on configurable schedules. Eliminate manual data lifecycle management and build efficient data pipelines.

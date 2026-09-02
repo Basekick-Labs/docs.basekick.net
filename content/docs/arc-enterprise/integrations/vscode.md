@@ -1,6 +1,6 @@
 ---
-title: VS Code Extension
-description: Browse databases, run SQL, and import CSV against an Arc Enterprise cluster from VS Code with the Arc Database Manager extension and an RBAC-scoped connection token.
+title: "VS Code Extension"
+description: "Browse databases, run SQL, and import CSV against an Arc Enterprise cluster from VS Code with the Arc Database Manager extension and an RBAC-scoped connection token."
 ---
 
 Complete development toolkit for Arc Database directly in Visual Studio Code.

@@ -1,6 +1,6 @@
 ---
-title: Query Caching
-description: The three caches an Arc Enterprise reader node uses to serve repeated dashboard queries — result, metadata, and S3 file cache — and how to size and invalidate each one.
+title: "Query Caching"
+description: "The three caches an Arc Enterprise reader node uses to serve repeated dashboard queries — result, metadata, and S3 file cache — and how to size and invalidate each one."
 ---
 
 Arc implements multiple caching layers to optimize query performance, particularly for dashboard and monitoring use cases where the same queries are executed repeatedly.
@@ -11,9 +11,9 @@ Arc uses three complementary caches that work together:
 
 | Cache | TTL | Purpose | Savings |
 |-------|-----|---------|---------|
-| SQL Transform Cache | 60s | Caches SQL-to-storage-path conversions | 49-104x speedup |
-| Partition Path Cache | 60s | Caches `OptimizeTablePath()` results | 50-100ms/query |
-| Glob Cache | 30s | Caches filesystem glob results | 5-10ms/query |
+| SQL Transform Cache | 60s | Caches SQL-to-storage-path conversions | Avoids re-parsing per query |
+| Partition Path Cache | 60s | Caches `OptimizeTablePath()` results | Avoids repeated path resolution |
+| Glob Cache | 30s | Caches filesystem glob results | Avoids repeated directory listing |
 
 ## SQL Transform Cache
 

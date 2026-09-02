@@ -1,5 +1,5 @@
 ---
-title: Data Management
+title: "Data Management"
 description: "Manage Arc Enterprise retention policies, continuous queries, delete operations, and API tokens from Python, including tokens scoped by the cluster's RBAC roles."
 ---
 
@@ -16,13 +16,16 @@ The SDK provides clients for managing Arc's data lifecycle features:
 | `client.delete` | Delete operations | Remove data matching conditions |
 | `client.auth` | Authentication | Manage API tokens |
 
-<Callout type="warn" title="Manual Execution Required">
+<Callout type="info" title="Scheduling in Arc Enterprise">
 
-**Important:** In Arc OSS, retention policies and continuous queries do **not** run automatically. You must execute them manually or set up an external scheduler (cron, Airflow, etc.).
+Arc Enterprise runs retention policies and continuous queries automatically on
+configurable cron schedules — see
+[Automated Scheduling](/arc-enterprise/operations/automated-scheduling/).
 
-Automatic scheduling is planned for **Arc Enterprise** (2026).
-
-See [Scheduling with External Tools](#scheduling-with-external-tools) for how to automate execution.
+The SDK methods below trigger these operations on demand, which is still useful
+for backfills, ad-hoc runs, and testing a policy before putting it on a schedule.
+See [Scheduling with External Tools](#scheduling-with-external-tools) if you
+prefer to drive execution from an external orchestrator (cron, Airflow, etc.).
 
 </Callout>
 

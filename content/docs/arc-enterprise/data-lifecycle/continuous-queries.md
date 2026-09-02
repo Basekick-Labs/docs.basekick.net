@@ -1,6 +1,6 @@
 ---
-title: Continuous Queries
-description: Downsample Arc Enterprise data into materialized measurements, with the licensed scheduler running each continuous query on a cron schedule across the cluster.
+title: "Continuous Queries"
+description: "Downsample Arc Enterprise data into materialized measurements, with the licensed scheduler running each continuous query on a cron schedule across the cluster."
 ---
 
 Continuous queries enable automatic downsampling and aggregation of data into materialized views, reducing storage requirements while maintaining queryable historical data.
@@ -52,7 +52,9 @@ On each scheduled run, Arc:
 2. Substitutes that range into your query's `{start_time}` / `{end_time}`
    placeholders and runs the aggregation **fresh over the full set of source rows
    in that window** (read from Parquet).
-3. **Appends** the results to the destination measurement.
+3. Writes the results to the destination measurement, stamped with the window
+   start time and tagged so duplicate windows can be deduped (see
+   [Idempotency and `tag_columns`](#idempotency-and-tag_columns)).
 4. Advances `last_processed_time` to the window's end.
 
 Because the watermark advances to the end of each processed window, **windows are
@@ -67,10 +69,14 @@ ended; earlier windows are not revisited.
 - **Window boundaries are processing-time based** (`now` at run time), not
   event-time. A window's correctness assumes its data has been ingested by the
   time the interval fires.
-- **Output is append-only.** There is no upsert/dedupe on the destination, so a
-  retry, an overlapping manual re-run, or a crash between the write and the
-  watermark update can produce duplicate aggregate rows; dedupe downstream if you
-  rely on exactly-once.
+- **Output is idempotent at compaction, not atomically exactly-once.** A retry,
+  an overlapping manual re-run, or a crash between the write and the watermark
+  update re-emits a window's rows, so duplicates can appear transiently. They are
+  collapsed to one row per `(dimensions, time)` the next time the destination
+  partition compacts — provided you declared the grouping dimensions in
+  [`tag_columns`](#idempotency-and-tag_columns) (a query with no grouping is
+  deduped automatically). Until compaction runs, a query over the destination may
+  see the duplicate rows.
 
 This model fits **periodic roll-ups and downsampling of in-order, timely data**
 (for example building 1m/5m bars from a clean feed). If your workload involves
@@ -165,7 +171,7 @@ Remove a continuous query:
 DELETE /api/v1/continuous_queries/{query_id}
 ```
 
-<Callout type="warn">
+<Callout type="warn" title="Deleting a CQ keeps its data">
 Deleting a continuous query does not delete the destination measurement or its data. The aggregated data remains queryable.
 </Callout>
 

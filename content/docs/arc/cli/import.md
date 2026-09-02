@@ -1,6 +1,6 @@
 ---
 title: "Bulk Import"
-description: "Loading CSV, Line Protocol, Parquet, and TLE files into Arc with arcctl import: the shared flags, per-format requirements, and the admin token each needs."
+description: "Load CSV, Line Protocol, Parquet, and TLE files into Arc with arcctl import: the shared flags, the per-format requirements, and the admin token each one needs."
 ---
 
 `arcctl import` is the migration entry point: load CSV, line protocol, Parquet, or TLE files into an Arc cluster in one shot. All four subcommands hit Arc's `/api/v1/import/*` endpoints and require an **admin** token.

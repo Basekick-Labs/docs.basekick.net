@@ -1,5 +1,5 @@
 ---
-title: Deployment Patterns
+title: "Deployment Patterns"
 description: "Choose between Arc Enterprise's two cluster topologies — shared object storage or local disks with peer replication — and what each implies for durability, cost, and operations."
 ---
 

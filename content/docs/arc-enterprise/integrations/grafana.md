@@ -1,5 +1,5 @@
 ---
-title: Grafana Integration
+title: "Grafana Integration"
 description: "Connect Grafana to Arc Enterprise: install the Basekick Arc data source, point it at a reader or load-balanced cluster endpoint, and scope panel access with RBAC-aware tokens."
 ---
 
@@ -55,7 +55,7 @@ npm run build
 mage -v
 
 # Install to Grafana
-cp -r dist /var/lib/grafana/plugins/grafana-arc-datasource
+cp -r dist /var/lib/grafana/plugins/basekick-arc-datasource
 systemctl restart grafana-server
 ```
 
@@ -453,7 +453,7 @@ ORDER BY time ASC
 
 Arrow protocol is enabled by default and provides significantly faster data transfer:
 
-- **7.36x faster** than JSON for large result sets
+- Substantially faster than JSON for large result sets for large result sets
 - Zero-copy deserialization
 - Columnar format perfect for time-series
 
@@ -495,10 +495,10 @@ In Grafana's data source settings:
 
 ```bash
 # Check plugin directory permissions
-ls -la /var/lib/grafana/plugins/grafana-arc-datasource
+ls -la /var/lib/grafana/plugins/basekick-arc-datasource
 
 # Verify plugin.json exists
-cat /var/lib/grafana/plugins/grafana-arc-datasource/plugin.json
+cat /var/lib/grafana/plugins/basekick-arc-datasource/plugin.json
 
 # Check Grafana logs
 tail -f /var/log/grafana/grafana.log
@@ -571,7 +571,7 @@ go version  # Should be 1.21+
 
 ## Performance Tips
 
-1. **Use Arrow Protocol**: Enabled by default, provides 7x faster data transfer
+1. **Use Arrow Protocol**: Enabled by default, provides considerably faster data transfer
 2. **Optimize Time Ranges**: Smaller ranges = faster queries
 3. **Leverage time_bucket()**: Use `$__interval` for automatic aggregation
 4. **Add Indexes**: Arc automatically indexes time columns

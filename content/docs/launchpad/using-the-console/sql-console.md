@@ -1,5 +1,5 @@
 ---
-title: SQL console
+title: "SQL console"
 description: "Run SQL against a connected Arc instance from the browser: browse the schema tree, replay query history, run a selection or a whole script, and export results as CSV, JSON, Markdown, or a chart."
 ---
 

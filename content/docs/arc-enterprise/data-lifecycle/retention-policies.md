@@ -1,6 +1,6 @@
 ---
-title: Retention Policies
-description: Define per-measurement retention in Arc Enterprise and let the licensed scheduler enforce it automatically on a cron schedule instead of triggering the API by hand.
+title: "Retention Policies"
+description: "Define per-measurement retention in Arc Enterprise and let the licensed scheduler enforce it automatically on a cron schedule instead of triggering the API by hand."
 ---
 
 Retention policies allow you to automatically manage data lifecycle by defining how long data should be kept.
@@ -379,7 +379,7 @@ Currently, retention policies only work with local filesystem storage. Cloud sto
 
 Retention operates at the file level, not row level. A file is only deleted if **all** rows are older than the cutoff date.
 
-<Callout type="warn">
+<Callout type="warn" title="Compaction affects eligibility">
 For optimal retention policy effectiveness, ensure your data is properly compacted. Files with mixed timestamps may not be eligible for deletion.
 </Callout>
 

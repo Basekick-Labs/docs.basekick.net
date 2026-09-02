@@ -1,5 +1,5 @@
 ---
-title: Teams & organizations
+title: "Teams & organizations"
 description: "Share Arc connections across a team: create organizations, invite members by email with a role, manage platform users and super-admins, and sign in with password, TOTP, or a passkey."
 ---
 

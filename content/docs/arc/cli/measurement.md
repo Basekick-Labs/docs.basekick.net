@@ -1,6 +1,6 @@
 ---
 title: "Measurement Listing"
-description: "Listing the measurements in an Arc database with arcctl measurement list, selecting the database, and emitting table, JSON, or CSV output for scripts."
+description: "List the measurements in an Arc database with arcctl measurement list, select the database to inspect, and emit table, JSON, or CSV output for use in scripts."
 ---
 
 `arcctl measurement list` shows the measurements inside one database. It's a thin wrapper over `GET /api/v1/databases/:name/measurements` — the same data as `arcctl db show <name>`, but presented measurement-first.

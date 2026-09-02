@@ -1,6 +1,6 @@
 ---
-title: Data-Time Partitioning
-description: Why Arc Enterprise writes Parquet files under the event timestamp rather than ingest time, and what that means for backfill and partition pruning across cluster nodes.
+title: "Data-Time Partitioning"
+description: "Why Arc Enterprise writes Parquet files under the event timestamp rather than ingest time, and what that means for backfill and partition pruning across cluster nodes."
 ---
 
 Arc organizes Parquet files by the data's timestamp rather than ingestion time, enabling proper backfill of historical data and optimal query performance.
@@ -56,7 +56,7 @@ WHERE time >= '2024-12-01' AND time < '2025-01-01'
 ```
 
 **Benefits:**
-- **10-100x faster queries** - Partition pruning eliminates irrelevant files
+- **Faster queries** - Partition pruning eliminates irrelevant files
 - **Accurate historical analysis** - Data lives where it belongs
 - **Efficient compaction** - Files with similar timestamps compact together
 - **Predictable storage** - Easy to manage retention by date folders
@@ -162,7 +162,7 @@ UTC time:   2024-12-15 15:00 UTC
   (UTC hour, not local hour)
 ```
 
-<Callout type="idea">
+<Callout type="idea" title="Use UTC timestamps">
 Using UTC ensures consistent partitioning across servers in different timezones and prevents partition misalignment during timezone changes (DST).
 </Callout>
 

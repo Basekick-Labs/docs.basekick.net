@@ -1,6 +1,6 @@
 ---
 title: "Decimal Precision"
-description: "Declaring native Decimal128 columns with ARC_INGEST_DECIMAL_COLUMNS so financial and scientific values keep exact precision instead of being coerced to float64."
+description: "Declare native Decimal128 columns with ARC_INGEST_DECIMAL_COLUMNS so financial and scientific values keep exact precision instead of being coerced to float64."
 ---
 
 <Callout type="info" title="Available since v26.04.1">
@@ -125,7 +125,7 @@ curl -X POST "http://localhost:8000/write?db=mydb" \
   -d 'trades,symbol=BTC-USD price=123.45678901,amount=999.12345678,volume=42i'
 ```
 
-<Callout type="info">
+<Callout type="info" title="Line Protocol precision limits">
 Line Protocol transmits all float values as text, so precision is preserved through the wire format. However, Arc's LP parser converts to float64 internally before decimal conversion — for maximum precision beyond 15 digits, use MessagePack with string values.
 </Callout>
 

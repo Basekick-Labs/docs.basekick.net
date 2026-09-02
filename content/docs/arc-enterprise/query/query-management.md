@@ -1,6 +1,6 @@
 ---
-title: Query Management
-description: Inspect running queries on an Arc Enterprise cluster, review the completed-query history ring buffer, and cancel a long-running query through the query management API.
+title: "Query Management"
+description: "Inspect running queries on an Arc Enterprise cluster, review the completed-query history ring buffer, and cancel a long-running query through the query management API."
 ---
 
 Monitor active queries in real time, review query history, and cancel long-running queries. Full visibility into your query workload for debugging and capacity planning.

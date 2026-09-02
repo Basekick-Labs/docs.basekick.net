@@ -1,5 +1,5 @@
 ---
-title: First-run setup
+title: "First-run setup"
 description: "Complete the Launchpad setup wizard: create the first account, which becomes the administrator, and optionally configure Mailgun or SMTP for invitations and password resets."
 ---
 

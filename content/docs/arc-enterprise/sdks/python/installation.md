@@ -1,6 +1,6 @@
 ---
 title: "Install the Python SDK"
-description: Install arc-tsdb-client with pip and pick the pandas, polars, or full extras, then verify the connection against an Arc Enterprise endpoint using an RBAC-scoped API token.
+description: "Install arc-tsdb-client with pip and pick the pandas, polars, or full extras, then verify the connection against an Arc Enterprise endpoint using an RBAC-scoped API token."
 ---
 
 How to install the Arc Python SDK and its optional dependencies.

@@ -162,7 +162,7 @@ UTC time:   2024-12-15 15:00 UTC
   (UTC hour, not local hour)
 ```
 
-<Callout type="idea">
+<Callout type="idea" title="Use UTC timestamps">
 Using UTC ensures consistent partitioning across servers in different timezones and prevents partition misalignment during timezone changes (DST).
 </Callout>
 

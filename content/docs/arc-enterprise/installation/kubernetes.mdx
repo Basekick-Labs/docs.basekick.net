@@ -16,7 +16,7 @@ Deploy Arc on Kubernetes using Helm for production-grade analytical data managem
 
 ```bash
 # Install Arc
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.1.tgz
 
 # Port forward to access locally
 kubectl port-forward svc/arc 8000:8000
@@ -55,7 +55,7 @@ Copy this token immediately - you won't see it again!
   <Tab value="Quick Install">
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
+helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.1.tgz
 ```
 
   </Tab>
@@ -63,8 +63,8 @@ helm install arc https://github.com/basekick-labs/arc/releases/latest/download/a
 
 ```bash
 # Download chart
-helm pull https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
-tar -xzf arc-26.06.1.tgz
+helm pull https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.1.tgz
+tar -xzf arc-26.09.1.tgz
 
 # Edit values
 vim arc/values.yaml
@@ -82,7 +82,7 @@ kubectl create namespace arc
 
 # Install in namespace
 helm install arc \
-  https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz \
+  https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.1.tgz \
   --namespace arc
 ```
 
@@ -167,10 +167,10 @@ minio:
 helm install arc ./arc -f values.yaml
 ```
 
-<Callout type="idea" title="IRSA requires Arc 26.06.2 for query reads">
-Primary-S3 **query** reads via the credential chain require the Arc **26.06.2**
-binary. On 26.06.1 IRSA authenticates writes but not query reads — set
-`image.tag: "26.06.2"` (once released) for full IRSA support. The IAM role's
+<Callout type="idea" title="IRSA requires Arc 26.06.2 or later for query reads">
+Primary-S3 **query** reads via the credential chain require Arc **26.06.2** or
+later. On 26.06.1 IRSA authenticates writes but not query reads — pin
+`image.tag` to 26.06.2 or later (26.09.1 is current) for full IRSA support. The IAM role's
 trust policy must permit the cluster OIDC provider + this ServiceAccount, and
 the role needs `s3:GetObject`/`PutObject`/`ListBucket` on the bucket. When the
 chart creates the ServiceAccount, the install fails if the
@@ -388,7 +388,7 @@ helm install arc-ent helm/arc-enterprise -f values.yaml \
 # Container image (tag defaults to the chart appVersion)
 image:
   repository: ghcr.io/basekick-labs/arc
-  tag: ""                # set "26.06.2" for full IRSA query-read support
+  tag: ""                # set "26.09.1" (or >=26.06.2) for full IRSA query-read support
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -623,7 +623,7 @@ kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.n
 
 ```bash
 # Upgrade to new version
-helm upgrade arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.06.1.tgz
+helm upgrade arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.1.tgz
 
 # With custom values
 helm upgrade arc ./arc -f values-prod.yaml

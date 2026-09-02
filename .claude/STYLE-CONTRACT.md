@@ -18,15 +18,34 @@ Take the body H1 verbatim, then delete the H1 from the body. Fumadocs renders
 the title as the page's `<h1>` - verified, exactly one per page - so leaving
 it in the body produces two.
 
-Four pages already set a `title` that deliberately differs from their H1:
+Some pages deliberately set a `title` that differs from their H1. Two groups.
+
+**Shorter than the H1** - the short form is what belongs in the sidebar, the
+H1 is the longer prose form:
 
     docs/migration/questdb.md      Migrate from QuestDB       (H1 adds " to Arc")
     docs/migration/timescaledb.md  Migrate from TimescaleDB
     docs/migration/clickhouse.md   Migrate from ClickHouse
     docs/migration/influxdb.md     Migrate from InfluxDB
 
-Keep those titles as they are. The shorter form is what belongs in the
-sidebar; the H1 is the longer prose form. Do not "fix" them from the H1.
+**More specific than the H1** - the H1 alone would produce duplicate or
+ambiguous sidebar entries, so the title names the command or the subject:
+
+    arc/cli/query.md                `arcctl query`
+        was "Querying" - collides with the SDK querying page in search.
+
+    arc/api-reference/overview.md   REST API overview
+        was "API Reference" - identical to its own section label.
+
+    arc/sdks/python/installation.md      Install the Python SDK
+    arc-enterprise/sdks/python/installation.md
+        was "Installation" - collides with the product Installation sections.
+
+    arc/sdks/python/querying.md          Querying with the Python SDK
+    arc-enterprise/sdks/python/querying.md
+        was "Querying" - collides with arc/cli/query.md and the SQL guide.
+
+Keep every title in both lists as it is. Do not "fix" them from the H1.
 
 ## description
 

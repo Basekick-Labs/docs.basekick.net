@@ -1,6 +1,6 @@
 ---
 title: "TLE (Satellite Orbital Data)"
-description: "Ingesting Two-Line Element satellite orbital data from Space-Track and CelesTrak into Arc, through both the streaming write path and the bulk TLE import endpoint."
+description: "Ingest Two-Line Element satellite orbital data from Space-Track and CelesTrak into Arc, through both the streaming write path and the bulk TLE import endpoint."
 ---
 
 Ingest satellite orbital data in the standard Two-Line Element (TLE) format used by Space-Track.org, CelesTrak, and ground station pipelines.

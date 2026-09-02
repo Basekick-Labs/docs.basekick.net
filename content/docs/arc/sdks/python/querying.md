@@ -1,6 +1,6 @@
 ---
 title: "Querying with the Python SDK"
-description: "Querying Arc from Python: run SQL and receive dictionaries, a pandas DataFrame, a polars DataFrame, or an Arrow table, and stream result sets too large to hold in memory."
+description: "Query Arc from Python: run SQL and receive dictionaries, a pandas DataFrame, a polars DataFrame, or an Arrow table, and stream result sets too large to hold in memory."
 ---
 
 How to query data from Arc using the Python SDK.

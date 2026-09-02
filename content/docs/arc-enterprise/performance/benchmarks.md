@@ -1,6 +1,6 @@
 ---
-title: Performance Benchmarks
-description: Where Arc Enterprise benchmark results are published, and how to reproduce them on your own cluster hardware with make bench before sizing writer, reader, and compactor nodes.
+title: "Performance Benchmarks"
+description: "Where Arc Enterprise benchmark results are published, and how to reproduce them on your own cluster hardware with make bench before sizing writer, reader, and compactor nodes."
 ---
 
 Benchmark results for Arc are published on the Basekick blog rather than in these docs, so that every figure stays tied to the hardware, dataset, and Arc version it was measured on.

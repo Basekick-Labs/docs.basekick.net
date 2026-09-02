@@ -108,7 +108,7 @@ ARC_SERVER_PORT=8000
 ARC_SERVER_TLS_ENABLED=false
 ARC_SERVER_TLS_CERT_FILE=/path/to/cert.pem
 ARC_SERVER_TLS_KEY_FILE=/path/to/key.pem
-ARC_SERVER_MAX_PAYLOAD_SIZE=1GB    # v26.01.1+
+ARC_SERVER_MAX_PAYLOAD_SIZE=1GB
 
 # Logging
 ARC_LOG_LEVEL=info
@@ -126,7 +126,7 @@ ARC_DELETE_ENABLED=true
 ARC_RETENTION_ENABLED=true
 ARC_CONTINUOUS_QUERY_ENABLED=true
 
-# Ingestion Concurrency (v26.01.1+)
+# Ingestion Concurrency
 ARC_INGEST_FLUSH_WORKERS=32
 ARC_INGEST_FLUSH_QUEUE_SIZE=200
 ARC_INGEST_SHARD_COUNT=64
@@ -224,10 +224,6 @@ ARC_STORAGE_S3_PATH_STYLE=true
 
 **Azure Blob Storage** - For Azure cloud deployments.
 
-<Callout type="info" title="Coming in v26.01.1">
-Azure Blob Storage support will be available in Arc v26.01.1.
-</Callout>
-
 ```toml
 [storage]
 backend = "azure"         # or "azblob"
@@ -299,10 +295,6 @@ When TLS is enabled, Arc automatically:
 - Validates certificate and key files on startup
 
 ### Max Payload Size
-
-<Callout type="info" title="Available in v26.01.1">
-This configuration option is available starting from Arc v26.01.1.
-</Callout>
 
 Configure the maximum request payload size for write endpoints (msgpack, line protocol):
 

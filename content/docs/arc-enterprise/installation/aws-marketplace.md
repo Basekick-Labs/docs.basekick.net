@@ -1,5 +1,5 @@
 ---
-title: AWS Marketplace
+title: "AWS Marketplace"
 description: "Launch the Arc Enterprise AMI from AWS Marketplace: pick an instance type, size the EBS and S3 storage, set security groups, and reach the console without a separate license key."
 ---
 

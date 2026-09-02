@@ -1,5 +1,5 @@
 ---
-title: Logs & monitoring
+title: "Logs & monitoring"
 description: "Two console tabs with different jobs: Log Viewer reads the log data you ingest into Arc, with pattern detection and trace extraction; Monitoring reports Arc's own instance health."
 ---
 

@@ -1,5 +1,5 @@
 ---
-title: MQTT ingestion
+title: "MQTT ingestion"
 description: "Manage Arc's MQTT subscriptions from the browser: set the broker URL, topics, QoS, and target database, enable TLS or mTLS, and watch per-session message and reconnect stats."
 ---
 

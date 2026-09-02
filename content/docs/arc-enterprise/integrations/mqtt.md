@@ -1,5 +1,5 @@
 ---
-title: MQTT Integration
+title: "MQTT Integration"
 description: "Subscribe an Arc Enterprise cluster to MQTT brokers through the API: map topics to measurements, extract tags from topic paths, and manage subscriptions without restarting nodes."
 ---
 
@@ -143,7 +143,6 @@ curl -X POST http://localhost:8000/api/v1/query \
   "topic_mapping": {},
   "keep_alive_seconds": 60,
   "connect_timeout_seconds": 30,
-  "reconnect_min_seconds": 1,
   "reconnect_max_seconds": 60,
   "auto_start": true
 }
@@ -165,11 +164,10 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object | No | {} | Topic-to-measurement mapping rules |
+| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override: maps an exact MQTT topic to a database name, overriding `database` for messages on that topic. See [Topic Mapping](#topic-mapping-per-topic-database-override). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
-| `reconnect_min_seconds` | int | No | 1 | Minimum reconnect delay |
-| `reconnect_max_seconds` | int | No | 60 | Maximum reconnect delay |
+| `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
 | `auto_start` | bool | No | true | Start on creation and server restart |
 
 ## Message Formats
@@ -221,46 +219,55 @@ Same structure as JSON, but MessagePack encoded. Detected via magic bytes.
 - If `time` field is present: used as-is (auto-detects milliseconds/microseconds/nanoseconds)
 - If `time` field is missing: current UTC time is used
 
-## Topic Mapping
+## Measurement, Tags, and Fields
 
-### Automatic Mapping (Default)
+Arc derives the measurement, tags, and fields **from the message payload**, not from the topic structure. The topic itself is not parsed for the measurement name or for tag values.
 
-By default, the last segment of the topic becomes the measurement name:
+For each decoded message:
 
-| Topic | Measurement |
-|-------|-------------|
-| `sensors/temperature` | `temperature` |
-| `factory/line1/metrics` | `metrics` |
-| `iot/devices/sensor-001/data` | `data` |
+- **Measurement** — taken from the payload's `m` field, or `measurement` field. If neither is present, it defaults to `mqtt`.
+- **Tags** — taken from a `tags` object in the payload (string values).
+- **Fields** — taken from a `fields` object if present; otherwise every remaining top-level key (anything other than `m`/`measurement`, `t`/`time`/`timestamp`, `tags`, `fields`) is treated as a field.
+- **Timestamp** — from `t`, `time`, or `timestamp` (auto-detects ms/µs/ns); current UTC time if absent.
 
-### Explicit Mapping with Tag Extraction
+So to land in measurement `machine_metrics` with tags `line` and `machine_id`, publish a payload like:
 
-Extract values from topic path segments as tags:
+```json
+{
+  "m": "machine_metrics",
+  "time": 1706745600000000,
+  "tags": { "line": "A", "machine_id": "42" },
+  "fields": { "temperature": 71.5, "rpm": 1480 }
+}
+```
+
+A flat payload with no `m`/`tags`/`fields` (e.g. `{"time": ..., "temperature": 23.5}`) is also accepted: it lands in the default `mqtt` measurement with the remaining keys as fields and no tags.
+
+<Callout type="info" title="Topic-path extraction is not supported">
+Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic` / positional extraction) is **not** currently supported. Set the measurement and tags in the published payload as shown above.
+</Callout>
+
+## Topic Mapping (Per-Topic Database Override)
+
+`topic_mapping` maps an **exact MQTT topic string to a target database name**, overriding the subscription's `database` for messages received on that topic. It is a flat `{ "<topic>": "<database>" }` object — it does not configure measurements or tags.
 
 ```json
 {
   "name": "factory-sensors",
   "broker": "tcp://localhost:1883",
-  "topics": ["sensors/+/+/data"],
+  "topics": ["factory/line1/metrics", "factory/line2/metrics"],
   "database": "iot",
   "topic_mapping": {
-    "sensors/+/+/data": {
-      "database": "iot",
-      "measurement": "sensor_data",
-      "tags_from_topic": [
-        {"position": 1, "tag_name": "location"},
-        {"position": 2, "tag_name": "sensor_id"}
-      ]
-    }
+    "factory/line2/metrics": "iot_line2"
   }
 }
 ```
 
-**Example:**
-- Topic: `sensors/factory-1/temp-001/data`
-- Database: `iot`
-- Measurement: `sensor_data`
-- Tags: `location=factory-1`, `sensor_id=temp-001`
+In this example, messages on `factory/line1/metrics` are written to the default `iot` database, while messages on `factory/line2/metrics` are routed to `iot_line2`.
+
+<Callout type="info" title="topic_mapping keys match exactly">
+The mapping key is matched against the message's actual topic by exact string equality — wildcard topic patterns (`+`, `#`) are not expanded for matching. A subscription may use wildcards in `topics`, but `topic_mapping` keys must be the concrete topics you want to route to a different database.
+</Callout>
 
 ## Authentication
 
@@ -292,7 +299,7 @@ openssl rand -base64 32
 export ARC_ENCRYPTION_KEY="your-base64-encoded-32-byte-key"
 ```
 
-<Callout type="info">
+<Callout type="info" title="When the encryption key is required">
 The encryption key is only required when subscriptions have passwords. Subscriptions without credentials work without the key.
 </Callout>
 
@@ -349,22 +356,14 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
       "sensors/+/pressure"
     ],
     "database": "iot",
-    "qos": 1,
-    "topic_mapping": {
-      "sensors/+/temperature": {
-        "measurement": "temperature",
-        "tags_from_topic": [{"position": 1, "tag_name": "sensor_id"}]
-      },
-      "sensors/+/humidity": {
-        "measurement": "humidity",
-        "tags_from_topic": [{"position": 1, "tag_name": "sensor_id"}]
-      },
-      "sensors/+/pressure": {
-        "measurement": "pressure",
-        "tags_from_topic": [{"position": 1, "tag_name": "sensor_id"}]
-      }
-    }
+    "qos": 1
   }'
+```
+
+Devices set the measurement and tags in the payload — e.g. a temperature sensor publishes:
+
+```json
+{ "m": "temperature", "tags": { "sensor_id": "temp-001" }, "fields": { "value": 23.5 } }
 ```
 
 ### Industrial Factory
@@ -378,17 +377,18 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
     "broker": "tcp://factory-mqtt:1883",
     "topics": ["factory/+/+/metrics"],
     "database": "manufacturing",
-    "qos": 2,
-    "topic_mapping": {
-      "factory/+/+/metrics": {
-        "measurement": "machine_metrics",
-        "tags_from_topic": [
-          {"position": 1, "tag_name": "line"},
-          {"position": 2, "tag_name": "machine_id"}
-        ]
-      }
-    }
+    "qos": 2
   }'
+```
+
+Machines publish the measurement and tags in the payload:
+
+```json
+{
+  "m": "machine_metrics",
+  "tags": { "line": "A", "machine_id": "42" },
+  "fields": { "temperature": 71.5, "rpm": 1480 }
+}
 ```
 
 ## Monitoring

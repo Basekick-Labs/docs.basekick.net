@@ -1,6 +1,6 @@
 ---
 title: "API reference overview"
-description: Arc Enterprise REST endpoints for MessagePack and line protocol writes, SQL and Arrow queries, health, and the token, RBAC, and query management routes used to administer a cluster.
+description: "Arc Enterprise REST endpoints for MessagePack and line protocol writes, SQL and Arrow queries, health, and the token, RBAC, and query management routes used to administer a cluster."
 ---
 
 Arc provides a comprehensive REST API for data ingestion, querying, and management.
@@ -177,7 +177,7 @@ Timeseries metrics data.
 
 ### GET /api/v1/logs
 
-Recent application logs.
+Recent application logs. **Requires an admin token** (`Authorization: Bearer <admin-token>`) when authentication is enabled.
 
 **Query Parameters:**
 - `?limit=100` - Number of logs (default: 100, max: 1000)
@@ -589,7 +589,7 @@ List all measurements in a database.
 
 Delete a database and all its data.
 
-<Callout type="warn">
+<Callout type="warn" title="Destructive operation">
 This operation is destructive and cannot be undone. Requires:
 - `delete.enabled = true` in configuration
 - `?confirm=true` query parameter
@@ -924,7 +924,7 @@ CORS is enabled by default with permissive settings. Configure via reverse proxy
 
 ### 1. Use MessagePack for Writes
 
-MessagePack is 5x faster than Line Protocol:
+MessagePack is considerably faster than Line Protocol:
 
 ```python
 # Fast: MessagePack columnar

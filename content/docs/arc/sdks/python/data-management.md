@@ -1,6 +1,6 @@
 ---
 title: "Data Management"
-description: "Managing Arc from Python: retention policies, continuous queries, delete operations, database and token administration through the SDK's typed clients."
+description: "Manage Arc from Python: retention policies, continuous queries, delete operations, and database and token administration through the SDK's typed clients."
 ---
 
 How to manage data lifecycle, authentication, and administrative tasks using the Python SDK.

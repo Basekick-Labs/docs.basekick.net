@@ -34,7 +34,6 @@ enable_wal = false
 [storage]
 backend = "local"           # local, s3, minio, azure, azblob
 local_path = "./data/arc"
-file_format = "parquet"     # parquet (default) or vortex — see "Storage File Format"
 
 # Ingestion
 [ingest]
@@ -475,26 +474,11 @@ max_rows_per_delete = 1000000    # Hard limit per operation
 
 ### Query
 
-Query execution and pruning:
+Query execution limits:
 
 ```toml
 [query]
 timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
-
-# File-level time pruning — EXPERIMENTAL in v26.09.2, opt-in (default off).
-# High-frequency ingest can accumulate thousands of small Parquet files in the
-# current (live) hour; every query otherwise lists and reads footers for all
-# of them. When enabled, Arc prunes individual live-hour files whose flush
-# timestamp proves they cannot contain rows in the query's time range (local
-# storage backend only). On a live hour holding thousands of files this
-# measurably cuts dashboard query latency. Planned to become stable and
-# enabled by default in v27.01.1 (tracked in
-# https://github.com/Basekick-Labs/arc/issues/659).
-file_time_pruning = false
-# Widens the keep-window below the query's lower time bound to absorb writer
-# clock skew. Rows stamped further ahead of the server clock than this margin
-# may be invisible until their hour closes.
-file_time_pruning_margin_seconds = 300
 ```
 
 ### Retention Policies

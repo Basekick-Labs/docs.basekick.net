@@ -1,5 +1,5 @@
 ---
-title: Delete Operations
+title: "Delete Operations"
 description: "Delete data from an Arc Enterprise cluster by rewriting Parquet files: enable delete in arc.toml, scope by measurement and time range, and audit every deletion."
 ---
 
@@ -50,7 +50,7 @@ Delete operations must be explicitly enabled and configured.
 
 ### Configuration File
 
-Edit `arc.conf`:
+Edit `arc.toml`:
 
 ```toml
 [delete]

@@ -1,6 +1,6 @@
 ---
 title: "Install the Python SDK"
-description: "Installing the arc-tsdb-client package from PyPI, the Python versions it supports, and the optional extras that add pandas, polars, and PyArrow support to the client."
+description: "Install the arc-tsdb-client package from PyPI, the Python versions it supports, and the optional extras that add pandas, polars, and PyArrow support to the client."
 ---
 
 How to install the Arc Python SDK and its optional dependencies.

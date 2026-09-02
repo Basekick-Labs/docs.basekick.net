@@ -1,5 +1,5 @@
 ---
-title: Connecting to Arc
+title: "Connecting to Arc"
 description: "Register an Arc server in Launchpad: supply the Arc HTTP API URL and an admin token, and allow private endpoints when Arc runs on a Docker network or private subnet."
 ---
 

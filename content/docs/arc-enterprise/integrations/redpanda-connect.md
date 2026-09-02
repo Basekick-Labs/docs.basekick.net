@@ -1,6 +1,6 @@
 ---
-title: Redpanda Connect Integration
-description: Stream from any Redpanda Connect source into an Arc Enterprise cluster with the native arc output plugin, writing MessagePack batches to a load-balanced writer endpoint.
+title: "Redpanda Connect Integration"
+description: "Stream from any Redpanda Connect source into an Arc Enterprise cluster with the native arc output plugin, writing MessagePack batches to a load-balanced writer endpoint."
 ---
 
 Stream data from any of Redpanda Connect's 200+ sources directly into Arc using the native Arc output plugin.

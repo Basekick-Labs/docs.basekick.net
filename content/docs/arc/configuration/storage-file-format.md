@@ -1,100 +1,50 @@
 ---
 title: "Storage File Format"
-description: "Choosing Arc's on-disk columnar format with storage.file_format: Parquet as the default, Vortex as the experimental alternative, and the trade-offs between them."
+description: "Arc's on-disk file format: every deployment stores measurement data as Apache Parquet, with Snappy on the ingest path and ZSTD after compaction."
 ---
 
-<!-- TODO(verify): `storage.file_format` and the `vortex` value could not be confirmed in the Arc
-     checkout at /Users/nacho/dev/basekick-labs/arc: there is no `file_format` SetDefault or struct
-     field, no `file_format` key in arc.toml, and no release note mentions Vortex. The only source
-     reference is internal/iceberg/source.go:135, which calls vortex "a separate (shelved) format".
-     Either this page documents an unreleased/shelved feature and should be held, or the checkout is
-     behind the branch that ships it. Carried forward unchanged from the pre-migration docs. -->
+Arc stores measurement data as columnar files on disk. The format is **Apache Parquet**
+for every deployment and every storage backend — there is no setting to change it.
 
-Arc stores measurement data as columnar files on disk. You choose the on-disk format once, at deploy time, with a single setting:
+## Parquet everywhere
 
-```toml
-[storage]
-file_format = "parquet"   # "parquet" (default) or "vortex"
-```
+Parquet is used across all storage backends (local, S3, MinIO, Azure) and by every Arc
+feature: queries, compaction, retention, delete, backup and restore, and tiered storage.
+Because the files are ordinary Parquet, they are also readable directly by external
+tools — DuckDB, Spark, Polars, pandas — without going through Arc.
 
-Environment variable: `ARC_STORAGE_FILE_FORMAT=parquet|vortex`.
+There is no `storage.file_format` key, and no pluggable on-disk format. A `file_format`
+setting in an `arc.toml` is ignored.
 
-- **`parquet`** (default) — Apache Parquet. The mature, fully-featured format used by
-  every Arc deployment to date. Works with all storage backends (local, S3, MinIO,
-  Azure) and every Arc feature.
-- **`vortex`** — the [Vortex](https://github.com/vortex-data/vortex) columnar format.
-  Optimized for point lookups and low, consistent scan latency. Opt-in, with the
-  limitations described below.
+## Compression
 
-## The choice is deployment-wide and immutable
+Compression differs between freshly-ingested files and compacted files:
 
-The format applies to the **entire deployment**, not per-measurement. Once Arc has
-written data in one format, it **refuses to start** if `storage.file_format` is changed
-to the other — mixing formats in one deployment is unsupported. Pick the format at
-deploy time.
-
-On first write, Arc records the chosen format in an `.arc_format` marker at the storage
-root. On every subsequent boot it verifies the configured format matches the data on
-disk (and fails fast on a mismatch or on a storage directory that somehow contains both
-formats).
-
-To switch formats, stand up a new deployment with the new `file_format` and re-ingest or
-migrate the data.
-
-## When to choose Vortex
-
-**Ingest throughput.** On Arc's MessagePack Columnar path, Vortex ingests **faster** than
-Parquet — a sustained IOT benchmark (12 workers, batch 1000, local backend) measured
-Vortex showed somewhat higher write throughput and lower write latency than Snappy Parquet in internal testing.
-Arc writes Vortex with lightweight encodings (dictionary for low-cardinality string tags,
-direct primitive buffers for numeric columns) tuned for write speed, so the ingest hot
-path does less work than Parquet's.
-
-**Query latency.** Vortex also shines on **point lookups and random access** (single-row /
-wide-column reads) and delivers **more consistent scan latency** (lower variance between
-cold and warm reads).
-
-**Not for storage savings.** Because Arc's Vortex writer favors speed over compression,
-on-disk files are **larger** than well-configured (ZSTD) Parquet. Choose Vortex for
-**throughput and latency**, not to save disk space. (Compression can be recovered later at
-compaction time.)
-
-## Vortex limitations (v1)
-
-Vortex support is new and intentionally scoped. Understand these before enabling it:
-
-| Area | Parquet | Vortex (v1) |
+| Stage | Codec | Configurable |
 |---|---|---|
-| Storage backends | local, S3, MinIO, Azure | **local filesystem only** |
-| Tiered storage (hot/cold to S3/Azure) | Supported (Enterprise) | **Not supported** |
-| Compaction | Full, incl. `(tags, time)` de-duplication | Compaction runs, but **without de-duplication** |
-| `NULL` in `DECIMAL` columns | Supported | **Rejected at ingest** (other columns keep full `NULL` support) |
-| Partition pruning / parallel scan | Yes | Not yet (whole-measurement scans) |
-| Query, backup, restore, retention, delete | Yes | Yes |
+| Ingest (flushed buffers) | Snappy by default | Yes — `ingest.compression` |
+| After compaction | ZSTD | No — fixed |
 
-Details:
+Snappy keeps the ingest hot path cheap. Compaction rewrites those files with ZSTD, which
+is the main reason compacted files are substantially smaller than the files they replace.
 
-- **Local filesystem only.** Vortex reads over object storage are not supported in Arc's
-  embedded query engine yet. Arc **refuses to start** if `file_format = "vortex"` is
-  combined with `storage.backend` other than `local`, or with cold-tier tiering enabled.
-- **No compaction de-duplication.** Arc's Parquet compaction can collapse duplicate
-  `(tags, time)` rows. That path relies on Parquet file metadata that Vortex does not
-  expose, so Vortex compaction merges files without de-duplicating. Compaction still runs
-  and still reduces file count.
-- **`NULL` values are otherwise fully preserved.** Arc writes Vortex with per-value
-  validity, so `NULL`s round-trip correctly for integer, float, string, boolean, and
-  timestamp columns. The one exception is `DECIMAL` columns containing `NULL`s, which are
-  rejected at ingest time (fail-loud) rather than silently altered.
+See the [configuration overview](/arc/configuration/overview/) for `ingest.compression`,
+and [file compaction](/arc/advanced/compaction/) for how and when files are rewritten.
 
-## Example
+## Layout on disk
 
-```toml
-[storage]
-backend = "local"
-local_path = "/var/lib/arc/data"
-file_format = "vortex"
+Files are laid out by database, measurement, and hour:
+
+```text
+arc/                              # Bucket or local path
+└── default/                      # Database
+    └── cpu/                      # Measurement
+        └── 2025/10/08/           # Date
+            └── 14/               # Hour
+                ├── file1.parquet
+                └── file2.parquet
 ```
 
-Everything else — ingestion API, SQL queries, retention, backup/restore — works exactly
-as with Parquet. Arc transparently reads and writes Vortex files; your clients see no
-difference.
+This is what makes partition pruning effective: a query with a time bound can skip whole
+directories without opening the files inside them. See
+[data time partitioning](/arc/advanced/data-time-partitioning/) for details.

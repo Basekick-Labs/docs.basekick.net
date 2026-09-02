@@ -1,6 +1,6 @@
 ---
 title: "arcctl query"
-description: "Running SQL with arcctl query: pass a statement inline, read it from a file with -f, or pipe it on stdin, choose a database, and render results as a table, JSON, CSV, or Arrow."
+description: "Run SQL with arcctl query: pass a statement inline, read it from a file with -f, or pipe it on stdin, choose a database, and render results as a table, JSON, CSV, or Arrow."
 ---
 
 `arcctl query` runs SQL against an Arc cluster and renders the result in your chosen format. Defaults are operator-friendly: pretty table on stdout, errors on stderr, exit 0 on success, exit 1 on any failure.

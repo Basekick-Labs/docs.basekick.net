@@ -1,6 +1,6 @@
 ---
 title: "Apache Iceberg Export"
-description: "Publishing Arc measurements as Apache Iceberg tables so Spark, Trino, DuckDB, and PyIceberg can read them directly, configured through the iceberg section."
+description: "Publish Arc measurements as Apache Iceberg tables so Spark, Trino, DuckDB, and PyIceberg can read them directly, configured through the iceberg section of arc.toml."
 ---
 
 Publish Arc's data as **Apache Iceberg** tables so any Iceberg-aware engine — Spark, Trino, DuckDB, Snowflake, PyIceberg — can query it directly, without going through Arc.

@@ -1,5 +1,5 @@
 ---
-title: Data Ingestion
+title: "Data Ingestion"
 description: "Write to Arc Enterprise from Python with write_columnar, write_dataframe, buffered writes, and line protocol, and how writes route to the cluster's writer node."
 ---
 
@@ -273,7 +273,7 @@ cpu,host=server01,region=us-east usage_idle=95.2,usage_system=2.1 17040672000000
 
 ❌ **Don't use line protocol when:**
 - Building new applications (use columnar format)
-- Performance is critical (columnar is 8x faster)
+- Performance is critical (columnar is considerably faster)
 
 ## Async Ingestion
 

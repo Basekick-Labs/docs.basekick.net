@@ -1,6 +1,6 @@
 ---
 title: "Profiling with pprof"
-description: "Enabling Arc's opt-in net/http/pprof listener to capture heap, CPU, goroutine, and mutex profiles, and the loopback binding that keeps the endpoints off the network."
+description: "Enable Arc's opt-in net/http/pprof listener to capture heap, CPU, goroutine, and mutex profiles, and the loopback binding that keeps the endpoints off the network."
 ---
 
 Arc exposes Go's built-in `net/http/pprof` profiler — heap, goroutine, CPU, allocations, blocking, mutex, and execution-trace endpoints — for diagnosing memory pressure, hot CPU paths, goroutine leaks, and deadlocks in production. The endpoints are **opt-in** and bound to `localhost` by default; exposing them anywhere else requires a deliberate two-step configuration.

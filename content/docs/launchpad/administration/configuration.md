@@ -1,5 +1,5 @@
 ---
-title: Configuration
+title: "Configuration"
 description: "Environment-variable reference for Arc Launchpad: LAUNCHPAD_JWT_SECRET, LAUNCHPAD_BASE_URL, the SQLite path, private-endpoint policy, adapter-node proxy headers, and Mailgun or SMTP email."
 ---
 

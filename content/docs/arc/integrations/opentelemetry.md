@@ -1,6 +1,6 @@
 ---
 title: "OpenTelemetry Integration"
-description: "Exporting traces, metrics, and logs from the OpenTelemetry Collector into Arc: build the collector with the Arc exporter, configure it, and query spans with SQL."
+description: "Export traces, metrics, and logs from the OpenTelemetry Collector into Arc: build the collector with the Arc exporter, configure it, and query spans with SQL."
 ---
 
 Send traces, metrics, and logs from OpenTelemetry Collector to Arc for unified observability.

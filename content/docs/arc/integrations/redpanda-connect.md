@@ -1,6 +1,6 @@
 ---
 title: "Redpanda Connect Integration"
-description: "Streaming data from Redpanda Connect sources into Arc with the native output plugin: configure the YAML sink, set batch sizes, and enable zstd compression."
+description: "Stream data from Redpanda Connect sources into Arc with the native output plugin: configure the YAML sink, set batch sizes, and enable zstd compression."
 ---
 
 Stream data from any of Redpanda Connect's 200+ sources directly into Arc using the native Arc output plugin.

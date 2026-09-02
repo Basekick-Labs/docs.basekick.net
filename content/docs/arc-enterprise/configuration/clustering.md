@@ -1,5 +1,5 @@
 ---
-title: Clustering & High Availability
+title: "Clustering & High Availability"
 description: "Configure an Arc Enterprise cluster: assign writer, reader, and compactor roles, set seeds and Raft addresses, tune peer file replication and catch-up, and enable writer failover."
 ---
 

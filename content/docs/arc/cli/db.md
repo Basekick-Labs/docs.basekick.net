@@ -1,6 +1,6 @@
 ---
 title: "Database Administration"
-description: "Managing Arc databases with arcctl db: list them, show one with its measurements, create an empty database, and drop a database along with all of its stored files."
+description: "Manage Arc databases with arcctl db: list them, show one with its measurements, create an empty database, and drop a database along with all of its stored files."
 ---
 
 `arcctl db` manages databases on an Arc cluster. The subcommands map directly onto Arc's `/api/v1/databases` endpoints.

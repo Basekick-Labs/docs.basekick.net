@@ -770,7 +770,7 @@ List all measurements in a database.
 
 Delete a database and all its data.
 
-<Callout type="warn">
+<Callout type="warn" title="Destructive operation">
 This operation is destructive and cannot be undone. Requires:
 - `delete.enabled = true` in configuration
 - `?confirm=true` query parameter

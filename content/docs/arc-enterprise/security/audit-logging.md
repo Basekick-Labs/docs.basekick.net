@@ -1,6 +1,6 @@
 ---
-title: Audit Logging
-description: Record authentication, data access, RBAC changes, and infrastructure events in the Arc Enterprise audit log, with retention and a switch for high-volume read events.
+title: "Audit Logging"
+description: "Record authentication, data access, RBAC changes, and infrastructure events in the Arc Enterprise audit log, with retention and a switch for high-volume read events."
 ---
 
 Track every significant operation in your Arc deployment. Audit logging captures authentication attempts, data access, configuration changes, and infrastructure events for compliance and security monitoring.

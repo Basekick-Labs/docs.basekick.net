@@ -1,5 +1,5 @@
 ---
-title: Apache Superset Integration
+title: "Apache Superset Integration"
 description: "Connect Apache Superset to Arc Enterprise with the arc:// SQLAlchemy dialect, pointing the connection string at a cluster endpoint with an RBAC-scoped read token."
 ---
 
@@ -345,15 +345,18 @@ LIMIT 1000;
 
 ### 3. Enable Query Caching
 
-In Arc's `arc.conf`:
+When Arc reads from S3-compatible storage, caching fetched blocks speeds up the
+repeated queries a dashboard produces. In Arc's `arc.toml`:
 
 ```toml
-[query_cache]
-enabled = true
-ttl_seconds = 300  # 5 minutes
+[query]
+enable_s3_cache = true
+s3_cache_size = "128MB"
+s3_cache_ttl_seconds = 3600
 ```
 
-Repeated queries return instantly from cache.
+See [query caching](/arc-enterprise/advanced/caching/) for the caches Arc keeps on the
+query path.
 
 ### 4. Use Materialized Queries
 

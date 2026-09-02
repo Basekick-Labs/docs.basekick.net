@@ -159,7 +159,7 @@ daily_min_age_hours = 24    # Daily tier waits a full day (default)
 # hourly_min_age_hours = 0    # Compact immediately (aggressive)
 ```
 
-<Callout type="warn">
+<Callout type="warn" title="Compacting the current hour">
 Setting `hourly_min_age_hours = 0` can compact the current hour while data is still being written, potentially creating many compacted files.
 </Callout>
 

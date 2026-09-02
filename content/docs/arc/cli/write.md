@@ -1,6 +1,6 @@
 ---
 title: "Writing Line Protocol"
-description: "Streaming Line Protocol into Arc with arcctl write: pipe records from stdin or read them from a file with -f, target a specific database, and set the timestamp precision."
+description: "Stream Line Protocol into Arc with arcctl write: pipe records from stdin or read them from a file with -f, target a specific database, and set the timestamp precision."
 ---
 
 `arcctl write` POSTs line-protocol records to Arc's `/api/v1/write/line-protocol` endpoint. Body is streamed — large files / pipes never buffer in memory — so `cat huge.lp | arcctl write` works at line-rate.

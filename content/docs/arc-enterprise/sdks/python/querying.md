@@ -1,6 +1,6 @@
 ---
 title: "Querying with the Python SDK"
-description: Query an Arc Enterprise cluster from Python and return JSON, pandas, polars, or PyArrow, including how reader-node routing and query governance limits surface to the client.
+description: "Query an Arc Enterprise cluster from Python and return JSON, pandas, polars, or PyArrow, including how reader-node routing and query governance limits surface to the client."
 ---
 
 How to query data from Arc using the Python SDK.

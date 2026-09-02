@@ -1,6 +1,6 @@
 ---
 title: "Apache Superset Integration"
-description: "Connecting Apache Superset to Arc with the arc-superset-dialect SQLAlchemy driver: build the arc:// URI, register the database, and chart DuckDB SQL results."
+description: "Connect Apache Superset to Arc with the arc-superset-dialect SQLAlchemy driver: build the arc:// URI, register the database, and chart DuckDB SQL results."
 ---
 
 Connect Arc to Apache Superset for interactive dashboards and visualizations.

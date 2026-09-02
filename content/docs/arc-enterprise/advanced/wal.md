@@ -333,7 +333,7 @@ curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
 2. **Use faster disks for WAL:**
    ```toml
    [wal]
-   dir = "/mnt/nvme/arc-wal"   # NVMe SSD
+   directory = "/mnt/nvme/arc-wal"   # NVMe SSD
    ```
 
 3. **Use faster storage:**
@@ -391,7 +391,7 @@ $ du -sh ./data/wal
 3. **Move WAL to larger disk:**
    ```toml
    [wal]
-   dir = "/mnt/large-disk/arc-wal"
+   directory = "/mnt/large-disk/arc-wal"
    ```
 
 ### Performance Degradation with WAL
@@ -417,7 +417,7 @@ $ du -sh ./data/wal
 3. **Move WAL to faster disk:**
    ```toml
    [wal]
-   dir = "/mnt/nvme/arc-wal"
+   directory = "/mnt/nvme/arc-wal"
    ```
 
 4. **Consider disabling WAL if durability isn't critical:**
@@ -436,7 +436,7 @@ $ du -sh ./data/wal
 [wal]
 enabled = true
 sync_mode = "fdatasync"
-dir = "/mnt/fast-ssd/arc-wal"
+directory = "/mnt/fast-ssd/arc-wal"
 max_size_mb = 100
 max_age_seconds = 3600
 ```
@@ -487,7 +487,7 @@ max_size_mb = 10  # Small files for testing
 [wal]
 enabled = true
 sync_mode = "fdatasync"     # Best balance
-dir = "/mnt/nvme/arc-wal"   # Fast disk
+directory = "/mnt/nvme/arc-wal"   # Fast disk
 ```
 
 ## Next Steps

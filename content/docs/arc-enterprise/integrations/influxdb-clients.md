@@ -1,5 +1,5 @@
 ---
-title: InfluxDB Client Compatibility
+title: "InfluxDB Client Compatibility"
 description: "Point existing InfluxDB client libraries at an Arc Enterprise cluster: the /write and /api/v2/write paths are unchanged, with the token supplied by RBAC instead of an InfluxDB org."
 ---
 

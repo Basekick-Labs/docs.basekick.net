@@ -1,6 +1,6 @@
 ---
 title: "Continuous Queries"
-description: "Downsampling Arc data into materialized views with continuous queries: define the aggregation, choose a target measurement, and trigger runs through the REST API."
+description: "Downsample Arc data into materialized views with continuous queries: define the aggregation, choose a target measurement, and trigger runs through the REST API."
 ---
 
 Continuous queries enable automatic downsampling and aggregation of data into materialized views, reducing storage requirements while maintaining queryable historical data.
@@ -190,7 +190,7 @@ Remove a continuous query:
 DELETE /api/v1/continuous_queries/{query_id}
 ```
 
-<Callout type="warn">
+<Callout type="warn" title="Deleting a CQ keeps its data">
 Deleting a continuous query does not delete the destination measurement or its data. The aggregated data remains queryable.
 </Callout>
 

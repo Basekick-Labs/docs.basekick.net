@@ -1,5 +1,5 @@
 ---
-title: Alerts
+title: "Alerts"
 description: "Define threshold alerts on Arc data from the Alerts tab: set a condition and check interval, point it at a webhook, and review recent triggers from the alert card."
 ---
 

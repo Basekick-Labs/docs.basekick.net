@@ -1,5 +1,5 @@
 ---
-title: Retention policies
+title: "Retention policies"
 description: "Create Arc retention policies from the Retention tab: scope them to a database or measurement, set retention and buffer periods, preview deletions with a dry-run, then execute or schedule them."
 ---
 

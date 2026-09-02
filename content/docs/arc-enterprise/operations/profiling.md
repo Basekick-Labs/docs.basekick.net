@@ -1,6 +1,6 @@
 ---
-title: Profiling with pprof
-description: Enable Go pprof on an Arc Enterprise node with ARC_DEBUG_PPROF to capture heap, goroutine, and CPU profiles, and the loopback and firewall gates required to expose it.
+title: "Profiling with pprof"
+description: "Enable Go pprof on an Arc Enterprise node with ARC_DEBUG_PPROF to capture heap, goroutine, and CPU profiles, and the loopback and firewall gates required to expose it."
 ---
 
 Arc exposes Go's built-in `net/http/pprof` profiler — heap, goroutine, CPU, allocations, blocking, mutex, and execution-trace endpoints — for diagnosing memory pressure, hot CPU paths, goroutine leaks, and deadlocks in production. The endpoints are **opt-in** and bound to `localhost` by default; exposing them anywhere else requires a deliberate two-step configuration.

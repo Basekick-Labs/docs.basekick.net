@@ -1,6 +1,6 @@
 ---
-title: Role-Based Access Control (RBAC)
-description: Model Arc Enterprise access with organizations, teams, and roles, granting database and measurement-level permissions and binding them to API tokens.
+title: "Role-Based Access Control (RBAC)"
+description: "Model Arc Enterprise access with organizations, teams, and roles, granting read, write, delete, or admin permissions per database and measurement, then binding them to API tokens."
 ---
 
 Manage access to your Arc deployment with organizations, teams, and granular permissions down to the measurement level.

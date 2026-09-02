@@ -1,6 +1,6 @@
 ---
-title: OpenTelemetry Integration
-description: Export traces, metrics, and logs from the OpenTelemetry Collector into an Arc Enterprise cluster using the Arc exporter, built with ocb or downloaded as a release binary.
+title: "OpenTelemetry Integration"
+description: "Export traces, metrics, and logs from the OpenTelemetry Collector into an Arc Enterprise cluster using the Arc exporter, built with ocb or downloaded as a release binary."
 ---
 
 Send traces, metrics, and logs from OpenTelemetry Collector to Arc for unified observability.

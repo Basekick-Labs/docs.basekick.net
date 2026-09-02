@@ -121,13 +121,20 @@ Compaction is **enabled by default** in `arc.toml`:
 ```toml
 [compaction]
 enabled = true
-min_age_hours = 1              # Wait 1 hour before compacting (let hour complete)
-min_files = 10                 # Only compact if ≥10 files exist
-target_file_size_mb = 512      # Target size for compacted files
-schedule = "5 * * * *"         # Cron schedule: every hour at :05
-max_concurrent_jobs = 2        # Run 2 compactions in parallel
-compression = "zstd"           # Better compression than snappy
-compression_level = 3          # Balance compression vs speed
+
+# Hourly tier
+hourly_enabled = true
+hourly_schedule = "5 * * * *"   # Cron schedule: every hour at :05
+hourly_min_age_hours = 1        # Wait 1 hour before compacting (let the hour complete)
+hourly_min_files = 10           # Only compact if >=10 files exist
+
+# Daily tier
+daily_enabled = true
+daily_schedule = "0 3 * * *"    # Cron schedule: 3 AM daily
+daily_min_age_hours = 24        # Wait 24 hours
+daily_min_files = 12            # Only compact if >=12 files exist
+
+max_concurrent = 2              # Run 2 compactions in parallel
 ```
 
 ### Configuration Options
@@ -136,9 +143,9 @@ compression_level = 3          # Balance compression vs speed
 
 ```toml
 [compaction]
-schedule = "5 * * * *"    # Every hour at :05 (default)
-# schedule = "0 */2 * * *"  # Every 2 hours at :00
-# schedule = "0 2 * * *"    # Daily at 2 AM
+hourly_schedule = "5 * * * *"     # Every hour at :05 (default)
+daily_schedule = "0 3 * * *"      # 3 AM daily (default)
+# hourly_schedule = "0 */2 * * *"   # Every 2 hours at :00
 ```
 
 **Cron format:** `minute hour day month weekday`
@@ -147,54 +154,92 @@ schedule = "5 * * * *"    # Every hour at :05 (default)
 
 ```toml
 [compaction]
-min_age_hours = 1    # Don't compact current hour (default)
-# min_age_hours = 2    # Wait 2 hours (more conservative)
-# min_age_hours = 0    # Compact immediately (aggressive)
+hourly_min_age_hours = 1    # Don't compact the current hour (default)
+daily_min_age_hours = 24    # Daily tier waits a full day (default)
+# hourly_min_age_hours = 2    # Wait 2 hours (more conservative)
+# hourly_min_age_hours = 0    # Compact immediately (aggressive)
 ```
 
 <Callout type="warn">
-Setting `min_age_hours = 0` can compact the current hour while data is still being written, potentially creating many compacted files.
+Setting `hourly_min_age_hours = 0` can compact the current hour while data is still being written, potentially creating many compacted files.
 </Callout>
 
 #### Minimum Files
 
 ```toml
 [compaction]
-min_files = 10       # Only compact if ≥10 files (default)
-# min_files = 50       # Only compact with many files
-# min_files = 5        # Compact more aggressively
-```
-
-#### Target File Size
-
-```toml
-[compaction]
-target_file_size_mb = 512    # Target 512MB files (default)
-# target_file_size_mb = 1024   # Larger files (fewer files, longer compaction)
-# target_file_size_mb = 256    # Smaller files (more files, faster compaction)
+hourly_min_files = 10    # Only compact if >=10 files (default)
+daily_min_files = 12     # Daily tier threshold (default)
+# hourly_min_files = 50    # Only compact with many files
+# hourly_min_files = 5     # Compact more aggressively
 ```
 
 #### Concurrent Jobs
 
 ```toml
 [compaction]
-max_concurrent_jobs = 2    # Run 2 compactions in parallel (default)
-# max_concurrent_jobs = 4    # More parallelism (use more CPU/memory)
-# max_concurrent_jobs = 1    # Sequential (lower resource usage)
+max_concurrent = 2    # Run 2 compactions in parallel (default)
+# max_concurrent = 4    # More parallelism (uses more CPU/memory)
+# max_concurrent = 1    # Sequential (lower resource usage)
 ```
 
-#### Compression
+#### Memory Limit and Threads (per subprocess)
+
+<Callout type="info" title="Available in v26.09.1+">
+`memory_limit` and `threads` are configurable starting in Arc **v26.09.1**. On earlier versions each compaction subprocess inherits the full `database.memory_limit` and uses all CPU cores.
+</Callout>
+
+Each compaction job runs in an isolated subprocess with its own DuckDB instance. These keys bound that instance's resources:
 
 ```toml
 [compaction]
-compression = "zstd"        # Best compression (default)
-compression_level = 3       # Balance speed vs compression (default)
-
-# Options:
-# compression = "snappy"    # Fastest, lower compression
-# compression = "gzip"      # Good compression, slower
-# compression = "zstd"      # Best compression, good speed
+memory_limit = ""    # Per-subprocess DuckDB memory limit; "" (default) = auto
+threads = 0          # Per-subprocess DuckDB threads; 0 (default) = auto
+# memory_limit = "2GB"   # Explicit cap
+# threads = 4            # Explicit thread count
 ```
+
+Env vars: `ARC_COMPACTION_MEMORY_LIMIT`, `ARC_COMPACTION_THREADS`.
+
+**Auto behavior:**
+
+- `memory_limit` derives as `database.memory_limit / max_concurrent`, so all concurrent compaction jobs together stay within roughly one `database.memory_limit`. With `database.memory_limit = "8GB"` and the default concurrency of 2, each subprocess gets `4GB`.
+- `threads` defaults to half the CPU cores (minimum 1), so the default two concurrent jobs together use about one machine's worth of cores, leaving headroom for ingest and queries.
+
+Accepted `memory_limit` forms are absolute sizes with a unit: `"8GB"`, `"512MB"`, `"0.5GB"`. Percent and unit-less forms are rejected at startup (DuckDB's `SET memory_limit` does not support them), as are other invalid values. The effective values appear in the startup log (`subprocess_memory_limit`, `subprocess_threads`).
+
+When a job exceeds its memory limit, DuckDB spills to a `duckdb-spill/` directory inside the job's temp directory (under `compaction.temp_directory`) — size that volume for your largest partitions. Spill files are removed by normal job cleanup and by the crash sweeps on startup.
+
+On a dedicated compactor node these can be raised well above the defaults, since compaction is not competing with ingest or queries for RAM and cores on that host.
+
+#### Files Per Batch
+
+<Callout type="info" title="Available in v26.09.1+">
+`max_files_per_batch` is configurable starting in Arc **v26.09.1**. On earlier versions the batch size is fixed at 30 files and this setting has no effect.
+</Callout>
+
+A partition with more files than this is split into several batches, each compacted as an independent job producing its own output file.
+
+```toml
+[compaction]
+max_files_per_batch = 30   # Files per compaction job (default)
+# max_files_per_batch = 5    # Smaller outputs, more jobs per partition
+# max_files_per_batch = 60   # Fewer, larger outputs
+```
+
+Valid range is **2–500**. Values outside it fall back to the default with a startup warning; `1` is rejected because compaction's adaptive retry cannot process a single-file batch.
+
+This bounds the **file count** per job, not the output size in bytes — compacted file size tracks input file size, which follows your ingest buffer settings. The upper bound exists because DuckDB can abort when a single `read_parquet()` call spans too many files.
+
+#### Compression
+
+Compaction always writes its output with ZSTD, which is why compacted files are
+substantially smaller than the freshly-ingested files they replace. This is not
+configurable per tier.
+
+The compression used for **incoming** writes is separate, and is set by
+`ingest.compression` (default `snappy`) — see the
+[configuration overview](/arc-enterprise/configuration/overview/).
 
 ### Disable Compaction
 
@@ -343,7 +388,7 @@ The default schedule (hourly) works well for most use cases:
 ```toml
 [compaction]
 enabled = true
-schedule = "5 * * * *"
+hourly_schedule = "5 * * * *"
 ```
 
 ### 2. Monitor Compaction Jobs
@@ -358,24 +403,24 @@ Set up alerts for:
 **High write volume:**
 ```toml
 [compaction]
-min_files = 100          # Wait for more files
-max_concurrent_jobs = 4  # More parallelism
+hourly_min_files = 100   # Wait for more files
+max_concurrent = 4       # More parallelism
 ```
 
 **Low write volume:**
 ```toml
 [compaction]
-min_files = 5            # Compact with fewer files
-schedule = "0 */6 * * *" # Every 6 hours
+hourly_min_files = 5              # Compact with fewer files
+hourly_schedule = "0 */6 * * *"   # Every 6 hours
 ```
 
-### 4. Use Appropriate Target File Size
+### 4. Tune Files Per Batch
 
 ```toml
 [compaction]
-target_file_size_mb = 512    # Good default
-# target_file_size_mb = 1024   # For very large datasets
-# target_file_size_mb = 256    # For faster compaction
+max_files_per_batch = 30     # Files per compaction job (default)
+# max_files_per_batch = 60     # Fewer, larger outputs
+# max_files_per_batch = 5      # Smaller outputs, more jobs per partition
 ```
 
 ### 5. Reduce File Generation at Source
@@ -390,7 +435,7 @@ max_buffer_age_ms = 10000       # Up from 5000 (2x fewer files)
 
 **Impact:**
 - Files generated: 2,000/hour → 250/hour (8x reduction)
-- Compaction time: 150s → 20s (7x faster)
+- Compaction time: substantially reduced
 - Memory usage: +300MB per worker
 
 This is the **most effective optimization** - fewer files means faster compaction AND faster queries.
@@ -428,16 +473,16 @@ sudo journalctl -u arc | grep compaction
 
 **Solutions:**
 
-1. **Reduce target file size:**
+1. **Reduce files per batch:**
    ```toml
    [compaction]
-   target_file_size_mb = 256  # Smaller chunks
+   max_files_per_batch = 10  # Smaller compaction jobs
    ```
 
 2. **Increase parallelism:**
    ```toml
    [compaction]
-   max_concurrent_jobs = 4
+   max_concurrent = 4
    ```
 
 3. **Reduce files at source:**
@@ -460,7 +505,7 @@ sudo journalctl -u arc | grep compaction
 2. **Reduce concurrent jobs:**
    ```toml
    [compaction]
-   max_concurrent_jobs = 1
+   max_concurrent = 1
    ```
 
 3. **Clean up old compacted files manually:**
@@ -544,9 +589,9 @@ Compaction is essential for production deployments:
 ```toml
 [compaction]
 enabled = true
-schedule = "5 * * * *"
-min_age_hours = 1
-min_files = 10
+hourly_schedule = "5 * * * *"
+hourly_min_age_hours = 1
+hourly_min_files = 10
 ```
 
 **Monitor regularly:**

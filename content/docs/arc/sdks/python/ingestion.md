@@ -1,6 +1,6 @@
 ---
 title: "Data Ingestion"
-description: "Writing to Arc from Python with write_columnar, write_dataframe, and write_line_protocol: the payload shape each method expects and when to reach for one over another."
+description: "Write to Arc from Python with write_columnar, write_dataframe, and write_line_protocol: the payload shape each method expects and when to reach for one over another."
 ---
 
 How to write data to Arc using the Python SDK.

@@ -1,6 +1,6 @@
 ---
-title: Installation
-description: Install Arc Launchpad with Docker Compose alongside Arc, standalone Docker, the Helm chart, or from source, setting LAUNCHPAD_JWT_SECRET and LAUNCHPAD_BASE_URL.
+title: "Installation"
+description: "Install Arc Launchpad with Docker Compose alongside Arc, standalone Docker, the Helm chart, or from source, setting LAUNCHPAD_JWT_SECRET and LAUNCHPAD_BASE_URL."
 ---
 
 Launchpad ships as a container image, a Helm chart, and source. Pick the path that fits your environment. The only strictly required configuration is `LAUNCHPAD_JWT_SECRET`, without which the app refuses to start in production.
@@ -84,7 +84,7 @@ docker run -p 3000:3000 \
 
 The SQLite database is written to `/app/data/launchpad.db`; mount a volume there to persist it.
 
-<Callout type="idea">
+<Callout type="idea" title="Set LAUNCHPAD_BASE_URL correctly">
 Set `LAUNCHPAD_BASE_URL` to the public URL you actually serve on. It also drives the `ORIGIN` used for CSRF and the `secure` flag on session cookies, so a mismatch can cause login or form actions to fail. See [Configuration](/launchpad/administration/configuration/).
 </Callout>
 

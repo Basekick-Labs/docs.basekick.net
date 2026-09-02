@@ -1,6 +1,6 @@
 ---
 title: "SQL Querying Guide"
-description: "Writing DuckDB SQL against Arc measurements: the database.measurement naming, time_bucket aggregation, window functions, and filtering that enables partition pruning."
+description: "Write DuckDB SQL against Arc measurements: the database.measurement naming, time_bucket aggregation, window functions, and filtering that enables partition pruning."
 ---
 
 Arc uses DuckDB as its SQL engine, giving you full analytical SQL capabilities on data stored as Parquet files.

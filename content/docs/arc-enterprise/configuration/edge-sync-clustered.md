@@ -1,5 +1,5 @@
 ---
-title: Edge Sync with a Clustered Hub
+title: "Edge Sync with a Clustered Hub"
 description: "What changes when an edge sync hub is an Arc Enterprise cluster: which node accepts the import, how Raft forwards the manifest command, and pinning a stable import endpoint."
 ---
 

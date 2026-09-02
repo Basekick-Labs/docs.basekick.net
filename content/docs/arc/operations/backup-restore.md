@@ -1,6 +1,6 @@
 ---
 title: "Backup & Restore"
-description: "Backing up Arc's Parquet data, SQLite metadata, and arc.toml through the REST API, tracking async job progress, and restoring selectively from a backup."
+description: "Back up Arc's Parquet data, SQLite metadata, and arc.toml through the REST API, track async job progress, and restore selectively from an existing backup."
 ---
 
 Arc includes a full backup and restore system via REST API. Backups capture parquet data files, SQLite metadata (auth, audit, MQTT config), and the `arc.toml` configuration file -- with async operations, real-time progress tracking, and selective restore.

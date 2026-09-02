@@ -1,6 +1,6 @@
 ---
 title: "Telegraf Integration"
-description: "Sending Telegraf metrics to Arc through the native output plugin: configure the MessagePack columnar endpoint, target a database, and enable gzip compression."
+description: "Send Telegraf metrics to Arc through the native output plugin: configure the MessagePack columnar endpoint, target a database, and enable gzip compression."
 ---
 
 Use Telegraf to collect system metrics and send them directly to Arc using the native Arc output plugin.

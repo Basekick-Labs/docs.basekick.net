@@ -40,6 +40,6 @@ Measuring on hardware that resembles your production deployment is worth more th
 
 ## Related
 
-- [Storage file format](/arc/configuration/storage-file-format/) — Parquet and Vortex trade-offs.
+- [Storage file format](/arc/configuration/storage-file-format/) — Arc's on-disk Parquet format and its compression.
 - [File compaction](/arc/advanced/compaction/) — why small files slow queries down.
 - [Query caching](/arc/advanced/caching/) — what Arc memoizes on the query path.

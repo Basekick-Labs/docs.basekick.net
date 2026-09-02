@@ -1,6 +1,6 @@
 ---
 title: "MQTT Integration"
-description: "Subscribing Arc directly to MQTT brokers: configure the broker connection, manage topic subscriptions through the API, and map JSON payloads onto measurements."
+description: "Subscribe Arc directly to MQTT brokers: configure the broker connection, manage topic subscriptions through the API, and map JSON payloads onto measurements."
 ---
 
 Ingest data directly from MQTT brokers into Arc. Connect to IoT devices, industrial sensors, and message brokers without middleware.
@@ -278,7 +278,7 @@ So to land in measurement `machine_metrics` with tags `line` and `machine_id`, p
 
 A flat payload with no `m`/`tags`/`fields` (e.g. `{"time": ..., "temperature": 23.5}`) is also accepted: it lands in the default `mqtt` measurement with the remaining keys as fields and no tags.
 
-<Callout type="info">
+<Callout type="info" title="Topic-path extraction is not supported">
 Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic` / positional extraction) is **not** currently supported. Set the measurement and tags in the published payload as shown above.
 </Callout>
 
@@ -300,7 +300,7 @@ Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic
 
 In this example, messages on `factory/line1/metrics` are written to the default `iot` database, while messages on `factory/line2/metrics` are routed to `iot_line2`.
 
-<Callout type="info">
+<Callout type="info" title="topic_mapping keys match exactly">
 The mapping key is matched against the message's actual topic by exact string equality — wildcard topic patterns (`+`, `#`) are not expanded for matching. A subscription may use wildcards in `topics`, but `topic_mapping` keys must be the concrete topics you want to route to a different database.
 </Callout>
 

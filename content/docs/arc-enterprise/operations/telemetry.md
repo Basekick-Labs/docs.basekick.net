@@ -1,6 +1,6 @@
 ---
-title: Telemetry
-description: What anonymous usage telemetry an Arc Enterprise node reports, what is deliberately excluded, and how to disable it in arc.toml or by environment variable across a cluster.
+title: "Telemetry"
+description: "What anonymous usage telemetry an Arc Enterprise node reports, what is deliberately excluded, and how to disable it in arc.toml or by environment variable across a cluster."
 ---
 
 Arc sends anonymous usage telemetry to help improve the project. This page explains what data is collected, how it's used, and how to opt out.
@@ -122,7 +122,7 @@ You can opt out of telemetry in two ways:
 
 ### Option 1: Configuration File
 
-Edit your `arc.conf` file and add:
+Edit your `arc.toml` file and add:
 
 ```toml
 [telemetry]

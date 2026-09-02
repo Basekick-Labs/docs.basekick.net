@@ -1,6 +1,6 @@
 ---
-title: Query Governance
-description: Cap Arc Enterprise query load per API token with rate limits, hourly and daily quotas, and max rows per query, configured under the governance section of arc.toml.
+title: "Query Governance"
+description: "Cap Arc Enterprise query load per API token with rate limits, hourly and daily quotas, and max rows per query, configured under the governance section of arc.toml."
 ---
 
 Control resource usage with per-token rate limits, query quotas, and row limits. Protect your cluster from runaway queries and ensure fair resource allocation across teams.

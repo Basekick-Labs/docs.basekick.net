@@ -1,6 +1,6 @@
 ---
 title: "Connection Management"
-description: "Managing arcctl connection profiles in ~/.arcctl/config.toml: create endpoints and tokens, set the active profile, and override it per command or by environment."
+description: "Manage arcctl connection profiles in ~/.arcctl/config.toml: create endpoints and tokens, set the active profile, and override it per command or by environment variable."
 ---
 
 `arcctl` stores connection profiles in `~/.arcctl/config.toml` (mode 0600 — plaintext tokens, same posture as `~/.aws/credentials`). One profile is marked active and used by default; you can override per-command via flags or env vars.

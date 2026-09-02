@@ -1,6 +1,6 @@
 ---
 title: "InfluxDB Client Compatibility"
-description: "Pointing existing InfluxDB client libraries at Arc: the shared Line Protocol endpoint paths, the token header formats accepted, and the per-language client support."
+description: "Point existing InfluxDB client libraries at Arc: the shared Line Protocol endpoint paths, the token header formats accepted, and the per-language client support."
 ---
 
 Arc's Line Protocol endpoints use the same paths as InfluxDB, enabling drop-in compatibility with all official InfluxDB client libraries. Point your existing InfluxDB client at Arc - it just works.

@@ -1,6 +1,6 @@
 ---
 title: "Retention Policies"
-description: "Defining retention windows per database or measurement in Arc OSS and triggering enforcement through the REST API, which runs manually rather than on a schedule."
+description: "Define retention windows per database or measurement in Arc OSS and trigger enforcement through the REST API, which runs manually rather than on a schedule."
 ---
 
 Retention policies allow you to automatically manage data lifecycle by defining how long data should be kept.
@@ -379,7 +379,7 @@ Currently, retention policies only work with local filesystem storage. Cloud sto
 
 Retention operates at the file level, not row level. A file is only deleted if **all** rows are older than the cutoff date.
 
-<Callout type="warn">
+<Callout type="warn" title="Compaction affects eligibility">
 For optimal retention policy effectiveness, ensure your data is properly compacted. Files with mixed timestamps may not be eligible for deletion.
 </Callout>
 

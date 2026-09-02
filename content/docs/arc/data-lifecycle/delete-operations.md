@@ -1,6 +1,6 @@
 ---
 title: "Delete Operations"
-description: "Deleting rows from Arc with WHERE-clause predicates: enable delete in configuration, run a rewrite-based delete, and confirm the Parquet files were rewritten."
+description: "Delete rows from Arc with WHERE-clause predicates: enable delete in configuration, run a rewrite-based delete, and confirm the Parquet files were rewritten."
 ---
 
 Arc supports deleting data using a rewrite-based approach that provides precise deletion with zero overhead on write and query operations.
