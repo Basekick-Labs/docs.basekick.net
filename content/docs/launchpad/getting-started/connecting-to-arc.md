@@ -5,7 +5,7 @@ description: "Register an Arc server in Launchpad: supply the Arc HTTP API URL a
 
 Launchpad doesn't host databases; you point it at an Arc server you already run. Each server you register is called a **connection** (or instance) in the UI.
 
-## Add a connection
+## Add a Connection
 
 From the sidebar, go to **Instances**, then click **Connect Instance**. That opens the **Connect an Arc server** form.
 
@@ -23,7 +23,7 @@ Click **Connect**. Launchpad verifies the endpoint and token, then the connectio
 
 ![Arc server connected](/img/launchpad/launchpad-arc-connected.png)
 
-## Getting the Arc admin token
+## Getting the Arc Admin Token
 
 If Arc has auth enabled, you need an admin (or sufficiently scoped) token. On a fresh Arc instance, an admin token is generated on first run; grab it from the logs:
 
@@ -37,7 +37,7 @@ If your Arc runs with auth disabled, any non-empty value is accepted but unused;
 The token you register determines what Launchpad can do on that instance. An **admin-scoped** token unlocks the operational surface (tokens, retention, alerts, continuous queries, MQTT). A read-only token can still run SQL and browse schemas, but management tabs that require admin access will say so.
 </Callout>
 
-## Reaching Arc on a private network
+## Reaching Arc on a Private Network
 
 By default Launchpad rejects Arc endpoints that resolve to a private, loopback, or link-local address (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `*.internal`, cloud metadata, …). This is an SSRF safeguard.
 
@@ -48,6 +48,6 @@ Some URL notes for containerized setups:
 - **Same Docker network:** use the service name, e.g. `http://arc:8000`.
 - **Arc on the host, Launchpad in a container:** `localhost` inside the container is the container itself. Reach a host-side Arc via `http://host.docker.internal:8000` or the host's LAN IP.
 
-## Open the console
+## Open the Console
 
 Once connected, click the instance to open its console. From there you can run SQL and manage the instance. See [Using the Console](/launchpad/using-the-console/sql-console/).

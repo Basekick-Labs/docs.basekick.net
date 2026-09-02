@@ -9,7 +9,7 @@ Arc Launchpad is a browser-based control panel for [Arc](/arc/), the open, SQL-n
 
 ![Arc Launchpad SQL console](/img/launchpad/launchpad-sql-console.png)
 
-## What Launchpad is (and isn't)
+## What Launchpad Is (and Isn't)
 
 Launchpad connects to Arc instances you **already run**. You point it at an Arc endpoint (URL + admin token) and it gives you a UI to both *query* and *operate* that instance.
 
@@ -30,7 +30,7 @@ Launchpad stores only your **connection records** and your **accounts/teams** in
 - **Organizations & teams**: invite users and assign roles
 - **Local auth**: email/password with optional MFA (TOTP) and passkeys (WebAuthn)
 
-## How it fits together
+## How It Fits Together
 
 ```text
 ┌──────────┐        ┌──────────────┐        ┌──────────────┐
@@ -46,7 +46,7 @@ Launchpad stores only your **connection records** and your **accounts/teams** in
 
 Launchpad holds accounts, teams, and the connection records (endpoint + token) in SQLite. All queries and admin actions are proxied to the Arc server you registered; your analytical data stays in Arc.
 
-## Get started
+## Get Started
 
 - **[Installation](/launchpad/getting-started/installation/)**: Docker Compose, standalone Docker, Helm, or from source
 - **[First-run setup](/launchpad/getting-started/first-run-setup/)**: create the admin account

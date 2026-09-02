@@ -5,7 +5,7 @@ description: "Complete the Launchpad setup wizard: create the first account, whi
 
 The first time you open Launchpad, it funnels you to a one-time setup wizard. **The first account you create becomes the administrator.** After that, self-service signup is closed by default; additional users join by invitation only.
 
-## Create the admin account
+## Create the Admin Account
 
 Open your Launchpad URL (e.g. **http://localhost:3000**). You'll see the setup wizard.
 
@@ -19,7 +19,7 @@ Fill in:
 
 Click **Continue**.
 
-## Configure email (optional)
+## Configure Email (Optional)
 
 The second step lets you configure an email provider for invitations, verification, and password resets.
 

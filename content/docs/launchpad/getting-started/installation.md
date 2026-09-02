@@ -108,7 +108,7 @@ Common values:
 
 See `helm/launchpad/values.yaml` in the repo for the full list.
 
-## From source
+## From Source
 
 Requires Node.js 20+.
 
@@ -129,7 +129,7 @@ LAUNCHPAD_JWT_SECRET=$(openssl rand -hex 32) node build
 
 The server listens on `$PORT` (default `3000`).
 
-## Next steps
+## Next Steps
 
 - [First-run setup](/launchpad/getting-started/first-run-setup/): create the admin account
 - [Connecting to Arc](/launchpad/getting-started/connecting-to-arc/): register your first Arc server

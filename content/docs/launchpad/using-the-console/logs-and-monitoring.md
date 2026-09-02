@@ -5,7 +5,7 @@ description: "Two console tabs with different jobs: Log Viewer reads the log dat
 
 Two console tabs cover observability, but they observe different things. **Log Viewer** is for the logs you *store in Arc*. **Monitoring** is Arc's own self-observability.
 
-## Log viewer
+## Log Viewer
 
 The **Log Viewer** tab reads the log data you've ingested into Arc: application logs, structured events, anything you write to a log measurement. Point it at your log tables and slice through them without writing the SQL by hand.
 

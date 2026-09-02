@@ -7,7 +7,7 @@ Continuous queries roll up and downsample data on a schedule: read from a source
 
 ![Launchpad continuous queries](/img/launchpad/launchpad-cq.png)
 
-## Create a continuous query
+## Create a Continuous Query
 
 From the **Continuous Queries** tab, click **Create Query** and configure:
 
@@ -23,7 +23,7 @@ From the **Continuous Queries** tab, click **Create Query** and configure:
 
 The query body must reference the `{start_time}` and `{end_time}` placeholders, which Launchpad substitutes with the bounds of each run's window.
 
-## Run and manage
+## Run and Manage
 
 Each continuous query can be **Edited**, **Executed Now** on demand, paused with **Pause** / **Activate**, or **Deleted**. The execute dialog offers a dry run that previews the query without writing anything, so you can check a rollup before it materializes. Run one manually to backfill or test it, then enable it to run continuously.
 
