@@ -1,0 +1,14 @@
+---
+title: Security
+description: "Arc Enterprise access and trust controls: organizations, teams, and measurement-level RBAC, audit logging for compliance, and shared-secret plus TLS between cluster nodes."
+---
+
+Arc OSS authenticates with API tokens that are effectively all-or-nothing. Arc Enterprise adds structure above them and a trust boundary below them.
+
+Above: [RBAC](/arc-enterprise/security/rbac/) attaches organizations, teams, and roles to those tokens, down to per-measurement permissions, and [audit logging](/arc-enterprise/security/audit-logging/) records who did what. Below: nodes authenticate to each other with a shared secret and encrypt inter-node traffic with TLS, so cluster membership is not implied by network reachability alone.
+
+<Cards>
+  <Card title="Role-based access control" href="/arc-enterprise/security/rbac/" description="Organizations, teams, roles, and measurement-level permissions bound to tokens." />
+  <Card title="Audit logging" href="/arc-enterprise/security/audit-logging/" description="Authentication, data access, RBAC, and infrastructure events, with retention." />
+  <Card title="Cluster security" href="/arc-enterprise/security/cluster-security/" description="HMAC-SHA256 join authentication and TLS for inter-node transports." />
+</Cards>

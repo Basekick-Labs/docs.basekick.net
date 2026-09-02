@@ -1,0 +1,13 @@
+---
+title: Query
+description: "Arc Enterprise query controls: per-token rate limits, quotas, and row caps under governance, plus live query inspection and cancellation under query management."
+---
+
+Both features on this page are Enterprise-only, and they answer two different questions about a shared cluster.
+
+Governance is preventive: it caps what any one token may consume, so a runaway dashboard cannot starve other tenants. Query management is diagnostic: it shows what is running right now and lets you cancel it.
+
+<Cards>
+  <Card title="Query governance" href="/arc-enterprise/query/query-governance/" description="Per-token rate limits, hourly and daily quotas, and max rows per query." />
+  <Card title="Query management" href="/arc-enterprise/query/query-management/" description="Inspect active queries, review history, and cancel long-running queries." />
+</Cards>

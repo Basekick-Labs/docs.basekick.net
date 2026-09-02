@@ -1,0 +1,12 @@
+{
+  "title": "Using the Console",
+  "pages": [
+    "sql-console",
+    "logs-and-monitoring",
+    "retention-policies",
+    "continuous-queries",
+    "alerts",
+    "mqtt-ingestion",
+    "tokens"
+  ]
+}

@@ -1,0 +1,8 @@
+---
+title: "API Reference"
+description: "Index of Arc's HTTP API surface: where to find the write, query, and administration endpoints, and which authentication header formats each of them accepts."
+---
+
+Arc exposes one HTTP API for writes, queries, and administration. The reference below covers the endpoints, their payloads, and how to authenticate.
+
+- **[Overview](/arc/api-reference/overview/)** — Ingestion, query, and admin endpoints, with auth header formats and response encodings.

@@ -1,0 +1,15 @@
+---
+title: Data Lifecycle
+description: "Manage data in an Arc Enterprise cluster: retention policies, continuous queries, delete operations, and hot/cold tiered storage, all with automatic scheduling."
+---
+
+Arc OSS provides retention policies and continuous queries but expects you to trigger them yourself through the API. Arc Enterprise adds a scheduler: define the policy once with a cron expression and the cluster runs it. See [Automated scheduling](/arc-enterprise/operations/automated-scheduling/).
+
+Tiered storage is Enterprise-only. It moves aged partitions to archive storage classes while keeping them queryable, which is usually the largest single lever on storage cost.
+
+<Cards>
+  <Card title="Retention policies" href="/arc-enterprise/data-lifecycle/retention-policies/" description="Drop data past a per-measurement age, enforced automatically on a schedule." />
+  <Card title="Continuous queries" href="/arc-enterprise/data-lifecycle/continuous-queries/" description="Downsample into materialized measurements on a cron schedule." />
+  <Card title="Delete operations" href="/arc-enterprise/data-lifecycle/delete-operations/" description="Targeted deletion by measurement and time range, via Parquet rewrite." />
+  <Card title="Tiered storage" href="/arc-enterprise/data-lifecycle/tiered-storage/" description="Age partitions to S3 Glacier or Azure Archive with per-database policies." />
+</Cards>

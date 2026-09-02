@@ -1,0 +1,13 @@
+---
+title: Advanced
+description: "Internals that shape an Arc Enterprise cluster's behaviour: the write-ahead log, file compaction, query caching, and data-time partitioning of Parquet files."
+---
+
+These pages describe mechanisms rather than features. They matter in an Enterprise deployment because each one lands on a specific node role: the WAL is a writer concern, compaction usually runs on a dedicated compactor, and query caching lives on readers.
+
+<Cards>
+  <Card title="Write-ahead log" href="/arc-enterprise/advanced/wal/" description="How the WAL bounds data loss to the sync interval, and the cost of each sync mode." />
+  <Card title="File compaction" href="/arc-enterprise/advanced/compaction/" description="Merging small Parquet files into larger ones, off the write path." />
+  <Card title="Query caching" href="/arc-enterprise/advanced/caching/" description="The result, metadata, and S3 file caches a reader node uses." />
+  <Card title="Data-time partitioning" href="/arc-enterprise/advanced/data-time-partitioning/" description="Why files are laid out by event time, and what that means for backfill." />
+</Cards>

@@ -1,0 +1,14 @@
+---
+title: Operations
+description: "Run Arc Enterprise in production: usage telemetry and how to opt out, scheduled continuous queries and retention, and the opt-in pprof endpoints for diagnosing a node."
+---
+
+Day-two concerns for a licensed deployment. Automated scheduling is Enterprise-only and is what turns the data-lifecycle features from manual API calls into something that runs unattended.
+
+Telemetry and profiling behave identically to OSS, but in a cluster you configure them per node — pprof in particular binds to loopback on the node you are diagnosing, not to a cluster endpoint.
+
+<Cards>
+  <Card title="Telemetry" href="/arc-enterprise/operations/telemetry/" description="What anonymous usage data a node reports, and how to disable it." />
+  <Card title="Automated scheduling" href="/arc-enterprise/operations/automated-scheduling/" description="Run continuous queries and retention policies on cron schedules." />
+  <Card title="Profiling with pprof" href="/arc-enterprise/operations/profiling/" description="Opt-in heap, goroutine, and CPU profiling, behind loopback and firewall gates." />
+</Cards>

@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   },
   description:
     'Documentation for Arc, the high-performance columnar analytical database, plus Arc Enterprise and Arc Launchpad.',
+  alternates: { canonical: '/' },
   openGraph: {
     siteName: 'Arc Documentation',
     type: 'website',

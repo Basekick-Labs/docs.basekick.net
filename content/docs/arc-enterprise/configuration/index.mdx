@@ -1,0 +1,15 @@
+---
+title: Configuration
+description: "Configure Arc Enterprise: the arc.toml key reference, the two cluster deployment patterns, clustering and failover settings, and edge sync against a clustered hub."
+---
+
+Arc Enterprise is configured through `arc.toml`, with environment variables overriding any key. The Enterprise-only sections are `[license]`, `[cluster]`, `[tiered_storage]`, `[audit_log]`, `[governance]`, and `[query_management]`.
+
+Read [Deployment patterns](/arc-enterprise/configuration/deployment-patterns/) before anything else. The choice between shared object storage and local disks with peer replication determines most of the other settings on this page, and it is expensive to reverse once a cluster holds data.
+
+<Cards>
+  <Card title="Deployment patterns" href="/arc-enterprise/configuration/deployment-patterns/" description="Shared object storage or local disks with peer replication, and what each costs you operationally." />
+  <Card title="Configuration overview" href="/arc-enterprise/configuration/overview/" description="Every arc.toml section and its environment-variable equivalent, including the licensed features." />
+  <Card title="Clustering" href="/arc-enterprise/configuration/clustering/" description="Node roles, seeds, Raft, peer file replication, and automatic writer failover." />
+  <Card title="Edge sync with a clustered hub" href="/arc-enterprise/configuration/edge-sync-clustered/" description="What changes when the hub receiving edge Parquet files is a cluster rather than a single node." />
+</Cards>

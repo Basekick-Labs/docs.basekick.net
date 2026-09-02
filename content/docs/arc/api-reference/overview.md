@@ -1,0 +1,1217 @@
+---
+title: "REST API overview"
+description: "Arc's REST endpoints for ingestion, querying, and administration: MessagePack and Line Protocol writes, JSON and Arrow query responses, and auth header formats."
+---
+
+Arc provides a comprehensive REST API for data ingestion, querying, and management.
+
+## Base URL
+
+```text
+http://localhost:8000
+```
+
+## Authentication
+
+All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients:
+
+### Bearer Token (Standard)
+
+```bash
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
+```
+
+### Token Header (InfluxDB 2.x Style)
+
+```bash
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
+```
+
+### API Key Header
+
+```bash
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
+```
+
+### Query Parameter (InfluxDB 1.x Style)
+
+For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query parameter:
+
+```bash
+curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
+```
+
+### Public Endpoints (No Auth Required)
+
+- `GET /health` - Health check
+- `GET /ready` - Readiness probe
+- `GET /metrics` - Prometheus metrics
+- `GET /api/v1/auth/verify` - Token verification
+
+## Quick Examples
+
+### Write Data (MessagePack)
+
+```python
+import msgpack
+import requests
+
+data = {
+    "m": "cpu",
+    "columns": {
+        "time": [1697472000000],
+        "host": ["server01"],
+        "usage": [45.2]
+    }
+}
+
+response = requests.post(
+    "http://localhost:8000/api/v1/write/msgpack",
+    headers={
+        "Authorization": "Bearer $ARC_TOKEN",
+        "Content-Type": "application/msgpack",
+        "x-arc-database": "default"
+    },
+    data=msgpack.packb(data)
+)
+```
+
+### Query Data (JSON)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
+```
+
+### Query Data (Apache Arrow)
+
+For large result sets, use Arrow format:
+
+```python
+import requests
+import pyarrow as pa
+
+response = requests.post(
+    "http://localhost:8000/api/v1/query/arrow",
+    headers={"Authorization": "Bearer $ARC_TOKEN"},
+    json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
+)
+
+reader = pa.ipc.open_stream(response.content)
+arrow_table = reader.read_all()
+```
+
+### Query Data (MessagePack)
+
+MessagePack is the best general-purpose binary format for clients: it is
+columnar, carries per-column type names, supports `SHOW` statements, and honors
+`Accept-Encoding` — noticeably faster end-to-end than JSON on large result
+sets. Arrow is faster still for raw throughput, but does not accept `SHOW` and
+has no response compression.
+
+```python
+import requests
+import msgpack
+
+response = requests.post(
+    "http://localhost:8000/api/v1/query/msgpack",
+    headers={
+        "Authorization": "Bearer $ARC_TOKEN",
+        "Accept-Encoding": "zstd",   # optional, typically ~40% smaller
+    },
+    json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
+)
+
+result = msgpack.unpackb(response.content, raw=False)
+
+# NOTE: "data" is COLUMNAR — an array of columns, not an array of rows.
+for name, type_name, column in zip(result["columns"], result["types"], result["data"]):
+    print(name, type_name, column[:5])
+```
+
+The response is a single MessagePack map:
+
+| Field | Meaning |
+|---|---|
+| `success` | bool |
+| `columns` | column names |
+| `types` | wire type name per column, parallel to `columns` |
+| `data` | **array of columns**, each an array of values |
+| `row_count` | number of rows |
+| `execution_time_ms` | server-side execution time |
+| `timestamp` | RFC3339, UTC |
+| `profile` | present only when `x-arc-profile: true` |
+
+#### Type vocabulary
+
+The `types` values are a stable contract. Scalars are
+`bool`, `int8`/`int16`/`int32`/`int64`, `uint8`/`uint16`/`uint32`/`uint64`,
+`float32`/`float64`, `utf8`, `large_utf8`, `binary`, `large_binary`, `date32`,
+and `null`. Timestamps carry their unit, e.g. `timestamp[us]`.
+
+Three values tell you a column is **not** natively typed on the wire:
+
+- `string_encoded` — a recognized type Arc transmits as text (`DATE64`, `TIME`,
+  `INTERVAL`, `DURATION`, `FLOAT16`, fixed-size binary).
+- `list` / `struct` / `map` — nested values, transmitted as text.
+- `unknown:<detail>` — a type with no published Arc name (a DuckDB `ENUM`
+  arrives here). Never bind to the text after the prefix; it is diagnostic.
+
+`SUM(int_col)` and other decimal-producing aggregates are normalized to
+`int64` (scale 0) or `float64` (scaled), matching the Arrow endpoint — the
+values are numbers, not strings.
+
+### Health Check
+
+```bash
+curl http://localhost:8000/health
+```
+
+---
+
+## Health & Monitoring
+
+### GET /health
+
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "time": "2024-12-02T10:30:00Z",
+  "uptime": "1h 23m 45s",
+  "uptime_sec": 5025
+}
+```
+
+### GET /ready
+
+Kubernetes readiness probe.
+
+**Response:**
+```json
+{
+  "status": "ready",
+  "time": "2024-12-02T10:30:00Z",
+  "uptime_sec": 5025
+}
+```
+
+### GET /metrics
+
+Prometheus-format metrics.
+
+**Response:** `text/plain` (Prometheus format)
+
+Or request JSON:
+```bash
+curl -H "Accept: application/json" http://localhost:8000/metrics
+```
+
+### GET /api/v1/metrics
+
+All metrics in JSON format.
+
+### GET /api/v1/metrics/memory
+
+Detailed memory statistics including Go runtime and DuckDB.
+
+### GET /api/v1/metrics/query-pool
+
+DuckDB connection pool statistics.
+
+### GET /api/v1/metrics/endpoints
+
+Per-endpoint request statistics.
+
+### GET /api/v1/metrics/timeseries/:type
+
+Timeseries metrics data.
+
+**Parameters:**
+- `:type` - `system`, `application`, or `api`
+- `?duration_minutes=30` - Time range (default: 30, max: 1440)
+
+### GET /api/v1/logs
+
+Recent application logs. **Requires an admin token** (`Authorization: Bearer <admin-token>`) when authentication is enabled.
+
+**Query Parameters:**
+- `?limit=100` - Number of logs (default: 100, max: 1000)
+- `?level=error` - Filter by level (error, warn, info, debug)
+- `?since_minutes=60` - Time range (default: 60, max: 1440)
+
+---
+
+## Data Ingestion
+
+### POST /api/v1/write/msgpack
+
+High-performance MessagePack binary writes (recommended).
+
+**Headers:**
+- `Authorization: Bearer TOKEN`
+- `Content-Type: application/msgpack`
+- `Content-Encoding: gzip` (optional)
+- `x-arc-database: default` (optional)
+
+**Body (MessagePack):**
+```json
+{
+  "m": "measurement_name",
+  "columns": {
+    "time": [1697472000000, 1697472001000],
+    "host": ["server01", "server02"],
+    "value": [45.2, 67.8]
+  }
+}
+```
+
+**Response:** `204 No Content`
+
+**Null values:** Columns may contain nulls, including a column whose values are
+*all* null in a given batch. Arc keeps such a column and stores every value as
+NULL, so it is queryable and returns NULLs rather than failing to resolve:
+
+```python
+# 'depth' is null for this entire batch — the column is still created
+{"m": "sensors", "columns": {
+    "time":  [1697472000000, 1697472001000],
+    "value": [1.5, 2.5],
+    "depth": [None, None],
+}}
+```
+
+A later batch carrying real values for that column determines its type
+normally; the all-null batch does not pin it. Column types only need to be
+consistent within a single write, not across writes — reads union columns by
+name across files.
+
+The `time` column is the one exception: it must be a numeric epoch on every
+row. A null, string, or otherwise non-numeric `time` is **rejected** with
+`400 Bad Request` rather than stored, because a non-timestamp `time` column
+makes the affected partition un-compactable.
+
+### GET /api/v1/write/msgpack/stats
+
+MessagePack ingestion statistics.
+
+### GET /api/v1/write/msgpack/spec
+
+MessagePack format specification.
+
+### POST /write
+
+InfluxDB 1.x Line Protocol compatible endpoint. This path matches InfluxDB's native API for drop-in client compatibility.
+
+**Query Parameters:**
+- `db` - Target database name (required)
+- `rp` - Retention policy (optional, ignored)
+- `precision` - Timestamp precision: `ns`, `us`, `ms`, `s` (default: `ns`)
+- `p` - Authentication token (InfluxDB 1.x style)
+
+**Headers:**
+- `Content-Type: text/plain`
+- `Authorization: Bearer TOKEN` (or use `p` query param)
+
+**Body:**
+```text
+cpu,host=server01 usage=45.2 1697472000000000000
+mem,host=server01 used=8.2,total=16.0 1697472000000000000
+```
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" \
+  -d 'cpu,host=server01 usage=45.2'
+```
+
+### POST /api/v2/write
+
+InfluxDB 2.x compatible endpoint. This path matches InfluxDB's native API for drop-in client compatibility.
+
+**Query Parameters:**
+- `bucket` - Target database/bucket name (required)
+- `org` - Organization (optional, ignored)
+- `precision` - Timestamp precision: `ns`, `us`, `ms`, `s` (default: `ns`)
+
+**Headers:**
+- `Content-Type: text/plain`
+- `Authorization: Token $ARC_TOKEN` (InfluxDB 2.x style)
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/api/v2/write?bucket=mydb&org=myorg" \
+  -H "Authorization: Token $ARC_TOKEN" \
+  -d 'cpu,host=server01 usage=45.2'
+```
+
+### POST /api/v1/write/line-protocol
+
+Arc-native Line Protocol endpoint. Uses headers instead of query parameters.
+
+**Headers:**
+- `Content-Type: text/plain`
+- `Authorization: Bearer TOKEN`
+- `x-arc-database: default` - Target database
+
+### POST /api/v1/write/line-protocol/flush
+
+Force buffer flush to disk.
+
+### GET /api/v1/write/line-protocol/stats
+
+Line Protocol ingestion statistics.
+
+### GET /api/v1/write/line-protocol/health
+
+Line Protocol handler health.
+
+### POST /api/v1/write/tle
+
+Stream TLE (Two-Line Element) satellite orbital data. Parses TLE entries into tags (NORAD ID, name, classification) and fields (orbital elements + derived metrics).
+
+**Headers:**
+- `Authorization: Bearer TOKEN`
+- `X-Arc-Database: satellites` (default: `default`)
+- `X-Arc-Measurement: satellite_tle` (default: `satellite_tle`)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/write/tle" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: satellites" \
+  --data-binary @stations.tle
+```
+
+Returns `204 No Content` on success.
+
+See [TLE Integration](/arc/integrations/tle/) for full documentation including schema, format details, and example queries.
+
+### GET /api/v1/write/tle/stats
+
+TLE handler statistics.
+
+---
+
+## Data Import
+
+Bulk import endpoints for CSV, Parquet, Line Protocol, and TLE files. All endpoints use `multipart/form-data` with field name `file`, support gzip auto-detection, and enforce a 500 MB size limit.
+
+### POST /api/v1/import/csv
+
+Bulk import a CSV file. See [CSV Import](/arc/data-import/csv/) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: iot" \
+  -F "file=@data.csv"
+```
+
+### POST /api/v1/import/parquet
+
+Bulk import a Parquet file. See [Parquet Import](/arc/data-import/parquet/) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: production" \
+  -F "file=@data.parquet"
+```
+
+### POST /api/v1/import/lp
+
+Bulk import a Line Protocol file. See [Line Protocol Bulk Import](/arc/data-import/line-protocol/) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/lp" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: mydb" \
+  -F "file=@export.lp"
+```
+
+### POST /api/v1/import/tle
+
+Bulk import a TLE file. See [TLE Integration](/arc/integrations/tle/) for full documentation.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/tle" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: satellites" \
+  -F "file=@catalog.tle"
+```
+
+### GET /api/v1/import/stats
+
+Import handler statistics (total requests, records imported, errors).
+
+---
+
+## Querying
+
+### POST /api/v1/query
+
+Execute SQL queries with JSON response.
+
+**Request:**
+```json
+{
+  "sql": "SELECT * FROM default.cpu LIMIT 10",
+  "format": "json"
+}
+```
+
+**Response:**
+```json
+{
+  "columns": ["time", "host", "usage"],
+  "types": ["TIMESTAMP", "VARCHAR", "DOUBLE"],
+  "data": [
+    [1697472000000, "server01", 45.2],
+    [1697472001000, "server02", 67.8]
+  ],
+  "row_count": 2,
+  "execution_time_ms": 12
+}
+```
+
+### POST /api/v1/query/arrow
+
+Execute SQL queries with Apache Arrow IPC response.
+
+**Request:**
+```json
+{
+  "sql": "SELECT * FROM default.cpu LIMIT 10000"
+}
+```
+
+**Response:** `application/vnd.apache.arrow.stream`
+
+**Optional stream encodings (v26.09.1+)**, opted in per request — use them for
+network-constrained clients pulling large result sets; leave them off for
+same-host consumers (they trade CPU for wire bytes):
+
+| Header | Effect |
+|---|---|
+| `x-arc-arrow-dictionary: true` | Dictionary-encode low-cardinality string columns (adaptive, first-batch analysis). Columns arrive as standard Arrow dictionary arrays — pyarrow, polars, and pandas read them transparently. |
+| `x-arc-arrow-compression: zstd` (or `lz4`) | Arrow IPC buffer compression, decompressed natively by Arrow clients. |
+
+Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row).
+
+### Response compression (v26.09.1+)
+
+`POST /api/v1/query` (JSON) and `POST /api/v1/query/msgpack` honor the
+standard `Accept-Encoding` request header — send `Accept-Encoding: zstd, gzip`
+and the response body is compressed (zstd preferred; `Content-Encoding` set
+accordingly). curl, browsers, and HTTP libraries negotiate this
+automatically. Typical savings: JSON −68%, msgpack −38% on large results.
+Clients that omit the header get identical responses to previous versions.
+
+### POST /api/v1/query/estimate
+
+Estimate query cost before execution.
+
+**Request:**
+```json
+{
+  "sql": "SELECT * FROM default.cpu WHERE time > now() - INTERVAL '1 hour'"
+}
+```
+
+### GET /api/v1/measurements
+
+List all measurements across databases.
+
+### GET /api/v1/query/:measurement
+
+Query a specific measurement directly.
+
+---
+
+## Authentication
+
+### GET /api/v1/auth/verify
+
+Verify token validity (public endpoint).
+
+**Response:**
+```json
+{
+  "valid": true,
+  "token_id": "abc123",
+  "name": "my-token",
+  "is_admin": false
+}
+```
+
+### GET /api/v1/auth/tokens
+
+List all tokens (admin only).
+
+### POST /api/v1/auth/tokens
+
+Create a new token (admin only).
+
+**Request:**
+```json
+{
+  "name": "my-service",
+  "description": "Token for my service",
+  "is_admin": false
+}
+```
+
+**Response:**
+```json
+{
+  "id": "abc123",
+  "name": "my-service",
+  "token": "arc_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "is_admin": false,
+  "created_at": "2024-12-02T10:30:00Z"
+}
+```
+
+### GET /api/v1/auth/tokens/:id
+
+Get token details (admin only).
+
+### DELETE /api/v1/auth/tokens/:id
+
+Delete/revoke a token (admin only).
+
+### POST /api/v1/auth/tokens/:id/rotate
+
+Rotate a token (admin only).
+
+### POST /api/v1/auth/tokens/:id/revoke
+
+Revoke a token (admin only).
+
+### GET /api/v1/auth/cache/stats
+
+Token cache statistics (admin only).
+
+### POST /api/v1/auth/cache/invalidate
+
+Invalidate token cache (admin only).
+
+---
+
+## Compaction
+
+### GET /api/v1/compaction/status
+
+Current compaction status.
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "running": false,
+  "last_run": "2024-12-02T10:00:00Z",
+  "next_run": "2024-12-02T11:00:00Z"
+}
+```
+
+### GET /api/v1/compaction/stats
+
+Compaction statistics.
+
+### GET /api/v1/compaction/candidates
+
+List files eligible for compaction.
+
+### POST /api/v1/compaction/trigger
+
+Manually trigger compaction.
+
+**Request:**
+```json
+{
+  "database": "default",
+  "measurement": "cpu"
+}
+```
+
+### GET /api/v1/compaction/jobs
+
+List active compaction jobs.
+
+### GET /api/v1/compaction/history
+
+Compaction job history.
+
+---
+
+## Delete Operations
+
+### POST /api/v1/delete
+
+Delete data matching conditions.
+
+**Request:**
+```json
+{
+  "database": "default",
+  "measurement": "cpu",
+  "where": "host = 'server01' AND time < '2024-01-01'",
+  "confirm": true
+}
+```
+
+**Response:**
+```json
+{
+  "deleted_rows": 1523,
+  "deleted_files": 3
+}
+```
+
+### GET /api/v1/delete/config
+
+Get delete operation configuration.
+
+---
+
+## Database Management
+
+Endpoints for managing databases programmatically.
+
+### GET /api/v1/databases
+
+List all databases with measurement counts.
+
+**Response:**
+```json
+{
+  "databases": [
+    {"name": "default", "measurement_count": 5},
+    {"name": "production", "measurement_count": 12}
+  ],
+  "count": 2
+}
+```
+
+### POST /api/v1/databases
+
+Create a new database.
+
+**Request:**
+```json
+{
+  "name": "my_database"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "name": "my_database",
+  "measurement_count": 0,
+  "created_at": "2024-12-21T10:30:00Z"
+}
+```
+
+**Validation rules:**
+- Must start with a letter (a-z, A-Z)
+- Can contain letters, numbers, underscores, and hyphens
+- Maximum 64 characters
+- Reserved names blocked: `system`, `internal`, `_internal`
+
+**Error Response (400):**
+```json
+{
+  "error": "Invalid database name: must start with a letter and contain only alphanumeric characters, underscores, or hyphens"
+}
+```
+
+### GET /api/v1/databases/:name
+
+Get information about a specific database.
+
+**Response:**
+```json
+{
+  "name": "production",
+  "measurement_count": 12
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "Database 'nonexistent' not found"
+}
+```
+
+### GET /api/v1/databases/:name/measurements
+
+List all measurements in a database.
+
+**Response:**
+```json
+{
+  "database": "production",
+  "measurements": [
+    {"name": "cpu"},
+    {"name": "memory"},
+    {"name": "disk"}
+  ],
+  "count": 3
+}
+```
+
+### DELETE /api/v1/databases/:name
+
+Delete a database and all its data.
+
+<Callout type="warn">
+This operation is destructive and cannot be undone. Requires:
+- `delete.enabled = true` in configuration
+- `?confirm=true` query parameter
+</Callout>
+
+**Request:**
+```bash
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/databases/old_data?confirm=true"
+```
+
+**Response:**
+```json
+{
+  "message": "Database 'old_data' deleted successfully",
+  "files_deleted": 47
+}
+```
+
+**Error Responses:**
+
+*Delete disabled (403):*
+```json
+{
+  "error": "Delete operations are disabled. Set delete.enabled=true in arc.toml to enable."
+}
+```
+
+*Missing confirmation (400):*
+```json
+{
+  "error": "Confirmation required. Add ?confirm=true to delete the database."
+}
+```
+
+---
+
+## Retention Policies
+
+### POST /api/v1/retention
+
+Create a retention policy.
+
+**Request:**
+```json
+{
+  "name": "30-day-retention",
+  "database": "default",
+  "measurement": "cpu",
+  "duration": "30d",
+  "schedule": "0 2 * * *"
+}
+```
+
+### GET /api/v1/retention
+
+List all retention policies.
+
+### GET /api/v1/retention/:id
+
+Get a specific policy.
+
+### PUT /api/v1/retention/:id
+
+Update a retention policy.
+
+### DELETE /api/v1/retention/:id
+
+Delete a retention policy.
+
+### POST /api/v1/retention/:id/execute
+
+Execute a policy manually.
+
+### GET /api/v1/retention/:id/executions
+
+Get policy execution history.
+
+---
+
+## Continuous Queries
+
+### POST /api/v1/continuous_queries
+
+Create a continuous query.
+
+**Request:**
+```json
+{
+  "name": "hourly-rollup",
+  "source_database": "default",
+  "source_measurement": "cpu",
+  "destination_database": "default",
+  "destination_measurement": "cpu_hourly",
+  "query": "SELECT time_bucket('1 hour', time) as time, host, AVG(usage) as avg_usage FROM default.cpu GROUP BY 1, 2",
+  "schedule": "0 * * * *"
+}
+```
+
+### GET /api/v1/continuous_queries
+
+List all continuous queries.
+
+### GET /api/v1/continuous_queries/:id
+
+Get a specific continuous query.
+
+### PUT /api/v1/continuous_queries/:id
+
+Update a continuous query.
+
+### DELETE /api/v1/continuous_queries/:id
+
+Delete a continuous query.
+
+### POST /api/v1/continuous_queries/:id/execute
+
+Execute a continuous query manually.
+
+### GET /api/v1/continuous_queries/:id/executions
+
+Get execution history.
+
+---
+
+## MQTT Subscriptions
+
+<Callout type="info" title="Available since v26.02.1">
+MQTT subscription management is available starting Arc v26.02.1.
+</Callout>
+
+Manage MQTT broker subscriptions for direct IoT data ingestion. See the [MQTT Integration Guide](/arc/integrations/mqtt/) for detailed usage.
+
+### POST /api/v1/mqtt/subscriptions
+
+Create a new MQTT subscription.
+
+**Request:**
+```json
+{
+  "name": "factory-sensors",
+  "broker": "tcp://localhost:1883",
+  "topics": ["sensors/#"],
+  "database": "iot",
+  "qos": 1,
+  "auto_start": true
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "sub_abc123",
+  "name": "factory-sensors",
+  "broker": "tcp://localhost:1883",
+  "topics": ["sensors/#"],
+  "database": "iot",
+  "status": "running",
+  "created_at": "2026-02-01T10:00:00Z"
+}
+```
+
+**Full options:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Unique subscription name |
+| `broker` | string | Yes | - | Broker URL (tcp://, ssl://, ws://) |
+| `topics` | array | Yes | - | Topics to subscribe |
+| `database` | string | Yes | - | Target Arc database |
+| `qos` | int | No | 1 | QoS level: 0, 1, or 2 |
+| `client_id` | string | No | auto | MQTT client ID |
+| `username` | string | No | - | MQTT username |
+| `password` | string | No | - | MQTT password (encrypted at rest) |
+| `tls_enabled` | bool | No | false | Enable TLS/SSL |
+| `tls_cert_path` | string | No | - | Client certificate path |
+| `tls_key_path` | string | No | - | Client key path |
+| `tls_ca_path` | string | No | - | CA certificate path |
+| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override (`{"<topic>": "<database>"}`); does not configure measurements or tags |
+| `auto_start` | bool | No | true | Start on creation and server restart |
+
+### GET /api/v1/mqtt/subscriptions
+
+List all MQTT subscriptions.
+
+**Response:**
+```json
+{
+  "subscriptions": [
+    {
+      "id": "sub_abc123",
+      "name": "factory-sensors",
+      "broker": "tcp://localhost:1883",
+      "status": "running"
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET /api/v1/mqtt/subscriptions/:id
+
+Get subscription details.
+
+### PUT /api/v1/mqtt/subscriptions/:id
+
+Update a subscription. Subscription must be stopped first.
+
+### DELETE /api/v1/mqtt/subscriptions/:id
+
+Delete a subscription. Subscription must be stopped first.
+
+### POST /api/v1/mqtt/subscriptions/:id/start
+
+Start a stopped subscription.
+
+**Response:**
+```json
+{
+  "id": "sub_abc123",
+  "status": "running",
+  "message": "Subscription started"
+}
+```
+
+### POST /api/v1/mqtt/subscriptions/:id/stop
+
+Stop a running subscription.
+
+### POST /api/v1/mqtt/subscriptions/:id/restart
+
+Restart a subscription (stop + start).
+
+### GET /api/v1/mqtt/subscriptions/:id/stats
+
+Get statistics for a specific subscription.
+
+**Response:**
+```json
+{
+  "id": "sub_abc123",
+  "messages_received": 15420,
+  "bytes_received": 2458320,
+  "decode_errors": 0,
+  "last_message_at": "2026-02-01T10:30:15Z",
+  "topics": {
+    "sensors/temperature": 8500,
+    "sensors/humidity": 6920
+  }
+}
+```
+
+### GET /api/v1/mqtt/stats
+
+Aggregate statistics across all running subscriptions.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "running_count": 2,
+  "subscriptions_stats": {
+    "sub_abc123": { ... },
+    "sub_def456": { ... }
+  }
+}
+```
+
+### GET /api/v1/mqtt/health
+
+MQTT service health check.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "healthy": true,
+  "running_count": 2,
+  "connected_count": 2,
+  "disconnected_count": 0,
+  "service": "mqtt_subscriptions"
+}
+```
+
+---
+
+## Backup & Restore
+
+Admin-only endpoints for backing up and restoring Arc data, metadata, and configuration. Operations run asynchronously with progress tracking.
+
+See [Backup & Restore](/arc/operations/backup-restore/) for full documentation.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/backup` | Trigger a full backup (async, returns 202) |
+| `GET` | `/api/v1/backup` | List all available backups |
+| `GET` | `/api/v1/backup/status` | Progress of active operation |
+| `GET` | `/api/v1/backup/:id` | Get backup manifest |
+| `DELETE` | `/api/v1/backup/:id` | Delete a backup |
+| `POST` | `/api/v1/backup/restore` | Restore from a backup (async, requires `confirm: true`) |
+
+```bash
+# Create backup
+curl -X POST "http://localhost:8000/api/v1/backup" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+
+# Poll progress
+curl "http://localhost:8000/api/v1/backup/status" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+
+# Restore
+curl -X POST "http://localhost:8000/api/v1/backup/restore" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"backup_id": "backup-20260211-143022-a1b2c3d4", "confirm": true}'
+```
+
+---
+
+## Response Formats
+
+### Success Response
+
+```json
+{
+  "status": "success",
+  "data": [...],
+  "count": 10
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Error message"
+}
+```
+
+### HTTP Status Codes
+
+- `200` - Success
+- `204` - No Content (successful write)
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden (requires admin)
+- `404` - Not Found
+- `500` - Internal Server Error
+
+---
+
+## Rate Limiting
+
+Arc does not enforce rate limiting by default. For production deployments, consider:
+
+- Reverse proxy rate limiting (Nginx, Traefik)
+- API Gateway (AWS API Gateway, Kong)
+- Application-level throttling
+
+## CORS
+
+CORS is enabled by default with permissive settings. Configure via reverse proxy for production.
+
+## Best Practices
+
+### 1. Use MessagePack for Writes
+
+MessagePack is considerably faster than Line Protocol:
+
+```python
+# Fast: MessagePack columnar
+data = {"m": "cpu", "columns": {...}}
+requests.post(url, data=msgpack.packb(data))
+
+# Slower: Line Protocol text
+data = "cpu,host=server01 usage=45.2"
+requests.post(url, data=data)
+```
+
+### 2. Batch Your Writes
+
+Send multiple records per request:
+
+```python
+# Good: Batch write
+data = {
+    "m": "cpu",
+    "columns": {
+        "time": [t1, t2, t3, ...],
+        "host": [h1, h2, h3, ...],
+        "usage": [u1, u2, u3, ...]
+    }
+}
+```
+
+### 3. Use Arrow for Large Queries
+
+For 10K+ rows, use the Arrow endpoint:
+
+```python
+response = requests.post(url + "/api/v1/query/arrow", ...)
+table = pa.ipc.open_stream(response.content).read_all()
+df = table.to_pandas()  # Zero-copy conversion
+```
+
+### 4. Enable Gzip Compression
+
+```python
+import gzip
+
+compressed = gzip.compress(msgpack.packb(data))
+requests.post(
+    url,
+    data=compressed,
+    headers={"Content-Encoding": "gzip", ...}
+)
+```
+
+## Client Libraries
+
+### Python (Official SDK)
+
+```bash
+pip install arc-tsdb-client[all]
+```
+
+```python
+from arc_client import ArcClient
+
+with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
+    client.write.write_columnar(
+        measurement="cpu",
+        columns={"time": [...], "host": [...], "usage": [...]},
+    )
+    df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 10")
+```
+
+See [Python SDK Documentation](/arc/sdks/python/) for full details.
+
+## Next Steps
+
+- **[Python SDK](/arc/sdks/python/)** - Official Python client
+- **[Getting Started](/arc/getting-started/)** - Quick start guide
+- **[Configuration](/arc/configuration/overview/)** - Server configuration

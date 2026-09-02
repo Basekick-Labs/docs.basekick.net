@@ -1,0 +1,95 @@
+---
+title: Python SDK
+description: "arc-tsdb-client for Arc Enterprise: point ArcClient at a cluster endpoint with an RBAC-scoped token, then write, query, and administer retention and continuous queries from Python."
+---
+
+Official Python SDK for Arc analytical database.
+
+[![PyPI version](https://badge.fury.io/py/arc-tsdb-client.svg)](https://badge.fury.io/py/arc-tsdb-client)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+## What is it?
+
+The `arc-tsdb-client` package is the official Python client for [Arc](https://github.com/basekick-labs/arc), a high-performance analytical database. It provides a high-level, Pythonic interface for:
+
+- **Writing data** at scale
+- **Querying with SQL** and getting results as DataFrames
+- **Managing data lifecycle** (retention, aggregation, deletion)
+- **Handling authentication** (tokens, permissions)
+
+## Why use the SDK?
+
+While you can interact with Arc's REST API directly, the SDK provides significant advantages:
+
+| Feature | Raw API | Python SDK |
+|---------|---------|------------|
+| Connection management | Manual | Automatic (context managers) |
+| Data serialization | Manual MessagePack | Automatic |
+| DataFrame support | Convert manually | Native pandas/polars/arrow |
+| Buffered writes | Implement yourself | Built-in with auto-batching |
+| Error handling | Parse HTTP responses | Typed exceptions |
+| Async support | Manual httpx/aiohttp | Built-in `AsyncArcClient` |
+| Compression | Configure headers | Automatic gzip |
+
+## Quick Example
+
+```python
+from arc_client import ArcClient
+
+with ArcClient(host="localhost", token="your-token") as client:
+    # Write metrics
+    client.write.write_columnar(
+        measurement="cpu",
+        columns={
+            "time": [1704067200000000, 1704067260000000],
+            "host": ["server01", "server01"],
+            "usage_idle": [95.2, 94.8],
+        },
+    )
+
+    # Query to pandas
+    df = client.query.query_pandas(
+        "SELECT * FROM default.cpu WHERE host = 'server01'"
+    )
+    print(df)
+```
+
+## Architecture
+
+The SDK is organized into specialized clients for different operations:
+
+```text
+ArcClient
+├── .write          # Data ingestion (WriteClient)
+│   ├── write_columnar()
+│   ├── write_dataframe()
+│   ├── write_line_protocol()
+│   └── buffered()
+│
+├── .query          # Data querying (QueryClient)
+│   ├── query()
+│   ├── query_pandas()
+│   ├── query_polars()
+│   ├── query_arrow()
+│   └── estimate()
+│
+├── .retention      # Retention policies (RetentionClient)
+├── .continuous_queries  # CQs (ContinuousQueryClient)
+├── .delete         # Delete operations (DeleteClient)
+├── .auth           # Authentication (AuthClient)
+└── .health()       # Health check
+```
+
+## Documentation
+
+<Cards>
+  <Card title="Installation" href="/arc-enterprise/sdks/python/installation/" description="Install the SDK and optional dependencies for pandas, polars, or all features." />
+  <Card title="Data Ingestion" href="/arc-enterprise/sdks/python/ingestion/" description="Write data using columnar format, DataFrames, buffered writes, or line protocol." />
+  <Card title="Querying" href="/arc-enterprise/sdks/python/querying/" description="Run SQL queries and get results as JSON, pandas, polars, or PyArrow tables." />
+  <Card title="Data Management" href="/arc-enterprise/sdks/python/data-management/" description="Manage retention policies, continuous queries, delete operations, and authentication." />
+</Cards>
+
+## Source Code
+
+- **Repository**: [github.com/basekick-labs/arc-client-python](https://github.com/basekick-labs/arc-client-python)
+- **PyPI**: [pypi.org/project/arc-tsdb-client](https://pypi.org/project/arc-tsdb-client/)

@@ -1,0 +1,17 @@
+---
+title: Installation
+description: Install Arc Enterprise on Docker, native Linux packages, Kubernetes, or the AWS Marketplace AMI, including where the license key and cluster role are set for each target.
+---
+
+Arc Enterprise ships as the same binary as Arc OSS. Every install target below is the OSS install plus a license key — set `ARC_LICENSE_KEY`, or the `[license]` section of `arc.toml`, and the licensed features activate on startup.
+
+Which target you pick mostly determines how you will run a cluster later. Docker and native installs place one node per host and you assign roles yourself; the Helm chart models writer, reader, and compactor as separate workloads from the start.
+
+<Cards>
+  <Card title="Docker" href="/arc-enterprise/installation/docker/" description="Single node in a container, with a mounted data volume and a storage backend chosen by environment variable." />
+  <Card title="Native" href="/arc-enterprise/installation/native/" description="Install from .deb or .rpm packages, or build from source, and run under systemd." />
+  <Card title="Kubernetes" href="/arc-enterprise/installation/kubernetes/" description="Deploy a multi-node cluster with Helm: separate writer, reader, and compactor workloads." />
+  <Card title="AWS Marketplace" href="/arc-enterprise/installation/aws-marketplace/" description="Launch a pre-configured AMI; licensing is handled through your AWS subscription." />
+</Cards>
+
+After installation, continue with [Configuration](/arc-enterprise/configuration/) to set the storage backend and cluster role.

@@ -1,1 +1,22 @@
-{ "title": "Arc", "root": true, "pages": ["index", "installation"] }
+{
+  "title": "Arc",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "installation",
+    "configuration",
+    "performance",
+    "api-reference",
+    "data-import",
+    "migration",
+    "guides",
+    "data-lifecycle",
+    "integrations",
+    "advanced",
+    "cli",
+    "operations",
+    "sdks",
+    "changelog"
+  ]
+}
