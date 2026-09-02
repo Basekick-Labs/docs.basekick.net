@@ -21,13 +21,26 @@ export const metadata: Metadata = {
   description:
     'Documentation for Arc, the high-performance columnar analytical database, plus Arc Enterprise and Arc Launchpad.',
   alternates: { canonical: '/' },
+  // public/favicon.ico is not picked up automatically - Next only auto-detects
+  // app/icon.*, so without this the site ships no favicon at all.
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/img/basekick-logo-icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
   openGraph: {
     siteName: 'Arc Documentation',
     type: 'website',
     locale: 'en',
+    url: '/',
+    images: '/img/arc.png',
   },
   twitter: {
     card: 'summary_large_image',
+    images: '/img/arc.png',
   },
 };
 

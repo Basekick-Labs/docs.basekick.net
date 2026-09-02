@@ -29,6 +29,18 @@ jobs:
       - name: Build
         run: npm run build
 
+      # The llms.txt routes publish page source verbatim, so an absolute path
+      # left in a comment during authoring ends up on the public site. Cheap to
+      # check, and it has happened.
+      - name: Check for leaked local paths
+        run: |
+          if grep -rl -E '/(Users|home)/[a-z]' out/ 2>/dev/null | head -5 | grep -q .; then
+            echo "Local filesystem paths found in build output:"
+            grep -rl -E '/(Users|home)/[a-z]' out/ | head -10
+            exit 1
+          fi
+          echo "ok  no local paths in build output"
+
       - name: Set up Tailscale
         run: |
           set -x
