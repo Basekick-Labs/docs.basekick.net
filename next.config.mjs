@@ -9,6 +9,12 @@ const config = {
   trailingSlash: true,
   output: 'export',
   reactStrictMode: true,
+  images: {
+    // Markdown images map to next/image, whose default loader needs a server.
+    // Under `output: 'export'` that combination throws at render time, which
+    // took out every Arc Enterprise page carrying an architecture diagram.
+    unoptimized: true,
+  },
 };
 
 export default withMDX(config);

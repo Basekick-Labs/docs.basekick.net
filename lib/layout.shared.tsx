@@ -29,8 +29,8 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       { text: 'Arc OSS', url: '/arc/', active: 'nested-url' },
-      { text: 'Enterprise', url: '/arc-enterprise/', active: 'nested-url' },
-      { text: 'Launchpad', url: '/launchpad/', active: 'nested-url' },
+      { text: 'Arc Enterprise', url: '/arc-enterprise/', active: 'nested-url' },
+      { text: 'Arc Launchpad', url: '/launchpad/', active: 'nested-url' },
       { text: 'Blog', url: 'https://basekick.net/blog', external: true },
       { text: 'Website', url: 'https://basekick.net', external: true },
     ],
