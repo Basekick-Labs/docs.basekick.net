@@ -5,13 +5,12 @@ node_modules/
 .pnp.js
 
 # Production
-/build
-/dist
-/.next
 /out
+/.next
+/.source
+/dist
 
 # Generated files
-.docusaurus
 .cache-loader
 .cache/
 
