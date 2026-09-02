@@ -1,1 +1,8 @@
-{"title": "Guides", "pages": ["index", "querying", "decimal-precision"]}
+{
+  "title": "Guides",
+  "pages": [
+    "[Overview](/arc/guides/)",
+    "querying",
+    "decimal-precision"
+  ]
+}

@@ -1,1 +1,10 @@
-{ "title": "Configuration", "pages": ["index", "deployment-patterns", "overview", "clustering", "edge-sync-clustered"] }
+{
+  "title": "Configuration",
+  "pages": [
+    "[In this section](/arc-enterprise/configuration/)",
+    "deployment-patterns",
+    "overview",
+    "clustering",
+    "edge-sync-clustered"
+  ]
+}

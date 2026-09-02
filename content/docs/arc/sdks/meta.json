@@ -1,1 +1,7 @@
-{"title": "SDKs", "pages": ["index", "python"]}
+{
+  "title": "SDKs",
+  "pages": [
+    "[Overview](/arc/sdks/)",
+    "python"
+  ]
+}

@@ -1,1 +1,10 @@
-{"title": "Migration", "pages": ["index", "questdb", "timescaledb", "clickhouse", "influxdb"]}
+{
+  "title": "Migration",
+  "pages": [
+    "[Overview](/arc/migration/)",
+    "questdb",
+    "timescaledb",
+    "clickhouse",
+    "influxdb"
+  ]
+}

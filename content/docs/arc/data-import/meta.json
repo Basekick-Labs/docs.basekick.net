@@ -1,1 +1,9 @@
-{"title": "Data Import", "pages": ["index", "csv", "parquet", "line-protocol"]}
+{
+  "title": "Data Import",
+  "pages": [
+    "[Overview](/arc/data-import/)",
+    "csv",
+    "parquet",
+    "line-protocol"
+  ]
+}

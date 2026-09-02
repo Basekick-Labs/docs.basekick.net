@@ -1,1 +1,9 @@
-{"title": "Operations", "pages": ["index", "telemetry", "backup-restore", "profiling"]}
+{
+  "title": "Operations",
+  "pages": [
+    "[Overview](/arc/operations/)",
+    "telemetry",
+    "backup-restore",
+    "profiling"
+  ]
+}

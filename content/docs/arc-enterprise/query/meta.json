@@ -1,1 +1,8 @@
-{ "title": "Query", "pages": ["index", "query-governance", "query-management"] }
+{
+  "title": "Query",
+  "pages": [
+    "[Overview](/arc-enterprise/query/)",
+    "query-governance",
+    "query-management"
+  ]
+}

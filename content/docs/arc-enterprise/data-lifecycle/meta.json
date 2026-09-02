@@ -1,1 +1,10 @@
-{ "title": "Data Lifecycle", "pages": ["index", "retention-policies", "continuous-queries", "delete-operations", "tiered-storage"] }
+{
+  "title": "Data Lifecycle",
+  "pages": [
+    "[Overview](/arc-enterprise/data-lifecycle/)",
+    "retention-policies",
+    "continuous-queries",
+    "delete-operations",
+    "tiered-storage"
+  ]
+}

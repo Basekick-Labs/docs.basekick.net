@@ -1,1 +1,12 @@
-{"title": "arcctl", "pages": ["index", "connections", "query", "write", "db", "measurement", "import"]}
+{
+  "title": "arcctl",
+  "pages": [
+    "[Overview](/arc/cli/)",
+    "connections",
+    "query",
+    "write",
+    "db",
+    "measurement",
+    "import"
+  ]
+}

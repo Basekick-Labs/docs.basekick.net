@@ -1,1 +1,9 @@
-{ "title": "Security", "pages": ["index", "rbac", "audit-logging", "cluster-security"] }
+{
+  "title": "Security",
+  "pages": [
+    "[Overview](/arc-enterprise/security/)",
+    "rbac",
+    "audit-logging",
+    "cluster-security"
+  ]
+}
