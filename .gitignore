@@ -45,10 +45,14 @@ config.local.*
 # ...but documentation *about* tokens is not a credential. Without this the
 # page is silently dropped from any clean checkout, so CI builds a site that
 # is missing a page the author sees locally.
-!docs-launchpad/using-the-console/tokens.md
-!docs/**/*token*.md
-!docs-arc-enterprise/**/*token*.md
-!docs-launchpad/**/*token*.md
+#
+# Keep this path in sync with where content actually lives. These patterns
+# pointed at the pre-migration Docusaurus directories for a while, which
+# silently un-tracked the Launchpad tokens page again.
+!content/docs/**/*token*.md
+!content/docs/**/*token*.mdx
+!content/docs/**/*secret*.md
+!content/docs/**/*api-key*.md
 
 # IDE
 .vscode/
