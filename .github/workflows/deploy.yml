@@ -95,6 +95,25 @@ jobs:
           ssh "$USER_HOST" "sudo mkdir -p $DEPLOY_PATH/conf $DEPLOY_PATH/releases \
             && sudo chown -R ${{ secrets.DEPLOY_USER }}:${{ secrets.DEPLOY_USER }} $DEPLOY_PATH"
 
+          # One-time migration. Before this change the site was rsynced flat
+          # into $DEPLOY_PATH, so the old build (and the old nginx.conf) is
+          # still sitting there. It is no longer served - the document root is
+          # now $DEPLOY_PATH/html - but leaving a second nginx.conf next to the
+          # live one is a trap during an incident. Runs once; afterwards the
+          # marker makes it a no-op.
+          ssh "$USER_HOST" "cd $DEPLOY_PATH \
+            && if [ ! -f .layout-migrated ]; then \
+                 mkdir -p .old-flat-layout \
+                 && for f in *; do \
+                      case \"\$f\" in \
+                        conf|releases|html|docker-compose.yml|.old-flat-layout) ;; \
+                        *) mv \"\$f\" .old-flat-layout/ 2>/dev/null || true ;; \
+                      esac; \
+                    done \
+                 && touch .layout-migrated \
+                 && echo 'moved pre-existing flat layout to .old-flat-layout/'; \
+               fi"
+
           scp nginx.conf "$USER_HOST:$DEPLOY_PATH/conf/nginx.conf"
           scp docker-compose.yml "$USER_HOST:$DEPLOY_PATH/docker-compose.yml"
 
@@ -142,19 +161,54 @@ jobs:
             && ln -sfn releases/$REL html.new \
             && mv -Tf html.new html"
 
-          # Keep the 5 most recent releases so rollback has somewhere to go.
+          # Fail before touching the container if the release is not intact.
+          ssh "$USER_HOST" "test -f $DEPLOY_PATH/html/index.html \
+            && test -f $DEPLOY_PATH/html/404.html"
+
+          # Keep the 5 newest releases, and never delete the one being served.
+          # Sorting by name (releases are timestamp-prefixed) rather than mtime
+          # because `cp -al` rewrites mtimes and would misorder them. The
+          # readlink guard matters after a rollback: the live release is then an
+          # older one, and a plain "delete all but the newest 5" would remove
+          # the directory the site is currently serving.
           ssh "$USER_HOST" "cd $DEPLOY_PATH/releases \
-            && ls -1dt */ | tail -n +6 | xargs -r rm -rf"
+            && current=\$(basename \"\$(readlink -f ../html)\") \
+            && ls -1d */ 2>/dev/null | sed 's#/\$##' | sort -r | tail -n +6 \
+               | grep -vx \"\$current\" | xargs -r rm -rf"
         shell: bash
 
-      - name: Start container
+      # `up -d` recreates the container when the compose file's volumes change,
+      # which this PR does. Recreation is stop-then-start, so there is a short
+      # window where nginx is not serving - hence the readiness wait before
+      # anything downstream curls the site.
+      #
+      # The heredoc is quoted, so the local shell expands nothing. The
+      # ${{ }} expressions are substituted by Actions before bash sees them,
+      # so the remote side receives literal values. Adding a shell variable
+      # here that is meant to expand remotely will NOT work.
+      - name: Start container and wait for readiness
         run: |
           set -euo pipefail
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
           set -euo pipefail
           cd ${{ secrets.DEPLOY_PATH }}
           sudo docker compose up -d docs
-          sudo docker ps | grep docs
+
+          # grep exits 1 on no match, which under `set -e` would fail a deploy
+          # that actually succeeded.
+          sudo docker ps | grep docs || true
+
+          for i in $(seq 1 30); do
+            if sudo docker exec docs-basekick-net \
+                 wget -q -O /dev/null http://127.0.0.1/ 2>/dev/null; then
+              echo "container serving after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container did not serve within 30s"
+          sudo docker logs --tail 50 docs-basekick-net
+          exit 1
           EOF
         shell: bash
 
@@ -165,13 +219,18 @@ jobs:
           set -uo pipefail
           BASE="https://docs.basekick.net"
           fail=0
+          # Retries so a transient blip on the Tailscale path or a slow
+          # container start does not fail an otherwise good deploy.
+          # curl -w already prints 000 on connection failure; appending
+          # `|| echo 000` would produce "000000" and make failures unreadable.
           check() { # path expected_code label
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1" || echo 000)
-            if [ "$code" != "$2" ]; then
-              echo "FAIL  $3: $1 -> $code (want $2)"; fail=1
-            else
-              echo "ok    $3: $1 -> $code"
-            fi
+            code=""
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1")
+              [ "$code" = "$2" ] && { echo "ok    $3: $1 -> $code"; return 0; }
+              [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+            done
+            echo "FAIL  $3: $1 -> $code (want $2)"; fail=1
           }
 
           echo "--- representative pages must be 200 ---"
@@ -182,16 +241,26 @@ jobs:
           check /launchpad/                              200 "launchpad root"
           check /launchpad/using-the-console/sql-console/ 200 "launchpad leaf"
 
+          echo "--- trailing slash is canonical: unslashed redirects once ---"
+          loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$BASE/arc/getting-started")
+          hops=$(curl -s -o /dev/null -L -w '%{num_redirects}' --max-time 20 "$BASE/arc/getting-started")
+          if [ "$loc" = "$BASE/arc/getting-started/" ] && [ "$hops" = "1" ]; then
+            echo "ok    canonical redirect: -> $loc in $hops hop"
+          else
+            echo "FAIL  canonical redirect: -> '$loc' in '$hops' hops"; fail=1
+          fi
+
           echo "--- unknown URLs must be real 404s, not soft 404s ---"
-          check "/definitely-not-a-page-$RANDOM/" 404 "unknown root path"
-          check "/arc/definitely-not-a-page/"     404 "unknown arc path"
+          check "/definitely-not-a-page-$GITHUB_RUN_ID/" 404 "unknown root path"
+          check "/arc/definitely-not-a-page/"            404 "unknown arc path"
 
           echo "--- config files must not be served ---"
           check /nginx.conf         404 "nginx.conf"
           check /docker-compose.yml 404 "docker-compose.yml"
 
-          echo "--- robots.txt ---"
-          check /robots.txt 200 "robots.txt"
+          echo "--- robots.txt and the sitemap it advertises ---"
+          check /robots.txt  200 "robots.txt"
+          check /sitemap.xml 200 "sitemap.xml"
           ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 20 "$BASE/robots.txt" || echo none)
           case "$ct" in
             text/plain*) echo "ok    robots.txt content-type: $ct" ;;
@@ -207,10 +276,23 @@ jobs:
         if: failure()
         run: |
           echo "Deploy or verification failed."
-          echo "To roll back to the previous release:"
+          echo "This deploy was release: ${REL:-<not yet created>}"
+          echo
+          echo "Releases currently on the server (newest first), live one marked:"
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} 2>/dev/null \
+             && current=\$(basename \"\$(readlink -f html 2>/dev/null)\") \
+             && ls -1d releases/*/ 2>/dev/null | sed 's#releases/##; s#/\$##' | sort -r \
+                | while read -r r; do \
+                    if [ \"\$r\" = \"\$current\" ]; then echo \"  \$r  <- currently served\"; \
+                    else echo \"  \$r\"; fi; \
+                  done" || echo "  (could not reach the server)"
+          echo
+          echo "To roll back, pick a release above and run:"
           echo "  ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
           echo "  cd ${{ secrets.DEPLOY_PATH }}"
-          echo "  ls -1dt releases/*/          # pick the release before ${REL:-this one}"
-          echo "  ln -sfn releases/<PREVIOUS> html.new && mv -Tf html.new html"
-          echo "  sudo docker compose restart docs"
+          echo "  ln -sfn releases/<RELEASE> html.new && mv -Tf html.new html"
+          echo
+          echo "No container restart is needed: nginx resolves the symlink per"
+          echo "request, so the swap takes effect immediately."
         shell: bash
