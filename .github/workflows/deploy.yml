@@ -11,12 +11,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # Full history so a future sitemap can derive per-page lastmod from
+          # commit times. Depth 1 makes `git log -- <file>` return nothing.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -61,10 +65,6 @@ jobs:
         run: nslookup ${{ secrets.DEPLOY_HOST }}
         shell: bash
 
-      - name: Check Network Connectivity
-        run: ping -c 4 ${{ secrets.DEPLOY_HOST }}
-        shell: bash
-
       - name: Add host to known_hosts
         run: |
           set -x
@@ -83,47 +83,216 @@ jobs:
           if [ $? -ne 0 ]; then echo "SSH connection test failed"; exit 1; fi
         shell: bash
 
-      - name: Sync docs files to remote host
+      # Config is synced BEFORE content and lives outside the document root.
+      # It used to be scp'd into the docroot AFTER an rsync --delete that
+      # removed it, leaving a window with no nginx.conf on disk.
+      - name: Sync config and validate nginx
         run: |
-          set -x
-          echo "Syncing docs.basekick.net files to remote host..."
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "sudo mkdir -p ${{ secrets.DEPLOY_PATH }} && sudo chown ${{ secrets.DEPLOY_USER }}:${{ secrets.DEPLOY_USER }} ${{ secrets.DEPLOY_PATH }}"
+          set -euo pipefail
+          USER_HOST="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+
+          ssh "$USER_HOST" "sudo mkdir -p $DEPLOY_PATH/conf $DEPLOY_PATH/releases \
+            && sudo chown -R ${{ secrets.DEPLOY_USER }}:${{ secrets.DEPLOY_USER }} $DEPLOY_PATH"
+
+          # One-time migration. Before this change the site was rsynced flat
+          # into $DEPLOY_PATH, so the old build (and the old nginx.conf) is
+          # still sitting there. It is no longer served - the document root is
+          # now $DEPLOY_PATH/html - but leaving a second nginx.conf next to the
+          # live one is a trap during an incident. Runs once; afterwards the
+          # marker makes it a no-op.
+          ssh "$USER_HOST" "cd $DEPLOY_PATH \
+            && if [ ! -f .layout-migrated ]; then \
+                 mkdir -p .old-flat-layout \
+                 && for f in *; do \
+                      case \"\$f\" in \
+                        conf|releases|html|docker-compose.yml|.old-flat-layout) ;; \
+                        *) mv \"\$f\" .old-flat-layout/ 2>/dev/null || true ;; \
+                      esac; \
+                    done \
+                 && touch .layout-migrated \
+                 && echo 'moved pre-existing flat layout to .old-flat-layout/'; \
+               fi"
+
+          scp nginx.conf "$USER_HOST:$DEPLOY_PATH/conf/nginx.conf"
+          scp docker-compose.yml "$USER_HOST:$DEPLOY_PATH/docker-compose.yml"
+
+          # Reject a broken config before it can reach the running container.
+          ssh "$USER_HOST" "sudo docker run --rm \
+            -v $DEPLOY_PATH/conf/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+            nginx:alpine nginx -t"
+        shell: bash
+
+      # Each deploy lands in its own release directory, then a symlink swap
+      # publishes it. The swap is atomic, so no request ever sees a half-synced
+      # docroot, and rollback is a symlink repoint rather than a rebuild.
+      - name: Deploy release
+        run: |
+          set -euo pipefail
+          USER_HOST="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+          REL="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "REL=$REL" >> "$GITHUB_ENV"
+
+          ssh "$USER_HOST" "mkdir -p $DEPLOY_PATH/releases/$REL"
+
+          # Hard-link the current release as a baseline so rsync only ships the
+          # delta. Hard links mean this costs almost no disk.
+          ssh "$USER_HOST" "[ -d $DEPLOY_PATH/html ] \
+            && cp -al $DEPLOY_PATH/html/. $DEPLOY_PATH/releases/$REL/ 2>/dev/null || true"
+
+          # --checksum is REQUIRED here, not optional. The baseline above is
+          # made of hard links, so the new release shares inodes with the
+          # previous one. Without --checksum rsync compares size+mtime, skips
+          # files it thinks are unchanged, and any file it *does* rewrite in
+          # place would mutate the previous release through the shared inode -
+          # silently corrupting the rollback target. With --checksum, rsync
+          # writes a temp file and renames, which breaks the link correctly.
+          # Verified locally: without it, a changed file kept the old content
+          # AND both releases kept the same inode.
           rsync -avz --checksum --delete \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude '.github' \
-            --exclude '*.log' \
             --exclude '.DS_Store' \
             --stats \
-            ./build/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}
-          if [ $? -ne 0 ]; then echo "File sync failed"; exit 1; fi
+            ./build/ "$USER_HOST:$DEPLOY_PATH/releases/$REL/"
+
+          # Relative symlink: it must resolve inside the container, where the
+          # host path does not exist.
+          ssh "$USER_HOST" "cd $DEPLOY_PATH \
+            && ln -sfn releases/$REL html.new \
+            && mv -Tf html.new html"
+
+          # Fail before touching the container if the release is not intact.
+          ssh "$USER_HOST" "test -f $DEPLOY_PATH/html/index.html \
+            && test -f $DEPLOY_PATH/html/404.html"
+
+          # Keep the 5 newest releases, and never delete the one being served.
+          # Sorting by name (releases are timestamp-prefixed) rather than mtime
+          # because `cp -al` rewrites mtimes and would misorder them. The
+          # readlink guard matters after a rollback: the live release is then an
+          # older one, and a plain "delete all but the newest 5" would remove
+          # the directory the site is currently serving.
+          ssh "$USER_HOST" "cd $DEPLOY_PATH/releases \
+            && current=\$(basename \"\$(readlink -f ../html)\") \
+            && ls -1d */ 2>/dev/null | sed 's#/\$##' | sort -r | tail -n +6 \
+               | grep -vx \"\$current\" | xargs -r rm -rf"
         shell: bash
 
-      - name: Copy docker-compose.yml and nginx.conf to server
+      # `up -d` recreates the container when the compose file's volumes change,
+      # which this PR does. Recreation is stop-then-start, so there is a short
+      # window where nginx is not serving - hence the readiness wait before
+      # anything downstream curls the site.
+      #
+      # The heredoc is quoted, so the local shell expands nothing. The
+      # ${{ }} expressions are substituted by Actions before bash sees them,
+      # so the remote side receives literal values. Adding a shell variable
+      # here that is meant to expand remotely will NOT work.
+      - name: Start container and wait for readiness
         run: |
-          set -x
-          echo "Copying docker-compose.yml and nginx.conf to server..."
-          scp docker-compose.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          if [ $? -ne 0 ]; then echo "Failed to copy docker-compose.yml"; exit 1; fi
-          scp nginx.conf ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          if [ $? -ne 0 ]; then echo "Failed to copy nginx.conf"; exit 1; fi
-        shell: bash
-
-      - name: Deploy docs with Docker Compose
-        run: |
-          set -x
-          echo "Deploying docs.basekick.net (Docusaurus static site)..."
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
+          set -euo pipefail
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          set -euo pipefail
           cd ${{ secrets.DEPLOY_PATH }}
-
-          # Restart docs container
           sudo docker compose up -d docs
 
-          # Touch deployment timestamp
-          touch .last-deploy
+          # grep exits 1 on no match, which under `set -e` would fail a deploy
+          # that actually succeeded.
+          sudo docker ps | grep docs || true
 
-          # Show container status
-          sudo docker ps | grep docs
+          for i in $(seq 1 30); do
+            if sudo docker exec docs-basekick-net \
+                 wget -q -O /dev/null http://127.0.0.1/ 2>/dev/null; then
+              echo "container serving after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container did not serve within 30s"
+          sudo docker logs --tail 50 docs-basekick-net
+          exit 1
           EOF
-          if [ $? -ne 0 ]; then echo "Deployment failed"; exit 1; fi
+        shell: bash
+
+      # Verifies the live site, not the build output. Every failure mode this
+      # PR fixes was invisible to a build-time check.
+      - name: Post-deploy verification
+        run: |
+          set -uo pipefail
+          BASE="https://docs.basekick.net"
+          fail=0
+          # Retries so a transient blip on the Tailscale path or a slow
+          # container start does not fail an otherwise good deploy.
+          # curl -w already prints 000 on connection failure; appending
+          # `|| echo 000` would produce "000000" and make failures unreadable.
+          check() { # path expected_code label
+            code=""
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1")
+              [ "$code" = "$2" ] && { echo "ok    $3: $1 -> $code"; return 0; }
+              [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+            done
+            echo "FAIL  $3: $1 -> $code (want $2)"; fail=1
+          }
+
+          echo "--- representative pages must be 200 ---"
+          check /                                        200 "root"
+          check /arc/                                    200 "arc root"
+          check /arc/getting-started/                    200 "arc leaf"
+          check /arc-enterprise/                         200 "enterprise root"
+          check /launchpad/                              200 "launchpad root"
+          check /launchpad/using-the-console/sql-console/ 200 "launchpad leaf"
+
+          echo "--- trailing slash is canonical: unslashed redirects once ---"
+          loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$BASE/arc/getting-started")
+          hops=$(curl -s -o /dev/null -L -w '%{num_redirects}' --max-time 20 "$BASE/arc/getting-started")
+          if [ "$loc" = "$BASE/arc/getting-started/" ] && [ "$hops" = "1" ]; then
+            echo "ok    canonical redirect: -> $loc in $hops hop"
+          else
+            echo "FAIL  canonical redirect: -> '$loc' in '$hops' hops"; fail=1
+          fi
+
+          echo "--- unknown URLs must be real 404s, not soft 404s ---"
+          check "/definitely-not-a-page-$GITHUB_RUN_ID/" 404 "unknown root path"
+          check "/arc/definitely-not-a-page/"            404 "unknown arc path"
+
+          echo "--- config files must not be served ---"
+          check /nginx.conf         404 "nginx.conf"
+          check /docker-compose.yml 404 "docker-compose.yml"
+
+          echo "--- robots.txt and the sitemap it advertises ---"
+          check /robots.txt  200 "robots.txt"
+          check /sitemap.xml 200 "sitemap.xml"
+          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 20 "$BASE/robots.txt" || echo none)
+          case "$ct" in
+            text/plain*) echo "ok    robots.txt content-type: $ct" ;;
+            *)           echo "FAIL  robots.txt content-type: $ct (want text/plain)"; fail=1 ;;
+          esac
+
+          exit $fail
+        shell: bash
+
+      # Rollback instructions are printed on failure so they are in the log of
+      # the run that broke, not somewhere else.
+      - name: Rollback instructions
+        if: failure()
+        run: |
+          echo "Deploy or verification failed."
+          echo "This deploy was release: ${REL:-<not yet created>}"
+          echo
+          echo "Releases currently on the server (newest first), live one marked:"
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} 2>/dev/null \
+             && current=\$(basename \"\$(readlink -f html 2>/dev/null)\") \
+             && ls -1d releases/*/ 2>/dev/null | sed 's#releases/##; s#/\$##' | sort -r \
+                | while read -r r; do \
+                    if [ \"\$r\" = \"\$current\" ]; then echo \"  \$r  <- currently served\"; \
+                    else echo \"  \$r\"; fi; \
+                  done" || echo "  (could not reach the server)"
+          echo
+          echo "To roll back, pick a release above and run:"
+          echo "  ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          echo "  cd ${{ secrets.DEPLOY_PATH }}"
+          echo "  ln -sfn releases/<RELEASE> html.new && mv -Tf html.new html"
+          echo
+          echo "No container restart is needed: nginx resolves the symlink per"
+          echo "request, so the swap takes effect immediately."
         shell: bash
