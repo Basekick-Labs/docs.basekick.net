@@ -114,6 +114,8 @@ import requests
 from datetime import datetime
 import os
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 token = os.getenv("ARC_TOKEN")
 
 data = {
@@ -157,7 +159,10 @@ curl -X POST "http://localhost:8000/write?db=default" \
   <Tab value="Python SDK">
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
@@ -193,6 +198,8 @@ curl -X POST http://localhost:8000/api/v1/query \
 import requests
 import os
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 token = os.getenv("ARC_TOKEN")
 
 response = requests.post(
@@ -211,6 +218,8 @@ print(response.json())
 import requests
 import pyarrow as pa
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 token = os.getenv("ARC_TOKEN")
 

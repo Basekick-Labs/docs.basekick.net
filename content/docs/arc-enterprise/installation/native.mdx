@@ -1,6 +1,6 @@
 ---
 title: "Native Installation"
-description: "Install Arc Enterprise from .deb or .rpm packages or build from source, then run it under systemd with a license key, storage backend, and cluster role in arc.toml."
+description: "Install Arc Enterprise from the .deb, .rpm or Arch package, or build from source, then run it under systemd with a license key, storage backend, and cluster role in arc.toml."
 ---
 
 Install Arc directly on Linux using native packages (.deb, .rpm) or build from source.
@@ -19,7 +19,7 @@ Current release: **<LatestVersion repo="basekick-labs/arc" format="tag" />**
 
 The following commands automatically fetch and install the latest Arc release.
 
-<Tabs items={['Debian/Ubuntu', 'RHEL/Fedora', 'Build from Source']}>
+<Tabs items={['Debian/Ubuntu', 'RHEL/Fedora', 'Arch Linux', 'Build from Source']}>
   <Tab value="Debian/Ubuntu">
 
 **x86_64 (AMD/Intel):**
@@ -60,6 +60,30 @@ curl http://localhost:8000/health
 LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
 wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.aarch64.rpm
 sudo rpm -i arc-${LATEST_VERSION}-1.aarch64.rpm
+sudo systemctl enable arc && sudo systemctl start arc
+```
+
+  </Tab>
+<Tab value="Arch Linux">
+
+Works on Arch Linux and Arch-based distros such as Omarchy.
+
+**x86_64 (AMD/Intel):**
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo pacman -U arc-${LATEST_VERSION}-1-x86_64.pkg.tar.zst
+sudo systemctl enable arc && sudo systemctl start arc
+curl http://localhost:8000/health
+```
+
+**ARM64:**
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1-aarch64.pkg.tar.zst
+sudo pacman -U arc-${LATEST_VERSION}-1-aarch64.pkg.tar.zst
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 

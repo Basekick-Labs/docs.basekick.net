@@ -239,7 +239,7 @@ Arc automatically recovers from WAL files on startup:
 
 ```bash
 curl http://localhost:8000/api/wal/status \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -267,7 +267,7 @@ curl http://localhost:8000/api/wal/status \
 
 ```bash
 curl http://localhost:8000/api/wal/files \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -296,7 +296,7 @@ curl http://localhost:8000/api/wal/files \
 
 ```bash
 curl http://localhost:8000/api/wal/health \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### Cleanup Old WAL Files
@@ -304,11 +304,11 @@ curl http://localhost:8000/api/wal/health \
 ```bash
 # Cleanup files older than 24 hours (default)
 curl -X POST http://localhost:8000/api/wal/cleanup \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 
 # Custom age (in hours)
 curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ## Troubleshooting

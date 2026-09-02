@@ -196,12 +196,15 @@ Files are replaced atomically using `os.replace()`, ensuring:
 ### Example 1: Delete Old Data
 
 ```python
+import os
 import requests
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # Delete data older than a specific date
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -216,10 +219,14 @@ print(f"Execution time: {response.json()['execution_time_ms']}ms")
 ### Example 2: Delete Specific Host Data
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 # Delete data from a specific host
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -231,10 +238,14 @@ response = requests.post(
 ### Example 3: Dry Run First
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 # Always test with dry run before deleting
 dry_run = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -254,7 +265,7 @@ for file in dry_run.json()['files']:
 if input("Proceed? (yes/no): ") == "yes":
     result = requests.post(
         "http://localhost:8000/api/v1/delete",
-        headers={"Authorization": "Bearer YOUR_TOKEN"},
+        headers={"Authorization": f"Bearer {ARC_TOKEN}"},
         json={
             "database": "telegraf",
             "measurement": "cpu",
@@ -268,10 +279,14 @@ if input("Proceed? (yes/no): ") == "yes":
 ### Example 4: Delete with Confirmation
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 # Large delete requiring confirmation
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={
         "database": "telegraf",
         "measurement": "cpu",
@@ -284,10 +299,14 @@ response = requests.post(
 ### Example 5: Complex WHERE Clause
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 # Delete based on multiple conditions
 response = requests.post(
     "http://localhost:8000/api/v1/delete",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={
         "database": "telegraf",
         "measurement": "cpu",

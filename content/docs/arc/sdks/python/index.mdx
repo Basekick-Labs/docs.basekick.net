@@ -34,7 +34,10 @@ While you can interact with Arc's REST API directly, the SDK provides significan
 ## Quick Example
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Write metrics

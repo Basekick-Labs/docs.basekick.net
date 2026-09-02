@@ -18,19 +18,19 @@ All endpoints (except public ones) require authentication. Arc supports multiple
 ### Bearer Token (Standard)
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Token Header (InfluxDB 2.x Style)
 
 ```bash
-curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### API Key Header
 
 ```bash
-curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
 ### Query Parameter (InfluxDB 1.x Style)
@@ -38,7 +38,7 @@ curl -H "x-api-key: YOUR_TOKEN" http://localhost:8000/api/v1/query
 For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query parameter:
 
 ```bash
-curl "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" -d 'cpu,host=server01 usage=45.2'
+curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -53,8 +53,11 @@ curl "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" -d 'cpu,host=server01 us
 ### Write Data (MessagePack)
 
 ```python
+import os
 import msgpack
 import requests
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 data = {
     "m": "cpu",
@@ -68,7 +71,7 @@ data = {
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
-        "Authorization": "Bearer YOUR_TOKEN",
+        "Authorization": f"Bearer {ARC_TOKEN}",
         "Content-Type": "application/msgpack",
         "x-arc-database": "default"
     },
@@ -80,7 +83,7 @@ response = requests.post(
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
 ```
@@ -90,12 +93,15 @@ curl -X POST http://localhost:8000/api/v1/query \
 For large result sets, use Arrow format for the highest sustained row throughput:
 
 ```python
+import os
 import requests
 import pyarrow as pa
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 response = requests.post(
     "http://localhost:8000/api/v1/query/arrow",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
 )
 
@@ -242,7 +248,7 @@ mem,host=server01 used=8.2,total=16.0 1697472000000000000
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/write?db=mydb&p=YOUR_TOKEN" \
+curl -X POST "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" \
   -d 'cpu,host=server01 usage=45.2'
 ```
 
@@ -257,12 +263,12 @@ InfluxDB 2.x compatible endpoint. This path matches InfluxDB's native API for dr
 
 **Headers:**
 - `Content-Type: text/plain`
-- `Authorization: Token YOUR_TOKEN` (InfluxDB 2.x style)
+- `Authorization: Token ARC_TOKEN` (InfluxDB 2.x style)
 
 **Example:**
 ```bash
 curl -X POST "http://localhost:8000/api/v2/write?bucket=mydb&org=myorg" \
-  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Authorization: Token $ARC_TOKEN" \
   -d 'cpu,host=server01 usage=45.2'
 ```
 

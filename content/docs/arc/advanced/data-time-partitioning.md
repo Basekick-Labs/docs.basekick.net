@@ -195,7 +195,10 @@ GROUP BY host
 Data-time partitioning makes historical backfill straightforward:
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # Backfill sensor data from December 2024
 # (even though we're ingesting in January 2025)

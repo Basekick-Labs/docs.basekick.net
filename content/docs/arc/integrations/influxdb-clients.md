@@ -208,8 +208,11 @@ For high-throughput applications, enable HTTP connection pooling in your client.
 ### Python
 
 ```python
+import os
 from influxdb_client import InfluxDBClient
 import urllib3
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # Enable connection pooling
 http = urllib3.PoolManager(
@@ -276,7 +279,10 @@ curl -X POST http://localhost:8000/api/v1/query \
 Or use the [Arc Python SDK](/arc/sdks/python/) for DataFrame support:
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas(

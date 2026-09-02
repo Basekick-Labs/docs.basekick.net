@@ -53,8 +53,11 @@ curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 us
 ### Write Data (MessagePack)
 
 ```python
+import os
 import msgpack
 import requests
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 data = {
     "m": "cpu",
@@ -68,7 +71,7 @@ data = {
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
-        "Authorization": "Bearer $ARC_TOKEN",
+        "Authorization": f"Bearer {ARC_TOKEN}",
         "Content-Type": "application/msgpack",
         "x-arc-database": "default"
     },
@@ -90,12 +93,15 @@ curl -X POST http://localhost:8000/api/v1/query \
 For large result sets, use Arrow format:
 
 ```python
+import os
 import requests
 import pyarrow as pa
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 response = requests.post(
     "http://localhost:8000/api/v1/query/arrow",
-    headers={"Authorization": "Bearer $ARC_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
 )
 
@@ -112,13 +118,16 @@ sets. Arrow is faster still for raw throughput, but does not accept `SHOW` and
 has no response compression.
 
 ```python
+import os
 import requests
 import msgpack
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 response = requests.post(
     "http://localhost:8000/api/v1/query/msgpack",
     headers={
-        "Authorization": "Bearer $ARC_TOKEN",
+        "Authorization": f"Bearer {ARC_TOKEN}",
         "Accept-Encoding": "zstd",   # optional, typically ~40% smaller
     },
     json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
@@ -1198,7 +1207,10 @@ pip install arc-tsdb-client[all]
 ```
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(

@@ -38,7 +38,10 @@ Arc is powered by DuckDB, so you have access to DuckDB's full SQL capabilities i
 The simplest way to query data. Returns a `QueryResult` object with columns and data.
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.query.query(
@@ -76,7 +79,10 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 Returns query results as a pandas DataFrame. Requires `pip install arc-tsdb-client[pandas]`.
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas(
@@ -113,7 +119,10 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 Returns query results as a polars DataFrame. Requires `pip install arc-tsdb-client[polars]`.
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_polars(
@@ -158,7 +167,10 @@ Polars is a DataFrame library written in Rust that offers:
 Returns query results as a PyArrow Table. This is the most efficient option for large datasets.
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     table = client.query.query_arrow(
@@ -201,7 +213,10 @@ Apache Arrow is a columnar memory format that enables:
 Preview the cost of a query before executing it:
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     estimate = client.query.estimate(
@@ -227,7 +242,10 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 Discover what measurements exist in a database:
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     measurements = client.query.list_measurements(database="default")
@@ -307,8 +325,11 @@ df = client.query.query_pandas("""
 All query methods have async equivalents:
 
 ```python
+import os
 import asyncio
 from arc_client import AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -332,8 +353,11 @@ asyncio.run(main())
 Run multiple queries in parallel:
 
 ```python
+import os
 import asyncio
 from arc_client import AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -354,8 +378,12 @@ asyncio.run(main())
 ## Error Handling
 
 ```python
+import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
     ArcQueryError,
     ArcConnectionError,
     ArcAuthenticationError,

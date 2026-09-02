@@ -187,7 +187,7 @@ docker restart arc
 
 ```bash
 docker stop arc && docker rm arc
-docker pull ghcr.io/basekick-labs/arc:25.12.1
+docker pull ghcr.io/basekick-labs/arc:latest
 docker run -d \
   --name arc \
   -p 8000:8000 \
@@ -226,7 +226,7 @@ version: '3.8'
 
 services:
   arc:
-    image: ghcr.io/basekick-labs/arc:25.12.1
+    image: ghcr.io/basekick-labs/arc:latest
     container_name: arc
     ports:
       - "8000:8000"
@@ -255,7 +255,7 @@ version: '3.8'
 
 services:
   arc:
-    image: ghcr.io/basekick-labs/arc:25.12.1
+    image: ghcr.io/basekick-labs/arc:latest
     container_name: arc
     ports:
       - "8000:8000"
@@ -295,7 +295,7 @@ version: '3.8'
 
 services:
   arc:
-    image: ghcr.io/basekick-labs/arc:25.12.1
+    image: ghcr.io/basekick-labs/arc:latest
     container_name: arc
     ports:
       - "8000:8000"

@@ -135,6 +135,8 @@ export ARC_DATABASE="default"
 
 ```python
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 from arc_client import ArcClient
 
 client = ArcClient(

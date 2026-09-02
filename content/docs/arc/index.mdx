@@ -103,9 +103,12 @@ HAVING MAX(pressure) > 850 OR STDDEV(vibration) > 2.5;
 ## Quick Example
 
 ```python
+import os
 import msgpack
 import requests
 from datetime import datetime
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # COLUMNAR FORMAT (RECOMMENDED)
 # All data organized as columns (arrays), not rows
@@ -131,7 +134,7 @@ data = {
 response = requests.post(
     "http://localhost:8000/api/v1/write/msgpack",
     headers={
-        "Authorization": "Bearer $ARC_TOKEN",
+        "Authorization": f"Bearer {ARC_TOKEN}",
         "Content-Type": "application/msgpack",
         "x-arc-database": "default"  # Optional: specify database
     },
@@ -147,7 +150,7 @@ else:
 # Query data
 response = requests.post(
     "http://localhost:8000/api/v1/query",
-    headers={"Authorization": "Bearer $ARC_TOKEN"},
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}
 )
 ```

@@ -562,6 +562,8 @@ cq = client.continuous_queries.create(
 ```python
 # ✅ Good: Use environment variables
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 token = os.getenv("ARC_TOKEN")
 client = ArcClient(host="localhost", token=token)
 

@@ -25,7 +25,10 @@ The fastest way to write data. Data is organized by columns (like a DataFrame) r
 ### Basic Usage
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_columnar(
@@ -121,8 +124,11 @@ Write directly from pandas or polars DataFrames. The SDK converts DataFrames to 
 ### pandas Example
 
 ```python
+import os
 import pandas as pd
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # Create a DataFrame
 df = pd.DataFrame({
@@ -156,8 +162,11 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 ### Polars Example
 
 ```python
+import os
 import polars as pl
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 df = pl.DataFrame({
     "time": pl.datetime_range(
@@ -186,7 +195,10 @@ For streaming or high-throughput scenarios, use buffered writes. The buffer auto
 ### Basic Usage
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     with client.write.buffered(batch_size=5000, flush_interval=2.0) as buffer:
@@ -228,8 +240,11 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 ### Async Buffered Writes
 
 ```python
+import os
 import asyncio
 from arc_client import AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 async def ingest_stream():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -252,7 +267,10 @@ For compatibility with InfluxDB tooling (Telegraf, etc.), use line protocol form
 ### Basic Usage
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Single line
@@ -301,8 +319,11 @@ cpu,host=server01,region=us-east usage_idle=95.2,usage_system=2.1 17040672000000
 All write methods have async equivalents:
 
 ```python
+import os
 import asyncio
 from arc_client import AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -330,8 +351,12 @@ asyncio.run(main())
 ## Error Handling
 
 ```python
+import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
     ArcIngestionError,
     ArcValidationError,
     ArcConnectionError,

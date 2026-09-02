@@ -136,6 +136,8 @@ import requests
 from datetime import datetime
 import os
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 token = os.getenv("ARC_TOKEN")
 
 data = {
@@ -212,6 +214,8 @@ curl -X POST http://localhost:8000/api/v1/query \
 import requests
 import os
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 token = os.getenv("ARC_TOKEN")
 
 response = requests.post(
@@ -230,6 +234,8 @@ print(response.json())
 import requests
 import pyarrow as pa
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 token = os.getenv("ARC_TOKEN")
 

@@ -36,7 +36,10 @@ Retention policies define rules for deleting data older than a specified age. Us
 ### Create a Policy
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     policy = client.retention.create(
@@ -104,7 +107,10 @@ client.retention.delete(policy.id)
 ### Full Example
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Create policy for logs
@@ -148,7 +154,10 @@ CQs define *what* to aggregate and *where* to store results. The `interval` para
 ### Create a Continuous Query
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     cq = client.continuous_queries.create(
@@ -247,7 +256,10 @@ client.continuous_queries.delete(cq.id)
 ### Full Example
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Create hourly rollup
@@ -303,7 +315,10 @@ Delete data matching specific conditions. Use this for:
 ### Delete with Conditions
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # ALWAYS dry_run first!
@@ -377,7 +392,10 @@ Manage API tokens for accessing Arc.
 ### Verify Current Token
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.auth.verify()
@@ -446,8 +464,12 @@ print("Token revoked")
 All data management operations can raise specific exceptions:
 
 ```python
+import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
     ArcError,
     ArcNotFoundError,
     ArcValidationError,
@@ -480,8 +502,11 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 All data management operations have async equivalents:
 
 ```python
+import os
 import asyncio
 from arc_client import AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -559,6 +584,8 @@ cq = client.continuous_queries.create(
 ```python
 # ✅ Good: Use environment variables
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 token = os.getenv("ARC_TOKEN")
 client = ArcClient(host="localhost", token=token)
 

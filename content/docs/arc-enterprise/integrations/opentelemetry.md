@@ -80,7 +80,7 @@ chmod +x arc-exporter
 docker run -d -p 8000:8000 \
   -e STORAGE_BACKEND=local \
   -v arc-data:/app/data \
-  ghcr.io/basekick-labs/arc:25.11.1
+  ghcr.io/basekick-labs/arc:latest
 ```
 
 ### 2. Get Your API Token
@@ -726,7 +726,7 @@ exporters:
 curl http://localhost:8000/health
 
 # Test authentication
-curl -H "Authorization: Bearer YOUR_TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/auth/verify
 ```
 

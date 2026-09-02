@@ -514,7 +514,7 @@ systemctl restart grafana-server
 curl http://localhost:8000/health
 
 # Test API token
-curl -H "Authorization: Bearer YOUR_TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/auth/verify
 
 # Check network connectivity

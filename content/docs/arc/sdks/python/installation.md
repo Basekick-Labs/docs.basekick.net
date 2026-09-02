@@ -91,7 +91,10 @@ uv add arc-tsdb-client --extra all
 Test that the SDK is installed correctly:
 
 ```python
+import os
 from arc_client import ArcClient, AsyncArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 # Check version
 import arc_client
@@ -108,7 +111,10 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 ### Basic Client Setup
 
 ```python
+import os
 from arc_client import ArcClient
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 client = ArcClient(
     host="localhost",       # Arc server hostname
@@ -135,6 +141,8 @@ export ARC_DATABASE="default"
 
 ```python
 import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 from arc_client import ArcClient
 
 client = ArcClient(
@@ -150,6 +158,10 @@ client = ArcClient(
 Always use the client as a context manager to ensure proper connection cleanup:
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 # Sync client
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     # Use client...
@@ -168,6 +180,10 @@ async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as cl
 If you can't use a context manager:
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 client = ArcClient(host="localhost", token=os.environ["ARC_TOKEN"])
 try:
     # Use client...
@@ -207,6 +223,10 @@ curl http://localhost:8000/health
 Verify your token is correct:
 
 ```python
+import os
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.auth.verify()
     if result.valid:
