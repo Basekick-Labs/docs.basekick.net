@@ -12,7 +12,8 @@ import { getMDXComponents } from '@/components/mdx';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { gitConfig } from '@/lib/shared';
-import { docsMetadata } from '@/lib/metadata';
+import { docsMetadata, lastModifiedIso } from '@/lib/metadata';
+import { StructuredData } from '@/components/StructuredData';
 
 export default async function Page(props: PageProps<'/[...slug]'>) {
   const params = await props.params;
@@ -24,6 +25,13 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
+      <StructuredData
+        title={page.data.title}
+        description={page.data.description}
+        slugs={params.slug ?? []}
+        pageUrl={page.url}
+        lastModified={lastModifiedIso(page.path)}
+      />
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b pb-6">

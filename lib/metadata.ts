@@ -80,3 +80,22 @@ export function docsMetadata({
     },
   };
 }
+
+/**
+ * Last commit date for a content file, as an ISO string.
+ * Shared with the sitemap; see the note there about not using build time.
+ */
+export function lastModifiedIso(relativePath: string): string | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
+    const iso = execFileSync(
+      'git',
+      ['log', '-1', '--format=%cI', '--', `content/docs/${relativePath}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    return iso || undefined;
+  } catch {
+    return undefined;
+  }
+}
