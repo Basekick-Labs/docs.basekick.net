@@ -22,7 +22,7 @@ port = 8000
 level = "info"       # debug, info, warn, error
 format = "console"   # json or console
 
-# Database (DuckDB)
+# Database (query engine)
 [database]
 # Auto-detected if not set (recommended)
 # max_connections = 28    # 2x CPU cores
@@ -164,7 +164,7 @@ ARC_STORAGE_S3_PATH_STYLE=false
 For EC2/EKS, omit `s3_access_key`/`s3_secret_key` entirely (leave them unset). Arc
 then authenticates via the AWS credential chain — EC2 instance profile, **EKS IRSA
 (IAM Roles for Service Accounts)**, **EKS Pod Identity**, or environment
-credentials. This applies to both writes and DuckDB query reads. Temporary
+credentials. This applies to both writes and query reads. Temporary
 credentials (IRSA, instance roles, Pod Identity) are refreshed automatically
 before each session expiry; this requires **Arc 26.09.1+** — on 26.06.2–26.06.3,
 query reads stop working roughly one hour after each process start
@@ -235,7 +235,7 @@ azure_use_managed_identity = true
 ```
 
 Managed-identity (and service-principal environment) tokens are refreshed
-automatically before each expiry on **both** writes and DuckDB query reads —
+automatically before each expiry on **both** writes and query reads —
 this requires **Arc 26.09.1+**; on earlier versions query reads stop working
 roughly an hour after each process start
 ([#605](https://github.com/Basekick-Labs/arc/issues/605)). A SAS token, when
@@ -357,9 +357,9 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
-### Database (DuckDB)
+### Database (Query Engine)
 
-DuckDB connection pool and resource settings:
+Query engine connection pool and resource settings:
 
 ```toml
 [database]
@@ -370,11 +370,11 @@ DuckDB connection pool and resource settings:
 
 # Manual override examples:
 max_connections = 28      # Connection pool size
-memory_limit = "8GB"      # DuckDB memory limit
+memory_limit = "8GB"      # Query engine memory limit
 thread_count = 14         # Query execution threads
-enable_wal = false        # DuckDB WAL (not Arc WAL)
+enable_wal = false        # Query engine WAL (not Arc WAL)
 
-# Allow DuckDB to reorder results of queries WITHOUT an ORDER BY (SQL-standard
+# Allow the engine to reorder results of queries WITHOUT an ORDER BY (SQL-standard
 # semantics); can reduce memory usage on large un-ordered scans and exports.
 # Queries with an explicit ORDER BY are unaffected. Set true to make un-ordered
 # SELECTs return rows in file/insertion order (pre-26.09.1 behavior).
@@ -403,7 +403,7 @@ max_buffer_age_ms = 5000
 # default_decimal_columns = ""
 
 # Parquet dictionary encoding at ingest (v26.09.1+). Off by default: ingest
-# files are transient — hourly/daily compaction rewrites them via DuckDB,
+# files are transient — hourly/daily compaction rewrites them,
 # which re-encodes every column adaptively — and skipping ingest-time
 # dictionaries improves sustained write throughput ~26%. The tradeoff is a
 # temporarily larger uncompacted hot partition until the next compaction.
@@ -720,7 +720,7 @@ export ARC_STORAGE_S3_SECRET_KEY="your_secret_key"
 
 ### 3. Let Arc Auto-Detect Resources
 
-Arc automatically detects optimal DuckDB settings based on your system. Only override if you have specific requirements:
+Arc automatically detects optimal query engine settings based on your system. Only override if you have specific requirements:
 
 ```toml
 [database]

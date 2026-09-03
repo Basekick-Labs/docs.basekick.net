@@ -26,7 +26,7 @@ Arc uses SQL with the table syntax `database.measurement`:
 SELECT * FROM default.cpu WHERE host = 'server01'
 ```
 
-Arc is powered by DuckDB, so you have access to DuckDB's full SQL capabilities including:
+Arc runs a full analytical SQL engine, so you have access to:
 - Window functions
 - CTEs (Common Table Expressions)
 - `time_bucket()` for time-series aggregation

@@ -14,7 +14,7 @@ Arc provides a native Telegraf output plugin that sends metrics in MessagePack c
 - Built-in gzip compression
 - Direct database targeting
 - All 300+ Telegraf input plugins supported
-- Full SQL analytics with DuckDB
+- Full analytical SQL support
 
 ## Prerequisites
 
@@ -516,7 +516,7 @@ Use the [Arc Grafana datasource plugin](/arc/integrations/grafana/) for native i
 ```text
 1. Install the Arc datasource from Grafana marketplace
 2. Configure connection to your Arc instance
-3. Use DuckDB SQL in your dashboard panels
+3. Use analytical SQL in your dashboard panels
 ```
 
 See [Grafana Integration](/arc/integrations/grafana/) for detailed setup instructions.

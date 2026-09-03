@@ -1,6 +1,6 @@
 ---
 title: "FIPS 140-3 Mode"
-description: "The arc-fips build variant for regulated deployments: what it changes about Arc's cryptography, the GODEBUG settings it accepts, and what a compliance claim requires."
+description: "Install and run the arc-fips build for regulated deployments: .deb, .rpm, binary and container artifacts, what it changes about Arc's cryptography, and what a compliance claim requires."
 ---
 
 Arc ships an optional **FIPS build variant** (`arc-fips`) for US federal, defense,
@@ -67,14 +67,51 @@ packages, container images, and SBOMs.
 
 ## Cryptographic boundary
 
-All cryptography in Arc is provided by the Go Cryptographic Module. DuckDB and
-SQLite perform **no** cryptography — SQLite is used for token *storage*, not
-encryption — and are outside the module boundary.
+All cryptography in Arc is provided by the Go Cryptographic Module. The query
+engine and SQLite perform **no** cryptography — SQLite is used for token
+*storage*, not encryption — and both are outside the module boundary.
 
 ## Installing the FIPS build
 
 The FIPS variant ships alongside the standard build in every release. Pick the
 `-fips` artifact instead of the standard one.
+
+### Packages (.deb / .rpm)
+
+The FIPS variant ships the same package formats as the standard build, so an
+existing install can be swapped in place — same service name, same config, same
+data directory.
+
+<Tabs items={['Debian/Ubuntu', 'RHEL/Fedora']}>
+  <Tab value="Debian/Ubuntu">
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+# arc-fips_${LATEST_VERSION}_arm64.deb on ARM
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-fips_${LATEST_VERSION}_amd64.deb
+sudo dpkg -i arc-fips_${LATEST_VERSION}_amd64.deb
+sudo systemctl enable arc && sudo systemctl start arc
+```
+
+  </Tab>
+  <Tab value="RHEL/Fedora">
+
+```bash
+LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+# arc-fips-${LATEST_VERSION}-1.aarch64.rpm on ARM
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-fips-${LATEST_VERSION}-1.x86_64.rpm
+sudo rpm -i arc-fips-${LATEST_VERSION}-1.x86_64.rpm
+sudo systemctl enable arc && sudo systemctl start arc
+```
+
+  </Tab>
+</Tabs>
+
+<Callout type="warn" title="No Arch Linux Package">
+The standard build ships an Arch package, but the FIPS variant does not — the
+release publishes `.deb`, `.rpm`, container images and standalone binaries only.
+On Arch, use the binary below.
+</Callout>
 
 ### Binary
 

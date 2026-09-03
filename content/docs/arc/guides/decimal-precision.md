@@ -131,7 +131,7 @@ Line Protocol transmits all float values as text, so precision is preserved thro
 
 ## Querying
 
-DuckDB reads Parquet DECIMAL type natively — no query changes needed:
+Arc reads the Parquet DECIMAL type natively — no query changes needed:
 
 ```sql
 SELECT price, amount, typeof(price) as price_type
@@ -174,15 +174,15 @@ SELECT price * amount as notional_value FROM trades
 1. **Ingestion**: Float64, int64, or string values arriving for declared decimal columns are converted to Arrow Decimal128 at buffer time
 2. **Storage**: Stored as Parquet DECIMAL logical type (16 bytes per value, exact precision)
 3. **Metadata**: Decimal column specs are stored as Parquet metadata (`arc:decimals`) for self-describing files
-4. **Querying**: DuckDB reads Parquet DECIMAL natively
-5. **Compaction**: DuckDB preserves DECIMAL types automatically during compaction
+4. **Querying**: Arc reads Parquet DECIMAL natively
+5. **Compaction**: DECIMAL types are preserved automatically during compaction
 
 ## Performance
 
 - **Zero overhead when not configured** — one empty map lookup per column during ingestion
 - **Decimal conversion cost**: ~100ns per value. A flush batch of 50K rows with 2 decimal columns adds ~10ms (flush runs in background)
 - **Storage**: 16 bytes per value (vs 8 bytes for float64) — 2x for decimal columns only
-- **Query performance**: Identical to float64 — DuckDB handles DECIMAL natively
+- **Query performance**: Identical to float64 — DECIMAL is handled natively
 
 ## Best Practices
 
@@ -216,4 +216,4 @@ This means the configuration format is invalid. Verify the format: `"measurement
 
 ### Scientific notation in query results
 
-DuckDB may serialize very small decimals using scientific notation (e.g., `1e-08` instead of `0.00000001`). The underlying precision is preserved — this is a display format choice. Use `CAST(column AS VARCHAR)` for explicit string formatting.
+Arc may serialize very small decimals using scientific notation (e.g., `1e-08` instead of `0.00000001`). The underlying precision is preserved — this is a display format choice. Use `CAST(column AS VARCHAR)` for explicit string formatting.

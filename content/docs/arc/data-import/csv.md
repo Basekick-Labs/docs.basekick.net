@@ -10,7 +10,7 @@ CSV bulk import is available starting Arc v26.02.1 (February 2026).
 </Callout>
 
 <Callout type="info" title="Changed in v26.06.2">
-CSV import now parses rows in-process instead of reading the uploaded file with DuckDB. The request and response are unchanged, with stricter up-front validation: empty files, duplicate column names, and a `time_column` rename that would collide with an existing `time` column are now rejected with `400` before any data is ingested.
+CSV import now parses rows in-process instead of reading the uploaded file through the query engine. The request and response are unchanged, with stricter up-front validation: empty files, duplicate column names, and a `time_column` rename that would collide with an existing `time` column are now rejected with `400` before any data is ingested.
 </Callout>
 
 ## Endpoint

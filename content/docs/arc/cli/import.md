@@ -32,7 +32,7 @@ Full options:
 | Flag | Server default | Description |
 |---|---|---|
 | `--time-column` | `time` | Column whose values become the row timestamp |
-| `--time-format` | empty (auto) | `epoch_s`, `epoch_ms`, `epoch_us`, `epoch_ns`; empty means "let DuckDB infer", which works for ISO-8601 strings |
+| `--time-format` | empty (auto) | `epoch_s`, `epoch_ms`, `epoch_us`, `epoch_ns`; empty means "let Arc infer", which works for ISO-8601 strings |
 | `--delimiter` | `,` | Field separator |
 | `--skip-rows` | `0` | Number of header rows to skip before parsing |
 
