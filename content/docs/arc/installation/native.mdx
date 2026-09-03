@@ -118,6 +118,14 @@ make clean          # Clean build artifacts
   </Tab>
 </Tabs>
 
+<Callout type="info" title="Regulated Environments">
+If you need validated cryptography (FIPS 140-2/3, FedRAMP, NIST SP 800-171 /
+CMMC), install the `arc-fips` build instead — same version, same features, built
+against the CMVP-certified Go Cryptographic Module. See
+[FIPS 140-3 mode](/arc/configuration/fips/). Note there is no `arc-fips` Arch
+package; on Arch use the standalone binary.
+</Callout>
+
 ## Get Your Admin Token
 
 When Arc starts for the first time, it generates an admin token.
