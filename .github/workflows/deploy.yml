@@ -213,6 +213,14 @@ jobs:
           cd ${{ secrets.DEPLOY_PATH }}
           sudo docker compose up -d docs
 
+          # `up -d` only recreates when the compose file itself changes. nginx
+          # reads its config once at startup and the config is bind-mounted, so
+          # editing it leaves the running process on the old rules - the
+          # container had been up 2h38m serving a stale config while the new
+          # one sat on disk. Validate, then reload in place.
+          sudo docker exec docs-basekick-net nginx -t
+          sudo docker exec docs-basekick-net nginx -s reload
+
           # grep exits 1 on no match, which under `set -e` would fail a deploy
           # that actually succeeded.
           sudo docker ps | grep docs || true
