@@ -29,18 +29,18 @@ enabled = true
 history_size = 100           # Number of completed queries to keep in history
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 ARC_QUERY_MANAGEMENT_ENABLED=true
 ARC_QUERY_MANAGEMENT_HISTORY_SIZE=100
 ```
 
-## API Reference
+## API reference
 
 All query management endpoints require admin authentication.
 
-### List Active Queries
+### List active queries
 
 View all currently running queries:
 
@@ -81,7 +81,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### View Query History
+### View query history
 
 Review recently completed queries:
 
@@ -111,7 +111,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### Get Query Details
+### Get query details
 
 Inspect a specific query by ID:
 
@@ -120,7 +120,7 @@ curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/queries/q-abc123
 ```
 
-### Cancel a Query
+### Cancel a query
 
 Stop a long-running or runaway query:
 
@@ -141,9 +141,9 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-## Use Cases
+## Use cases
 
-### Debugging Slow Queries
+### Debugging slow queries
 
 1. Check active queries to find long-running operations
 2. Review the SQL and execution details
@@ -160,7 +160,7 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/queries/q-abc123
 ```
 
-### Capacity Planning
+### Capacity planning
 
 Review query history to understand workload patterns:
 
@@ -169,7 +169,7 @@ Review query history to understand workload patterns:
 - How many queries run in parallel?
 - Are queries hitting multiple partitions (indicating large time ranges)?
 
-### Incident Response
+### Incident response
 
 During performance incidents:
 
@@ -178,7 +178,7 @@ During performance incidents:
 3. Review history to understand what changed
 4. Apply [query governance](/arc-enterprise/query/query-governance/) policies to prevent recurrence
 
-## Best Practices
+## Best practices
 
 1. **Set an appropriate history size** — The default (100) works for most deployments. Increase it if you need more historical context for debugging.
 
@@ -188,7 +188,7 @@ During performance incidents:
 
 4. **Review parallel query patterns** — Queries with high partition counts span large time ranges. Consider adding time bounds to improve performance.
 
-## Next Steps
+## Next steps
 
 - [Query Governance](/arc-enterprise/query/query-governance/) — Automatically enforce rate limits and quotas
 - [Audit Logging](/arc-enterprise/security/audit-logging/) — Track query patterns for compliance

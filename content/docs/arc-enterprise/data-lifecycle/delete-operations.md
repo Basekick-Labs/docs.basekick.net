@@ -18,15 +18,15 @@ Arc's delete operations provide:
 - **Safety Mechanisms**: Multiple safeguards prevent accidental deletion
 - **Dry Run Mode**: Test operations before execution
 
-## How It Works
+## How it works
 
 Arc uses a rewrite-based deletion approach:
 
-### 1. Find Affected Files
+### 1. Find affected files
 
 Scan the measurement directory to identify Parquet files containing rows that match the WHERE clause.
 
-### 2. Rewrite Files
+### 2. Rewrite files
 
 For each affected file:
 1. Load the file into an Arrow table
@@ -40,7 +40,7 @@ For each affected file:
 - Files with remaining data are replaced with their rewritten versions
 - All operations use atomic file replacement to ensure data integrity
 
-### Atomic Safety
+### Atomic safety
 
 System crashes during deletion result in either the old file or the new file being present, never corruption or partial writes.
 
@@ -48,7 +48,7 @@ System crashes during deletion result in either the old file or the new file bei
 
 Delete operations must be explicitly enabled and configured.
 
-### Configuration File
+### Configuration file
 
 Edit `arc.toml`:
 
@@ -59,7 +59,7 @@ confirmation_threshold = 10000
 max_rows_per_delete = 1000000
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 export DELETE_ENABLED=true
@@ -67,15 +67,15 @@ export DELETE_CONFIRMATION_THRESHOLD=10000
 export DELETE_MAX_ROWS=1000000
 ```
 
-### Configuration Parameters
+### Configuration parameters
 
 - `enabled` (boolean): Enable/disable delete functionality (default: `false`)
 - `confirmation_threshold` (integer): Row count requiring explicit confirmation (default: `10000`)
 - `max_rows_per_delete` (integer): Maximum rows allowed per operation (default: `1000000`)
 
-## API Endpoints
+## API endpoints
 
-### Delete Data
+### Delete data
 
 Execute a delete operation:
 
@@ -126,7 +126,7 @@ POST /api/v1/delete
 }
 ```
 
-### Get Configuration
+### Get configuration
 
 Retrieve current delete configuration:
 
@@ -143,9 +143,9 @@ GET /api/v1/delete/config
 }
 ```
 
-## Safety Mechanisms
+## Safety mechanisms
 
-### 1. WHERE Clause Required
+### 1. WHERE clause required
 
 Delete operations **must** include a WHERE clause to prevent accidental full-table deletion.
 
@@ -156,7 +156,7 @@ Delete operations **must** include a WHERE clause to prevent accidental full-tab
 }
 ```
 
-### 2. Confirmation Threshold
+### 2. Confirmation threshold
 
 Operations exceeding the configured threshold require explicit confirmation:
 
@@ -174,7 +174,7 @@ Operations exceeding the configured threshold require explicit confirmation:
 }
 ```
 
-### 3. Maximum Rows Limit
+### 3. Maximum rows limit
 
 Hard cap prevents extremely large operations that could exhaust resources:
 
@@ -184,16 +184,16 @@ Hard cap prevents extremely large operations that could exhaust resources:
 }
 ```
 
-### 4. Atomic File Replacement
+### 4. Atomic file replacement
 
 Files are replaced atomically using `os.replace()`, ensuring:
 - No partial writes
 - No data corruption
 - Recovery from crashes (either old or new file exists)
 
-## Usage Examples
+## Usage examples
 
-### Example 1: Delete Old Data
+### Example 1: delete old data
 
 ```python
 import os
@@ -216,7 +216,7 @@ print(f"Deleted {response.json()['deleted_count']} rows")
 print(f"Execution time: {response.json()['execution_time_ms']}ms")
 ```
 
-### Example 2: Delete Specific Host Data
+### Example 2: delete specific host data
 
 ```python
 import os
@@ -235,7 +235,7 @@ response = requests.post(
 )
 ```
 
-### Example 3: Dry Run First
+### Example 3: dry run first
 
 ```python
 import os
@@ -276,7 +276,7 @@ if input("Proceed? (yes/no): ") == "yes":
     print(f"Deleted {result.json()['deleted_count']} rows")
 ```
 
-### Example 4: Delete with Confirmation
+### Example 4: delete with confirmation
 
 ```python
 import os
@@ -296,7 +296,7 @@ response = requests.post(
 )
 ```
 
-### Example 5: Complex WHERE Clause
+### Example 5: complex WHERE clause
 
 ```python
 import os
@@ -319,11 +319,11 @@ response = requests.post(
 )
 ```
 
-## Performance Characteristics
+## Performance characteristics
 
 Delete operations are computationally expensive but designed for infrequent use:
 
-### Execution Times
+### Execution times
 
 **Small Files** (10MB):
 - Read + Filter + Write: ~50-100ms per file
@@ -334,16 +334,16 @@ Delete operations are computationally expensive but designed for infrequent use:
 **Large Files** (1GB):
 - Read + Filter + Write: ~2-5s per file
 
-### Performance Factors
+### Performance factors
 
 - **File Size**: Larger files take longer to rewrite
 - **Selectivity**: Fewer deleted rows = faster (less data movement)
 - **Storage I/O**: Disk speed affects read/write performance
 - **Concurrent Load**: Other operations may slow deletion
 
-## Best Practices
+## Best practices
 
-### 1. Keep Disabled by Default
+### 1. Keep disabled by default
 
 Only enable delete operations when needed:
 
@@ -352,7 +352,7 @@ Only enable delete operations when needed:
 enabled = false  # Enable only when necessary
 ```
 
-### 2. Always Use Dry Run
+### 2. Always use dry run
 
 Test operations before execution to verify scope:
 
@@ -369,7 +369,7 @@ for file in result['files']:
 result = requests.post(..., json={"dry_run": False, "confirm": True})
 ```
 
-### 3. Consider Retention Policies
+### 3. Consider retention policies
 
 For time-based deletion, use [retention policies](/arc-enterprise/data-lifecycle/retention-policies/) instead:
 
@@ -384,7 +384,7 @@ requests.post("/api/v1/retention", json={
 })
 ```
 
-### 4. Monitor Execution Times
+### 4. Monitor execution times
 
 Track deletion performance for capacity planning:
 
@@ -398,7 +398,7 @@ elapsed = time.time() - start
 print(f"Deleted {result['deleted_count']} rows in {elapsed:.2f}s")
 ```
 
-### 5. Batch Large Deletes
+### 5. Batch large deletes
 
 Break large deletions into smaller batches by time range:
 
@@ -420,7 +420,7 @@ while start < datetime(2023, 1, 1):
     start = end
 ```
 
-### 6. Understand Storage Impact
+### 6. Understand storage impact
 
 Deletion rewrites files, which may temporarily increase storage usage:
 
@@ -434,7 +434,7 @@ Ensure sufficient disk space for temporary files during operations.
 
 ## Limitations
 
-### Not for Frequent Operations
+### Not for frequent operations
 
 Delete operations rewrite entire Parquet files, making them expensive. They are designed for **infrequent, manual operations** only.
 
@@ -448,7 +448,7 @@ Delete operations rewrite entire Parquet files, making them expensive. They are 
 - High-frequency data cleanup
 - Real-time data removal
 
-### Explicit WHERE Required
+### Explicit WHERE required
 
 Full-table deletion requires explicit `WHERE 1=1`:
 
@@ -460,7 +460,7 @@ Full-table deletion requires explicit `WHERE 1=1`:
 {"where": "1=1", "confirm": True}
 ```
 
-### Maximum Row Limits
+### Maximum row limits
 
 Large deletions are subject to `max_rows_per_delete` configuration:
 
@@ -472,13 +472,13 @@ Large deletions are subject to `max_rows_per_delete` configuration:
 {"where": "time >= '2023-01-01' AND time < '2023-02-01'"}
 ```
 
-### File-Level Locking
+### File-level locking
 
 During deletion, affected files are locked. Concurrent writes may be delayed.
 
 ## Troubleshooting
 
-### Delete Not Enabled
+### Delete not enabled
 
 **Problem**: `DELETE_ENABLED=false` or not configured.
 
@@ -488,7 +488,7 @@ During deletion, affected files are locked. Concurrent writes may be delayed.
 enabled = true
 ```
 
-### Confirmation Required
+### Confirmation required
 
 **Problem**: Operation exceeds confirmation threshold.
 
@@ -497,7 +497,7 @@ enabled = true
 {"confirm": true}
 ```
 
-### Exceeds Maximum Rows
+### Exceeds maximum rows
 
 **Problem**: Deletion would affect more rows than `max_rows_per_delete`.
 
@@ -506,7 +506,7 @@ enabled = true
 2. Increase `max_rows_per_delete` (carefully)
 3. Use retention policies for large-scale cleanup
 
-### No Rows Deleted
+### No rows deleted
 
 **Problem**: `deleted_count: 0` but expected deletions.
 
@@ -515,7 +515,7 @@ enabled = true
 - Check that data exists in the specified database/measurement
 - Use dry run to inspect affected files
 
-### Slow Execution
+### Slow execution
 
 **Problem**: Delete operations take longer than expected.
 
@@ -525,7 +525,7 @@ enabled = true
 - Batch operations during low-traffic periods
 - Consider using retention policies for time-based cleanup
 
-## Related Topics
+## Related topics
 
 - [Retention Policies](/arc-enterprise/data-lifecycle/retention-policies/) - Automated time-based deletion
 - [Continuous Queries](/arc-enterprise/data-lifecycle/continuous-queries/) - Downsample before deletion

@@ -5,7 +5,7 @@ description: "Point existing InfluxDB client libraries at an Arc Enterprise clus
 
 Arc's Line Protocol endpoints use the same paths as InfluxDB, enabling drop-in compatibility with all official InfluxDB client libraries. Point your existing InfluxDB client at Arc - it just works.
 
-## Supported Clients
+## Supported clients
 
 All official InfluxDB client libraries work with Arc without code changes:
 
@@ -25,14 +25,14 @@ All official InfluxDB client libraries work with Arc without code changes:
 - Grafana InfluxDB datasource
 - Any tool using InfluxDB Line Protocol
 
-## Endpoint Mapping
+## Endpoint mapping
 
 | InfluxDB Endpoint | Arc Endpoint | Use Case |
 |-------------------|--------------|----------|
 | `/write` | `/write` | InfluxDB 1.x clients |
 | `/api/v2/write` | `/api/v2/write` | InfluxDB 2.x clients |
 
-## Authentication Methods
+## Authentication methods
 
 Arc supports all InfluxDB authentication styles:
 
@@ -42,7 +42,7 @@ Arc supports all InfluxDB authentication styles:
 | Token Header | `Authorization: Token <token>` | InfluxDB 2.x style |
 | Query Parameter | `?p=<token>` | InfluxDB 1.x style |
 
-## Quick Start Examples
+## Quick start examples
 
 ### Python (influxdb-client)
 
@@ -155,7 +155,7 @@ Or use the native Arc output plugin for better performance:
 
 ## Migration from InfluxDB
 
-### Step 1: Update Connection URL
+### Step 1: update connection URL
 
 Change your InfluxDB URL to point to Arc:
 
@@ -167,7 +167,7 @@ client = InfluxDBClient(url="http://influxdb:8086", ...)
 client = InfluxDBClient(url="http://arc:8000", ...)
 ```
 
-### Step 2: Use Arc Token
+### Step 2: use Arc token
 
 Replace your InfluxDB token with an Arc API token:
 
@@ -176,7 +176,7 @@ Replace your InfluxDB token with an Arc API token:
 docker logs arc 2>&1 | grep -i "admin"
 ```
 
-### Step 3: Map Buckets to Databases
+### Step 3: map buckets to databases
 
 InfluxDB "buckets" map to Arc "databases":
 
@@ -186,7 +186,7 @@ InfluxDB "buckets" map to Arc "databases":
 | Bucket | Database |
 | Measurement | Measurement |
 
-### Step 4: Verify Connection
+### Step 4: verify connection
 
 ```bash
 # Test write
@@ -201,7 +201,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"sql": "SELECT * FROM mydb.test LIMIT 10", "format": "json"}'
 ```
 
-## Connection Pooling
+## Connection pooling
 
 For high-throughput applications, enable HTTP connection pooling in your client. This reuses TCP connections instead of opening new ones for each request.
 
@@ -259,7 +259,7 @@ While Arc is compatible with InfluxDB clients, there are some differences:
 | Tasks | Built-in | Via continuous queries |
 | Flux Functions | Full support | Not supported |
 
-## Querying Data
+## Querying data
 
 Arc uses SQL instead of Flux or InfluxQL. Use the Arc query API:
 
@@ -291,7 +291,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 Ensure you're using Arc version 26.02.1 or later which includes the InfluxDB-compatible endpoints.
 
-### Authentication Errors
+### Authentication errors
 
 Arc accepts tokens via:
 - `Authorization: Bearer <token>`
@@ -302,13 +302,13 @@ Arc accepts tokens via:
 
 Arc ignores the organization parameter. Any value works.
 
-### Data Not Appearing
+### Data not appearing
 
 1. Check the database exists or will be auto-created
 2. Force a flush: `POST /api/v1/write/line-protocol/flush`
 3. Verify with: `SELECT * FROM mydb.measurement LIMIT 1`
 
-## Next Steps
+## Next steps
 
 - **[Python SDK](/arc-enterprise/sdks/python/)** - Native Arc client with DataFrame support
 - **[Telegraf Integration](/arc-enterprise/integrations/telegraf/)** - Native Arc output plugin

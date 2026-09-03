@@ -16,7 +16,7 @@ Stream data from any of Redpanda Connect's 200+ sources directly into Arc using 
 - Interpolated measurement names for per-message routing to different Arc tables
 - Single binary, no JVM, no cluster required
 
-## Why This Matters
+## Why this matters
 
 Arc already has native ingestion paths for metrics ([Telegraf](/arc-enterprise/integrations/telegraf/)) and IoT data ([MQTT](/arc-enterprise/integrations/mqtt/)). Redpanda Connect covers a different gap: event-driven data that needs reshaping, filtering, or enrichment before it lands in Arc.
 
@@ -39,7 +39,7 @@ Some concrete examples where Redpanda Connect fits:
 - Arc server running and accessible
 - Arc API token (if auth is enabled)
 
-## Quick Start
+## Quick start
 
 ### 1. Install Redpanda Connect
 
@@ -61,7 +61,7 @@ Verify you have 4.88+:
 redpanda-connect --version
 ```
 
-### 2. Create a Pipeline Config
+### 2. Create a pipeline config
 
 Create `arc-pipeline.yaml`:
 
@@ -89,7 +89,7 @@ output:
       period: 1s
 ```
 
-### 3. Run the Pipeline
+### 3. Run the pipeline
 
 ```bash
 export ARC_TOKEN="your-arc-token"
@@ -105,7 +105,7 @@ INFO Output type arc is now active
 INFO Pipeline has terminated. Shutting down the service
 ```
 
-### 4. Verify Data in Arc
+### 4. Verify data in Arc
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
@@ -114,7 +114,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"sql": "SELECT vehicle_id, speed_kmh FROM logistics.fleet_tracking ORDER BY time DESC LIMIT 10"}'
 ```
 
-## Configuration Reference
+## Configuration reference
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -132,7 +132,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `max_in_flight` | Maximum parallel batches | `64` |
 | `timeout` | HTTP request timeout | `5s` |
 
-## Payload Formats
+## Payload formats
 
 ### Columnar (default, recommended)
 
@@ -165,9 +165,9 @@ output:
       root = {"vehicle_id": this.vehicle_id, "fleet": this.fleet, "region": this.region}
 ```
 
-## Real-World Examples
+## Real-world examples
 
-### Kafka Events to Arc
+### Kafka events to Arc
 
 Consume JSON events from a Kafka topic, drop bot traffic, reshape fields, and normalize the timestamp:
 
@@ -204,7 +204,7 @@ output:
       period: 5s
 ```
 
-### HTTP Webhooks to Arc
+### HTTP webhooks to Arc
 
 Expose an HTTP endpoint that receives webhooks and writes them to Arc:
 
@@ -234,7 +234,7 @@ output:
       period: 2s
 ```
 
-### MQTT to Arc with Transformations
+### MQTT to Arc with transformations
 
 When you want Redpanda Connect's transformation power on top of MQTT (instead of the native MQTT ingestion):
 
@@ -265,7 +265,7 @@ output:
       period: 1s
 ```
 
-### Multi-Destination Fan-Out
+### Multi-destination fan-out
 
 Send the same events to Arc and Kafka simultaneously:
 
@@ -285,7 +285,7 @@ output:
           topic: processed-events
 ```
 
-## Dynamic Measurement Routing
+## Dynamic measurement routing
 
 The `measurement` field supports Redpanda Connect's Bloblang interpolation. Messages with different types can be routed to different Arc tables in a single pipeline:
 
@@ -309,7 +309,7 @@ output:
     measurement: ${!metadata("measurement")}
 ```
 
-## Bloblang Transformations
+## Bloblang transformations
 
 [Bloblang](https://docs.redpanda.com/redpanda-connect/guides/bloblang/about/) is Redpanda Connect's built-in mapping language. A few patterns that come up when writing to Arc:
 
@@ -350,7 +350,7 @@ processors:
       root.ingested_at = now()
 ```
 
-## Querying the Data
+## Querying the data
 
 Once data is in Arc, query it with standard SQL:
 
@@ -383,9 +383,9 @@ GROUP BY hour
 ORDER BY hour DESC;
 ```
 
-## Performance Tuning
+## Performance tuning
 
-### Batch Size
+### Batch size
 
 Arc's columnar format is significantly more efficient with larger batches. Tune `batching.count` and `batching.period` based on your volume.
 
@@ -395,7 +395,7 @@ Arc's columnar format is significantly more efficient with larger batches. Tune 
 | Medium (1K – 10K/sec) | 1000 – 5000 |
 | High (&gt;10K/sec) | 5000 – 10000 |
 
-### Max In Flight
+### Max in flight
 
 `max_in_flight` controls how many batches can be sent concurrently. Default is `64`. For very high throughput, increase it along with the Arc server's resources:
 
@@ -408,13 +408,13 @@ output:
       period: 1s
 ```
 
-### Compression Choice
+### Compression choice
 
 - **`zstd`** (default) — Best decompression performance on the Arc server. Recommended for most workloads.
 - **`gzip`** — Slightly smaller payloads but higher CPU. Use if the Arc server is I/O bound and CPU is plentiful.
 - **`none`** — Only useful for debugging or when running on localhost with very small payloads.
 
-### Format Choice
+### Format choice
 
 Prefer `columnar` whenever batches share a consistent schema. It is significantly faster end-to-end. Use `row` only when you need per-message tags or flexible per-message fields.
 
@@ -483,7 +483,7 @@ The `auto` default detects the unit from magnitude, which is usually correct but
 - [Bloblang language reference](https://docs.redpanda.com/redpanda-connect/guides/bloblang/about/)
 - [Basekick blog post on the integration](https://basekick.net/blog/arc-redpanda-connect-output-plugin)
 
-## Next Steps
+## Next steps
 
 - Pair with [Grafana](/arc-enterprise/integrations/grafana/) to visualize the data Redpanda Connect ingests
 - Use [Arc's native MQTT](/arc-enterprise/integrations/mqtt/) when you don't need transformations

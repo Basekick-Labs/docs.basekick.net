@@ -45,7 +45,7 @@ Arc Enterprise implements a 2-tier storage model:
 
 ## Configuration
 
-### Global Settings
+### Global settings
 
 ```toml
 [tiered_storage]
@@ -56,7 +56,7 @@ migration_batch_size = 100            # Files per migration batch
 default_hot_max_age_days = 30         # Data older than this moves to cold
 ```
 
-### Cold Tier Backend
+### Cold tier backend
 
 <Tabs items={['AWS S3 / MinIO', 'Azure Blob Storage']}>
   <Tab value="AWS S3 / MinIO">
@@ -101,7 +101,7 @@ azure_account_name = "your_account"
   </Tab>
 </Tabs>
 
-### Environment Variables
+### Environment variables
 
 ```bash
 # Global tiering settings
@@ -133,11 +133,11 @@ ARC_TIERED_STORAGE_COLD_AZURE_ACCOUNT_KEY=your_key
 Store access keys and secret keys in environment variables rather than in `arc.toml`. This keeps secrets out of version control.
 </Callout>
 
-## Per-Database Policies
+## Per-database policies
 
 Override the global `default_hot_max_age_days` for specific databases, or exclude databases from tiering entirely.
 
-### Create Policy
+### Create policy
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/tiering/policies \
@@ -149,7 +149,7 @@ curl -X POST http://localhost:8000/api/v1/tiering/policies \
   }'
 ```
 
-### Create Hot-Only Policy
+### Create hot-only policy
 
 Exclude a database from tiering:
 
@@ -163,21 +163,21 @@ curl -X POST http://localhost:8000/api/v1/tiering/policies \
   }'
 ```
 
-### List Policies
+### List policies
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/tiering/policies
 ```
 
-### Get Policy
+### Get policy
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/tiering/policies/telemetry
 ```
 
-### Update Policy
+### Update policy
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
@@ -186,18 +186,18 @@ curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
   -d '{"hot_max_age_days": 14}'
 ```
 
-### Delete Policy
+### Delete policy
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/tiering/policies/telemetry \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-## API Reference
+## API reference
 
 All tiering endpoints require admin authentication.
 
-### Get Tiering Status
+### Get tiering status
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
@@ -219,7 +219,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### List Files by Tier
+### List files by tier
 
 ```bash
 # All files
@@ -235,7 +235,7 @@ curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/tiering/files?database=telemetry&limit=50"
 ```
 
-### Trigger Manual Migration
+### Trigger manual migration
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/tiering/migrate \
@@ -254,7 +254,7 @@ curl -X POST http://localhost:8000/api/v1/tiering/migrate \
 }
 ```
 
-### Get Migration Statistics
+### Get migration statistics
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
@@ -277,7 +277,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-## Best Practices
+## Best practices
 
 1. **Start with 30-day hot retention** — This is a good default for most workloads. Monitor query patterns and adjust based on how often historical data is accessed.
 
@@ -291,7 +291,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 6. **Use IAM roles or managed identity** — For cloud deployments, use IAM roles (AWS) or managed identity (Azure) instead of access keys.
 
-## Next Steps
+## Next steps
 
 - [Audit Logging](/arc-enterprise/security/audit-logging/) — Track tiering operations for compliance
 - [Automated Scheduling](/arc-enterprise/operations/automated-scheduling/) — Combine tiering with scheduled retention policies

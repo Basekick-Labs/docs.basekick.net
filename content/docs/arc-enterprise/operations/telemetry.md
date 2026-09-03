@@ -16,11 +16,11 @@ Arc collects minimal, anonymous usage statistics to help the development team un
 Arc does not collect any personally identifiable information, user data, database contents, queries, or performance metrics.
 </Callout>
 
-## What Is Collected
+## What is collected
 
 Arc sends the following anonymous data every 24 hours:
 
-### Instance Information
+### Instance information
 
 - **instance_id**: A random UUID generated on first run
   - Stored in `./data/.instance_id`
@@ -31,7 +31,7 @@ Arc sends the following anonymous data every 24 hours:
 
 - **arc_version**: The running version number (e.g., `0.1.0`)
 
-### System Information
+### System information
 
 - **os**: Operating system details
   - Name (e.g., "Linux", "macOS", "Windows")
@@ -47,7 +47,7 @@ Arc sends the following anonymous data every 24 hours:
 - **memory**: System memory
   - Total RAM in gigabytes
 
-### Example Payload
+### Example payload
 
 ```json
 {
@@ -71,7 +71,7 @@ Arc sends the following anonymous data every 24 hours:
 }
 ```
 
-## What Is NOT Collected
+## What is NOT collected
 
 Arc explicitly avoids collecting:
 
@@ -84,9 +84,9 @@ Arc explicitly avoids collecting:
 - **Performance Metrics**: No query times, throughput, or resource usage
 - **Custom Configuration**: No application-specific settings
 
-## How It Works
+## How it works
 
-### Telemetry Schedule
+### Telemetry schedule
 
 1. **First Transmission**: 1 minute after Arc starts
 2. **Subsequent Transmissions**: Every 24 hours
@@ -96,13 +96,13 @@ Arc explicitly avoids collecting:
 
 Telemetry is sent to: `telemetry.basekick.net`
 
-### Network Behavior
+### Network behavior
 
 - If the telemetry endpoint is unreachable, Arc logs a warning but continues operating normally
 - Failed transmissions are retried during the next scheduled transmission
 - No telemetry data is queued or persisted locally
 
-### Startup Logging
+### Startup logging
 
 Arc logs telemetry status on startup:
 
@@ -116,11 +116,11 @@ INFO: Telemetry enabled. Sending anonymous usage data to telemetry.basekick.net 
 INFO: Telemetry disabled via configuration.
 ```
 
-## Disabling Telemetry
+## Disabling telemetry
 
 You can opt out of telemetry in two ways:
 
-### Option 1: Configuration File
+### Option 1: configuration file
 
 Edit your `arc.toml` file and add:
 
@@ -139,7 +139,7 @@ port = 8000
 enabled = false
 ```
 
-### Option 2: Environment Variable
+### Option 2: environment variable
 
 Set the environment variable before starting Arc:
 
@@ -171,9 +171,9 @@ INFO: Telemetry disabled via configuration.
 
 If you see this message, telemetry is successfully disabled.
 
-## Why Telemetry?
+## Why telemetry?
 
-### Benefits to the Project
+### Benefits to the project
 
 Anonymous telemetry helps the Arc team:
 
@@ -182,7 +182,7 @@ Anonymous telemetry helps the Arc team:
 3. **Track Version Adoption**: See how quickly users upgrade to new releases
 4. **Plan Deprecations**: Identify when old versions are no longer in use
 
-### Privacy Considerations
+### Privacy considerations
 
 Arc's telemetry is designed with privacy as a priority:
 
@@ -192,7 +192,7 @@ Arc's telemetry is designed with privacy as a priority:
 - **Optional**: Easy opt-out with no functionality loss
 - **No Tracking**: No cookies, fingerprinting, or cross-site tracking
 
-## Frequently Asked Questions
+## Frequently asked questions
 
 ### Does telemetry affect performance?
 
@@ -237,7 +237,7 @@ However, we respect your choice and make opting out straightforward.
 
 No. Both Arc OSS and Arc Enterprise use identical telemetry collection. Arc Enterprise customers can request custom telemetry configurations for their deployments.
 
-## Privacy Policy
+## Privacy policy
 
 For detailed information about how Basekick handles data, see our [Privacy Policy](https://basekick.net/privacy) (Coming Soon).
 

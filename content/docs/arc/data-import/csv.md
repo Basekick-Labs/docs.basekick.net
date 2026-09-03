@@ -26,7 +26,7 @@ POST /api/v1/import/csv
 | `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
-## Query Parameters
+## Query parameters
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
@@ -36,7 +36,7 @@ POST /api/v1/import/csv
 | `delimiter` | No | `,` | Column delimiter character |
 | `skip_rows` | No | `0` | Number of header/metadata rows to skip before the CSV header |
 
-## Basic Example
+## Basic example
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
@@ -45,7 +45,7 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=sensors" \
   -F "file=@sensor_data.csv"
 ```
 
-## Example with Options
+## Example with options
 
 ```bash
 # TSV file with epoch seconds and 2 metadata rows to skip
@@ -83,7 +83,7 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time
 - Column types are inferred per column from the values: a column is `BIGINT` if every value parses as an integer, otherwise `DOUBLE` if every value parses as a number, otherwise `BOOLEAN` if every value is `true`/`false`, otherwise `VARCHAR`. Empty cells in a numeric/boolean column are stored as null.
 - The time column accepts integer epochs, **fractional epochs** (e.g. `1609459200.123`, sub-second precision preserved), or timestamp strings (RFC 3339, `YYYY-MM-DD[ T]HH:MM:SS[.fff]`, or `YYYY-MM-DD`). With `time_format` empty, the unit of a numeric epoch is auto-detected by magnitude (s/ms/µs/ns).
 
-## Error Responses
+## Error responses
 
 | Status | Description |
 |--------|-------------|

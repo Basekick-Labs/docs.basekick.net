@@ -7,7 +7,7 @@ Alerts watch your data and notify a webhook when a condition is met. Launchpad e
 
 ![Launchpad alerts](/img/launchpad/launchpad-alerts.png)
 
-## Create an Alert
+## Create an alert
 
 Click **Create Alert** and configure:
 
@@ -21,7 +21,7 @@ Click **Create Alert** and configure:
 
 The notification message is generated for you from the rule: the alert name, the observed value, the condition, and the threshold.
 
-## Monitor and Manage
+## Monitor and manage
 
 Each alert card shows its condition, check interval, last value, and how many times it has triggered. Expand **Recent Triggers** for the time, value, and message of past firings.
 

@@ -7,7 +7,7 @@ Retention policies delete aged data automatically, so storage doesn't grow witho
 
 ![Launchpad retention policies with dry-run results](/img/launchpad/launchpad-retention.png)
 
-## Create a Policy
+## Create a policy
 
 Click **Create Policy** and configure:
 
@@ -19,11 +19,11 @@ Click **Create Policy** and configure:
 | **Buffer Period (days)** | An optional grace window beyond the retention period before data is actually removed. |
 | **Enable policy immediately** | Whether the policy runs on its own, or is created paused. |
 
-## Dry-run Before You Delete
+## Dry-run before you delete
 
 Before anything is removed, Launchpad runs a **dry-run** for you. Opening **Execute Now** first shows **Dry-Run Results**: the records and files the policy *would* delete, the cutoff date, and the affected measurements, so you're never guessing about the blast radius. Review it, then confirm to execute for real. When the dry-run finds nothing to delete, the execute button stays disabled.
 
-## Run and Manage
+## Run and manage
 
 Each policy card shows its target (database + measurement), retention period, buffer period, last execution time, and last-deleted count. From the card you can:
 

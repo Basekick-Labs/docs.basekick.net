@@ -23,7 +23,7 @@ Arc is available on AWS Marketplace as a ready-to-run AMI. No license keys, no s
 - VPC with appropriate subnets
 - (Production) ACM certificate for HTTPS
 
-## Quick Start (Dev/Testing Only)
+## Quick start (dev/testing only)
 
 <Callout type="warn" title="Not for Production">
 This pattern exposes your database directly to the internet. Use only for testing and evaluation.
@@ -59,7 +59,7 @@ export ARC_TOKEN="your-token-here"
 curl $ARC_URL/health
 ```
 
-## Production Deployment (Recommended)
+## Production deployment (recommended)
 
 For production workloads, deploy Arc behind an Application Load Balancer in a private subnet.
 
@@ -106,14 +106,14 @@ For production workloads, deploy Arc behind an Application Load Balancer in a pr
 - Security groups restrict traffic
 - Health checks and monitoring
 
-### Step 1: Subscribe to Arc
+### Step 1: subscribe to Arc
 
 1. Go to [Arc on AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-mkhhh2vk4fyss)
 2. Click **View purchase options**
 3. Click **Subscribe**
 4. Wait for subscription to activate, then click **Continue to Configuration**
 
-### Step 2: Launch Configuration
+### Step 2: Launch configuration
 
 1. Select your **Region**
 2. Choose an **Instance type**:
@@ -121,7 +121,7 @@ For production workloads, deploy Arc behind an Application Load Balancer in a pr
    - Production: `m8a.xlarge` or larger
 3. Click **Continue to Launch**
 
-### Step 3: Configure Network Settings
+### Step 3: configure network settings
 
 1. **VPC:** Select your existing VPC or create a new one
 2. **Subnet:** Choose a private subnet (no internet gateway route)
@@ -130,7 +130,7 @@ For production workloads, deploy Arc behind an Application Load Balancer in a pr
    - Outbound: As needed for your environment
 4. Click **Launch**
 
-### Step 4: Create a Target Group
+### Step 4: create a target group
 
 Before creating the load balancer, create a target group.
 
@@ -150,7 +150,7 @@ Before creating the load balancer, create a target group.
 4. Click **Next**, select your Arc instance, click **Include as pending below**
 5. Click **Create target group**
 
-### Step 5: Create the Application Load Balancer
+### Step 5: create the application load balancer
 
 1. Go to **EC2 Console** → **Load Balancers** → **Create load balancer**
 2. Select **Application Load Balancer**
@@ -171,7 +171,7 @@ Before creating the load balancer, create a target group.
    - Certificate: Select from ACM (free) or import your own
 8. Click **Create load balancer**
 
-### Step 6: Point Your Domain to the Load Balancer
+### Step 6: point your domain to the load balancer
 
 1. Go to **Load Balancers** and copy the **DNS name**
 
@@ -199,7 +199,7 @@ Create a CNAME record pointing to the ALB DNS name:
 CNAME records don't work for apex domains. Use a subdomain like `arc.yourdomain.com`.
 </Callout>
 
-### Step 7: Verify Security Groups
+### Step 7: verify security groups
 
 Ensure you have two properly configured security groups:
 
@@ -211,7 +211,7 @@ Ensure you have two properly configured security groups:
 - Inbound: HTTP (8000) from ALB Security Group only
 - Outbound: All traffic (or restrict as needed)
 
-### Step 8: Verify Target Health
+### Step 8: verify target health
 
 1. Go to **Target Groups** → `arc-target-group`
 2. Click **Targets** tab
@@ -222,7 +222,7 @@ If unhealthy, check:
 - Arc is running: `sudo systemctl status arc`
 - Health check path is correct: `/health`
 
-### Step 9: Get Your Admin Token
+### Step 9: get your admin token
 
 SSH into your Arc instance through a bastion host or Session Manager:
 
@@ -240,7 +240,7 @@ sudo journalctl -u arc | grep "Admin token"
 # Admin token: ark_abc123...xyz
 ```
 
-### Step 10: Verify Deployment
+### Step 10: verify deployment
 
 Test the health endpoint through your ALB:
 
@@ -272,7 +272,7 @@ curl -X POST "$ARC_URL/api/v1/query" \
   -d '{"sql":"SELECT * FROM default.cpu","format":"json"}'
 ```
 
-## Instance Types
+## Instance types
 
 | Use Case | Instance Type | vCPU | Memory | Notes |
 |----------|---------------|------|--------|-------|
@@ -306,7 +306,7 @@ df -h /app/data
 | SSL Certificate | Free | AWS Certificate Manager |
 | Enterprise Support | $500/month | Optional |
 
-## Service Management
+## Service management
 
 Arc runs as a systemd service on the AMI.
 
@@ -326,7 +326,7 @@ sudo systemctl stop arc
 
 ## Troubleshooting
 
-### Target Shows Unhealthy
+### Target shows unhealthy
 
 1. Check Arc is running:
 ```bash
@@ -352,7 +352,7 @@ The ALB can't reach the Arc instance. Check:
 - Arc instance is in the correct subnet
 - Target group has the correct port (8000)
 
-### Can't Find Admin Token
+### Can't find admin token
 
 ```bash
 # Check all Arc logs
@@ -362,7 +362,7 @@ sudo journalctl -u arc | head -200
 sudo journalctl -u arc | grep -i "admin\|token"
 ```
 
-## Next Steps
+## Next steps
 
 - [Configure Telegraf integration](/arc-enterprise/integrations/telegraf/)
 - [Set up Grafana dashboards](/arc-enterprise/integrations/grafana/)

@@ -67,7 +67,7 @@ Each entry follows the pattern `measurement:column=precision,scale;column2=preci
 
 Decimal conversion happens automatically at ingestion time for configured columns. All ingestion paths are supported:
 
-### MessagePack (Recommended)
+### MessagePack (recommended)
 
 **Float values** — converted via `decimal128.FromFloat64`:
 
@@ -169,7 +169,7 @@ SELECT * FROM trades WHERE price > 50000.00
 SELECT price * amount as notional_value FROM trades
 ```
 
-## How It Works
+## How it works
 
 1. **Ingestion**: Float64, int64, or string values arriving for declared decimal columns are converted to Arrow Decimal128 at buffer time
 2. **Storage**: Stored as Parquet DECIMAL logical type (16 bytes per value, exact precision)
@@ -184,7 +184,7 @@ SELECT price * amount as notional_value FROM trades
 - **Storage**: 16 bytes per value (vs 8 bytes for float64) — 2x for decimal columns only
 - **Query performance**: Identical to float64 — DECIMAL is handled natively
 
-## Best Practices
+## Best practices
 
 1. **Use string values for maximum precision** — Send values as strings over MessagePack when precision beyond 15 significant digits is required.
 

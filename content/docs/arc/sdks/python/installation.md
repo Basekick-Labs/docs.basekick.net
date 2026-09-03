@@ -10,7 +10,7 @@ How to install the Arc Python SDK and its optional dependencies.
 - **Python 3.9+** (3.10+ recommended for best performance)
 - **Arc server** running and accessible
 
-## Basic Installation
+## Basic installation
 
 Install the core SDK with pip:
 
@@ -24,11 +24,11 @@ This installs the minimal dependencies needed to connect to Arc and write/query 
 - `httpx` - HTTP client with connection pooling
 - `msgpack` - Binary serialization for high-performance writes
 
-## Optional Dependencies
+## Optional dependencies
 
 The SDK supports optional extras for DataFrame integration:
 
-### pandas Support
+### pandas support
 
 For `query_pandas()` and `write_dataframe()` with pandas:
 
@@ -42,7 +42,7 @@ pip install arc-tsdb-client[pandas]
 
 **Use when:** You're working in Jupyter notebooks, data science workflows, or need pandas DataFrames.
 
-### Polars Support
+### Polars support
 
 For `query_polars()` with the high-performance Polars library:
 
@@ -56,7 +56,7 @@ pip install arc-tsdb-client[polars]
 
 **Use when:** You need maximum query performance, are processing large datasets, or prefer Polars' API.
 
-### All Dependencies
+### All dependencies
 
 Install everything for full functionality:
 
@@ -71,7 +71,7 @@ pip install arc-tsdb-client[all]
 
 **Use when:** You want access to all features without worrying about which extras you need.
 
-## Using uv (Recommended)
+## Using uv (recommended)
 
 [uv](https://github.com/astral-sh/uv) is a fast Python package manager. Install the SDK with:
 
@@ -86,7 +86,7 @@ uv add arc-tsdb-client --extra pandas
 uv add arc-tsdb-client --extra all
 ```
 
-## Verifying Installation
+## Verifying installation
 
 Test that the SDK is installed correctly:
 
@@ -108,7 +108,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 
 ## Configuration
 
-### Basic Client Setup
+### Basic client setup
 
 ```python
 import os
@@ -128,7 +128,7 @@ client = ArcClient(
 )
 ```
 
-### Environment Variables
+### Environment variables
 
 You can also configure the client using environment variables:
 
@@ -153,7 +153,7 @@ client = ArcClient(
 )
 ```
 
-### Context Manager (Recommended)
+### Context manager (recommended)
 
 Always use the client as a context manager to ensure proper connection cleanup:
 
@@ -175,7 +175,7 @@ async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as cl
 # Connection automatically closed
 ```
 
-### Manual Connection Management
+### Manual connection management
 
 If you can't use a context manager:
 
@@ -210,7 +210,7 @@ You need to install the polars extra:
 pip install arc-tsdb-client[polars]
 ```
 
-### Connection Refused
+### Connection refused
 
 Make sure Arc is running and accessible:
 
@@ -218,7 +218,7 @@ Make sure Arc is running and accessible:
 curl http://localhost:8000/health
 ```
 
-### Authentication Failed
+### Authentication failed
 
 Verify your token is correct:
 
@@ -235,7 +235,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         print("Token is invalid")
 ```
 
-## Next Steps
+## Next steps
 
 - **[Data Ingestion](/arc/sdks/python/ingestion/)** - Learn how to write data to Arc
 - **[Querying](/arc/sdks/python/querying/)** - Query data and work with DataFrames

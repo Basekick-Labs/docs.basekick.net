@@ -17,14 +17,14 @@ The Arc datasource plugin for Grafana provides:
 
 ## Installation
 
-### From Grafana Plugin Catalog
+### From Grafana plugin catalog
 
 1. In Grafana, go to **Configuration** → **Plugins**
 2. Search for **Arc**
 3. Click **Install**
 4. Restart Grafana if prompted
 
-### From Release
+### From release
 
 ```bash
 # Grab the latest release tag, then download that release's plugin zip
@@ -38,7 +38,7 @@ unzip basekick-arc-datasource-${VERSION}.zip -d /var/lib/grafana/plugins/
 systemctl restart grafana-server
 ```
 
-### From Source
+### From source
 
 ```bash
 # Clone repository
@@ -61,14 +61,14 @@ systemctl restart grafana-server
 
 ## Configuration
 
-### 1. Add Data Source
+### 1. Add data source
 
 1. In Grafana, go to **Configuration** → **Data sources**
 2. Click **Add data source**
 3. Search for and select **Arc**
 4. Configure connection settings
 
-### 2. Connection Settings
+### 2. Connection settings
 
 | Setting | Description | Required | Default |
 |---------|-------------|----------|---------|
@@ -78,7 +78,7 @@ systemctl restart grafana-server
 | **Timeout** | Query timeout in seconds | No | `30` |
 | **Use Arrow** | Enable Apache Arrow protocol | No | `true` |
 
-### 3. Example Configuration
+### 3. Example configuration
 
 ```yaml
 URL:      http://localhost:8000
@@ -89,7 +89,7 @@ Timeout:  30
 
 Click **Save & Test** to verify the connection.
 
-### 4. Get Your API Token
+### 4. Get your API token
 
 ```bash
 # Docker - check logs for admin token
@@ -105,9 +105,9 @@ curl -X POST http://localhost:8000/api/v1/auth/tokens \
   }'
 ```
 
-## Creating Queries
+## Creating queries
 
-### Query Editor
+### Query editor
 
 The Arc datasource provides a SQL query editor with:
 - Syntax highlighting
@@ -115,7 +115,7 @@ The Arc datasource provides a SQL query editor with:
 - Time range macros
 - Multi-database support
 
-### Basic Query Example
+### Basic query example
 
 **CPU Usage:**
 ```sql
@@ -130,7 +130,7 @@ GROUP BY time_bucket(INTERVAL '$__interval', time), host
 ORDER BY time ASC
 ```
 
-### Time Macros
+### Time macros
 
 Grafana provides powerful time macros for dynamic queries:
 
@@ -151,7 +151,7 @@ WHERE $__timeFilter(time)
 WHERE time >= '2025-01-17 10:00:00' AND time < '2025-01-17 11:00:00'
 ```
 
-### Example Queries
+### Example queries
 
 **Memory Usage:**
 ```sql
@@ -192,17 +192,17 @@ GROUP BY time_bucket(INTERVAL '$__interval', time), host
 ORDER BY time ASC
 ```
 
-## Template Variables
+## Template variables
 
 Create dynamic dashboards with variables that filter your data.
 
-### Creating Variables
+### Creating variables
 
 1. Go to **Dashboard settings** → **Variables**
 2. Click **Add variable**
 3. Configure variable settings
 
-### Variable Examples
+### Variable examples
 
 **Host Variable:**
 ```sql
@@ -221,7 +221,7 @@ WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
 ORDER BY schema_name
 ```
 
-### Using Variables in Queries
+### Using variables in queries
 
 Reference variables with `$variable` syntax:
 
@@ -237,7 +237,7 @@ GROUP BY time_bucket(INTERVAL '$__interval', time)
 ORDER BY time ASC
 ```
 
-### Multi-Select Variables
+### Multi-select variables
 
 Enable **Multi-value** in variable settings, then use `IN`:
 
@@ -258,14 +258,14 @@ ORDER BY time ASC
 
 The Arc datasource fully supports Grafana alerting.
 
-### Creating Alert Rules
+### Creating alert rules
 
 1. Open a panel with an Arc query
 2. Go to **Alert** tab
 3. Click **Create alert rule from this panel**
 4. Configure alert conditions
 
-### Example Alert Query
+### Example alert query
 
 **High CPU Usage (> 80%):**
 ```sql
@@ -282,7 +282,7 @@ ORDER BY time ASC
 **Alert Condition:**
 - `WHEN avg() OF query(A, 5m, now) IS ABOVE 80`
 
-### Example Alert: Memory Usage
+### Example alert: Memory usage
 
 **Query:**
 ```sql
@@ -298,16 +298,16 @@ ORDER BY time ASC
 **Alert Condition:**
 - `WHEN avg() OF query(A, 5m, now) IS ABOVE 90`
 
-### Alert Notifications
+### Alert notifications
 
 Configure notification channels:
 1. Go to **Alerting** → **Contact points**
 2. Add notification channel (Email, Slack, PagerDuty, etc.)
 3. Link alert rules to notification channels
 
-## Dashboard Examples
+## Dashboard examples
 
-### System Monitoring Dashboard
+### System monitoring dashboard
 
 Create a comprehensive system monitoring dashboard:
 
@@ -373,7 +373,7 @@ ORDER BY avg_cpu DESC
 LIMIT 10
 ```
 
-### Dashboard Layout
+### Dashboard layout
 
 ```text
 ┌─────────────────────────────────────────────────┐
@@ -394,9 +394,9 @@ LIMIT 10
 └─────────────────────────────────────────────────┘
 ```
 
-## Advanced Queries
+## Advanced queries
 
-### Window Functions
+### Window functions
 
 **Moving Average:**
 ```sql
@@ -430,7 +430,7 @@ GROUP BY time_bucket(INTERVAL '$__interval', time), host
 ORDER BY time ASC
 ```
 
-### Cross-Database Queries
+### Cross-database queries
 
 **Production vs Staging Comparison:**
 ```sql
@@ -447,7 +447,7 @@ GROUP BY time_bucket(INTERVAL '$__interval', time)
 ORDER BY time ASC
 ```
 
-## Performance Optimization
+## Performance optimization
 
 ### 1. Use Apache Arrow
 
@@ -457,7 +457,7 @@ Arrow protocol is enabled by default and provides significantly faster data tran
 - Zero-copy deserialization
 - Columnar format perfect for time-series
 
-### 2. Optimize Time Ranges
+### 2. Optimize time ranges
 
 - Use Grafana's time picker to limit data scanned
 - Add time filters with `$__timeFilter()`
@@ -475,7 +475,7 @@ time_bucket(INTERVAL '$__interval', time)
 time_bucket(INTERVAL '1 second', time)
 ```
 
-### 4. Use LIMIT for Exploration
+### 4. Use LIMIT for exploration
 
 ```sql
 SELECT * FROM prod.cpu
@@ -483,7 +483,7 @@ WHERE $__timeFilter(time)
 LIMIT 1000  -- Limit result size
 ```
 
-### 5. Enable Query Caching
+### 5. Enable query caching
 
 In Grafana's data source settings:
 - Enable **Cache timeout**: 60 seconds
@@ -491,7 +491,7 @@ In Grafana's data source settings:
 
 ## Troubleshooting
 
-### Plugin Not Appearing
+### Plugin not appearing
 
 ```bash
 # Check plugin directory permissions
@@ -507,7 +507,7 @@ tail -f /var/log/grafana/grafana.log
 systemctl restart grafana-server
 ```
 
-### Connection Failed
+### Connection failed
 
 ```bash
 # Verify Arc is running
@@ -521,7 +521,7 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 ping localhost
 ```
 
-### Query Errors
+### Query errors
 
 **"Table not found":**
 ```sql
@@ -538,7 +538,7 @@ SHOW DATABASES;
 DESCRIBE prod.cpu;
 ```
 
-### Slow Queries
+### Slow queries
 
 ```bash
 # Check Arc query performance
@@ -555,7 +555,7 @@ curl -X POST http://localhost:8000/api/v1/compaction/trigger \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### Backend Plugin Issues
+### Backend plugin issues
 
 ```bash
 # Ensure backend binary is compiled
@@ -569,7 +569,7 @@ chmod +x dist/gpx_arc-datasource_*
 go version  # Should be 1.21+
 ```
 
-## Performance Tips
+## Performance tips
 
 1. **Use Arrow Protocol**: Enabled by default, provides considerably faster data transfer
 2. **Optimize Time Ranges**: Smaller ranges = faster queries
@@ -586,7 +586,7 @@ go version  # Should be 1.21+
 - **[Arc Query API](/arc-enterprise/api-reference/overview/#querying)**
 - **[DuckDB SQL Reference](https://duckdb.org/docs/sql/introduction)**
 
-## Next Steps
+## Next steps
 
 - **[Query API Reference](/arc-enterprise/api-reference/overview/)**
 - **[Telegraf Integration](/arc-enterprise/integrations/telegraf/)** - Collect system metrics

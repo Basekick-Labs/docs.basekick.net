@@ -18,7 +18,7 @@ Arc provides native TLE parsing with two ingestion modes:
 
 TLE data is parsed into a configurable measurement (default: `satellite_tle`) with orbital elements as fields and satellite identifiers as tags. Derived orbital metrics (semi-major axis, period, apogee, perigee, orbit classification) are computed automatically.
 
-## TLE Format
+## TLE format
 
 Arc supports both 3-line (with satellite name) and 2-line (no name) TLE formats, including mixed-format files.
 
@@ -43,7 +43,7 @@ ISS (ZARYA)
 | `X-Arc-Database` | No | `default` | Target database |
 | `X-Arc-Measurement` | No | `satellite_tle` | Target measurement name |
 
-## Streaming Ingestion
+## Streaming ingestion
 
 For continuous TLE feeds, cron jobs, and real-time updates from ground stations.
 
@@ -64,7 +64,7 @@ curl -X POST "http://localhost:8000/api/v1/write/tle" \
 
 Returns `204 No Content` on success.
 
-### Custom Measurement
+### Custom measurement
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/write/tle" \
@@ -81,7 +81,7 @@ curl "http://localhost:8000/api/v1/write/tle/stats" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-## Bulk Import
+## Bulk import
 
 For historical backfill from Space-Track.org exports or CelesTrak catalog dumps.
 
@@ -145,7 +145,7 @@ The default measurement `satellite_tle` has the following schema:
 | `apogee_km` | float | Derived: apogee altitude (km) |
 | `perigee_km` | float | Derived: perigee altitude (km) |
 
-## Example Queries
+## Example queries
 
 ```sql
 -- All LEO satellites sorted by orbital period

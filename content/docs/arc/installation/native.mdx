@@ -15,7 +15,7 @@ Current release: **<LatestVersion repo="basekick-labs/arc" format="tag" />**
 - 4GB RAM minimum, 8GB+ recommended
 - systemd (for service management)
 
-## Quick Install
+## Quick install
 
 The following commands automatically fetch and install the latest Arc release.
 
@@ -126,7 +126,7 @@ against the CMVP-certified Go Cryptographic Module. See
 package; on Arch use the standalone binary.
 </Callout>
 
-## Get Your Admin Token
+## Get your admin token
 
 When Arc starts for the first time, it generates an admin token.
 
@@ -154,7 +154,7 @@ Save it:
 export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Storage Backends
+## Storage backends
 
 <Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
   <Tab value="Local">
@@ -242,9 +242,9 @@ azure_account_key = "your_key"
   </Tab>
 </Tabs>
 
-## Service Management
+## Service management
 
-### Start/Stop/Restart
+### Start/stop/restart
 
 ```bash
 sudo systemctl start arc      # Start
@@ -253,7 +253,7 @@ sudo systemctl restart arc    # Restart
 sudo systemctl status arc     # Status
 ```
 
-### View Logs
+### View logs
 
 ```bash
 sudo journalctl -u arc -f            # Follow logs
@@ -261,7 +261,7 @@ sudo journalctl -u arc -n 100        # Last 100 lines
 sudo journalctl -u arc --since "1 hour ago"
 ```
 
-### Enable/Disable Auto-Start
+### Enable/disable auto-start
 
 ```bash
 sudo systemctl enable arc     # Enable on boot
@@ -277,7 +277,7 @@ sudo nano /etc/arc/arc.toml
 sudo systemctl restart arc
 ```
 
-### Common Options
+### Common options
 
 ```toml
 [server]
@@ -306,7 +306,7 @@ format = "json"
 
 See [Configuration Overview](/arc/configuration/overview/) for all options.
 
-## Data Directory
+## Data directory
 
 | Installation Type | Default Data Directory |
 |-------------------|------------------------|
@@ -402,7 +402,7 @@ sudo rm -rf /var/lib/arc /etc/arc
 
 ## Troubleshooting
 
-### Arc Won't Start
+### Arc won't start
 
 ```bash
 # Check logs
@@ -412,14 +412,14 @@ sudo journalctl -u arc -n 50
 sudo lsof -i :8000
 ```
 
-### Permission Errors
+### Permission errors
 
 ```bash
 sudo mkdir -p /var/lib/arc/data
 sudo chown -R arc:arc /var/lib/arc
 ```
 
-### Memory Issues
+### Memory issues
 
 Override in `/etc/arc/arc.toml`:
 
@@ -430,7 +430,7 @@ max_connections = 16
 thread_count = 8
 ```
 
-## Next Steps
+## Next steps
 
 - [Write your first data](/arc/getting-started/#write-data)
 - [Configure storage backends](/arc/configuration/overview/)

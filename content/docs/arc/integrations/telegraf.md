@@ -22,7 +22,7 @@ Arc provides a native Telegraf output plugin that sends metrics in MessagePack c
 - Arc server running and accessible
 - Arc API token
 
-## Quick Start
+## Quick start
 
 ### 1. Install Telegraf
 
@@ -64,7 +64,7 @@ Edit `/etc/telegraf/telegraf.conf`:
   database = "telegraf"
 ```
 
-### 3. Enable Input Plugins
+### 3. Enable input plugins
 
 ```toml
 # System metrics
@@ -105,7 +105,7 @@ sudo systemctl status telegraf
 sudo journalctl -u telegraf -f
 ```
 
-### 5. Verify Data in Arc
+### 5. Verify data in Arc
 
 ```bash
 # Check measurements
@@ -121,9 +121,9 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"sql": "SELECT * FROM telegraf.cpu ORDER BY time DESC LIMIT 10", "format": "json"}'
 ```
 
-## Configuration Examples
+## Configuration examples
 
-### Minimal Configuration
+### Minimal configuration
 
 ```toml
 [agent]
@@ -141,7 +141,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 [[inputs.disk]]
 ```
 
-### High-Performance Configuration
+### High-performance configuration
 
 ```toml
 [agent]
@@ -171,7 +171,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 [[inputs.diskio]]
 ```
 
-### Multi-Environment Configuration
+### Multi-environment configuration
 
 ```toml
 # Production metrics → production database
@@ -189,9 +189,9 @@ curl -X POST http://localhost:8000/api/v1/query \
   database = "staging"
 ```
 
-## Available Input Plugins
+## Available input plugins
 
-### System Metrics
+### System metrics
 
 ```toml
 # CPU usage by core
@@ -222,7 +222,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 [[inputs.swap]]
 ```
 
-### Docker Monitoring
+### Docker monitoring
 
 ```toml
 [[inputs.docker]]
@@ -234,7 +234,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   total = true
 ```
 
-### PostgreSQL Monitoring
+### PostgreSQL monitoring
 
 ```toml
 [[inputs.postgresql]]
@@ -242,21 +242,21 @@ curl -X POST http://localhost:8000/api/v1/query \
   databases = ["mydb"]
 ```
 
-### Redis Monitoring
+### Redis monitoring
 
 ```toml
 [[inputs.redis]]
   servers = ["tcp://localhost:6379"]
 ```
 
-### NGINX Monitoring
+### NGINX monitoring
 
 ```toml
 [[inputs.nginx]]
   urls = ["http://localhost/nginx_status"]
 ```
 
-### HTTP Response Time
+### HTTP response time
 
 ```toml
 [[inputs.http_response]]
@@ -269,7 +269,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   follow_redirects = true
 ```
 
-### Custom Exec Plugin
+### Custom exec plugin
 
 ```toml
 [[inputs.exec]]
@@ -278,9 +278,9 @@ curl -X POST http://localhost:8000/api/v1/query \
   data_format = "influx"
 ```
 
-## Querying Telegraf Data in Arc
+## Querying Telegraf data in Arc
 
-### View Available Measurements
+### View available measurements
 
 ```sql
 SHOW TABLES FROM telegraf;
@@ -296,7 +296,7 @@ SHOW TABLES FROM telegraf;
 - `system` - System load
 - `docker` - Container metrics
 
-### CPU Usage Analysis
+### CPU usage analysis
 
 ```sql
 -- Average CPU usage by host (last hour)
@@ -321,7 +321,7 @@ ORDER BY max_usage DESC
 LIMIT 10;
 ```
 
-### Memory Analysis
+### Memory analysis
 
 ```sql
 -- Memory usage trend
@@ -346,7 +346,7 @@ HAVING AVG(used_percent) > 80
 ORDER BY avg_usage DESC;
 ```
 
-### Disk Analysis
+### Disk analysis
 
 ```sql
 -- Disk usage by mount point
@@ -371,7 +371,7 @@ GROUP BY bucket, name
 ORDER BY bucket DESC;
 ```
 
-### Network Analysis
+### Network analysis
 
 ```sql
 -- Network throughput
@@ -386,7 +386,7 @@ GROUP BY bucket, interface
 ORDER BY bucket DESC;
 ```
 
-### Docker Container Monitoring
+### Docker container monitoring
 
 ```sql
 -- Container CPU usage
@@ -410,9 +410,9 @@ GROUP BY container_name
 ORDER BY avg_memory_bytes DESC;
 ```
 
-## Performance Tuning
+## Performance tuning
 
-### Optimize Batch Size
+### Optimize batch size
 
 ```toml
 [agent]
@@ -425,7 +425,7 @@ ORDER BY avg_memory_bytes DESC;
 - **Medium volume** (1000-10000/sec): batch_size = 5000
 - **High volume** (&gt;10000/sec): batch_size = 10000
 
-### Collection Intervals
+### Collection intervals
 
 ```toml
 [agent]
@@ -435,7 +435,7 @@ ORDER BY avg_memory_bytes DESC;
 
 For real-time monitoring, use smaller intervals (5s). For cost optimization, use larger intervals (60s).
 
-### Enable Compression
+### Enable compression
 
 Always use gzip compression for better network efficiency:
 
@@ -446,7 +446,7 @@ Always use gzip compression for better network efficiency:
 
 ## Troubleshooting
 
-### Telegraf Can't Connect to Arc
+### Telegraf can't connect to Arc
 
 ```bash
 # Test Arc connectivity
@@ -462,7 +462,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 sudo journalctl -u telegraf -f | grep -i error
 ```
 
-### No Data Appearing
+### No data appearing
 
 ```bash
 # Verify Telegraf is running
@@ -478,7 +478,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"sql": "SELECT COUNT(*) FROM telegraf.cpu", "format": "json"}'
 ```
 
-### Authentication Errors
+### Authentication errors
 
 Ensure your API key is correct in the configuration:
 
@@ -487,7 +487,7 @@ Ensure your API key is correct in the configuration:
   api_key = "$ARC_TOKEN"  # Must be a valid Arc API token
 ```
 
-### Metrics Being Dropped
+### Metrics being dropped
 
 ```bash
 # Increase buffer
@@ -498,7 +498,7 @@ Ensure your API key is correct in the configuration:
 curl http://localhost:8000/health
 ```
 
-### Version Check
+### Version check
 
 The Arc output plugin requires Telegraf 1.37+:
 
@@ -507,7 +507,7 @@ telegraf --version
 # Telegraf 1.37.0 (or higher required)
 ```
 
-## Dashboard Integration
+## Dashboard integration
 
 ### Grafana with Arc
 
@@ -521,9 +521,9 @@ Use the [Arc Grafana datasource plugin](/arc/integrations/grafana/) for native i
 
 See [Grafana Integration](/arc/integrations/grafana/) for detailed setup instructions.
 
-## Best Practices
+## Best practices
 
-### 1. Use Tags Efficiently
+### 1. Use tags efficiently
 
 ```toml
 [global_tags]
@@ -534,7 +534,7 @@ See [Grafana Integration](/arc/integrations/grafana/) for detailed setup instruc
 
 Tags enable powerful GROUP BY queries but increase cardinality.
 
-### 2. Filter Unnecessary Metrics
+### 2. Filter unnecessary metrics
 
 ```toml
 [[inputs.cpu]]
@@ -545,7 +545,7 @@ Tags enable powerful GROUP BY queries but increase cardinality.
   ignore_fs = ["tmpfs", "devtmpfs"]  # Skip temporary filesystems
 ```
 
-### 3. Use Measurement Filters
+### 3. Use measurement filters
 
 ```toml
 [[outputs.arc]]
@@ -554,7 +554,7 @@ Tags enable powerful GROUP BY queries but increase cardinality.
   namedrop = ["docker_*"]  # Exclude Docker metrics
 ```
 
-### 4. Set Reasonable Collection Intervals
+### 4. Set reasonable collection intervals
 
 ```toml
 [[inputs.cpu]]
@@ -571,7 +571,7 @@ Tags enable powerful GROUP BY queries but increase cardinality.
 - **[Arc Query Guide](/arc/guides/querying/)**
 - **[Arc Grafana Integration](/arc/integrations/grafana/)**
 
-## Next Steps
+## Next steps
 
 - **[Query Telegraf metrics](/arc/guides/querying/)**
 - **[Create Grafana dashboards](/arc/integrations/grafana/)**

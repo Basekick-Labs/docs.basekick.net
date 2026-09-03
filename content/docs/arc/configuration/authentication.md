@@ -31,29 +31,29 @@ export ARC_AUTH_BOOTSTRAP_TOKEN=""   # v26.04.1+
 export ARC_AUTH_FORCE_BOOTSTRAP=false  # v26.04.1+
 ```
 
-## Authentication Methods
+## Authentication methods
 
 Arc supports multiple authentication methods for compatibility with various clients:
 
-### Bearer Token (Standard)
+### Bearer token (standard)
 
 ```bash
 curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### Token Header (InfluxDB 2.x Style)
+### Token header (InfluxDB 2.x style)
 
 ```bash
 curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### API Key Header
+### API key header
 
 ```bash
 curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### Query Parameter (InfluxDB 1.x Style)
+### Query parameter (InfluxDB 1.x style)
 
 For InfluxDB 1.x client compatibility:
 
@@ -61,13 +61,13 @@ For InfluxDB 1.x client compatibility:
 curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
-## Bootstrap & Recovery
+## Bootstrap & recovery
 
 <Callout type="info" title="Available since v26.04.1">
 `ARC_AUTH_BOOTSTRAP_TOKEN` and `ARC_AUTH_FORCE_BOOTSTRAP` are available in Arc and Arc Enterprise v26.04.1 and later.
 </Callout>
 
-### Pre-configured Bootstrap Token
+### Pre-configured bootstrap token
 
 By default, Arc generates a random admin token on first start and prints it once to stderr. If you miss it, recovery requires deleting the auth database and redeploying.
 
@@ -85,7 +85,7 @@ This is especially useful for:
 Token values must be at least 32 characters. Values are stored as bcrypt hashes — the plaintext never persists to disk.
 </Callout>
 
-### Recovery When the Admin Token is Lost
+### Recovery when the admin token is lost
 
 If you no longer have access to any admin token, set both `ARC_AUTH_BOOTSTRAP_TOKEN` and `ARC_AUTH_FORCE_BOOTSTRAP=true` before restarting Arc. Arc will add a new admin token named `arc-recovery` **without removing any existing tokens**.
 
@@ -295,7 +295,7 @@ Operator workaround when 409 lands: `DELETE` the affected children first (roles 
 
 The pre-check costs four small `COUNT(*)` queries against indexed columns — sub-millisecond at realistic cap values, well under the 5-second Raft proposal timeout.
 
-### Pre-existing RBAC rows: auto-seed for orgs, manual re-issue for the rest
+### Pre-existing RBAC rows: Auto-seed for orgs, manual re-issue for the rest
 
 On the first leader boot after upgrading to v26.06.1, Arc runs a one-time **upgrade seed** that walks the leader's local `rbac_organizations` table and proposes a `CommandCreateOrganization` for every pre-existing row. The cluster's in-memory FSM learns the org under a fresh log-index ID; the leader's local SQLite keeps the row under its pre-v26.06.1 AUTOINCREMENT ID; both IDs map to the same logical org because the `UNIQUE(name)` constraint is enforced cluster-wide. Followers see the new org via Raft replication and store it under the cluster ID.
 
@@ -345,11 +345,11 @@ RBAC replication itself requires no new env vars — it is gated by the same `cl
 
 One **optional** knob is documented above: `cluster.rbac.max_cascade_descendants` (env `ARC_CLUSTER_RBAC_MAX_CASCADE_DESCENDANTS`, default `50000`) caps cluster-mode `DeleteOrganization` / `DeleteTeam` cascades. See [Cascade-on-delete soft cap](#cascade-on-delete-soft-cap).
 
-## Token Management
+## Token management
 
 All token management endpoints require **admin** authentication.
 
-### Creating Tokens
+### Creating tokens
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/auth/tokens" \
@@ -376,14 +376,14 @@ curl -X POST "http://localhost:8000/api/v1/auth/tokens" \
 The token value is only returned once at creation time. Store it securely -- it cannot be retrieved later.
 </Callout>
 
-### Listing Tokens
+### Listing tokens
 
 ```bash
 curl "http://localhost:8000/api/v1/auth/tokens" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
-### Rotating a Token
+### Rotating a token
 
 Generate a new token value while keeping the same token ID and permissions:
 
@@ -392,7 +392,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/tokens/abc123/rotate" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
-### Revoking a Token
+### Revoking a token
 
 Immediately invalidate a token:
 
@@ -401,7 +401,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/tokens/abc123/revoke" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
-### Deleting a Token
+### Deleting a token
 
 Permanently remove a token:
 
@@ -410,7 +410,7 @@ curl -X DELETE "http://localhost:8000/api/v1/auth/tokens/abc123" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
-## Verifying a Token
+## Verifying a token
 
 The verify endpoint is public (no authentication required) and checks if a token is valid:
 
@@ -431,18 +431,18 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 }
 ```
 
-## Token Cache
+## Token cache
 
 Arc caches validated tokens in memory to avoid SQLite lookups on every request. This is critical for high-throughput ingestion.
 
-### Cache Statistics
+### Cache statistics
 
 ```bash
 curl "http://localhost:8000/api/v1/auth/cache/stats" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
-### Invalidating the Cache
+### Invalidating the cache
 
 Force all cached tokens to be re-validated against SQLite:
 
@@ -455,7 +455,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/cache/invalidate" \
 Cache invalidation is automatic for most operations (revoke, delete, rotate). Manual invalidation is only needed if you modify the SQLite database directly.
 </Callout>
 
-## Public Endpoints
+## Public endpoints
 
 These endpoints do not require authentication:
 
@@ -464,7 +464,7 @@ These endpoints do not require authentication:
 - `GET /metrics` -- Prometheus metrics
 - `GET /api/v1/auth/verify` -- Token verification
 
-## API Endpoints Reference
+## API endpoints reference
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|

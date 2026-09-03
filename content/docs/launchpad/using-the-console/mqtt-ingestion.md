@@ -7,11 +7,11 @@ If you're pulling sensor and IoT data over MQTT, the **MQTT** tab manages the wh
 
 ![Launchpad MQTT subscription management with live stats](/img/launchpad/launchpad-mqtt.png)
 
-## Add a Subscription
+## Add a subscription
 
 Click **Add Subscription** and configure the broker connection:
 
-### Broker Connection
+### Broker connection
 
 | Field | Description |
 |---|---|
@@ -23,20 +23,20 @@ Click **Add Subscription** and configure the broker connection:
 | **QoS** | Quality of service: 0 (at most once), 1 (at least once), or 2 (exactly once). |
 | **Auto-start on Arc boot** | Bring the subscription up automatically with the instance. |
 
-### Topics and Routing
+### Topics and routing
 
 - **Topics**: one topic per line. The MQTT wildcards `+` and `#` are allowed, so `sensors/#` works.
 - **Topic → database mapping**: optional `topic = database` lines that route different topics into different databases, so each stream lands where it belongs.
 
-### Secure Transport (TLS / mTLS)
+### Secure transport (TLS / mTLS)
 
 Enable TLS for encrypted broker connections, including full **mTLS**. Give the **CA certificate path**, **client cert path**, and **client key path** as paths on the Arc host (e.g. `/etc/arc/ca.pem`), not uploads. A **Skip TLS verification** option exists for testing against self-signed brokers.
 
-### Connection Tuning
+### Connection tuning
 
 Under **Advanced**, keep-alive, connect timeout, and reconnect back-off (min and max) are all configurable in seconds, so you can match the subscription to your broker's behavior.
 
-## Live Stats and Lifecycle
+## Live stats and lifecycle
 
 A running subscription card shows the broker, target database, topic count, and **live stats for the current session**: messages **Received**, **Failed**, **Bytes**, **Reconnects**, and the **Last message** time.
 

@@ -11,7 +11,7 @@ The on-disk TSM/WAL format is the same across 1.x and 2.x, and tsm2arc auto-dete
 Live ingestion moves with a URL change (Arc speaks Line Protocol natively; dual-write from Telegraf and cut over). For history: tsm2arc for 1.x/2.x datasets, especially large ones on cold volumes; Line Protocol export/import for 3.x or small datasets. The [InfluxDB migration guide](/arc/migration/influxdb/) covers the whole journey; these pages are the full tsm2arc reference.
 </Callout>
 
-## What It Does
+## What it does
 
 InfluxDB stores each field of a point as a separate TSM key, each with its own timestamp and value stream. tsm2arc:
 
@@ -45,7 +45,7 @@ docker run --rm ghcr.io/basekick-labs/tsm2arc:latest --version
 
 Each release ships an SBOM (SPDX) and `checksums.txt`.
 
-## Quick Start: Dry Run First
+## Quick start: Dry run first
 
 A dry run discovers shards, decodes every block, reconstructs points, and prints per-database counts plus sample Line Protocol, **without writing to Arc**. It is the safe first contact with the source data.
 
@@ -73,11 +73,11 @@ tsm2arc \
 InfluxDB does not flush the write-ahead log to TSM on shutdown, so small or recently written shards can live entirely in `.wal` files. Without `--waldir`, that data is silently skipped. For 2.x the WAL directory is auto-detected from `engine/wal`; for 1.x pass it explicitly. When a point exists in both TSM and WAL, the WAL value wins (last-write-wins, matching InfluxDB and Arc compaction).
 </Callout>
 
-## Where to Go Next
+## Where to go next
 
 <Cards>
-  <Card title="Migration Runbook" href="/arc/migration/tsm2arc/runbook/" description="The operator walkthrough: layout, dry run, measurement renames, resume, and count verification." />
-  <Card title="Performance and Scaling" href="/arc/migration/tsm2arc/performance/" description="Sizing workers against the Arc node, memory math, shard-level parallelism, and multi-writer clusters." />
+  <Card title="Migration runbook" href="/arc/migration/tsm2arc/runbook/" description="The operator walkthrough: layout, dry run, measurement renames, resume, and count verification." />
+  <Card title="Performance and scaling" href="/arc/migration/tsm2arc/performance/" description="Sizing workers against the Arc node, memory math, shard-level parallelism, and multi-writer clusters." />
 </Cards>
 
 The repo's [DESIGN.md](https://github.com/Basekick-Labs/tsm2arc/blob/main/docs/DESIGN.md) covers the internals: the verified Arc ingest constraints, the resume protocol, and the duplicate-bounding argument.

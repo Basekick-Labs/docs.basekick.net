@@ -18,7 +18,7 @@ Continuous queries in Arc help you:
 - **Improve Query Performance**: Query pre-aggregated data for faster results
 - **Create Materialized Views**: Automatically maintain aggregated datasets
 
-## How It Works
+## How it works
 
 Continuous queries use standard analytical SQL to aggregate data from source measurements into destination measurements:
 
@@ -85,9 +85,9 @@ around these semantics (e.g. reprocess on a delay, or do the final roll-up as a
 query-time aggregation).
 </Callout>
 
-## API Endpoints
+## API endpoints
 
-### Create Continuous Query
+### Create continuous query
 
 Define a new continuous query:
 
@@ -137,7 +137,7 @@ For this to work, Arc must know which output columns are the grouping dimensions
 This is not a breaking change. Existing continuous queries keep running with no action — the CQ database is migrated automatically and `tag_columns` is optional. Add `tag_columns` to a grouped CQ when you want its duplicate windows to collapse; until you do, it behaves exactly as before (append-only). Note that a CQ which does **not** select a `time` column now stamps output with the window start rather than the ingestion wall-clock, so its destination has a one-time timestamp discontinuity at the upgrade.
 </Callout>
 
-### List Continuous Queries
+### List continuous queries
 
 Retrieve all continuous queries:
 
@@ -163,7 +163,7 @@ GET /api/v1/continuous_queries
 ]
 ```
 
-### Get Single Query
+### Get single query
 
 Retrieve a specific continuous query:
 
@@ -171,7 +171,7 @@ Retrieve a specific continuous query:
 GET /api/v1/continuous_queries/{query_id}
 ```
 
-### Update Continuous Query
+### Update continuous query
 
 Update an existing continuous query:
 
@@ -181,7 +181,7 @@ PUT /api/v1/continuous_queries/{query_id}
 
 **Request Body**: Same as create query
 
-### Delete Continuous Query
+### Delete continuous query
 
 Remove a continuous query:
 
@@ -193,7 +193,7 @@ DELETE /api/v1/continuous_queries/{query_id}
 Deleting a continuous query does not delete the destination measurement or its data. The aggregated data remains queryable.
 </Callout>
 
-### Execute Continuous Query
+### Execute continuous query
 
 Manually trigger a continuous query:
 
@@ -230,7 +230,7 @@ POST /api/v1/continuous_queries/{query_id}/execute
 }
 ```
 
-### View Execution History
+### View execution history
 
 View past executions of a continuous query:
 
@@ -254,11 +254,11 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 ]
 ```
 
-## Query Syntax
+## Query syntax
 
 Continuous queries use standard analytical SQL with temporal optimizations.
 
-### Recommended Approach
+### Recommended approach
 
 Use `epoch_us()` for timestamp conversion and `date_trunc()` for time bucketing:
 
@@ -274,7 +274,7 @@ FROM telegraf.cpu
 GROUP BY date_trunc('hour', epoch_us(time)), host
 ```
 
-### Common Aggregations
+### Common aggregations
 
 These are common examples. Arc supports the **full analytical SQL aggregate set** — `MEDIAN`, `MODE`, `QUANTILE_CONT`, `APPROX_QUANTILE`, `ARG_MAX`, `HISTOGRAM`, `CORR`, `REGR_*` and the rest all work. See the [Querying guide](/arc/guides/querying/#useful-sql-functions) for more.
 
@@ -286,7 +286,7 @@ These are common examples. Arc supports the **full analytical SQL aggregate set*
 - `STDDEV()` - Standard deviation
 - `PERCENTILE_CONT()` - Percentile calculations
 
-### Time Bucketing
+### Time bucketing
 
 **Using `date_trunc()`**:
 ```sql
@@ -300,7 +300,7 @@ date_trunc('day', epoch_us(time))
 date_trunc('hour', epoch_us(time)) + INTERVAL '5 minutes' * floor(extract(minute from epoch_us(time)) / 5)
 ```
 
-### Including Sample Counts
+### Including sample counts
 
 Always include `COUNT(*)` to track how many raw samples each aggregate represents:
 
@@ -314,9 +314,9 @@ FROM telegraf.cpu
 GROUP BY date_trunc('hour', epoch_us(time)), host
 ```
 
-## Usage Examples
+## Usage examples
 
-### Example 1: Hourly CPU Metrics
+### Example 1: hourly CPU metrics
 
 Aggregate per-second CPU metrics into hourly averages:
 
@@ -374,7 +374,7 @@ print(f"Processed {result.json()['rows_processed']} rows")
 print(f"Generated {result.json()['rows_written']} aggregated rows")
 ```
 
-### Example 2: Daily Request Summary
+### Example 2: daily request summary
 
 Aggregate API request logs into daily summaries:
 
@@ -411,7 +411,7 @@ response = requests.post(
 )
 ```
 
-### Example 3: 5-Minute Sensor Readings
+### Example 3: 5-minute sensor readings
 
 Downsample IoT sensor data to 5-minute intervals:
 
@@ -453,7 +453,7 @@ response = requests.post(
 )
 ```
 
-### Example 4: Dry Run Testing
+### Example 4: dry run testing
 
 Test a continuous query before execution:
 
@@ -498,18 +498,18 @@ if dry_run.json()['rows_written'] > 0:
     )
 ```
 
-## Storage Benefits
+## Storage benefits
 
 Continuous queries significantly reduce storage requirements:
 
-### Before Downsampling
+### Before downsampling
 
 **Raw CPU metrics** (1-second intervals):
 - 1 year = 31,536,000 rows per host
 - 10 hosts = 315,360,000 rows
 - Storage: ~20GB
 
-### After Downsampling to Hourly
+### After downsampling to hourly
 
 **Hourly aggregates**:
 - 1 year = 8,760 rows per host
@@ -518,7 +518,7 @@ Continuous queries significantly reduce storage requirements:
 
 **Reduction**: ~400x smaller while maintaining hourly trend visibility.
 
-### Multi-Tier Strategy
+### Multi-tier strategy
 
 Combine different granularities for optimal storage:
 
@@ -548,9 +548,9 @@ requests.post("/api/v1/retention", json={
 })
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Start Conservative
+### 1. Start conservative
 
 Begin with longer intervals and adjust based on actual needs:
 
@@ -562,7 +562,7 @@ Begin with longer intervals and adjust based on actual needs:
 {"interval": "15m"}
 ```
 
-### 2. Preserve Source Data Initially
+### 2. Preserve source data initially
 
 Keep raw data while testing aggregations:
 
@@ -581,7 +581,7 @@ requests.post("/api/v1/retention", json={
 })
 ```
 
-### 3. Use Dry Run Extensively
+### 3. Use dry run extensively
 
 Always test queries with dry run before full execution:
 
@@ -596,7 +596,7 @@ dry_run(start="2024-01-01", end="2024-01-07")
 execute(start="2024-01-01", end="2024-12-31")
 ```
 
-### 4. Include Sample Counts
+### 4. Include sample counts
 
 Track the number of raw samples in each aggregate:
 
@@ -614,7 +614,7 @@ This helps identify:
 - Data quality issues
 - Unexpected patterns
 
-### 5. Monitor Execution Performance
+### 5. Monitor execution performance
 
 Track continuous query execution times:
 
@@ -629,7 +629,7 @@ if result['execution_time_ms'] > 60000:  # 1 minute
     print("Warning: Slow execution!")
 ```
 
-### 6. Use Appropriate Intervals
+### 6. Use appropriate intervals
 
 Match intervals to data characteristics:
 
@@ -648,7 +648,7 @@ Match intervals to data characteristics:
 
 ## Troubleshooting
 
-### No Rows Written
+### No rows written
 
 **Problem**: Execution returns `rows_written: 0`.
 
@@ -658,7 +658,7 @@ Match intervals to data characteristics:
 - Ensure `GROUP BY` clause matches aggregation columns
 - Use dry run to inspect query results
 
-### Query Syntax Errors
+### Query syntax errors
 
 **Problem**: Execution fails with SQL error.
 
@@ -668,7 +668,7 @@ Match intervals to data characteristics:
 - Check for dialect-specific syntax requirements
 - Use `epoch_us()` for timestamp conversion
 
-### Slow Execution
+### Slow execution
 
 **Problem**: Continuous query takes longer than expected.
 
@@ -678,7 +678,7 @@ Match intervals to data characteristics:
 - Consider creating indexes on frequently grouped columns
 - Monitor query engine performance
 
-### Duplicate Data
+### Duplicate data
 
 **Problem**: Re-running the query creates duplicate aggregates.
 
@@ -693,7 +693,7 @@ Match intervals to data characteristics:
   ```
 - Or use `UPSERT` semantics if supported (future feature)
 
-## Related Topics
+## Related topics
 
 - [Retention Policies](/arc-enterprise/data-lifecycle/retention-policies/) - Automatically delete old raw data after downsampling
 - [Delete Operations](/arc-enterprise/data-lifecycle/delete-operations/) - Manually remove data ranges

@@ -10,7 +10,7 @@ Install and run Arc using Docker for quick setup and isolated environments.
 - Docker 20.10 or higher
 - 4GB RAM minimum, 8GB+ recommended
 
-## Quick Start
+## Quick start
 
 ```bash
 docker run -d \
@@ -26,7 +26,7 @@ Verify it's running:
 curl http://localhost:8000/health
 ```
 
-## Get Your Admin Token
+## Get your admin token
 
 When Arc starts for the first time, it generates an admin token.
 
@@ -54,7 +54,7 @@ Save it:
 export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Storage Backends
+## Storage backends
 
 <Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
   <Tab value="Local">
@@ -137,7 +137,7 @@ docker run -d \
 
 ## Configuration
 
-### Environment Variables
+### Environment variables
 
 Common configuration options:
 
@@ -152,7 +152,7 @@ Common configuration options:
 | `ARC_COMPACTION_ENABLED` | `true` | Enable auto-compaction |
 | `ARC_WAL_ENABLED` | `false` | Enable WAL for durability |
 
-### Custom Configuration File
+### Custom configuration file
 
 Mount a custom `arc.toml`:
 
@@ -165,16 +165,16 @@ docker run -d \
   ghcr.io/basekick-labs/arc:latest
 ```
 
-## Container Management
+## Container management
 
-### View Logs
+### View logs
 
 ```bash
 docker logs -f arc           # Follow logs
 docker logs --tail=100 arc   # Last 100 lines
 ```
 
-### Start/Stop/Restart
+### Start/stop/restart
 
 ```bash
 docker start arc
@@ -194,9 +194,9 @@ docker run -d \
   ghcr.io/basekick-labs/arc:latest
 ```
 
-## Production Deployment
+## Production deployment
 
-### Pin Version + Resource Limits
+### Pin version + resource limits
 
 ```bash
 docker run -d \
@@ -209,7 +209,7 @@ docker run -d \
   ghcr.io/basekick-labs/arc:latest
 ```
 
-### Health Check
+### Health check
 
 ```bash
 docker ps --filter "name=arc" --filter "health=healthy"
@@ -331,7 +331,7 @@ volumes:
 
 ## Troubleshooting
 
-### Container Won't Start
+### Container won't start
 
 ```bash
 # Check logs
@@ -344,7 +344,7 @@ sudo lsof -i :8000
 docker ps -a
 ```
 
-### Permission Errors
+### Permission errors
 
 ```bash
 # Remove and recreate volume
@@ -353,7 +353,7 @@ docker volume rm arc-data
 # Restart with docker run command
 ```
 
-### Out of Memory
+### Out of memory
 
 ```bash
 # Check memory usage
@@ -363,14 +363,14 @@ docker stats arc
 docker run -d --name arc --memory="4g" ...
 ```
 
-### Can't Find Admin Token
+### Can't find admin token
 
 ```bash
 docker logs arc 2>&1 | grep -i "admin"
 docker logs arc | head -100
 ```
 
-## Next Steps
+## Next steps
 
 - [Write your first data](/arc-enterprise/getting-started/#write-data)
 - [Configure storage backends](/arc-enterprise/configuration/overview/)

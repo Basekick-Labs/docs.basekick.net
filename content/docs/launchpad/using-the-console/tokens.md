@@ -5,7 +5,7 @@ description: "Manage the Arc API tokens your pipelines and applications authenti
 
 The **Tokens** tab manages the API tokens your ingestion pipelines and applications use to authenticate against Arc. This is the full credential lifecycle (create, scope, disable, and revoke) from the browser.
 
-## Create a Token
+## Create a token
 
 Click **Create Token** and provide:
 
@@ -29,7 +29,7 @@ New tokens default to **Read** and **Write**.
 
 When the token is created it's shown **once**: copy it immediately and store it securely. The plaintext can't be retrieved later, so a lost token has to be replaced rather than recovered.
 
-## Manage Tokens
+## Manage tokens
 
 The token list shows each token's name, description, and permissions. From there you can:
 

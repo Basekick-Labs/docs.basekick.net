@@ -13,7 +13,7 @@ The opt-in pprof listener ships in Arc v26.06.1 ([PR #443](https://github.com/Ba
 A reachable `/debug/pprof/*` endpoint leaks process internals: in-flight SQL strings and msgpack records (via heap dumps), goroutine stacks, environment variables on some Go versions, and lets any caller pin a CPU core for arbitrary seconds via `/debug/pprof/profile?seconds=N`. Treat the pprof listener like a root shell — bind to loopback, restrict by firewall, and turn it off when you're done debugging.
 </Callout>
 
-## Why pprof Is Off by Default
+## Why pprof is off by default
 
 Pre-v26.06.1, `/debug/pprof/*` was mounted on Arc's public Fiber app — no token, no allowlist. An unauthenticated network caller could fetch heap dumps containing recent query text and ingested records. The hardening PR removed pprof from the public app entirely and moved it to a separate listener that only starts when the `ARC_DEBUG_PPROF` env var is set.
 
@@ -33,7 +33,7 @@ All configuration is via environment variables — pprof is a debugging surface,
 | `ARC_DEBUG_PPROF_ADDR` | `127.0.0.1:6060` | Bind address for the pprof listener. Accepts any form `net.Listen("tcp", …)` accepts — `127.0.0.1:6060`, `localhost:6060`, `[::1]:6060`, `0.0.0.0:6060`, etc. |
 | `ARC_DEBUG_PPROF_ALLOW_NON_LOOPBACK` | unset (off) | Required when `ARC_DEBUG_PPROF_ADDR` is non-loopback. Set to `1`/`true`/`yes`/`on`. Without it, Arc logs an error and refuses to start the pprof listener. |
 
-## Enabling pprof on a Single Node
+## Enabling pprof on a single node
 
 The common case — investigate a single production node from the same host via SSH and a local port-forward:
 
@@ -94,7 +94,7 @@ kubectl port-forward arc-writer-0 6060:6060
 
 `kubectl port-forward` only listens on the local machine, so the pprof endpoint stays loopback-bound on the Arc pod AND on your laptop simultaneously. No cluster-network exposure.
 
-## Exposing pprof Cross-Host (Discouraged)
+## Exposing pprof cross-host (discouraged)
 
 There are cases where loopback isn't enough — for example, a remote profiler that can't open an SSH tunnel, or a multi-tenant box where the operator workstation isn't on the Arc host. Arc supports this with a deliberate two-step opt-in:
 
@@ -125,11 +125,11 @@ ERROR ARC_DEBUG_PPROF is set — pprof endpoints are exposed on this address.
 The pprof listener has no authentication. Anyone who can reach `0.0.0.0:6060` (or whatever address you bound) can fetch heap dumps containing recent query text and ingested records, dump goroutine stacks, and pin CPU cores. Restrict by network ACL, security group, or iptables before turning this on. Unset all three env vars the moment you're done.
 </Callout>
 
-## Profiling Workflows
+## Profiling workflows
 
 Once the listener is reachable at `http://localhost:6060` (whether direct or via SSH/kubectl port-forward), `go tool pprof` does the rest. The recipes below assume Go 1.20+.
 
-### Heap (Memory)
+### Heap (memory)
 
 The most common case — Arc's RSS is high and you want to know what's holding it.
 
@@ -152,7 +152,7 @@ Common starting commands at the pprof CLI prompt:
 (pprof) list <func>   # source-level breakdown of one function
 ```
 
-### CPU Profile
+### CPU profile
 
 Capture 30 seconds of CPU activity:
 
@@ -179,7 +179,7 @@ go tool pprof -http=:8080 http://localhost:6060/debug/pprof/goroutine
 
 A healthy idle Arc writer typically has ~50–200 goroutines (Fiber workers, WAL writer, ingest shards, compaction scheduler, Raft loops). Thousands of goroutines stuck on the same `chan receive` or `sync.Mutex.Lock` is the diagnostic signature of a stall.
 
-### Execution Trace
+### Execution trace
 
 Captures every scheduler event for `N` seconds — useful for diagnosing latency spikes:
 
@@ -190,25 +190,25 @@ go tool trace -http=:8080 trace.out
 
 The trace UI shows per-goroutine timelines, GC pauses, and network/syscall waits. Use sparingly — even 5 seconds of trace produces ~10–50 MB of data on a busy writer.
 
-### Block & Mutex Profiles
+### Block & mutex profiles
 
 By default these profiles are zero-rate (Go runtime samples nothing). To enable, you'd need to call `runtime.SetBlockProfileRate` / `runtime.SetMutexProfileFraction` from inside Arc — currently not exposed via env var. If you need block/mutex profiles, open an issue describing the problem you're chasing and we'll add the knobs.
 
-## Operational Notes
+## Operational notes
 
-### Startup Logging
+### Startup logging
 
 When `ARC_DEBUG_PPROF` is unset, Arc emits nothing at startup about pprof. The listener is genuinely absent — no port, no handlers, no log noise.
 
 When set, a single warn-level (loopback) or error-level (non-loopback) line names the bind address and reminds you to restrict access. Grep for `ARC_DEBUG_PPROF is set` in your logs to find nodes that left it on accidentally.
 
-### Shutdown Behavior
+### Shutdown behavior
 
 Arc registers pprof with the same shutdown priority as the main HTTP server. On `SIGTERM` / `SIGINT`, the pprof listener closes **immediately** — in-flight captures (especially long `/debug/pprof/profile?seconds=N` requests) are aborted. This is deliberate: a long pprof capture would otherwise hold the cluster's shared shutdown budget and risk skipping downstream hooks (WAL flush, storage close, auth close), which is a data-loss path on what the operator expected to be a graceful exit.
 
 If your capture was killed by shutdown, just re-run it after Arc restarts.
 
-### Port Conflicts
+### Port conflicts
 
 If the configured bind address is already in use, Arc logs an **error** and continues without the pprof listener — Arc itself doesn't fail to start. Look for:
 
@@ -224,7 +224,7 @@ Common causes:
 
 Resolve the conflict and restart Arc, or set `ARC_DEBUG_PPROF_ADDR` to a different port.
 
-## Security Checklist
+## Security checklist
 
 Before enabling pprof on a production node:
 

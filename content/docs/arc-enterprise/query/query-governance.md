@@ -22,7 +22,7 @@ Query governance enforces limits at the API token level:
 
 ## Configuration
 
-### Default Limits
+### Default limits
 
 Set global defaults that apply to all tokens without a specific policy:
 
@@ -36,7 +36,7 @@ default_max_queries_per_day = 5000
 default_max_rows_per_query = 100000
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 ARC_GOVERNANCE_ENABLED=true
@@ -51,7 +51,7 @@ ARC_GOVERNANCE_DEFAULT_MAX_ROWS_PER_QUERY=100000
 Setting any limit to `0` means unlimited. If you want governance enabled but with no default restrictions, set all defaults to `0` and create explicit policies for tokens that need limits.
 </Callout>
 
-## Enforcement Behavior
+## Enforcement behavior
 
 When a limit is exceeded, Arc responds with:
 
@@ -73,11 +73,11 @@ When a limit is exceeded, Arc responds with:
 
 The response includes a `Retry-After` HTTP header that clients can use for automatic backoff.
 
-## Per-Token Policies
+## Per-token policies
 
 Override default limits for specific tokens. This is useful for giving higher limits to critical services or stricter limits to external integrations.
 
-### Create Policy
+### Create policy
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/governance/policies \
@@ -111,21 +111,21 @@ curl -X POST http://localhost:8000/api/v1/governance/policies \
 }
 ```
 
-### List All Policies
+### List all policies
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies
 ```
 
-### Get Policy for Token
+### Get policy for token
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies/1
 ```
 
-### Update Policy
+### Update policy
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
@@ -137,7 +137,7 @@ curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
   }'
 ```
 
-### Delete Policy
+### Delete policy
 
 Removes the per-token policy. The token reverts to the global defaults.
 
@@ -146,7 +146,7 @@ curl -X DELETE http://localhost:8000/api/v1/governance/policies/1 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-## Usage Monitoring
+## Usage monitoring
 
 Check current usage and remaining quotas for any token.
 
@@ -175,7 +175,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 }
 ```
 
-## Best Practices
+## Best practices
 
 1. **Set conservative defaults** — Start with moderate limits (e.g., 60/min, 500/hour) and increase for tokens that need more.
 
@@ -187,7 +187,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 5. **Pair with query management** — Use [query management](/arc-enterprise/query/query-management/) to identify which queries consume the most resources.
 
-## Next Steps
+## Next steps
 
 - [Query Management](/arc-enterprise/query/query-management/) — Monitor and cancel running queries
 - [Audit Logging](/arc-enterprise/security/audit-logging/) — Track all governance enforcement events

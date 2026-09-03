@@ -23,7 +23,7 @@ TimescaleDB is PostgreSQL with time-series extensions. Two things make this migr
 | Continuous aggregate (auto-refresh materialized view) | Scheduled rollup | No auto-incremental primitive; run a bucketed aggregation on a schedule and write the rollup to a measurement. |
 | PostgreSQL heap storage | Apache Parquet | Portable Parquet you own, queryable in place by any Parquet tool. No `pg_dump` as your only export path. |
 
-## Step 0: Install and run Arc
+## Step 0: install and run Arc
 
 <Tabs items={['Native (macOS)', 'Native (Linux)', 'Docker']}>
   <Tab value="Native (macOS)">
@@ -104,7 +104,7 @@ curl http://localhost:8000/health
 Arc reads an optional `arc.toml` (searched in the current directory, then `/etc/arc/`, then `$HOME/.arc/`) and environment variables prefixed with `ARC_` (a TOML key `section.key` maps to `ARC_SECTION_KEY`). To disable anonymous usage telemetry, set `ARC_TELEMETRY_ENABLED=false`. See [Authentication](/arc/configuration/authentication/) and [Native Installation](/arc/installation/native/) for the full reference.
 </Callout>
 
-## Step 1: Set your Arc token
+## Step 1: set your Arc token
 
 Every request below authenticates with a bearer token. Export it once:
 
@@ -121,7 +121,7 @@ curl http://localhost:8000/api/v1/auth/verify \
 
 For production, create scoped write tokens rather than reusing the admin token, see [Authentication](/arc/configuration/authentication/).
 
-## Step 2: Move ongoing writes
+## Step 2: move ongoing writes
 
 Unlike QuestDB, TimescaleDB shares no wire protocol with Arc. TimescaleDB apps write over the PostgreSQL wire protocol; Arc ingests over HTTP (MessagePack, Line Protocol, or bulk import). How much work this is depends entirely on how your data reaches TimescaleDB today.
 
@@ -148,7 +148,7 @@ Once you have cut over, drop the `[[outputs.postgresql]]` block. See the [Telegr
 Dual-writing means TimescaleDB stays authoritative while you move history and build confidence in Arc. Nothing is lost if you pause.
 </Callout>
 
-## Step 3: Migrate historical data
+## Step 3: migrate historical data
 
 TimescaleDB is PostgreSQL, so you export with `\copy` (client-side, no server file access needed, works against managed instances). Hypertables export exactly like ordinary tables.
 
@@ -230,7 +230,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 Compare with TimescaleDB: `SELECT count(*), min(time), max(time) FROM cpu;`. Counts and time range should match.
 
-## Step 4: Translate your queries
+## Step 4: translate your queries
 
 The good news first: **`time_bucket()` is identical on both sides**, same name and argument order. A downsampling query that runs on TimescaleDB runs unchanged on Arc.
 
@@ -245,7 +245,7 @@ Set the `X-Arc-Database` header on your query requests and you keep the same bar
 | `percentile_cont(0.95) WITHIN GROUP (ORDER BY x)` | `percentile_cont(0.95) WITHIN GROUP (ORDER BY x)` (same) |
 | `create_hypertable(...)`, retention/compression policies | Not needed (schema-on-write; storage-layer concern) |
 
-### Downsampling: unchanged
+### Downsampling: Unchanged
 
 ```sql
 SELECT time_bucket(INTERVAL '1 hour', time) AS bucket,
@@ -270,7 +270,7 @@ SELECT host, arg_max(usage_idle, time) FROM cpu GROUP BY host;
 
 `arg_max(v, time)` returns the value of `v` at the row with the maximum `time`. `arg_min` does the same for the minimum. Both match TimescaleDB's `last`/`first` exactly.
 
-### Gap-filling: the one real porting cost
+### Gap-filling: The one real porting cost
 
 TimescaleDB's `time_bucket_gapfill()` with `locf()`/`interpolate()` has no drop-in equivalent. Reconstruct it with a generated bucket spine, a `LEFT JOIN`, and a window function for last-observation-carried-forward:
 

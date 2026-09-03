@@ -5,7 +5,7 @@ description: "Every arc.toml section and its environment-variable override: serv
 
 Arc uses a TOML configuration file (`arc.toml`) with environment variable overrides for flexibility.
 
-## Configuration Files
+## Configuration files
 
 ### Primary: arc.toml
 
@@ -69,7 +69,7 @@ enabled = true
 enabled = true
 ```
 
-### Environment Variables
+### Environment variables
 
 Override any setting via environment variables with the `ARC_` prefix:
 
@@ -105,7 +105,7 @@ ARC_INGEST_FLUSH_QUEUE_SIZE=200
 ARC_INGEST_SHARD_COUNT=64
 ```
 
-## Configuration Priority
+## Configuration priority
 
 Settings are applied in this order (highest to lowest):
 
@@ -113,7 +113,7 @@ Settings are applied in this order (highest to lowest):
 2. **arc.toml file**
 3. **Built-in defaults**
 
-## Storage Backends
+## Storage backends
 
 <Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
   <Tab value="Local">
@@ -248,13 +248,13 @@ to writes only.
   </Tab>
 </Tabs>
 
-## Enterprise Licensing
+## Enterprise licensing
 
 Licensing (the `[license]` section — license keys, boot resilience, and the
 air-gapped offline license file) is an Arc Enterprise feature and is documented
 in the [Arc Enterprise configuration docs](/arc-enterprise/configuration/overview/#enterprise-license).
 
-## Key Configuration Areas
+## Key configuration areas
 
 ### Server
 
@@ -266,7 +266,7 @@ host = ""      # bind address (default: empty = all interfaces, dual-stack IPv4 
 port = 8000    # HTTP/HTTPS port to listen on
 ```
 
-#### Bind Address (`server.host`)
+#### Bind address (`server.host`)
 
 <Callout type="info" title="Available in v26.06.1">
 The `server.host` setting is available starting from Arc v26.06.1.
@@ -329,7 +329,7 @@ When TLS is enabled, Arc automatically:
 - Adds the `Strict-Transport-Security` (HSTS) header
 - Validates certificate and key files on startup
 
-### Max Payload Size
+### Max payload size
 
 <Callout type="info" title="Available in v26.01.1">
 This configuration option is available starting from Arc v26.01.1.
@@ -357,7 +357,7 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
-### Database (Query Engine)
+### Database (query engine)
 
 Query engine connection pool and resource settings:
 
@@ -461,7 +461,7 @@ cache_ttl = 30              # Token cache TTL (seconds)
 max_cache_size = 1000       # Max cached tokens
 ```
 
-### Delete Operations
+### Delete operations
 
 Safe deletion with confirmation:
 
@@ -481,7 +481,7 @@ Query execution limits:
 timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
 ```
 
-### Retention Policies
+### Retention policies
 
 Automatic data expiration:
 
@@ -491,7 +491,7 @@ enabled = true
 db_path = "./data/arc_retention.db"
 ```
 
-### Continuous Queries
+### Continuous queries
 
 Scheduled automated queries:
 
@@ -524,7 +524,7 @@ timeseries_retention_minutes = 60
 timeseries_interval_seconds = 10
 ```
 
-## Quick Configuration Examples
+## Quick configuration examples
 
 <Tabs items={['Development', 'Production (Local)', 'Production (S3)', 'Production (TLS)', 'High Durability', 'High Concurrency']}>
   <Tab value="Development">
@@ -697,9 +697,9 @@ hourly_enabled = true
   </Tab>
 </Tabs>
 
-## Best Practices
+## Best practices
 
-### 1. Use arc.toml for Permanent Settings
+### 1. Use arc.toml for permanent settings
 
 Store configuration in `arc.toml` and version control it (without secrets):
 
@@ -711,14 +711,14 @@ s3_region = "us-east-1"
 # Credentials via environment variables
 ```
 
-### 2. Use Environment Variables for Secrets
+### 2. Use environment variables for secrets
 
 ```bash
 export ARC_STORAGE_S3_ACCESS_KEY="your_access_key"
 export ARC_STORAGE_S3_SECRET_KEY="your_secret_key"
 ```
 
-### 3. Let Arc Auto-Detect Resources
+### 3. Let Arc auto-detect resources
 
 Arc automatically detects optimal query engine settings based on your system. Only override if you have specific requirements:
 
@@ -730,7 +730,7 @@ Arc automatically detects optimal query engine settings based on your system. On
 # thread_count = 14
 ```
 
-### 4. Enable Features Progressively
+### 4. Enable features progressively
 
 Start simple, add features as needed:
 1. Basic configuration (storage + auth)
@@ -738,7 +738,7 @@ Start simple, add features as needed:
 3. Retention policies (for data management)
 4. WAL (for zero data loss guarantee)
 
-### 5. Monitor Configuration Impact
+### 5. Monitor configuration impact
 
 Check metrics after configuration changes:
 
@@ -755,7 +755,7 @@ curl http://localhost:8000/api/v1/compaction/status
 
 ## Troubleshooting
 
-### Configuration Not Loading
+### Configuration not loading
 
 ```bash
 # Verify TOML syntax (use any TOML validator)
@@ -767,7 +767,7 @@ ls -la arc.toml
 # 2. /etc/arc/arc.toml (native install)
 ```
 
-### Environment Variables Not Working
+### Environment variables not working
 
 ```bash
 # Verify they're set
@@ -778,7 +778,7 @@ export ARC_SERVER_PORT=8000     # Correct
 export SERVER_PORT=8000         # Wrong - missing ARC_ prefix
 ```
 
-### Resource Issues
+### Resource issues
 
 ```bash
 # Check current settings via metrics
@@ -790,7 +790,7 @@ memory_limit = "4GB"
 max_connections = 16
 ```
 
-## Next Steps
+## Next steps
 
 - **[Authentication](/arc/configuration/authentication/)** - Token management
 - **[Advanced Features](/arc/advanced/compaction/)** - Compaction and WAL

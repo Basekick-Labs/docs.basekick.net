@@ -22,7 +22,7 @@ The migration has three moving parts, and none of them require rewriting your ap
 | QuestDB SQL (`SAMPLE BY`, `LATEST ON`) | Standard SQL (`time_bucket`, `DISTINCT ON`) | Full analytical SQL surface: window functions, CTEs, joins. See [Translate your queries](#step-4-translate-your-queries). |
 | Schema declared / evolved on write | Schema inferred on write | A new measurement or column appears on first write; no DDL required. |
 
-## Step 0: Install and run Arc
+## Step 0: install and run Arc
 
 <Tabs items={['Native (macOS)', 'Native (Linux)', 'Docker']}>
   <Tab value="Native (macOS)">
@@ -103,7 +103,7 @@ curl http://localhost:8000/health
 Arc reads an optional `arc.toml` (searched in the current directory, then `/etc/arc/`, then `$HOME/.arc/`) and environment variables prefixed with `ARC_` (a TOML key `section.key` maps to `ARC_SECTION_KEY`). To disable anonymous usage telemetry, set `ARC_TELEMETRY_ENABLED=false`. See [Authentication](/arc/configuration/authentication/) and [Native Installation](/arc/installation/native/) for the full reference.
 </Callout>
 
-## Step 1: Set your Arc token
+## Step 1: set your Arc token
 
 Every request below authenticates with a bearer token. Export it once:
 
@@ -120,7 +120,7 @@ curl http://localhost:8000/api/v1/auth/verify \
 
 For production, create scoped write tokens rather than reusing the admin token, see [Authentication](/arc/configuration/authentication/).
 
-## Step 2: Re-point live ingestion
+## Step 2: re-point live ingestion
 
 QuestDB ingests via InfluxDB Line Protocol, and so does Arc. Any Telegraf pipeline or ILP client you already run keeps its exact payload, you only change the destination URL and add an Arc token.
 
@@ -159,7 +159,7 @@ Setting the `X-Arc-Database` header lets you keep the same bare table names you 
 
 The ILP field/measurement timestamp is stored in Arc's `time` column automatically. Tag values (like `host`) become string columns; numeric fields keep their types.
 
-## Step 3: Migrate historical data
+## Step 3: migrate historical data
 
 Export each QuestDB table to CSV through its REST `/exp` endpoint, then bulk-import the file into Arc.
 
@@ -213,7 +213,7 @@ Arc auto-detects the timestamp unit. QuestDB's `/exp` produces RFC 3339 strings,
 
 For large migrations, script one export + import per table (and per time range for very large tables), then verify each with a `count(*)` and a `min/max(time)` check against QuestDB.
 
-## Step 4: Translate your queries
+## Step 4: translate your queries
 
 Arc runs standard SQL. QuestDB's time-series extensions have direct equivalents.
 

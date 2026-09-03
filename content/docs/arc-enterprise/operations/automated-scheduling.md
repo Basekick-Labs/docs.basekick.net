@@ -16,11 +16,11 @@ Arc OSS provides [continuous queries](/arc/data-lifecycle/continuous-queries/) a
 | **CQ Scheduler** | Runs continuous queries at their configured intervals | Per-CQ interval |
 | **Retention Scheduler** | Enforces retention policies on a cron schedule | Daily at 3am (`0 3 * * *`) |
 
-## CQ Scheduler
+## CQ scheduler
 
 The CQ Scheduler automatically executes continuous queries at their configured intervals. Each continuous query runs independently on its own schedule.
 
-### How It Works
+### How it works
 
 1. Define continuous queries with intervals via the [CQ API](/arc/data-lifecycle/continuous-queries/)
 2. Enable the CQ scheduler (requires enterprise license)
@@ -42,11 +42,11 @@ ARC_CONTINUOUS_QUERY_ENABLED=true
 
 Each continuous query defines its own execution interval when created through the API.
 
-## Retention Scheduler
+## Retention scheduler
 
 The Retention Scheduler automatically enforces retention policies on a cron schedule, deleting data that has exceeded its retention period.
 
-### How It Works
+### How it works
 
 1. Define retention policies via the [Retention API](/arc/data-lifecycle/retention-policies/)
 2. Enable the retention scheduler (requires enterprise license)
@@ -79,7 +79,7 @@ The schedule uses standard 5-field cron syntax: `minute hour day-of-month month 
 | `30 1 1 * *` | Monthly on the 1st at 1:30 AM |
 </Callout>
 
-## Data Lifecycle Pipeline
+## Data lifecycle pipeline
 
 Combine CQ and retention scheduling to build a complete data lifecycle pipeline:
 
@@ -105,7 +105,7 @@ Retention Schedule (runs daily at 3am):
   └── Keep 1-day data indefinitely
 ```
 
-### Example Setup
+### Example setup
 
 **1. Create continuous queries for downsampling:**
 
@@ -169,7 +169,7 @@ curl -X POST http://localhost:8000/api/v1/retention \
 
 With enterprise scheduling enabled, these queries and policies run automatically — no cron jobs, no external orchestration.
 
-## Best Practices
+## Best practices
 
 1. **Schedule retention during off-peak hours** — File deletion generates I/O. The default 3am schedule avoids impacting daytime workloads.
 
@@ -181,7 +181,7 @@ With enterprise scheduling enabled, these queries and policies run automatically
 
 5. **Monitor CQ execution** — Check Arc logs for CQ execution results and errors. Failed CQ executions are logged at WARN level.
 
-## Next Steps
+## Next steps
 
 - [Continuous Queries](/arc/data-lifecycle/continuous-queries/) — Create and manage continuous queries (OSS docs)
 - [Retention Policies](/arc/data-lifecycle/retention-policies/) — Create and manage retention policies (OSS docs)

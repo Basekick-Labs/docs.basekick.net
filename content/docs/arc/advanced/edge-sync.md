@@ -108,7 +108,7 @@ There is no plaintext fallback on purpose: the sync database also holds audit lo
 
 Encrypted rather than hashed because the hub must *recompute* an HMAC from the secret — unlike an API token, which is only ever checked against a value the caller presents.
 
-## Discovery: one round-trip
+## Discovery: One round-trip
 
 `POST /api/v1/sync/reconcile` takes a spoke's pending set and answers which files the hub already holds:
 
@@ -480,7 +480,7 @@ Manifest registrations are **batched at 1000 operations per Raft proposal**. The
 
 If a batch fails, the import aborts rather than continuing — a Raft quorum loss is not transient. The bundle is not recorded, so re-importing re-registers everything.
 
-### The return leg: acknowledgments
+### The return leg: Acknowledgments
 
 On a successful import the hub writes a signed `ack.json` **into the bundle directory**, so the drive going back carries its own receipt and it cannot be separated from the bundle it answers.
 

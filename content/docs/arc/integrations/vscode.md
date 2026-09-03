@@ -31,15 +31,15 @@ The Arc Database Manager extension provides a full-featured IDE for working with
 Or install directly from the marketplace:
 - **[Arc Database Manager on VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=basekick-labs.arc-db-manager)**
 
-### From Command Line
+### From command line
 
 ```bash
 code --install-extension basekick-labs.arc-db-manager
 ```
 
-## Quick Start
+## Quick start
 
-### 1. Connect to Arc Server
+### 1. Connect to Arc server
 
 **Option A: From Status Bar**
 1. Click **"Arc: Not Connected"** in the status bar
@@ -55,7 +55,7 @@ code --install-extension basekick-labs.arc-db-manager
 2. Type `Arc: Connect to Server`
 3. Follow the prompts
 
-### 2. Get Your API Token
+### 2. Get your API token
 
 ```bash
 # Docker - check logs for admin token
@@ -71,7 +71,7 @@ curl -X POST http://localhost:8000/api/v1/auth/tokens \
   }'
 ```
 
-### 3. Start Querying
+### 3. Start querying
 
 1. Press `Ctrl+Shift+P` → `Arc: New Query`
 2. Write your SQL query
@@ -108,7 +108,7 @@ Get auto-completion for:
 
 <!-- TODO(screenshot): the extension's results grid after running a query — the sortable columns, row count, and export controls described below. This is the extension's primary surface and is impossible to picture from prose. -->
 
-### Interactive Results View
+### Interactive results view
 
 After executing a query, results are displayed with:
 
@@ -127,7 +127,7 @@ After executing a query, results are displayed with:
 - Filter rows with search
 - View execution time and row count
 
-### Arc Notebooks
+### Arc notebooks
 
 Create analysis documents mixing SQL and Markdown in `.arcnb` files.
 
@@ -177,7 +177,7 @@ The query shows periods where CPU exceeded ${threshold}% in the last ${interval}
 
 <!-- TODO(screenshot): the Schema Explorer tree expanded to show databases, measurements, and column types, so readers can tell it apart from the results view. -->
 
-### Schema Explorer
+### Schema explorer
 
 Browse your Arc databases and tables in the sidebar.
 
@@ -211,9 +211,9 @@ Result:
 └────────────┴──────────┘
 ```
 
-### Data Ingestion
+### Data ingestion
 
-#### CSV Import Wizard
+#### CSV import wizard
 
 Import CSV files directly into Arc with guided setup.
 
@@ -245,7 +245,7 @@ Import Settings:
 Result: 250,000 rows imported in 3.2 seconds
 ```
 
-#### Bulk Data Generator
+#### Bulk data generator
 
 Generate test data for development and testing.
 
@@ -269,7 +269,7 @@ Generate test data for development and testing.
 - Realistic sample data
 - Configurable patterns
 
-### Alerting & Monitoring
+### Alerting & monitoring
 
 Create alerts based on query results with desktop notifications.
 
@@ -304,7 +304,7 @@ Interval: 60s
 - Enable/disable without deletion
 - Minimum check interval: 10 seconds
 
-### Query Management
+### Query management
 
 **Query History:**
 - Every executed query is automatically saved
@@ -322,7 +322,7 @@ Interval: 60s
 2. Navigate to **Query History** or **Saved Queries**
 3. Click query to view or re-run
 
-### Token Management
+### Token management
 
 Manage Arc authentication tokens directly from VS Code.
 
@@ -375,7 +375,7 @@ Access all commands via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 - `Arc: Preview Table Data`
 - `Arc: Show Table Statistics`
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Command | Windows/Linux | macOS |
 |---------|--------------|-------|
@@ -384,7 +384,7 @@ Access all commands via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | Command Palette | `Ctrl+Shift+P` | `Cmd+Shift+P` |
 | Toggle Sidebar | `Ctrl+B` | `Cmd+B` |
 
-## Extension Settings
+## Extension settings
 
 Configure extension defaults in VS Code settings:
 
@@ -404,9 +404,9 @@ Configure extension defaults in VS Code settings:
 | `arc.defaultPort` | Default Arc server port | `8000` |
 | `arc.defaultProtocol` | Default protocol | `http` |
 
-## Use Cases
+## Use cases
 
-### Development & Testing
+### Development & testing
 
 **Generate Test Data:**
 ```text
@@ -430,7 +430,7 @@ GROUP BY bucket
 ORDER BY bucket DESC;
 ```
 
-### Data Analysis
+### Data analysis
 
 Create analysis notebooks (`.arcnb`) with:
 - Documentation in Markdown
@@ -457,7 +457,7 @@ GROUP BY day
 ORDER BY day;
 ```
 
-### Production Monitoring
+### Production monitoring
 
 **Create Alert:**
 ```text
@@ -470,7 +470,7 @@ Interval: 60s
 → Desktop notification when memory exceeds 90%
 ```
 
-### Data Migration
+### Data migration
 
 **Import CSV Files:**
 ```text
@@ -493,7 +493,7 @@ Interval: 60s
 
 ## Troubleshooting
 
-### Cannot Connect to Arc Server
+### Cannot connect to Arc server
 
 ```bash
 # 1. Verify Arc is running
@@ -508,7 +508,7 @@ curl http://localhost:8000/health
 Arc: Verify Token (from Command Palette)
 ```
 
-### Query Timeout
+### Query timeout
 
 **Solutions:**
 1. Add time filters:
@@ -527,7 +527,7 @@ curl http://localhost:8000/api/v1/compaction/trigger \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### CSV Import Fails
+### CSV import fails
 
 **Common Issues:**
 1. **Encoding**: Ensure UTF-8 encoding
@@ -544,14 +544,14 @@ Timestamp column: time
 Format: ISO 8601 or Unix timestamp
 ```
 
-### Extension Not Activating
+### Extension not activating
 
 1. **Check VS Code version**: Requires 1.85.0 or higher
 2. **View Output**: View → Output → Arc Database Manager
 3. **Reload Window**: Ctrl+Shift+P → Reload Window
 4. **Reinstall**: Uninstall and reinstall extension
 
-### IntelliSense Not Working
+### IntelliSense not working
 
 1. **Refresh Schema**: Right-click in Arc Explorer → Refresh
 2. **Reconnect**: Disconnect and reconnect to server
@@ -563,7 +563,7 @@ Format: ISO 8601 or Unix timestamp
 - **Arc Database**: Running instance (v1.0.0+)
 - **Authentication Token**: Valid Arc API token
 
-## Release Notes
+## Release notes
 
 ### 0.2.0 - Latest
 
@@ -594,7 +594,7 @@ Format: ISO 8601 or Unix timestamp
 - **[Arc Documentation](https://docs.basekick.net)**
 - **[Report Issues](https://github.com/basekick-labs/arc-vscode-extension/issues)**
 
-## Next Steps
+## Next steps
 
 - **[Getting Started with Arc](/arc/getting-started/)** - Install and configure Arc
 - **[Query API Reference](/arc/api-reference/overview/)** - Learn Arc SQL

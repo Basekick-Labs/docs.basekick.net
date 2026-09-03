@@ -20,9 +20,9 @@ Compaction is Arc's file optimization system that **merges small files into larg
 Compaction is **enabled by default** and runs automatically every hour.
 </Callout>
 
-## Why Compaction Matters
+## Why compaction matters
 
-### The Small File Problem
+### The small file problem
 
 Arc's high-throughput ingestion creates many small files:
 
@@ -39,7 +39,7 @@ At high ingest rates with a 5-second flush interval:
 - **Poor compression** - Small files compress less efficiently
 - **Reduced pruning** - Less effective partition elimination
 
-### After Compaction
+### After compaction
 
 **Real Production Test Results:**
 
@@ -63,9 +63,9 @@ Compaction time: 5 seconds
 - **80.4% compression** - ZSTD compaction vs Snappy writes
 - **Effective pruning** - The query engine can skip entire files
 
-## How It Works
+## How it works
 
-### Compaction Flow
+### Compaction flow
 
 ```text
 1. Scheduler wakes up (cron: "5 * * * *")
@@ -92,7 +92,7 @@ Compaction time: 5 seconds
 10. Repeat for next partition
 ```
 
-### Partition Structure
+### Partition structure
 
 Data is organized by hour:
 
@@ -113,7 +113,7 @@ Compaction merges all files in a partition (e.g., `2025/10/08/14/`) into one opt
 
 ## Configuration
 
-### Default Configuration
+### Default configuration
 
 Compaction is **enabled by default** in `arc.toml`:
 
@@ -136,7 +136,7 @@ daily_min_files = 12            # Only compact if >=12 files exist
 max_concurrent = 2              # Run 2 compactions in parallel
 ```
 
-### Configuration Options
+### Configuration options
 
 #### Schedule
 
@@ -149,7 +149,7 @@ daily_schedule = "0 3 * * *"      # 3 AM daily (default)
 
 **Cron format:** `minute hour day month weekday`
 
-#### Minimum Age
+#### Minimum age
 
 ```toml
 [compaction]
@@ -163,7 +163,7 @@ daily_min_age_hours = 24    # Daily tier waits a full day (default)
 Setting `hourly_min_age_hours = 0` can compact the current hour while data is still being written, potentially creating many compacted files.
 </Callout>
 
-#### Minimum Files
+#### Minimum files
 
 ```toml
 [compaction]
@@ -173,7 +173,7 @@ daily_min_files = 12     # Daily tier threshold (default)
 # hourly_min_files = 5     # Compact more aggressively
 ```
 
-#### Concurrent Jobs
+#### Concurrent jobs
 
 ```toml
 [compaction]
@@ -182,7 +182,7 @@ max_concurrent = 2    # Run 2 compactions in parallel (default)
 # max_concurrent = 1    # Sequential (lower resource usage)
 ```
 
-#### Memory Limit and Threads (per subprocess)
+#### Memory limit and threads (per subprocess)
 
 <Callout type="info" title="Available in v26.09.1+">
 `memory_limit` and `threads` are configurable starting in Arc **v26.09.1**. On earlier versions each compaction subprocess inherits the full `database.memory_limit` and uses all CPU cores.
@@ -211,7 +211,7 @@ When a job exceeds its memory limit, DuckDB spills to a `duckdb-spill/` director
 
 Lower these when compaction competes with ingest for RAM during backfill catch-up (many partitions become candidates at once); raise them to make individual large compactions faster on dedicated compactor nodes.
 
-#### Files Per Batch
+#### Files per batch
 
 <Callout type="info" title="Available in v26.09.1+">
 `max_files_per_batch` is configurable starting in Arc **v26.09.1**. On earlier versions the batch size is fixed at 30 files and this setting has no effect.
@@ -242,7 +242,7 @@ The compression used for **incoming** writes is separate, and is set by
 `ingest.compression` (default `snappy`) — see the
 [configuration overview](/arc/configuration/overview/).
 
-### Disable Compaction
+### Disable compaction
 
 ```toml
 [compaction]
@@ -260,7 +260,7 @@ Disabling compaction will cause queries to slow down significantly as files accu
 
 ## Monitoring
 
-### Check Compaction Status
+### Check compaction status
 
 ```bash
 curl http://localhost:8000/api/compaction/status \
@@ -285,14 +285,14 @@ curl http://localhost:8000/api/compaction/status \
 }
 ```
 
-### Get Detailed Statistics
+### Get detailed statistics
 
 ```bash
 curl http://localhost:8000/api/compaction/stats \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### List Eligible Partitions
+### List eligible partitions
 
 ```bash
 curl http://localhost:8000/api/compaction/candidates \
@@ -323,30 +323,30 @@ curl http://localhost:8000/api/compaction/candidates \
 }
 ```
 
-### Manually Trigger Compaction
+### Manually trigger compaction
 
 ```bash
 curl -X POST http://localhost:8000/api/compaction/trigger \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### View Active Jobs
+### View active jobs
 
 ```bash
 curl http://localhost:8000/api/compaction/jobs \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### View Job History
+### View job history
 
 ```bash
 curl http://localhost:8000/api/compaction/history \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-## Performance Impact
+## Performance impact
 
-### Compaction Performance
+### Compaction performance
 
 **Test Environment:** Apple M3 Max (14 cores, 36GB RAM)
 
@@ -358,7 +358,7 @@ curl http://localhost:8000/api/compaction/history \
 
 **Total:** 2,704 files (3.7 GB) → 3 files (724 MB) in **6.6 seconds**
 
-### Query Performance
+### Query performance
 
 **Before Compaction:**
 ```sql
@@ -372,7 +372,7 @@ SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL 1 HOUR;
 -- 0.05 seconds (scan 1 file)
 ```
 
-### Storage Savings
+### Storage savings
 
 ```bash
 Original files (Snappy):  3.7 GB
@@ -380,9 +380,9 @@ Compacted files (ZSTD):   724 MB
 Space saved:              80.4%
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Let Compaction Run Automatically
+### 1. Let compaction run automatically
 
 The default schedule (hourly) works well for most use cases:
 
@@ -392,14 +392,14 @@ enabled = true
 hourly_schedule = "5 * * * *"
 ```
 
-### 2. Monitor Compaction Jobs
+### 2. Monitor compaction jobs
 
 Set up alerts for:
 - Failed compaction jobs
 - Partitions with &gt;1000 files
 - Compaction taking &gt;10 minutes
 
-### 3. Adjust Based on Write Volume
+### 3. Adjust based on write volume
 
 **High volume** (&gt;10M records/sec):
 ```toml
@@ -415,7 +415,7 @@ hourly_min_files = 5              # Compact with fewer files
 hourly_schedule = "0 */6 * * *"   # Every 6 hours
 ```
 
-### 4. Tune Files Per Batch
+### 4. Tune files per batch
 
 ```toml
 [compaction]
@@ -424,7 +424,7 @@ max_files_per_batch = 30     # Files per compaction job (default)
 # max_files_per_batch = 5      # Smaller outputs, more jobs per partition
 ```
 
-### 5. Reduce File Generation at Source
+### 5. Reduce file generation at source
 
 **Best practice:** Increase buffer sizes to generate fewer files:
 
@@ -443,7 +443,7 @@ This is the **most effective optimization** - fewer files means faster compactio
 
 ## Troubleshooting
 
-### Compaction Not Running
+### Compaction not running
 
 **Check status:**
 ```bash
@@ -468,7 +468,7 @@ docker logs arc | grep compaction
 sudo journalctl -u arc | grep compaction
 ```
 
-### Partition Skipped: No `time` Column
+### Partition skipped: No `time` column
 
 **Symptoms:** A warning in the logs:
 
@@ -488,7 +488,7 @@ Skipping compaction: no 'time' column in any input file (data was not written by
 
 Partitions where only *some* files lack `time` are not skipped: they compact normally, and rows from files without the column get `NULL` time values.
 
-### Compaction Taking Too Long
+### Compaction taking too long
 
 **Symptoms:** Compaction jobs running for &gt;30 minutes
 
@@ -512,7 +512,7 @@ Partitions where only *some* files lack `time` are not skipped: they compact nor
    max_buffer_size = 200000
    ```
 
-### Out of Disk Space During Compaction
+### Out of disk space during compaction
 
 **Symptoms:** Compaction fails with disk space errors
 
@@ -535,7 +535,7 @@ Partitions where only *some* files lack `time` are not skipped: they compact nor
    find ./data -name "*.parquet" -size -10M -delete
    ```
 
-### Compaction Locks Not Releasing
+### Compaction locks not releasing
 
 **Symptoms:** Partitions stuck in "locked" state
 
@@ -552,7 +552,7 @@ sqlite3 ./data/arc.db "SELECT * FROM compaction_locks;"
 sqlite3 ./data/arc.db "DELETE FROM compaction_locks WHERE expires_at < datetime('now');"
 ```
 
-## API Reference
+## API reference
 
 ### GET /api/v1/compaction/status
 
@@ -620,7 +620,7 @@ hourly_min_files = 10
 - Alert on failed jobs
 - Watch for partitions with &gt;1000 files
 
-## Next Steps
+## Next steps
 
 - **[Monitor Compaction](/arc/operations/telemetry/)** - Set up health checks
 - **[Configure WAL](/arc/advanced/wal/)** - Add durability guarantees

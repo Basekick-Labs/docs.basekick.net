@@ -5,7 +5,7 @@ description: Every arc.toml section for Arc Enterprise, including the license ke
 
 Arc uses a TOML configuration file (`arc.toml`) with environment variable overrides for flexibility.
 
-## Enterprise License
+## Enterprise license
 
 Configure your Arc Enterprise license key to enable enterprise features:
 
@@ -24,7 +24,7 @@ On startup, Arc validates your license and enables the features included in your
 
 As of **26.09.1**, a transient license-server failure no longer crash-loops Enterprise pods: startup retries briefly and then falls back to the last **signature-verified** license cached on disk, honored until that license's own expiry. A definitive server rejection (revoked, expired, unknown key) still disables enterprise features immediately.
 
-### Air-gapped: offline license file (26.09.1+)
+### Air-gapped: Offline license file (26.09.1+)
 
 For environments with no route to `enterprise.basekick.net`, download an offline license file from the activation server admin (an explicit **site license**: unbound, valid on any machine until expiry, audit-logged at mint) and point Arc at it:
 
@@ -35,7 +35,7 @@ file_path = "/etc/arc/license.json"   # or ARC_LICENSE_FILE_PATH
 
 The file is verified from disk against Arc's pinned public key — no network calls of any kind. `file_path` wins over `key`; a rejected file means OSS mode (never a silent fallback to online licensing). Keep the file readable only by the Arc user (`0600`).
 
-## Configuration Files
+## Configuration files
 
 ### Primary: arc.toml
 
@@ -98,7 +98,7 @@ enabled = true
 enabled = true
 ```
 
-### Environment Variables
+### Environment variables
 
 Override any setting via environment variables with the `ARC_` prefix:
 
@@ -132,7 +132,7 @@ ARC_INGEST_FLUSH_QUEUE_SIZE=200
 ARC_INGEST_SHARD_COUNT=64
 ```
 
-## Configuration Priority
+## Configuration priority
 
 Settings are applied in this order (highest to lowest):
 
@@ -140,7 +140,7 @@ Settings are applied in this order (highest to lowest):
 2. **arc.toml file**
 3. **Built-in defaults**
 
-## Storage Backends
+## Storage backends
 
 <Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
   <Tab value="Local">
@@ -253,7 +253,7 @@ azure_use_managed_identity = true
   </Tab>
 </Tabs>
 
-## Key Configuration Areas
+## Key configuration areas
 
 ### Server
 
@@ -294,7 +294,7 @@ When TLS is enabled, Arc automatically:
 - Adds the `Strict-Transport-Security` (HSTS) header
 - Validates certificate and key files on startup
 
-### Max Payload Size
+### Max payload size
 
 Configure the maximum request payload size for write endpoints (msgpack, line protocol):
 
@@ -318,7 +318,7 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
-### Database (Query Engine)
+### Database (query engine)
 
 Query engine connection pool and resource settings:
 
@@ -403,7 +403,7 @@ force_bootstrap = false     # Add a recovery token without removing existing one
 **`force_bootstrap`** — Recovery path when the admin token is lost. Set `ARC_AUTH_FORCE_BOOTSTRAP=true` alongside `ARC_AUTH_BOOTSTRAP_TOKEN` to add a new `arc-recovery` admin token **without removing existing tokens**. Remove this flag after recovery. See the [Authentication configuration guide](/arc/configuration/authentication/#bootstrap--recovery) for full details.
 </Callout>
 
-### Delete Operations
+### Delete operations
 
 Safe deletion with confirmation:
 
@@ -414,7 +414,7 @@ confirmation_threshold = 10000   # Require confirmation above this
 max_rows_per_delete = 1000000    # Hard limit per operation
 ```
 
-### Retention Policies
+### Retention policies
 
 Automatic data expiration:
 
@@ -424,7 +424,7 @@ enabled = true
 db_path = "./data/arc_retention.db"
 ```
 
-### Continuous Queries
+### Continuous queries
 
 Scheduled automated queries:
 
@@ -457,7 +457,7 @@ timeseries_retention_minutes = 60
 timeseries_interval_seconds = 10
 ```
 
-## Quick Configuration Examples
+## Quick configuration examples
 
 <Tabs items={['Development', 'Production (Local)', 'Production (S3)', 'Production (TLS)', 'High Durability', 'High Concurrency']}>
   <Tab value="Development">
@@ -630,9 +630,9 @@ hourly_enabled = true
   </Tab>
 </Tabs>
 
-## Best Practices
+## Best practices
 
-### 1. Use arc.toml for Permanent Settings
+### 1. Use arc.toml for permanent settings
 
 Store configuration in `arc.toml` and version control it (without secrets):
 
@@ -644,14 +644,14 @@ s3_region = "us-east-1"
 # Credentials via environment variables
 ```
 
-### 2. Use Environment Variables for Secrets
+### 2. Use environment variables for secrets
 
 ```bash
 export ARC_STORAGE_S3_ACCESS_KEY="your_access_key"
 export ARC_STORAGE_S3_SECRET_KEY="your_secret_key"
 ```
 
-### 3. Let Arc Auto-Detect Resources
+### 3. Let Arc auto-detect resources
 
 Arc automatically detects optimal query engine settings based on your system. Only override if you have specific requirements:
 
@@ -663,7 +663,7 @@ Arc automatically detects optimal query engine settings based on your system. On
 # thread_count = 14
 ```
 
-### 4. Enable Features Progressively
+### 4. Enable features progressively
 
 Start simple, add features as needed:
 1. Basic configuration (storage + auth)
@@ -671,7 +671,7 @@ Start simple, add features as needed:
 3. Retention policies (for data management)
 4. WAL (for zero data loss guarantee)
 
-### 5. Monitor Configuration Impact
+### 5. Monitor configuration impact
 
 Check metrics after configuration changes:
 
@@ -688,7 +688,7 @@ curl http://localhost:8000/api/v1/compaction/status
 
 ## Troubleshooting
 
-### Configuration Not Loading
+### Configuration not loading
 
 ```bash
 # Verify TOML syntax (use any TOML validator)
@@ -700,7 +700,7 @@ ls -la arc.toml
 # 2. /etc/arc/arc.toml (native install)
 ```
 
-### Environment Variables Not Working
+### Environment variables not working
 
 ```bash
 # Verify they're set
@@ -711,7 +711,7 @@ export ARC_SERVER_PORT=8000     # Correct
 export SERVER_PORT=8000         # Wrong - missing ARC_ prefix
 ```
 
-### Resource Issues
+### Resource issues
 
 ```bash
 # Check current settings via metrics
@@ -723,7 +723,7 @@ memory_limit = "4GB"
 max_connections = 16
 ```
 
-## Enterprise Configuration
+## Enterprise configuration
 
 The following configuration sections are available with an Arc Enterprise license. See each feature's dedicated page for detailed configuration.
 
@@ -740,7 +740,7 @@ cluster_name = "production"
 seeds = ["10.0.1.10:9000"]
 ```
 
-### Tiered Storage
+### Tiered storage
 
 See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) for full configuration reference.
 
@@ -755,7 +755,7 @@ backend = "s3"
 s3_bucket = "arc-archive"
 ```
 
-### Audit Logging
+### Audit logging
 
 See [Audit Logging](/arc-enterprise/security/audit-logging/) for full configuration reference.
 
@@ -765,7 +765,7 @@ enabled = true
 retention_days = 90
 ```
 
-### Query Governance
+### Query governance
 
 See [Query Governance](/arc-enterprise/query/query-governance/) for full configuration reference.
 
@@ -775,7 +775,7 @@ enabled = true
 default_rate_limit_per_min = 60
 ```
 
-### Query Management
+### Query management
 
 See [Query Management](/arc-enterprise/query/query-management/) for full configuration reference.
 
@@ -784,7 +784,7 @@ See [Query Management](/arc-enterprise/query/query-management/) for full configu
 enabled = true
 ```
 
-## Next Steps
+## Next steps
 
 - **[Clustering & High Availability](/arc-enterprise/configuration/clustering/)** - Multi-node cluster configuration
 - **[Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/)** - Hot/cold storage tiering

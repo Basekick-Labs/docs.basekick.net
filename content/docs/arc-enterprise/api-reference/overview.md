@@ -15,25 +15,25 @@ http://localhost:8000
 
 All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients:
 
-### Bearer Token (Standard)
+### Bearer token (standard)
 
 ```bash
 curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### Token Header (InfluxDB 2.x Style)
+### Token header (InfluxDB 2.x style)
 
 ```bash
 curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### API Key Header
+### API key header
 
 ```bash
 curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
 ```
 
-### Query Parameter (InfluxDB 1.x Style)
+### Query parameter (InfluxDB 1.x style)
 
 For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query parameter:
 
@@ -41,16 +41,16 @@ For InfluxDB 1.x client compatibility, tokens can be passed via the `p` query pa
 curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 usage=45.2'
 ```
 
-### Public Endpoints (No Auth Required)
+### Public endpoints (no auth required)
 
 - `GET /health` - Health check
 - `GET /ready` - Readiness probe
 - `GET /metrics` - Prometheus metrics
 - `GET /api/v1/auth/verify` - Token verification
 
-## Quick Examples
+## Quick examples
 
-### Write Data (MessagePack)
+### Write data (MessagePack)
 
 ```python
 import os
@@ -79,7 +79,7 @@ response = requests.post(
 )
 ```
 
-### Query Data (JSON)
+### Query data (JSON)
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/v1/query \
   -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
 ```
 
-### Query Data (Apache Arrow)
+### Query data (Apache Arrow)
 
 For large result sets, use Arrow format for the highest sustained row throughput:
 
@@ -109,7 +109,7 @@ reader = pa.ipc.open_stream(response.content)
 arrow_table = reader.read_all()
 ```
 
-### Health Check
+### Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -117,7 +117,7 @@ curl http://localhost:8000/health
 
 ---
 
-## Health & Monitoring
+## Health & monitoring
 
 ### GET /health
 
@@ -192,7 +192,7 @@ Recent application logs. **Requires an admin token** (`Authorization: Bearer <ad
 
 ---
 
-## Data Ingestion
+## Data ingestion
 
 ### POST /api/v1/write/msgpack
 
@@ -473,7 +473,7 @@ Compaction job history.
 
 ---
 
-## Delete Operations
+## Delete operations
 
 ### POST /api/v1/delete
 
@@ -503,7 +503,7 @@ Get delete operation configuration.
 
 ---
 
-## Database Management
+## Database management
 
 Endpoints for managing databases programmatically.
 
@@ -633,7 +633,7 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 
 ---
 
-## Retention Policies
+## Retention policies
 
 ### POST /api/v1/retention
 
@@ -676,7 +676,7 @@ Get policy execution history.
 
 ---
 
-## Continuous Queries
+## Continuous queries
 
 ### POST /api/v1/continuous_queries
 
@@ -721,7 +721,7 @@ Get execution history.
 
 ---
 
-## MQTT Subscriptions
+## MQTT subscriptions
 
 <Callout type="info" title="Available since v26.02.1">
 MQTT subscription management is available starting Arc v26.02.1.
@@ -882,9 +882,9 @@ MQTT service health check.
 
 ---
 
-## Response Formats
+## Response formats
 
-### Success Response
+### Success response
 
 ```json
 {
@@ -894,7 +894,7 @@ MQTT service health check.
 }
 ```
 
-### Error Response
+### Error response
 
 ```json
 {
@@ -902,7 +902,7 @@ MQTT service health check.
 }
 ```
 
-### HTTP Status Codes
+### HTTP status codes
 
 - `200` - Success
 - `204` - No Content (successful write)
@@ -914,7 +914,7 @@ MQTT service health check.
 
 ---
 
-## Rate Limiting
+## Rate limiting
 
 Arc does not enforce rate limiting by default. For production deployments, consider:
 
@@ -926,9 +926,9 @@ Arc does not enforce rate limiting by default. For production deployments, consi
 
 CORS is enabled by default with permissive settings. Configure via reverse proxy for production.
 
-## Best Practices
+## Best practices
 
-### 1. Use MessagePack for Writes
+### 1. Use MessagePack for writes
 
 MessagePack is considerably faster than Line Protocol:
 
@@ -942,7 +942,7 @@ data = "cpu,host=server01 usage=45.2"
 requests.post(url, data=data)
 ```
 
-### 2. Batch Your Writes
+### 2. Batch your writes
 
 Send multiple records per request:
 
@@ -958,7 +958,7 @@ data = {
 }
 ```
 
-### 3. Use Arrow for Large Queries
+### 3. Use Arrow for large queries
 
 For 10K+ rows, use the Arrow endpoint:
 
@@ -968,7 +968,7 @@ table = pa.ipc.open_stream(response.content).read_all()
 df = table.to_pandas()  # Zero-copy conversion
 ```
 
-### 4. Enable Gzip Compression
+### 4. Enable gzip compression
 
 ```python
 import gzip
@@ -981,9 +981,9 @@ requests.post(
 )
 ```
 
-## Client Libraries
+## Client libraries
 
-### Python (Official SDK)
+### Python (official SDK)
 
 ```bash
 pip install arc-tsdb-client[all]
@@ -1002,7 +1002,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 See [Python SDK Documentation](/arc-enterprise/sdks/python/) for full details.
 
-## Enterprise API Endpoints
+## Enterprise API endpoints
 
 The following endpoints are available with an Arc Enterprise license.
 
@@ -1029,7 +1029,7 @@ See [Clustering & High Availability](/arc-enterprise/configuration/clustering/) 
 
 See [RBAC](/arc-enterprise/security/rbac/) for detailed API documentation.
 
-### Tiered Storage
+### Tiered storage
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1041,7 +1041,7 @@ See [RBAC](/arc-enterprise/security/rbac/) for detailed API documentation.
 
 See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) for detailed API documentation.
 
-### Audit Logging
+### Audit logging
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1050,7 +1050,7 @@ See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) for detaile
 
 See [Audit Logging](/arc-enterprise/security/audit-logging/) for detailed API documentation.
 
-### Query Governance
+### Query governance
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1059,7 +1059,7 @@ See [Audit Logging](/arc-enterprise/security/audit-logging/) for detailed API do
 
 See [Query Governance](/arc-enterprise/query/query-governance/) for detailed API documentation.
 
-### Query Management
+### Query management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1070,7 +1070,7 @@ See [Query Governance](/arc-enterprise/query/query-governance/) for detailed API
 
 See [Query Management](/arc-enterprise/query/query-management/) for detailed API documentation.
 
-## Next Steps
+## Next steps
 
 - **[Python SDK](/arc-enterprise/sdks/python/)** - Official Python client
 - **[Getting Started](/arc-enterprise/getting-started/)** - Quick start guide

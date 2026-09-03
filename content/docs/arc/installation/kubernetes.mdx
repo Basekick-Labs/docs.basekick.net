@@ -12,7 +12,7 @@ Deploy Arc on Kubernetes using Helm for production-grade analytical data managem
 - `kubectl` configured to access your cluster
 - Persistent storage (for local storage backend)
 
-## Quick Start
+## Quick start
 
 ```bash
 # Install Arc
@@ -26,7 +26,7 @@ kubectl port-forward svc/arc 8000:8000
 curl http://localhost:8000/health
 ```
 
-## Get Your Admin Token
+## Get your admin token
 
 ```bash
 # Get the pod name
@@ -54,7 +54,7 @@ Copy this token immediately - you won't see it again!
 In a multi-pod Arc Enterprise cluster, **only one pod prints the banner** — the Raft leader that wins the bootstrap election. Other pods log `INFO Deferring initial token bootstrap until cluster Raft proposer is wired` during startup and then `INFO Cluster auth state replication enabled — token writes now propagate via Raft` once the leader is elected. The non-leader pods silently no-op the bootstrap (they get an "already exists" response from the leader's FSM) and converge on the leader's token via Raft. The `kubectl logs -l app=arc | grep -i "admin"` command above still works — it just returns the single banner from whichever pod won the election. See [Cluster auth replication](/arc/configuration/authentication/#cluster-auth-replication-enterprise) for the full semantics, including token-propagation behaviour and the divergence-detection error log.
 </Callout>
 
-## Installation Methods
+## Installation methods
 
 <Tabs items={['Quick Install', 'Custom Values', 'Custom Namespace']}>
   <Tab value="Quick Install">
@@ -97,7 +97,7 @@ helm install arc \
   </Tab>
 </Tabs>
 
-## Storage Backends
+## Storage backends
 
 The OSS chart selects the backend with `arc.storageBackend` (`local`, `s3`, or
 `minio`). The chart auto-sets `ARC_STORAGE_BACKEND` and `ARC_STORAGE_LOCAL_PATH`;
@@ -243,7 +243,7 @@ helm install arc ./arc -f values.yaml
   </Tab>
 </Tabs>
 
-## Configuration Profiles
+## Configuration profiles
 
 The OSS chart is a single Deployment. Arc's own settings (auth, WAL, log level,
 ingest buffers, etc.) are passed as environment variables through `arc.env[]`,
@@ -406,9 +406,9 @@ cleaned by hand (tracked in
 migrations, either size the volume for the burst or set `ARC_WAL_ENABLED=false`
 for the migration window and re-enable it afterwards.
 
-## Helm Values Reference
+## Helm values reference
 
-### Core Settings
+### Core settings
 
 ```yaml
 # Number of pod replicas (single Deployment).
@@ -490,7 +490,7 @@ ingress:
   tls: []
 ```
 
-### Service Account
+### Service account
 
 ```yaml
 serviceAccount:
@@ -509,7 +509,7 @@ multi-writer ingest, and peer replication see the
 
 ## Operations
 
-### View Logs
+### View logs
 
 ```bash
 # Follow logs
@@ -522,7 +522,7 @@ kubectl logs -l app=arc --tail=100
 kubectl logs -l app=arc --since=1h
 ```
 
-### Check Status
+### Check status
 
 ```bash
 # Pod status
@@ -535,7 +535,7 @@ kubectl describe pod -l app=arc
 kubectl get events --field-selector involvedObject.name=arc-0
 ```
 
-### Scale (Restart)
+### Scale (restart)
 
 ```bash
 # Restart pod
@@ -545,13 +545,13 @@ kubectl rollout restart deployment arc
 kubectl delete pod -l app=arc
 ```
 
-### Port Forward
+### Port forward
 
 ```bash
 kubectl port-forward svc/arc 8000:8000
 ```
 
-### Access Shell
+### Access shell
 
 ```bash
 kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
@@ -583,7 +583,7 @@ kubectl delete namespace arc
 
 ## Monitoring
 
-### Prometheus Metrics
+### Prometheus metrics
 
 Arc exposes Prometheus metrics at `/metrics`:
 
@@ -603,7 +603,7 @@ spec:
       interval: 30s
 ```
 
-### Readiness/Liveness Probes
+### Readiness/liveness probes
 
 ```yaml
 livenessProbe:
@@ -633,7 +633,7 @@ a cluster writer.
 
 ## Troubleshooting
 
-### Pod Won't Start
+### Pod won't start
 
 ```bash
 # Check pod status
@@ -648,7 +648,7 @@ kubectl get events --sort-by='.lastTimestamp'
 # - CrashLoopBackOff: Check logs
 ```
 
-### Storage Issues
+### Storage issues
 
 ```bash
 # Check PVC status
@@ -661,7 +661,7 @@ kubectl get pv
 kubectl describe pvc -l app=arc
 ```
 
-### Connection Issues
+### Connection issues
 
 ```bash
 # Check service
@@ -671,7 +671,7 @@ kubectl get svc arc
 kubectl run curl --image=curlimages/curl -it --rm -- curl http://arc:8000/health
 ```
 
-### Memory Issues
+### Memory issues
 
 ```bash
 # Check resource usage
@@ -683,7 +683,7 @@ resources:
     memory: "16Gi"
 ```
 
-## Next Steps
+## Next steps
 
 - [Write your first data](/arc/getting-started/#write-data)
 - [Configure storage backends](/arc/configuration/overview/)

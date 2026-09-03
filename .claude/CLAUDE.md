@@ -60,14 +60,16 @@ form.
 - Every code block gets a language tag.
 
 ### Style
-- **Title Case for headings** — "## Cache Layers", "### When It Helps". Minor
-  words (a, an, and, the, to, of, in, for, with, …) stay lowercase unless they
-  lead the heading. Product names, acronyms and literal identifiers keep their
-  own casing: `Arc`, `SQL`, `DuckDB`, `MinIO`, `mTLS`, `adapter-node`.
-  This is what the corpus already uses — ~1,700 headings across Arc and Arc
-  Enterprise — and Launchpad was converted to match.
-  Note that front-matter `description` is the opposite: it is a sentence, so
-  it is sentence case. See `.claude/STYLE-CONTRACT.md`.
+- **Sentence case for headings**: "## Cache layers", "### When it helps",
+  "## This configuration" (never "## This Configuration"). Only the first word
+  and proper nouns are capitalized; the first word after a colon is also
+  capitalized ("### Step 2: Use Arc token"). Hyphenated compounds follow the
+  same rule per part ("## Multi-writer clusters", "write-ahead" mid-heading).
+  Product names, acronyms and literal identifiers keep their own casing:
+  `Arc`, `SQL`, `DuckDB`, `MinIO`, `mTLS`, `adapter-node`, "404 Not Found",
+  "Write-Ahead Log (WAL)". Decided 2026-09-03; the corpus was converted from
+  Title Case in the same change. Front-matter `description` is also a
+  sentence, so it is sentence case too. See `.claude/STYLE-CONTRACT.md`.
 - Code samples must be runnable as written — no placeholders without `<...>`.
 - Don't ship `TODO:` into main. `TODO(screenshot:)` and `TODO(verify:)`
   markers are deliberate and tracked.

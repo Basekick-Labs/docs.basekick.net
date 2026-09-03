@@ -23,7 +23,7 @@ InfluxDB is the smoothest migration to Arc, because Arc speaks InfluxDB Line Pro
 | InfluxQL / Flux | Standard SQL | Direct equivalents for the common patterns. See [Step 4](#step-4-translate-your-queries). |
 | TSM / Parquet (3.x) storage | Apache Parquet | Portable Parquet you own, queryable by any Parquet tool. |
 
-## Step 0: Install and run Arc
+## Step 0: install and run Arc
 
 <Tabs items={['Native (macOS)', 'Native (Linux)', 'Docker']}>
   <Tab value="Native (macOS)">
@@ -104,7 +104,7 @@ curl http://localhost:8000/health
 Arc reads an optional `arc.toml` (searched in the current directory, then `/etc/arc/`, then `$HOME/.arc/`) and environment variables prefixed with `ARC_` (a TOML key `section.key` maps to `ARC_SECTION_KEY`). To disable anonymous usage telemetry, set `ARC_TELEMETRY_ENABLED=false`. See [Authentication](/arc/configuration/authentication/) and [Native Installation](/arc/installation/native/) for the full reference.
 </Callout>
 
-## Step 1: Set your Arc token
+## Step 1: set your Arc token
 
 Every request below authenticates with a bearer token. Export it once:
 
@@ -121,7 +121,7 @@ curl http://localhost:8000/api/v1/auth/verify \
 
 For production, create scoped write tokens rather than reusing the admin token, see [Authentication](/arc/configuration/authentication/).
 
-## Step 2: Re-point live ingestion (the easy win)
+## Step 2: re-point live ingestion (the easy win)
 
 Arc accepts InfluxDB Line Protocol on InfluxDB-compatible endpoints, so live writers move with a URL change. See [InfluxDB Client Compatibility](/arc/integrations/influxdb-clients/) for the full client and endpoint reference.
 
@@ -162,7 +162,7 @@ curl -X POST "http://localhost:8000/api/v2/write?bucket=metrics&org=myorg&precis
 
 The Arc Telegraf output requires Telegraf 1.33+. See the [Telegraf integration](/arc/integrations/telegraf/).
 
-## Step 3: Migrate historical data
+## Step 3: migrate historical data
 
 Two paths. **Line Protocol export/import** works for every InfluxDB version and is the universal path. For large **1.x/2.x** datasets, **tsm2arc** is faster, resumable, and reconstructs multi-field points correctly.
 
@@ -283,7 +283,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 Compare with InfluxDB: `SELECT count(usage_idle), min(time), max(time) FROM cpu`. Counts and time range should match.
 
-## Step 4: Translate your queries
+## Step 4: translate your queries
 
 Arc runs standard SQL. InfluxQL and Flux map to it directly for the common patterns. Set the `X-Arc-Database` header on your query requests and you keep bare table names (`FROM cpu` instead of `FROM mydb.cpu`).
 

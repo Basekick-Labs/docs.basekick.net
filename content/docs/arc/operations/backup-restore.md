@@ -21,7 +21,7 @@ enabled = true                  # default: true
 local_path = "./data/backups"   # default: ./data/backups
 ```
 
-## API Endpoints
+## API endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -32,7 +32,7 @@ local_path = "./data/backups"   # default: ./data/backups
 | `DELETE` | `/api/v1/backup/:id` | Delete a backup |
 | `POST` | `/api/v1/backup/restore` | Restore from a backup (async) |
 
-## Creating a Backup
+## Creating a backup
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/backup" \
@@ -49,7 +49,7 @@ curl -X POST "http://localhost:8000/api/v1/backup" \
 
 The backup runs asynchronously in the background. Poll the status endpoint to monitor progress.
 
-### Polling Progress
+### Polling progress
 
 ```bash
 curl "http://localhost:8000/api/v1/backup/status" \
@@ -68,21 +68,21 @@ curl "http://localhost:8000/api/v1/backup/status" \
 }
 ```
 
-## Listing Backups
+## Listing backups
 
 ```bash
 curl "http://localhost:8000/api/v1/backup" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-## Viewing a Backup Manifest
+## Viewing a backup manifest
 
 ```bash
 curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### Backup Structure
+### Backup structure
 
 ```text
 {backup_id}/
@@ -92,7 +92,7 @@ curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
   config/arc.toml      # configuration file
 ```
 
-## Restoring from a Backup
+## Restoring from a backup
 
 <Callout type="warn" title="Destructive Operation">
 Restore overwrites existing data. Existing SQLite and config files are preserved with a `.before-restore` suffix before overwriting.
@@ -111,7 +111,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
   }'
 ```
 
-### Restore Options
+### Restore options
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -121,7 +121,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 | `restore_config` | bool | `false` | Restore `arc.toml` configuration |
 | `confirm` | bool | *(required)* | Must be `true` to proceed |
 
-### Selective Restore Examples
+### Selective restore examples
 
 ```bash
 # Restore only data (keep current auth tokens and config)
@@ -149,7 +149,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
   }'
 ```
 
-## Deleting a Backup
+## Deleting a backup
 
 ```bash
 curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
@@ -158,7 +158,7 @@ curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c
 
 Deletion is refused with `409 Conflict` while a backup or restore is running -- deleting the backup a restore is reading would tear files out from under it. Retry once the operation finishes.
 
-## Key Behaviors
+## Key behaviors
 
 - **Async operations** -- backup and restore run in background goroutines with a 2-hour timeout. Clients poll `/status` for progress.
 - **Serialized operations** -- only one backup, restore, or delete can run at a time. Attempting a concurrent operation returns `409 Conflict`.
@@ -167,7 +167,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 - **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), and `arc.toml` config.
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
 
-## Error Responses
+## Error responses
 
 | Status | Description |
 |--------|-------------|

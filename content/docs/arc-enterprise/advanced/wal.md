@@ -23,7 +23,7 @@ WAL is an optional durability feature that persists all incoming data to disk **
 WAL is **disabled by default** to maximize ingest throughput. Enable it when zero data loss is required.
 </Callout>
 
-### When to Enable WAL
+### When to enable WAL
 
 Enable WAL if you need:
 - **Zero data loss** on system crashes
@@ -35,7 +35,7 @@ Keep WAL disabled if you:
 - **Can tolerate 0-5 seconds data loss** on rare crashes
 - **Have client-side retry logic** or message queue upstream
 
-### Performance vs Durability Tradeoff
+### Performance vs durability tradeoff
 
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
@@ -48,7 +48,7 @@ Keep WAL disabled if you:
 
 ## Architecture
 
-### Data Flow with WAL
+### Data flow with WAL
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
@@ -94,7 +94,7 @@ Keep WAL disabled if you:
 Once WAL confirms the write (step 1), the data is **guaranteed durable** even if Arc crashes before step 4 completes.
 </Callout>
 
-### WAL Files
+### WAL files
 
 Arc uses a single WAL writer with goroutines for concurrent access:
 
@@ -134,11 +134,11 @@ ARC_WAL_MAX_SIZE_MB=500
 ARC_WAL_MAX_AGE_SECONDS=3600
 ```
 
-### Sync Modes
+### Sync modes
 
 Arc supports three sync modes with different durability/performance tradeoffs:
 
-#### fdatasync (Recommended)
+#### fdatasync (recommended)
 
 ```toml
 [wal]
@@ -157,7 +157,7 @@ sync_mode = "fdatasync"
 
 **Use case**: Production deployments (recommended)
 
-#### fsync (Maximum Safety)
+#### fsync (maximum safety)
 
 ```toml
 [wal]
@@ -173,7 +173,7 @@ sync_mode = "fsync"
 - Zero tolerance for any data loss
 - Performance is secondary
 
-#### async (Performance-First)
+#### async (performance-first)
 
 ```toml
 [wal]
@@ -190,7 +190,7 @@ sync_mode = "async"
 - Can tolerate ~1 second data loss
 - Have upstream retry mechanisms
 
-### Rotation Settings
+### Rotation settings
 
 Control when WAL files rotate:
 
@@ -207,7 +207,7 @@ max_age_seconds = 3600      # Rotate after 1 hour (even if file is small)
 
 ## Operations
 
-### Recovery on Startup
+### Recovery on startup
 
 Arc automatically recovers from WAL files on startup:
 
@@ -235,7 +235,7 @@ Arc automatically recovers from WAL files on startup:
 
 ## Monitoring
 
-### WAL Status
+### WAL status
 
 ```bash
 curl http://localhost:8000/api/wal/status \
@@ -263,7 +263,7 @@ curl http://localhost:8000/api/wal/status \
 }
 ```
 
-### WAL Files
+### WAL files
 
 ```bash
 curl http://localhost:8000/api/wal/files \
@@ -292,14 +292,14 @@ curl http://localhost:8000/api/wal/files \
 }
 ```
 
-### Health Check
+### Health check
 
 ```bash
 curl http://localhost:8000/api/wal/health \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### Cleanup Old WAL Files
+### Cleanup old WAL files
 
 ```bash
 # Cleanup files older than 24 hours (default)
@@ -313,7 +313,7 @@ curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
 
 ## Troubleshooting
 
-### WAL Recovery Taking Too Long
+### WAL recovery taking too long
 
 **Symptoms:**
 ```text
@@ -340,7 +340,7 @@ curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
    - NVMe SSD for WAL directory
    - Separate disk from data storage
 
-### WAL Disk Space Growing
+### WAL disk space growing
 
 **Symptoms:**
 ```bash
@@ -368,7 +368,7 @@ $ du -sh ./data/wal
    0 2 * * * find /path/to/data/wal -name "*.wal.recovered" -mtime +1 -delete
    ```
 
-### WAL Write Failures
+### WAL write failures
 
 **Symptoms:**
 ```text
@@ -394,7 +394,7 @@ $ du -sh ./data/wal
    directory = "/mnt/large-disk/arc-wal"
    ```
 
-### Performance Degradation with WAL
+### Performance degradation with WAL
 
 **Symptoms:**
 - Ingest throughput dropped sharply after enabling WAL
@@ -426,9 +426,9 @@ $ du -sh ./data/wal
    enabled = false
    ```
 
-## Best Practices
+## Best practices
 
-### Production Deployment
+### Production deployment
 
 **Recommended configuration:**
 
@@ -452,7 +452,7 @@ max_age_seconds = 3600
 - Don't backup WAL files directly
 - Backup final Parquet files in S3/MinIO instead
 
-### Development/Testing
+### Development/testing
 
 **Recommended configuration:**
 
@@ -490,7 +490,7 @@ sync_mode = "fdatasync"     # Best balance
 directory = "/mnt/nvme/arc-wal"   # Fast disk
 ```
 
-## Next Steps
+## Next steps
 
 - **[Configure Compaction](/arc-enterprise/advanced/compaction/)** - Optimize query performance
 - **[Monitor Arc](/arc-enterprise/operations/telemetry/)** - Set up health checks

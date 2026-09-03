@@ -31,7 +31,7 @@ Arc provides native MQTT subscription with dynamic, API-driven configuration. Ma
 - Arc API token (if authentication is enabled)
 - MQTT broker accessible from Arc server
 
-## Quick Start
+## Quick start
 
 ### 1. Enable MQTT in Arc
 
@@ -80,7 +80,7 @@ curl http://localhost:8000/api/v1/mqtt/health
 | `503` with `{"error":"MQTT subsystem disabled"}`    | Same as above, on older builds.                                                                          |
 | Plaintext `Cannot GET /api/v1/mqtt/health`          | Your Arc build pre-dates the MQTT API. Upgrade to a release that includes PR #416 (v26.05.1 or later).   |
 
-### 2. Create a Subscription
+### 2. Create a subscription
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -108,7 +108,7 @@ Response:
 }
 ```
 
-### 3. Send Test Data
+### 3. Send test data
 
 Publish a message to your MQTT broker:
 
@@ -117,7 +117,7 @@ mosquitto_pub -h localhost -t "sensors/temperature" \
   -m '{"time": 1706745600000000, "value": 23.5, "device_id": "sensor-001"}'
 ```
 
-### 4. Query the Data
+### 4. Query the data
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
@@ -129,9 +129,9 @@ curl -X POST http://localhost:8000/api/v1/query \
   }'
 ```
 
-## REST API Reference
+## REST API reference
 
-### Subscription Management
+### Subscription management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -141,7 +141,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `PUT` | `/api/v1/mqtt/subscriptions/{id}` | Update subscription |
 | `DELETE` | `/api/v1/mqtt/subscriptions/{id}` | Delete subscription |
 
-### Lifecycle Control
+### Lifecycle control
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -157,9 +157,9 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `GET` | `/api/v1/mqtt/stats` | Aggregate stats (all subscriptions) |
 | `GET` | `/api/v1/mqtt/health` | Health check |
 
-## Subscription Options
+## Subscription options
 
-### Create Subscription Request
+### Create subscription request
 
 ```json
 {
@@ -183,7 +183,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 }
 ```
 
-### Field Reference
+### Field reference
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -205,11 +205,11 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
 | `auto_start` | bool | No | true | Start on creation and server restart |
 
-## Message Formats
+## Message formats
 
 Arc automatically detects the message format based on content.
 
-### JSON Single Record
+### JSON single record
 
 ```json
 {
@@ -220,7 +220,7 @@ Arc automatically detects the message format based on content.
 }
 ```
 
-### JSON Batch
+### JSON batch
 
 ```json
 [
@@ -230,11 +230,11 @@ Arc automatically detects the message format based on content.
 ]
 ```
 
-### MessagePack Row-Based
+### MessagePack row-based
 
 Same structure as JSON, but MessagePack encoded. Detected via magic bytes.
 
-### MessagePack Columnar (Fastest)
+### MessagePack columnar (fastest)
 
 ```json
 {
@@ -249,12 +249,12 @@ Same structure as JSON, but MessagePack encoded. Detected via magic bytes.
 
 **Performance:** Uses the MessagePack columnar format for high-throughput ingestion.
 
-### Timestamp Handling
+### Timestamp handling
 
 - If `time` field is present: used as-is (auto-detects milliseconds/microseconds/nanoseconds)
 - If `time` field is missing: current UTC time is used
 
-## Measurement, Tags, and Fields
+## Measurement, tags, and fields
 
 Arc derives the measurement, tags, and fields **from the message payload**, not from the topic structure. The topic itself is not parsed for the measurement name or for tag values.
 
@@ -282,7 +282,7 @@ A flat payload with no `m`/`tags`/`fields` (e.g. `{"time": ..., "temperature": 2
 Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic` / positional extraction) is **not** currently supported. Set the measurement and tags in the published payload as shown above.
 </Callout>
 
-## Topic Mapping (Per-Topic Database Override)
+## Topic mapping (per-topic database override)
 
 `topic_mapping` maps an **exact MQTT topic string to a target database name**, overriding the subscription's `database` for messages received on that topic. It is a flat `{ "<topic>": "<database>" }` object — it does not configure measurements or tags.
 
@@ -306,7 +306,7 @@ The mapping key is matched against the message's actual topic by exact string eq
 
 ## Authentication
 
-### Basic Authentication
+### Basic authentication
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -321,7 +321,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   }'
 ```
 
-### Password Encryption
+### Password encryption
 
 Passwords are encrypted at rest using AES-256-GCM. Set the encryption key:
 
@@ -335,9 +335,9 @@ export ARC_ENCRYPTION_KEY="your-base64-encoded-32-byte-key"
 
 **Note:** The encryption key is only required when subscriptions have passwords. Subscriptions without credentials work without the key.
 
-## TLS/SSL Configuration
+## TLS/SSL configuration
 
-### Server Certificate Verification
+### Server certificate verification
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -352,7 +352,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   }'
 ```
 
-### Client Certificate Authentication
+### Client certificate authentication
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -369,9 +369,9 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   }'
 ```
 
-## Configuration Examples
+## Configuration examples
 
-### Multiple Brokers
+### Multiple brokers
 
 Connect to different brokers for different environments:
 
@@ -398,7 +398,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   }'
 ```
 
-### IoT Sensor Network
+### IoT sensor network
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -422,7 +422,7 @@ Devices set the measurement and tags in the payload — e.g. a temperature senso
 { "m": "temperature", "tags": { "sensor_id": "temp-001" }, "fields": { "value": 23.5 } }
 ```
 
-### Industrial Factory
+### Industrial factory
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
@@ -448,7 +448,7 @@ Machines publish the measurement and tags in the payload:
 
 ## Monitoring
 
-### Subscription Stats
+### Subscription stats
 
 ```bash
 # Stats for a specific subscription
@@ -480,7 +480,7 @@ Response:
 
 `last_message_at` and `connected_since` are **omitted** when the subscription has not yet received a message / is not connected (rather than reporting a zero timestamp). When present they are always UTC.
 
-### Health Check
+### Health check
 
 ```bash
 curl http://localhost:8000/api/v1/mqtt/health
@@ -498,7 +498,7 @@ Response:
 }
 ```
 
-### Prometheus Metrics
+### Prometheus metrics
 
 Arc exposes MQTT metrics for Prometheus:
 
@@ -509,15 +509,15 @@ Arc exposes MQTT metrics for Prometheus:
 | `arc_mqtt_decode_errors_total` | Counter | Message decode errors |
 | `arc_mqtt_connection_status` | Gauge | Connection status (1=connected) |
 
-## Querying MQTT Data
+## Querying MQTT data
 
-### List Measurements
+### List measurements
 
 ```sql
 SHOW TABLES FROM iot;
 ```
 
-### Basic Query
+### Basic query
 
 ```sql
 SELECT * FROM iot.temperature
@@ -525,7 +525,7 @@ ORDER BY time DESC
 LIMIT 10;
 ```
 
-### Time-Based Aggregation
+### Time-based aggregation
 
 ```sql
 SELECT
@@ -539,7 +539,7 @@ GROUP BY bucket
 ORDER BY bucket DESC;
 ```
 
-### Filter by Tag
+### Filter by tag
 
 ```sql
 SELECT * FROM iot.sensor_data
@@ -548,7 +548,7 @@ WHERE sensor_id = 'temp-001'
 ORDER BY time DESC;
 ```
 
-### Cross-Measurement Join
+### Cross-measurement join
 
 ```sql
 SELECT
@@ -563,7 +563,7 @@ ORDER BY t.time DESC;
 
 ## Troubleshooting
 
-### Connection Failed
+### Connection failed
 
 ```bash
 # Check subscription status
@@ -576,7 +576,7 @@ If status is `error`, check:
 - Credentials are correct
 - TLS certificates are valid
 
-### No Data Appearing
+### No data appearing
 
 1. Verify subscription is running:
 ```bash
@@ -593,7 +593,7 @@ curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats
 
 4. Check Arc logs for decode errors
 
-### Messages Not Decoding
+### Messages not decoding
 
 Ensure messages are valid JSON or MessagePack:
 
@@ -608,7 +608,7 @@ Check for decode errors in stats:
 curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats | jq '.decode_errors'
 ```
 
-### Subscription Won't Start
+### Subscription won't start
 
 Check for errors:
 ```bash
@@ -620,9 +620,9 @@ Common issues:
 - Invalid broker URL
 - Network connectivity issues
 
-## Best Practices
+## Best practices
 
-### 1. Use Descriptive Names
+### 1. Use descriptive names
 
 ```json
 {
@@ -631,7 +631,7 @@ Common issues:
 }
 ```
 
-### 2. Separate Databases by Environment
+### 2. Separate databases by environment
 
 ```json
 // Production
@@ -641,13 +641,13 @@ Common issues:
 {"database": "staging", "topics": ["staging/#"]}
 ```
 
-### 3. Use QoS Appropriately
+### 3. Use QoS appropriately
 
 - **QoS 0**: Fire-and-forget, no guarantees (highest throughput)
 - **QoS 1**: At least once delivery (recommended for most cases)
 - **QoS 2**: Exactly once delivery (highest overhead)
 
-### 4. Cap the Reconnect Backoff
+### 4. Cap the reconnect backoff
 
 Reconnect uses an exponential backoff that starts at 1 second (fixed by the MQTT
 client library) and doubles up to `reconnect_max_seconds`. Set the cap to bound
@@ -659,7 +659,7 @@ how long the client waits between attempts when a broker is down for a while:
 }
 ```
 
-### 5. Use Topic Wildcards Efficiently
+### 5. Use topic wildcards efficiently
 
 ```bash
 # Good - specific wildcards
@@ -671,13 +671,13 @@ factory/line1/+/metrics
 sensors/#/#
 ```
 
-### 6. Monitor Subscription Health
+### 6. Monitor subscription health
 
 Set up alerts on:
 - `arc_mqtt_connection_status == 0` (disconnected)
 - `rate(arc_mqtt_decode_errors_total[5m]) > 0` (decode errors)
 
-## Docker Compose Example
+## Docker Compose example
 
 ```yaml
 version: '3.8'
@@ -710,7 +710,7 @@ listener 1883
 allow_anonymous true
 ```
 
-## Next Steps
+## Next steps
 
 - **[Query MQTT data](/arc/guides/querying/)** - Learn SQL analytics
 - **[Create Grafana dashboards](/arc/integrations/grafana/)** - Visualize MQTT data

@@ -15,7 +15,7 @@ This page covers what changes when the hub is a cluster. Everything in the [OSS 
 | Why | Manifest writes forward to the Raft leader | The received-files index and dedup ledger are node-local |
 | If you get it wrong | Nothing — it just works | Files are still correct, but replay protection and history are per-node |
 
-## Network transport: any node works
+## Network transport: Any node works
 
 A spoke has a single `hub_url`, and every request goes to whatever that resolves to. There is **no writer-role gate** on the receive path — unlike retention or continuous queries, which check `IsPrimaryWriter()` on every tick, a node receiving a file simply accepts it.
 
@@ -42,7 +42,7 @@ The **compactor is invisible** to edge sync. Synced files land as ordinary Parqu
 
 If `cluster.tls_enabled` is set, that governs Raft RPC and peer fetch — **not** the spoke's connection. A spoke connects over the public API listener, so its transport security keys off `server.tls_enabled`. These are independent flags; see [Cluster Security](/arc-enterprise/security/cluster-security/).
 
-## Air-gap transport: designate one import node
+## Air-gap transport: Designate one import node
 
 This is the part that needs an operational decision.
 

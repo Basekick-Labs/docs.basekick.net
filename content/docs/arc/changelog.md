@@ -11,31 +11,31 @@ Released: April 2026
 
 Major performance release with DuckDB native Arrow query path (+59% JSON, +157% Arrow IPC throughput), automatic compaction deduplication, native Decimal128 type support, and 10 bug fixes.
 
-### New Features
+### New features
 
-#### Native Decimal128 Type Support
+#### Native Decimal128 type support
 
 Per-measurement configuration for exact decimal precision — financial data, scientific measurements, and cryptocurrency prices are stored as native Parquet DECIMAL type instead of float64. Supports float64, int64, and string input with up to 38 significant digits. DuckDB reads DECIMAL natively with no query changes.
 
 Documentation: [Decimal Precision](/arc/guides/decimal-precision/)
 
-#### DuckDB Native Arrow Query Path
+#### DuckDB native Arrow query path
 
 Query results bypass `database/sql` row-by-row scanning entirely using DuckDB's native Arrow API. JSON queries are 59% faster (2.28M rows/sec), Arrow IPC queries are 157% faster (6.29M rows/sec).
 
-#### Automatic Compaction Deduplication
+#### Automatic compaction deduplication
 
 Compaction now automatically deduplicates rows with identical tag values and timestamps (last-write-wins). Tag columns are auto-detected from Parquet metadata — zero configuration required.
 
-#### WAL Dropped Entries Metric
+#### WAL dropped entries metric
 
 WAL buffer drops exposed as Prometheus counter (`arc_wal_dropped_entries_total`). Buffer size now configurable via `ARC_WAL_BUFFER_SIZE`.
 
-#### Slow Query Logging
+#### Slow query logging
 
 Configurable slow query detection with WARN-level logging and Prometheus counter (`arc_slow_queries_total`). Covers all query paths.
 
-#### S3 Path Prefix Support
+#### S3 path prefix support
 
 `ARC_STORAGE_S3_PREFIX` enables shared-bucket multi-tenant deployments with path-based isolation.
 
@@ -45,7 +45,7 @@ Configurable slow query detection with WARN-level logging and Prometheus counter
 - **Basekick-Labs/msgpack v6** -- 8.6% higher sustained throughput, 13% flatter degradation curve under GC pressure
 - **Bulk UTF-8 pre-validation** -- Single-pass payload validation on Line Protocol path (58-84 GB/s on arm64)
 
-### Bug Fixes
+### Bug fixes
 
 - **CQ scheduler reload on update** -- Updated continuous query definitions now take effect immediately without restart
 - **Atomic CQ execution recording** -- SQLite transaction wraps execution recording and time window update
@@ -77,15 +77,15 @@ Released: March 2026
 
 Major quality release with backup/restore, 14 bug fixes, security hardening, and Go 1.26 upgrade.
 
-### New Features
+### New features
 
-#### Backup & Restore API
+#### Backup & restore API
 
 Full backup and restore system via REST API. Backups capture parquet data files, SQLite metadata (auth, audit, MQTT config), and the `arc.toml` configuration file. Async operations with real-time progress tracking and selective restore.
 
 Documentation: [Backup & Restore](/arc/operations/backup-restore/)
 
-### Bug Fixes
+### Bug fixes
 
 - **Null handling in LP ingestion** -- Missing fields were stored as `0` instead of `NULL`. Introduced `TypedColumnBatch` with validity bitmaps throughout the ingestion pipeline.
 - **Stale cache after compaction** -- Queries failed with 404 after compaction deleted old S3 parquet files. Added post-compaction cache invalidation for DuckDB caches and partition pruner. Extended to enterprise clustering with cross-node broadcast.
@@ -123,9 +123,9 @@ Released: February 2026
 
 Major feature release adding MQTT integration, TLE satellite data ingestion, and bulk import endpoints for CSV, Parquet, and Line Protocol files.
 
-### New Features
+### New features
 
-#### MQTT Integration
+#### MQTT integration
 
 Native MQTT subscriber with API-driven subscription management. Connect to IoT devices, industrial sensors, and message brokers without middleware.
 
@@ -138,7 +138,7 @@ Native MQTT subscriber with API-driven subscription management. Connect to IoT d
 
 Documentation: [MQTT Integration](/arc/integrations/mqtt/)
 
-#### TLE (Satellite Orbital Data) Ingestion
+#### TLE (satellite orbital data) ingestion
 
 Native support for ingesting satellite orbital data in the standard Two-Line Element format used by Space-Track.org, CelesTrak, and ground station pipelines.
 
@@ -150,7 +150,7 @@ Native support for ingesting satellite orbital data in the standard Two-Line Ele
 
 Documentation: [TLE Integration](/arc/integrations/tle/)
 
-#### Bulk Import Endpoints
+#### Bulk import endpoints
 
 New REST API endpoints for importing data from files:
 
@@ -168,7 +168,7 @@ All import endpoints support:
 
 Documentation: [CSV Import](/arc/data-import/csv/) | [Parquet Import](/arc/data-import/parquet/) | [Line Protocol Import](/arc/data-import/line-protocol/)
 
-### Breaking Changes
+### Breaking changes
 
 None
 
@@ -180,9 +180,9 @@ Released: January 2026
 
 Bugfix release addressing Azure Blob Storage backend issues and authentication configuration.
 
-### Bug Fixes
+### Bug fixes
 
-#### Azure Blob Storage Backend
+#### Azure Blob Storage backend
 
 - **Fix queries failing with Azure backend** - Queries were incorrectly using local filesystem paths (`./data/...`) instead of Azure blob paths (`azure://...`) when using Azure Blob Storage as the storage backend.
 - **Fix compaction subprocess Azure authentication** - Compaction subprocess was failing with "DefaultAzureCredential: failed to acquire token" because credentials weren't being passed to the subprocess. Now passes `AZURE_STORAGE_KEY` via environment variable.
@@ -191,7 +191,7 @@ Bugfix release addressing Azure Blob Storage backend issues and authentication c
 
 - **Authentication enabled by default** - `auth.enabled` is now `true` by default in arc.toml for improved security out of the box.
 
-### Upgrade Notes
+### Upgrade notes
 
 If you were relying on authentication being disabled by default, you'll need to explicitly set `auth.enabled = false` in your arc.toml.
 
@@ -201,7 +201,7 @@ If you were relying on authentication being disabled by default, you'll need to 
 
 Released: January 2026
 
-### New Features
+### New features
 
 #### Official Python SDK
 
@@ -225,7 +225,7 @@ pip install arc-tsdb-client[all]      # all optional dependencies
 
 Documentation: [Python SDK](/arc/sdks/python/)
 
-#### Azure Blob Storage Backend
+#### Azure Blob Storage backend
 
 Arc now supports Azure Blob Storage as a storage backend, enabling deployment on Microsoft Azure infrastructure.
 
@@ -244,7 +244,7 @@ azure_use_managed_identity = true
 - SAS token
 - Managed Identity (recommended for Azure deployments)
 
-#### Native TLS/SSL Support
+#### Native TLS/SSL support
 
 Arc now supports native HTTPS/TLS without requiring a reverse proxy.
 
@@ -259,7 +259,7 @@ tls_key_file = "/etc/letsencrypt/live/example.com/privkey.pem"
 
 **Environment variables:** `ARC_SERVER_TLS_ENABLED`, `ARC_SERVER_TLS_CERT_FILE`, `ARC_SERVER_TLS_KEY_FILE`
 
-#### Configurable Ingestion Concurrency
+#### Configurable ingestion concurrency
 
 Ingestion concurrency settings are now configurable for high-concurrency deployments.
 
@@ -273,7 +273,7 @@ shard_count = 64          # Buffer shards for lock distribution
 
 Defaults scale dynamically with CPU cores.
 
-#### Data-Time Partitioning
+#### Data-time partitioning
 
 Parquet files are now organized by the data's timestamp instead of ingestion time, enabling proper backfill of historical data.
 
@@ -287,7 +287,7 @@ Documentation: [Data-Time Partitioning](/arc/advanced/data-time-partitioning/)
 
 *Contributed by [@schotime](https://github.com/schotime)*
 
-#### Compaction API Triggers
+#### Compaction API triggers
 
 Hourly and daily compaction can now be triggered manually via API.
 
@@ -305,7 +305,7 @@ daily_schedule = "0 2 * * *"    # Daily at 2 AM
 
 *Contributed by [@schotime](https://github.com/schotime)*
 
-#### Configurable Max Payload Size
+#### Configurable max payload size
 
 The maximum request payload size is now configurable, with the default increased from 100MB to 1GB.
 
@@ -316,7 +316,7 @@ max_payload_size = "2GB"
 
 Supports human-readable units: B, KB, MB, GB.
 
-#### Database Management API
+#### Database management API
 
 New REST API endpoints for managing databases programmatically.
 
@@ -328,35 +328,35 @@ New REST API endpoints for managing databases programmatically.
 | `GET` | `/api/v1/databases/:name/measurements` | List measurements |
 | `DELETE` | `/api/v1/databases/:name` | Delete a database |
 
-#### DuckDB S3 Query Support
+#### DuckDB S3 query support
 
 Arc now configures the DuckDB httpfs extension automatically, enabling direct queries against Parquet files stored in S3.
 
 ### Improvements
 
-#### Ingestion Pipeline
+#### Ingestion pipeline
 - **Zstd compression support** - 9.57M rec/sec with only 5% overhead vs uncompressed. Auto-detected via magic bytes.
 - **O(n log n) column sorting** - Replaced O(n²) bubble sort with `sort.Slice()` for schema inference.
 - **Single-pass timestamp normalization** - Reduced from 2-3 passes to single pass.
 - **Result:** 7% throughput improvement (9.47M → 10.1M rec/s), 63% p50 latency reduction, 84% p99 latency reduction.
 
-#### Authentication Performance
+#### Authentication performance
 - **Token lookup index** - O(1) token lookup instead of O(n) full table scan.
 - **Atomic cache counters** - Eliminated lock contention on cache hit/miss tracking.
 - **Auth metrics integration** - Prometheus metrics for authentication requests and cache performance.
 
-#### Query Performance
+#### Query performance
 - **Arrow IPC throughput boost** - 5.2M rows/sec (80% improvement from 2.88M rows/sec).
 - **SQL transform caching** - 60-second TTL cache for SQL-to-storage-path transformations (49-104x speedup on cache hits).
 - **Partition path caching** - 60-second TTL cache saving 50-100ms per recurring query.
 - **Glob result caching** - 30-second TTL cache saving 5-10ms per query for large partition sets.
 
-#### Storage Roundtrip Optimizations
+#### Storage roundtrip optimizations
 - Fixed N+1 query pattern in database listing (90% reduction for 20 databases).
 - Optimized database existence checks via direct marker file lookup.
 - Batch row counting in delete handler.
 
-### Bug Fixes
+### Bug fixes
 
 - Fixed DuckDB S3 credentials not persisting across connection pool
 - Fixed compaction subprocess failing with large file counts
@@ -375,11 +375,11 @@ Tested at **10.1M records/second** with:
 - p99 latency: 6.73ms
 - p999 latency: 9.29ms
 
-### Breaking Changes
+### Breaking changes
 
 None
 
-### Upgrade Notes
+### Upgrade notes
 
 1. **S3 credentials** - For S3 storage backend, credentials are now also passed to DuckDB for httpfs queries. Ensure AWS credentials are configured.
 
@@ -404,11 +404,11 @@ Released: December 2025
 
 **Major Release: Complete rewrite from Python to Go**
 
-### Migration Highlights
+### Migration highlights
 
 This release marks the complete migration from Python to Go, delivering:
 
-#### Performance Improvements
+#### Performance improvements
 - **9.47M records/sec** MessagePack ingestion (125% faster than Python's 4.21M)
 - **1.92M records/sec** Line Protocol ingestion (76% faster than Python's 1.09M)
 - **2.88M rows/sec** Arrow query throughput
@@ -418,7 +418,7 @@ This release marks the complete migration from Python to Go, delivering:
 - **Single binary** - No Python dependencies, pip, or virtual environments
 - **Type-safe** - Strong typing catches bugs at compile time
 
-#### Full Feature Parity
+#### Full feature parity
 - Authentication (user/password)
 - Automatic Compaction (Parquet optimization)
 - Write-Ahead Log (WAL for durability)
@@ -428,7 +428,7 @@ This release marks the complete migration from Python to Go, delivering:
 - S3/MinIO storage backend
 - Arrow IPC query responses
 
-### Breaking Changes
+### Breaking changes
 
 - **Python version** - The Python implementation is preserved in the `python-legacy` branch
 - **Configuration** - TOML config format (unchanged, but verify your arc.toml)
@@ -452,37 +452,37 @@ One database for metrics, logs, traces, and events. Query all your observability
 
 ### Features
 
-#### High-Performance Ingestion
+#### High-performance ingestion
 - **6.57M records/sec unified** - Ingest metrics, logs, traces, and events simultaneously through one endpoint
 - **MessagePack columnar protocol** - Zero-copy ingestion optimized for throughput
 - **InfluxDB Line Protocol** - 240K records/sec for Telegraf compatibility and easy migration
 
-#### Query and Analytics
+#### Query and analytics
 - **DuckDB SQL engine** - Full analytical SQL with window functions, CTEs, joins, and aggregations
 - **Cross-database queries** - Join metrics, logs, and traces in a single SQL query
 - **Query caching** - Configurable result caching for repeated analytical queries
 - **Apache Arrow format** - Zero-copy columnar data transfer for Pandas/Polars pipelines
 
-#### Storage and Scalability
+#### Storage and scalability
 - **Columnar Parquet storage** - 3-5x compression ratios, optimized for analytical queries
 - **Flexible backends** - Local filesystem, MinIO, AWS S3/R2, Google Cloud Storage, or any S3-compatible storage
 - **Multi-database architecture** - Organize data by environment, tenant, or application with database namespaces
 - **Automatic compaction** - Merges small files into optimized 512MB files for 10-50x faster queries
 
-#### Data Management
+#### Data management
 - **Retention policies** - Time-based data lifecycle management with automatic cleanup
 - **Continuous queries** - Downsampling and materialized views for long-term data aggregation
 - **GDPR-compliant deletion** - Precise deletion with zero overhead on writes/queries
 - **Write-Ahead Log (WAL)** - Optional durability feature for zero data loss
 
-#### Integrations and Tools
+#### Integrations and tools
 - **VSCode Extension** - Full-featured database manager with query editor, notebooks, CSV import, and alerting
 - **Apache Superset** - Native dialect for BI dashboards and visualizations
 - **Grafana** - Native Data Source
 - **Prometheus** - Ingest via Telegraf bridge
 - **OpenTelemetry** - Ingest via OTEL Collector
 
-#### Operations and Monitoring
+#### Operations and monitoring
 - **Health checks** - `/health` and `/ready` endpoints for orchestration
 - **Prometheus metrics** - Export operational metrics for monitoring
 - **Authentication** - Token-based API authentication with cache for performance

@@ -1,18 +1,18 @@
 ---
-title: "Migration Runbook"
+title: "Migration runbook"
 description: "Operator walkthrough for a tsm2arc migration: source layout, dry run, shard profiling with redaction, measurement renames, running, resuming after a crash, and count verification."
 ---
 
-This is the operator guide for migrating InfluxDB 1.x/2.x data into Arc with tsm2arc, covering the common case: terabytes of InfluxDB data on a cold or unmounted volume that no running `influxd` serves. For flag reference and install, see the [tsm2arc overview](/arc/migration/tsm2arc/); for sizing and throughput, see [Performance and Scaling](/arc/migration/tsm2arc/performance/).
+This is the operator guide for migrating InfluxDB 1.x/2.x data into Arc with tsm2arc, covering the common case: terabytes of InfluxDB data on a cold or unmounted volume that no running `influxd` serves. For flag reference and install, see the [tsm2arc overview](/arc/migration/tsm2arc/); for sizing and throughput, see [Performance and scaling](/arc/migration/tsm2arc/performance/).
 
-## Before You Start
+## Before you start
 
 - [ ] The InfluxDB data volume is mounted **read-only** on the migration host (`mount -o ro /dev/xvdf1 /mnt/influx`). tsm2arc only ever reads the source files, but a read-only mount means a mistake cannot damage them.
 - [ ] You know the InfluxDB root or data path (1.x: `.../influxdb` or `.../data`; 2.x: the v2 root containing `engine/` and `influxd.bolt`).
 - [ ] You have an **admin-tier** Arc API token (the import endpoint requires admin) and the network path to the Arc base URL is open.
 - [ ] You have somewhere durable for the SQLite checkpoint file (tiny, KB to MB).
 
-## Understand the Source Layout
+## Understand the source layout
 
 tsm2arc auto-detects 1.x vs 2.x; the TSM/WAL file format is identical between them, only the directory layout differs.
 
@@ -39,7 +39,7 @@ find /mnt/influx/data/<db> -name '*.tsm' | head      # shards and TSM files
 find /mnt/influx/wal/<db>  -name '*.wal' -size +0c   # non-empty WAL segments
 ```
 
-## Dry Run: The Safe First Contact
+## Dry run: The safe first contact
 
 ```bash
 tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal --dry-run --sample 10
@@ -55,7 +55,7 @@ Check the output:
 
 If an expected database is missing, check whether its data is WAL-only and whether you passed `--waldir`.
 
-## Profile the Shards (Optional)
+## Profile the shards (optional)
 
 `--analyze` reads only the TSM indexes and finishes in seconds: nothing is decoded, nothing is sent. It prints per-shard series/file/key counts and, for the largest merge runs, whether the files' time ranges partition into windows or overlap fully. Run it when discussing throughput, since the profile determines which optimizations help your data shape (see [shard-level parallelism](/arc/migration/tsm2arc/performance/#intra-shard-parallelism)).
 
@@ -67,7 +67,7 @@ tsm2arc --datadir /mnt/influx/data --analyze
 If the analysis has to leave your organization (a support ticket, a GitHub issue), add `--redact`: database, retention policy, and series names are replaced with stable hashed pseudonyms (`series_3f9a2c1b04d7`). The report keeps every number but carries no internal identifiers, and the pseudonyms are stable across runs and machines, so a conversation can keep referring to the same series.
 </Callout>
 
-## Scope the Migration (Optional)
+## Scope the migration (optional)
 
 Migrate a subset first to validate the round-trip end to end:
 
@@ -84,7 +84,7 @@ tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal \
 
 Each source database maps to an Arc database of the same name; rename with `--db-map old=new` (repeatable).
 
-## Handle Measurement Names Arc Rejects
+## Handle measurement names Arc rejects
 
 Arc accepts only measurement names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` (the dot is Arc's `database.measurement` separator in queries and RBAC grant keys). InfluxDB is far more permissive, and dotted `<env>.<service>` names are common. tsm2arc validates **client-side, before sending**, so a bad name cannot end a multi-hour load with a mid-flight Arc 400.
 
@@ -115,7 +115,7 @@ sqlite3 /var/lib/tsm2arc/migration.checkpoint.db \
 A name like `has-hyphen` is valid, Arc accepts it at write time and tsm2arc migrates it, but Arc versions before 26.09.1 cannot reference it in SQL at all. From 26.09.1 on, quote it: `FROM "has-hyphen"` (with the `x-arc-database` header) or `FROM "db"."has-hyphen"`. If the target Arc predates 26.09.1 and cannot be upgraded first, rename at migration time (`--measurement-map 'has-hyphen=has_hyphen'`). Data migrated with hyphens before an upgrade is stored correctly and becomes queryable as soon as Arc is upgraded, with no re-migration.
 </Callout>
 
-## Run the Migration
+## Run the migration
 
 ```bash
 export ARC_TOKEN='<admin-tier-token>'
@@ -137,10 +137,10 @@ A heartbeat line reports progress while it runs:
 ```
 
 - Put the `--checkpoint` file somewhere durable and **keep it**: it is how resume works, and its audit tables are your record of exactly what was sent.
-- Run one process; scale with `--workers` (size it against the Arc node, see [Performance and Scaling](/arc/migration/tsm2arc/performance/)). Never run two processes against the same checkpoint file.
+- Run one process; scale with `--workers` (size it against the Arc node, see [Performance and scaling](/arc/migration/tsm2arc/performance/)). Never run two processes against the same checkpoint file.
 - Transient failures (429, 5xx, network) retry with exponential backoff; 4xx errors are permanent and abort the run.
 
-## If It Stops: Just Resume
+## If it stops: Just resume
 
 Re-run the **exact same command**. tsm2arc skips shards already fully migrated, and for a partially migrated shard it **seeks** to the stored cursor: series before it are never read, already-sent TSM blocks are skipped at the index without being decoded, and sending resumes from the first un-acknowledged chunk within seconds to minutes. Chunk progress commits only after Arc returns 2xx, and Arc's import handler flushes to storage before returning, so 2xx means durably persisted.
 
@@ -148,7 +148,7 @@ Resume requires the same shaping flags: the checkpoint fingerprints `--chunk-byt
 
 **Duplicates:** a clean, uninterrupted run produces **zero** duplicates. The only duplication window is a crash between Arc persisting a chunk and the tool recording it; on resume that single chunk is re-sent. Arc compaction collapses the duplicate for tag-bearing series automatically; tagless series can retain at most one chunk of duplicate rows per shard per crash (bounded and attributable, the `--verbose` log names the re-sent chunk).
 
-## Verify Counts Before Declaring Success
+## Verify counts before declaring success
 
 Count reconciliation is how you know the migration is complete and correct.
 

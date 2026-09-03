@@ -19,9 +19,9 @@ Data-time partitioning ensures that your data lands in the correct time-based pa
 Data-time partitioning is **enabled by default** and requires no configuration.
 </Callout>
 
-## Why It Matters
+## Why it matters
 
-### The Problem with Ingestion-Time Partitioning
+### The problem with ingestion-time partitioning
 
 Traditional ingestion-time partitioning creates problems when backfilling historical data:
 
@@ -42,7 +42,7 @@ data/mydb/cpu/2024/12/01/15/...
 - **Mixed data** - Historical and current data mixed in same partition
 - **Poor compaction** - Files with mixed timestamps don't compact efficiently
 
-### After Data-Time Partitioning
+### After data-time partitioning
 
 With data-time partitioning, your data is always organized correctly:
 
@@ -61,9 +61,9 @@ WHERE time >= '2024-12-01' AND time < '2025-01-01'
 - **Efficient compaction** - Files with similar timestamps compact together
 - **Predictable storage** - Easy to manage retention by date folders
 
-## How It Works
+## How it works
 
-### Single-Hour Batches
+### Single-hour batches
 
 When all records in a batch fall within the same hour:
 
@@ -82,7 +82,7 @@ Result: Single sorted file
   (records sorted by timestamp)
 ```
 
-### Multi-Hour Batches
+### Multi-hour batches
 
 When a batch spans multiple hours, Arc automatically splits it:
 
@@ -103,7 +103,7 @@ Result: Three separate sorted files
 → data/mydb/cpu/2024/12/15/16/ghi789.parquet (1 record)
 ```
 
-### Partition Structure
+### Partition structure
 
 Data is organized hierarchically by time:
 
@@ -125,7 +125,7 @@ data/                           # Storage root
 │               └── ...
 ```
 
-## Sorting Within Files
+## Sorting within files
 
 Each Parquet file contains data sorted by timestamp in ascending order:
 
@@ -149,7 +149,7 @@ LIMIT 100
 - **Fast aggregations** - MIN/MAX read file metadata
 - **Optimal compression** - Similar timestamps compress better
 
-## UTC Consistency
+## UTC consistency
 
 All partition paths use UTC time, regardless of server timezone:
 
@@ -166,7 +166,7 @@ UTC time:   2024-12-15 15:00 UTC
 Using UTC ensures consistent partitioning across servers in different timezones and prevents partition misalignment during timezone changes (DST).
 </Callout>
 
-## Query Partition Pruning
+## Query partition pruning
 
 Arc's query engine automatically prunes partitions based on time predicates:
 
@@ -190,7 +190,7 @@ GROUP BY host
 - Querying 1 day in a month of data → ~97% fewer files scanned
 - Querying 1 hour in a day of data → ~96% fewer files scanned
 
-## Backfilling Historical Data
+## Backfilling historical data
 
 Data-time partitioning makes historical backfill straightforward:
 
@@ -224,7 +224,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 # → data/default/sensors/2024/12/03/00/...
 ```
 
-## Interaction with Compaction
+## Interaction with compaction
 
 Data-time partitioning works seamlessly with [file compaction](/arc/advanced/compaction/):
 
@@ -245,9 +245,9 @@ data/mydb/cpu/2024/12/15/14/
 └── compacted_abc123.parquet (450 MB, 10M records, sorted)
 ```
 
-## Best Practices
+## Best practices
 
-### Timestamp Requirements
+### Timestamp requirements
 
 Ensure your timestamps are accurate:
 
@@ -262,7 +262,7 @@ Ensure your timestamps are accurate:
 "time": ["2024-12-01T00:00:00Z", "2024-12-01T00:00:01Z"]
 ```
 
-### Bulk Imports
+### Bulk imports
 
 When importing large historical datasets:
 
@@ -277,7 +277,7 @@ curl -X POST http://localhost:8000/api/v1/compaction/hourly \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Monitoring Partition Distribution
+### Monitoring partition distribution
 
 Check that data is landing in expected partitions:
 
@@ -292,7 +292,7 @@ GROUP BY year, month
 ORDER BY year, month
 ```
 
-## Next Steps
+## Next steps
 
 - [File Compaction](/arc/advanced/compaction/) - Optimize partitioned files
 - [Retention Policies](/arc/data-lifecycle/retention-policies/) - Manage data by partition age

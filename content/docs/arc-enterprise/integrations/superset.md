@@ -16,7 +16,7 @@ Arc provides a native SQLAlchemy dialect for Apache Superset, enabling:
 
 ## Installation
 
-### Option 1: Install in Existing Superset
+### Option 1: install in existing Superset
 
 ```bash
 # Activate Superset environment
@@ -26,7 +26,7 @@ source venv/bin/activate
 pip install arc-superset-dialect
 ```
 
-### Option 2: Docker with Arc Pre-configured
+### Option 2: Docker with Arc pre-configured
 
 ```bash
 # Clone Arc Superset dialect repo
@@ -45,7 +45,7 @@ Access Superset at `http://localhost:8088` (admin/admin)
 
 ## Connecting to Arc
 
-### 1. Add Database Connection
+### 1. Add database connection
 
 In Superset UI:
 1. Click **Settings** → **Database Connections**
@@ -53,7 +53,7 @@ In Superset UI:
 3. Select **Other** from database list
 4. Enter connection string
 
-### 2. Connection String Format
+### 2. Connection string format
 
 ```text
 arc://{api_token}@{host}:{port}/{database}
@@ -64,11 +64,11 @@ arc://{api_token}@{host}:{port}/{database}
 arc://YourAPITokenHere@localhost:8000/default
 ```
 
-### 3. Test Connection
+### 3. Test connection
 
 Click **Test Connection** to verify Arc is reachable.
 
-## Multi-Database Support
+## Multi-database support
 
 Arc databases appear as **schemas** in Superset:
 
@@ -88,7 +88,7 @@ Schemas available:
     └── mem
 ```
 
-### Querying Different Databases
+### Querying different databases
 
 ```sql
 -- Query default database
@@ -108,9 +108,9 @@ JOIN staging.cpu s ON p.timestamp = s.timestamp AND p.host = s.host
 WHERE p.timestamp > NOW() - INTERVAL 1 HOUR;
 ```
 
-## Creating Charts
+## Creating charts
 
-### Time-Series Line Chart
+### Time-series line chart
 
 **SQL Query:**
 ```sql
@@ -130,7 +130,7 @@ ORDER BY time DESC;
 - **Metrics**: avg_idle
 - **Group By**: host
 
-### CPU vs Memory Correlation
+### CPU vs memory correlation
 
 **SQL Query:**
 ```sql
@@ -151,7 +151,7 @@ ORDER BY c.timestamp DESC;
 - **Y-axis 1**: cpu_idle
 - **Y-axis 2**: mem_used
 
-### Top Hosts by CPU Usage
+### Top hosts by CPU usage
 
 **SQL Query:**
 ```sql
@@ -172,7 +172,7 @@ LIMIT 10;
 - **Y-axis**: avg_usage
 - **Sort**: Descending
 
-### Heatmap - Host Activity
+### Heatmap - host activity
 
 **SQL Query:**
 ```sql
@@ -191,19 +191,19 @@ GROUP BY hour, host;
 - **Y-axis**: host
 - **Color**: cpu_activity
 
-## Creating Dashboards
+## Creating dashboards
 
-### 1. Create Dashboard
+### 1. Create dashboard
 
 1. Click **Dashboards** → **+ Dashboard**
 2. Name it: "System Monitoring"
 3. Click **Edit Dashboard**
 
-### 2. Add Charts
+### 2. Add charts
 
 Drag and drop charts from the chart list or create new ones.
 
-### 3. Add Filters
+### 3. Add filters
 
 ```sql
 -- Host filter
@@ -213,7 +213,7 @@ SELECT DISTINCT host FROM default.cpu ORDER BY host;
 -- Use Superset's built-in time range filter
 ```
 
-### 4. Dashboard Layout
+### 4. Dashboard layout
 
 Example monitoring dashboard layout:
 
@@ -238,7 +238,7 @@ Example monitoring dashboard layout:
 └─────────────────────────────────────────┘
 ```
 
-## Advanced Features
+## Advanced features
 
 ### Custom SQL
 
@@ -309,7 +309,7 @@ HAVING AVG(100 - usage_idle) > 80;
 
 Alert when query returns rows (CPU > 80%)
 
-### Scheduled Reports
+### Scheduled reports
 
 Email dashboards on a schedule:
 
@@ -320,9 +320,9 @@ Email dashboards on a schedule:
    - **Schedule**: Daily at 8 AM
    - **Format**: PNG or PDF
 
-## Performance Tips
+## Performance tips
 
-### 1. Use Time Filters
+### 1. Use time filters
 
 Always filter by time to reduce data scanned:
 
@@ -334,7 +334,7 @@ WHERE timestamp > NOW() - INTERVAL 24 HOUR
 SELECT * FROM default.cpu
 ```
 
-### 2. Limit Result Size
+### 2. Limit result size
 
 ```sql
 -- Add LIMIT to exploratory queries
@@ -343,7 +343,7 @@ WHERE timestamp > NOW() - INTERVAL 1 HOUR
 LIMIT 1000;
 ```
 
-### 3. Enable Query Caching
+### 3. Enable query caching
 
 When Arc reads from S3-compatible storage, caching fetched blocks speeds up the
 repeated queries a dashboard produces. In Arc's `arc.toml`:
@@ -358,7 +358,7 @@ s3_cache_ttl_seconds = 3600
 See [query caching](/arc-enterprise/advanced/caching/) for the caches Arc keeps on the
 query path.
 
-### 4. Use Materialized Queries
+### 4. Use materialized queries
 
 For slow dashboards, create materialized views:
 
@@ -379,7 +379,7 @@ SELECT * FROM default.cpu_hourly
 WHERE hour > NOW() - INTERVAL 7 DAY;
 ```
 
-### 5. Optimize Chart SQL
+### 5. Optimize chart SQL
 
 ```sql
 -- Good: Aggregate first
@@ -399,7 +399,7 @@ WHERE timestamp > NOW() - INTERVAL 24 HOUR;
 
 ## Troubleshooting
 
-### Connection Refused
+### Connection refused
 
 ```bash
 # Check Arc is running
@@ -409,7 +409,7 @@ curl http://localhost:8000/health
 curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/auth/verify
 ```
 
-### No Schemas Showing
+### No schemas showing
 
 ```sql
 -- Verify databases exist
@@ -419,7 +419,7 @@ SHOW DATABASES;
 SHOW TABLES;
 ```
 
-### Slow Queries
+### Slow queries
 
 ```bash
 # Check compaction status
@@ -430,7 +430,7 @@ curl -X POST http://localhost:8000/api/compaction/trigger \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### Token Expired
+### Token expired
 
 Create a new token:
 
@@ -454,11 +454,11 @@ print(token)
 
 Update connection string in Superset with new token.
 
-## Suggested Dashboards
+## Suggested dashboards
 
 Two dashboard layouts that work well against Arc Enterprise measurements. Build them from the queries below.
 
-### System Monitoring Dashboard
+### System monitoring dashboard
 
 **Panels:**
 - CPU Usage by Host (last 24h)
@@ -468,7 +468,7 @@ Two dashboard layouts that work well against Arc Enterprise measurements. Build 
 - Top 10 Busiest Hosts
 - System Health Heatmap
 
-### IoT Sensor Dashboard
+### IoT sensor dashboard
 
 **Panels:**
 - Temperature Trends
@@ -484,7 +484,7 @@ Two dashboard layouts that work well against Arc Enterprise measurements. Build 
 - **[Superset Documentation](https://superset.apache.org/docs/intro)**
 - **[DuckDB SQL Reference](https://duckdb.org/docs/sql/introduction)**
 
-## Next Steps
+## Next steps
 
 - **[Query API Reference](/arc-enterprise/api-reference/overview/)**
 - **[SQL Query Guide](/arc/guides/querying/)**

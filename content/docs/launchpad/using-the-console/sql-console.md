@@ -7,7 +7,7 @@ The SQL console is where you run queries against a connected Arc instance. Open 
 
 ![Launchpad SQL console with schema explorer](/img/launchpad/launchpad-sql-console.png)
 
-## Schema Explorer
+## Schema explorer
 
 The left panel has two tabs:
 
@@ -16,7 +16,7 @@ The left panel has two tabs:
 
 Selecting a database sets it as the query target (shown as a chip in the top-right of the editor).
 
-## Running a Query
+## Running a query
 
 Type SQL in the editor and click **Execute** (or press the shortcut shown on the button). Select part of the query first and a **Run Selection** button appears, which runs only the highlighted statement.
 
@@ -26,11 +26,11 @@ SELECT * FROM citibike_trips LIMIT 100;
 
 Arc speaks standard analytical SQL, so window functions, CTEs, and joins all work. See the [Arc SQL reference](/arc/) for the full dialect.
 
-## Multi-statement Scripts
+## Multi-statement scripts
 
 Run several statements in one go and the results panel gives each its own tab, so you can page through the output of a script without splitting it up by hand.
 
-## Exporting Results
+## Exporting results
 
 Below the result grid, export the current result set:
 

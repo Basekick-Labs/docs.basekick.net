@@ -5,9 +5,9 @@ description: "Choose between Arc Enterprise's two cluster topologies — shared 
 
 Arc Enterprise supports two clustering topologies, each optimized for a different operational environment. The choice is about **where the Parquet files live** — and that decision shapes durability, cost, and the operational model of your cluster.
 
-## The Two Patterns
+## The two patterns
 
-### Pattern A: Shared Object Storage
+### Pattern A: Shared object storage
 
 ![Shared storage deployment](/img/arc-enterprise-shared-storage.jpg)
 
@@ -19,7 +19,7 @@ All nodes read and write to the **same object store** — S3, MinIO, or Azure Bl
 - Workloads where scaling readers elastically matters more than query latency
 - Kubernetes-native deployments with object storage
 
-### Pattern B: Local Storage with Peer Replication
+### Pattern B: Local storage with peer replication
 
 ![Local-storage deployment](/img/arc-enterprise-local-storage.jpg)
 
@@ -31,7 +31,7 @@ Each node has its own **local disks** (NVMe, SSD, or attached block storage). Pa
 - Defense, aerospace, industrial, and regulated workloads where shared object storage is not available
 - Deployments that need the lowest possible query latency (local NVMe beats network-attached storage every time)
 
-## Side-by-Side Comparison
+## Side-by-side comparison
 
 | Aspect | Shared Object Storage | Local Storage + Peer Replication |
 |--------|----------------------|----------------------------------|
@@ -46,7 +46,7 @@ Each node has its own **local disks** (NVMe, SSD, or attached block storage). Pa
 | **Cost model** | Object storage API calls + egress | Local disk capacity × nodes |
 | **Network requirements** | Reliable path to object store | Reliable path between cluster nodes |
 
-## Choosing a Pattern
+## Choosing a pattern
 
 Start here:
 
@@ -58,7 +58,7 @@ Start here:
 
 You can also mix — a cluster can use shared object storage for cold data (tiered storage to S3 Glacier) while keeping hot data on local disks. See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/).
 
-## Pattern A — Shared Storage Setup
+## Pattern A — shared storage setup
 
 ### Minimal 3-node cluster (1 writer, 1 reader, 1 compactor) on MinIO
 
@@ -141,7 +141,7 @@ services:
 - **Exactly one compactor node.** Multiple compactors against a shared bucket produce duplicate outputs. Arc warns you via the cluster health check if it sees more than one.
 - **Compactor failover** (`ARC_CLUSTER_FAILOVER_ENABLED=true`) lets the Raft leader automatically reassign the compactor lease to another healthy node if the current compactor dies. No restart required.
 
-## Pattern B — Local Storage Setup
+## Pattern B — local storage setup
 
 ### Minimal 3-node cluster (1 writer, 1 reader, 1 compactor) on local disks
 
@@ -231,7 +231,7 @@ Compaction on local storage works the same way as ingest:
 3. It registers the new file in the Raft manifest and marks the source files as deleted.
 4. Every other node sees the manifest change: readers pull the compacted bytes from the compactor, and delete their local copies of the source files.
 
-## Security Notes
+## Security notes
 
 Both patterns share the same security posture:
 
@@ -241,14 +241,14 @@ Both patterns share the same security posture:
 
 See [Cluster Security](/arc-enterprise/security/cluster-security/) for full details.
 
-## Common Mistakes
+## Common mistakes
 
 - **Multiple compactor nodes on shared storage.** This produces duplicate compacted outputs and double-counted query results. Use exactly one `ARC_CLUSTER_ROLE=compactor` and enable `ARC_CLUSTER_FAILOVER_ENABLED=true` for automatic failover.
 - **Mixing shared and local storage in the same cluster.** All nodes must agree on the storage model. Pick one per cluster.
 - **Forgetting `ARC_CLUSTER_REPLICATION_ENABLED=true` on local storage.** Without it, readers will query empty local directories.
 - **Using a shared volume (NFS, EFS) as "local" storage.** Don't — the concurrent-write semantics of a shared POSIX filesystem aren't what Arc expects, and you lose the durability guarantees of either pattern. Either go full shared object storage or full per-node local disks.
 
-## Next Steps
+## Next steps
 
 - [Clustering Configuration Reference](/arc-enterprise/configuration/clustering/) — full list of cluster config options
 - [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) — combine local hot storage with cold object storage

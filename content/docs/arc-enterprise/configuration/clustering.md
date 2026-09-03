@@ -15,7 +15,7 @@ Arc Enterprise clustering uses a role-based architecture where each node in the 
 
 ![Arc Enterprise Architecture](/img/arc-enterprise-architecture.jpg)
 
-## Node Roles
+## Node roles
 
 | Role | Purpose | Capabilities |
 |------|---------|-------------|
@@ -30,7 +30,7 @@ Arc Enterprise clustering uses a role-based architecture where each node in the 
 
 ## Configuration
 
-### TOML Configuration
+### TOML configuration
 
 ```toml
 [cluster]
@@ -43,10 +43,10 @@ coordinator_addr = ":9000"      # Address for inter-node communication
 health_check_interval = 10      # Health check interval (seconds)
 heartbeat_interval = 5          # Heartbeat interval (seconds)
 replication_enabled = true      # Enable WAL replication to readers
-query_gate_on_catchup = false   # See "Query Gating During Replication Catch-Up" below
+query_gate_on_catchup = false   # See "Query gating during replication catch-up" below
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 ARC_CLUSTER_ENABLED=true
@@ -61,7 +61,7 @@ ARC_CLUSTER_REPLICATION_ENABLED=true
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
 ```
 
-## Query Gating During Replication Catch-Up
+## Query gating during replication catch-up
 
 In a [local-storage cluster](/arc-enterprise/configuration/deployment-patterns/) with peer replication, a reader node may serve queries before its background puller has finished pulling all the Parquet files the cluster manifest references. Without gating, those queries silently return partial results: the manifest knows about the missing files, but `read_parquet()` globs against local storage and only finds what's already on disk. WAL replication (added in 26.05.1) closes part of this gap for unflushed writer data, but flushed Parquet files still depend on the asynchronous puller.
 
@@ -147,7 +147,7 @@ The gate's contract is *"every file the puller has observed has been pulled,"* n
 - **Shared object storage** (Pattern A): the puller is disabled (`replication_enabled = false`), so `query_gate_on_catchup` is effectively a no-op — readers see the bucket directly and don't need to catch up. Safe to leave the flag at any value.
 - **Local storage with peer replication** (Pattern B): this is where the gate matters. Enable it on readers whose application cannot tolerate partial results during cold start or after a network partition.
 
-## Deployment Example
+## Deployment example
 
 A minimal 3-node cluster with one writer and two readers using Docker Compose:
 
@@ -231,11 +231,11 @@ services:
       - "8002:8000"
 ```
 
-## High Availability
+## High availability
 
 Arc Enterprise's HA model depends on which [deployment pattern](/arc-enterprise/configuration/deployment-patterns/) you chose. Both deliver "writer crash recovered without operator intervention," but the mechanics are very different.
 
-### Pattern 2 — Shared object storage (multi-writer)
+### Pattern 2 — shared object storage (multi-writer)
 
 When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Enterprise runs in **multi-writer** mode: N writer nodes accept writes concurrently behind a load balancer. There is no "primary writer" to fail over to — every writer is a peer, and the load balancer handles writer-crash recovery via its own health-check.
 
@@ -274,7 +274,7 @@ When a writer crashes:
 4. In-flight buffer on the crashed writer (records that arrived in memory but had not yet been flushed to S3) is lost. Records that completed the S3 PUT before the crash are durable.
 5. On writer restart, the local WAL replays any un-flushed entries into the new Arrow buffer before `/ready` flips back to 200 and the load balancer resumes routing.
 
-### Pattern 1 — Local storage with peer replication
+### Pattern 1 — local storage with peer replication
 
 When each node has its own local storage, Arc Enterprise runs in **single-writer + multi-reader** mode: one writer takes all ingest, the readers replicate the WAL in real time, and on writer failure one of the readers is promoted via Arc's in-cluster failover controller.
 
@@ -303,11 +303,11 @@ When the writer fails:
 See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) for the full trade-off comparison.
 </Callout>
 
-## API Reference
+## API reference
 
 All cluster endpoints require admin authentication.
 
-### Get Cluster Status
+### Get cluster status
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
@@ -332,7 +332,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### List Cluster Nodes
+### List cluster nodes
 
 ```bash
 # All nodes
@@ -372,21 +372,21 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### Get Specific Node
+### Get specific node
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/cluster/nodes/writer-01
 ```
 
-### Get Local Node Info
+### Get local node info
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/cluster/local
 ```
 
-### Cluster Health Check
+### Cluster health check
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
@@ -407,7 +407,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-## Best Practices
+## Best practices
 
 1. **Pick a deployment pattern** — Use [shared object storage](/arc-enterprise/configuration/deployment-patterns/) (S3, MinIO, Azure) for cloud-native deployments, or [local storage with peer replication](/arc-enterprise/configuration/deployment-patterns/) for bare metal, VMs, and edge. Don't mix the two in the same cluster.
 
@@ -430,7 +430,7 @@ curl -H "Authorization: Bearer $TOKEN" \
      writer, and the cooldown window. The prose describes an ordered sequence of states
      that the existing static topology diagrams cannot show. -->
 
-## Next Steps
+## Next steps
 
 - [RBAC](/arc-enterprise/security/rbac/) — Secure your cluster with role-based access control
 - [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) — Optimize storage costs with hot/cold tiering

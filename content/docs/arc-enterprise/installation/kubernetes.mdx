@@ -12,7 +12,7 @@ Deploy Arc on Kubernetes using Helm for production-grade analytical data managem
 - `kubectl` configured to access your cluster
 - Persistent storage (for local storage backend)
 
-## Quick Start
+## Quick start
 
 ```bash
 # Install Arc
@@ -25,7 +25,7 @@ kubectl port-forward svc/arc 8000:8000
 curl http://localhost:8000/health
 ```
 
-## Get Your Admin Token
+## Get your admin token
 
 ```bash
 # Get the pod name
@@ -49,7 +49,7 @@ You should see:
 Copy this token immediately - you won't see it again!
 </Callout>
 
-## Installation Methods
+## Installation methods
 
 <Tabs items={['Quick Install', 'Custom Values', 'Custom Namespace']}>
   <Tab value="Quick Install">
@@ -89,7 +89,7 @@ helm install arc \
   </Tab>
 </Tabs>
 
-## Storage Backends
+## Storage backends
 
 <Tabs items={['Local (Peer Replication)', 'AWS S3', 'MinIO']}>
   <Tab value="Local (Peer Replication)">
@@ -235,7 +235,7 @@ any S3-compatible service. For local-disk + peer replication instead of shared
 object storage, use `storage.mode: local` (see
 [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/)).
 
-## Configuration Profiles
+## Configuration profiles
 
 The Enterprise chart ships two ready-to-deploy presets in the chart root:
 `values-shared-storage.yaml` (shared object storage via bundled MinIO) and
@@ -380,9 +380,9 @@ helm install arc-ent helm/arc-enterprise -f values.yaml \
   </Tab>
 </Tabs>
 
-## Helm Values Reference
+## Helm values reference
 
-### Image & Service Account
+### Image & service account
 
 ```yaml
 # Container image (tag defaults to the chart appVersion)
@@ -401,7 +401,7 @@ serviceAccount:
   annotations: {}        # eks.amazonaws.com/role-arn: arn:aws:iam::...:role/arc-s3
 ```
 
-### License & Authentication
+### License & authentication
 
 ```yaml
 license:
@@ -540,7 +540,7 @@ compactor:
   extraEnv: []
 ```
 
-### Services & Telemetry
+### Services & telemetry
 
 ```yaml
 service:
@@ -568,7 +568,7 @@ Envoy/HAProxy, or a cloud ALB so each request is balanced independently. See
 
 ## Operations
 
-### View Logs
+### View logs
 
 ```bash
 # Follow logs
@@ -581,7 +581,7 @@ kubectl logs -l app=arc --tail=100
 kubectl logs -l app=arc --since=1h
 ```
 
-### Check Status
+### Check status
 
 ```bash
 # Pod status
@@ -594,7 +594,7 @@ kubectl describe pod -l app=arc
 kubectl get events --field-selector involvedObject.name=arc-0
 ```
 
-### Scale (Restart)
+### Scale (restart)
 
 The Enterprise chart deploys each role as a StatefulSet (`writer`, `reader`,
 `compactor`).
@@ -607,13 +607,13 @@ kubectl rollout restart statefulset arc-ent-writer
 kubectl delete pod -l app.kubernetes.io/component=writer
 ```
 
-### Port Forward
+### Port forward
 
 ```bash
 kubectl port-forward svc/arc 8000:8000
 ```
 
-### Access Shell
+### Access shell
 
 ```bash
 kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
@@ -644,7 +644,7 @@ kubectl delete namespace arc
 
 ## Monitoring
 
-### Prometheus Metrics
+### Prometheus metrics
 
 Arc exposes Prometheus metrics at `/metrics`:
 
@@ -664,7 +664,7 @@ spec:
       interval: 30s
 ```
 
-### Readiness/Liveness Probes
+### Readiness/liveness probes
 
 ```yaml
 livenessProbe:
@@ -684,7 +684,7 @@ readinessProbe:
 
 ## Troubleshooting
 
-### Pod Won't Start
+### Pod won't start
 
 ```bash
 # Check pod status
@@ -699,7 +699,7 @@ kubectl get events --sort-by='.lastTimestamp'
 # - CrashLoopBackOff: Check logs
 ```
 
-### Storage Issues
+### Storage issues
 
 ```bash
 # Check PVC status
@@ -712,7 +712,7 @@ kubectl get pv
 kubectl describe pvc -l app=arc
 ```
 
-### Connection Issues
+### Connection issues
 
 ```bash
 # Check service
@@ -722,7 +722,7 @@ kubectl get svc arc
 kubectl run curl --image=curlimages/curl -it --rm -- curl http://arc:8000/health
 ```
 
-### Memory Issues
+### Memory issues
 
 ```bash
 # Check resource usage
@@ -734,7 +734,7 @@ resources:
     memory: "16Gi"
 ```
 
-## High Availability (EKS)
+## High availability (EKS)
 
 In **shared mode** the Enterprise chart runs Arc as a Pattern 2 multi-writer
 cluster: every writer pod accepts writes concurrently behind a Kubernetes
@@ -766,7 +766,7 @@ For the full topology comparison see
 shared secret and inter-node TLS see
 [Cluster Security](/arc-enterprise/security/cluster-security/).
 
-## Next Steps
+## Next steps
 
 - [Write your first data](/arc-enterprise/getting-started/#write-data)
 - [Configure storage backends](/arc-enterprise/configuration/overview/)

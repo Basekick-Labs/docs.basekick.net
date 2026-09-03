@@ -10,7 +10,7 @@ Get Arc up and running in 5 minutes.
 - 4GB RAM minimum, 8GB+ recommended
 - Docker, Kubernetes, or Linux (Debian/RHEL)
 
-## Quick Start
+## Quick start
 
 <Tabs items={['Docker', 'Kubernetes', 'Debian/Ubuntu', 'RHEL/Fedora']}>
   <Tab value="Docker">
@@ -61,7 +61,7 @@ sudo systemctl enable arc && sudo systemctl start arc
 curl http://localhost:8000/health
 ```
 
-## Get Your Admin Token
+## Get your admin token
 
 Arc generates an admin token on first startup. **Copy it immediately - you won't see it again!**
 
@@ -103,7 +103,7 @@ Save it:
 export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Write Data
+## Write data
 
 <Tabs items={['MessagePack (recommended)', 'Line Protocol', 'Python SDK']}>
   <Tab value="MessagePack (recommended)">
@@ -179,7 +179,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
   </Tab>
 </Tabs>
 
-## Query Data
+## Query data
 
 <Tabs items={['curl', 'Python', 'Arrow (fastest)']}>
   <Tab value="curl">
@@ -237,7 +237,7 @@ print(df.head())
   </Tab>
 </Tabs>
 
-## Next Steps
+## Next steps
 
 - **[Python SDK](/arc/sdks/python/)** - Official client with DataFrame support
 - **[Telegraf Integration](/arc/integrations/telegraf/)** - Collect system metrics
@@ -272,7 +272,7 @@ sudo systemctl status arc
   </Tab>
 </Tabs>
 
-### Common Issues
+### Common issues
 
 **Authentication errors**: Make sure `ARC_TOKEN` is set and included in headers.
 
@@ -282,7 +282,7 @@ curl -X POST http://localhost:8000/api/v1/write/line-protocol/flush \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-## Need Help?
+## Need help?
 
 - [Discord Community](https://discord.gg/nxnWfUxsdm)
 - [GitHub Issues](https://github.com/basekick-labs/arc/issues)

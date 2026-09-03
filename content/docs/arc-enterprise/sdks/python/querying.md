@@ -18,7 +18,7 @@ The SDK provides multiple query methods, each returning data in a different form
 
 All query methods are available on `client.query`.
 
-## SQL Syntax
+## SQL syntax
 
 Arc uses SQL with the table syntax `database.measurement`:
 
@@ -33,7 +33,7 @@ Arc runs a full analytical SQL engine, so you have access to:
 - JSON functions
 - And more
 
-## Basic Query (JSON)
+## Basic query (JSON)
 
 The simplest way to query data. Returns a `QueryResult` object with columns and data.
 
@@ -52,7 +52,7 @@ with ArcClient(host="localhost", token="your-token") as client:
         print(row)
 ```
 
-### QueryResult Object
+### QueryResult object
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -60,7 +60,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `data` | `list[list]` | Rows as nested lists |
 | `row_count` | `int` | Number of rows returned |
 
-### When to Use
+### When to use
 
 ✅ **Use `query()` when:**
 - You need to inspect results quickly
@@ -91,13 +91,13 @@ with ArcClient(host="localhost", token="your-token") as client:
     print(avg_by_host)
 ```
 
-### How It Works
+### How it works
 
 1. Query is sent to Arc
 2. Results are returned as Arrow IPC stream
 3. Arrow data is converted to pandas DataFrame (zero-copy where possible)
 
-### When to Use
+### When to use
 
 ✅ **Use `query_pandas()` when:**
 - Working in Jupyter notebooks
@@ -141,7 +141,7 @@ Polars is a DataFrame library written in Rust that offers:
 - **Lazy evaluation**: Optimize query plans before execution
 - **Parallel execution**: Uses all CPU cores automatically
 
-### When to Use
+### When to use
 
 ✅ **Use `query_polars()` when:**
 - Processing large datasets (100K+ rows)
@@ -153,7 +153,7 @@ Polars is a DataFrame library written in Rust that offers:
 - Need pandas compatibility for downstream tools
 - Working in environments that only support pandas
 
-## PyArrow Table (Zero-Copy)
+## PyArrow table (zero-copy)
 
 Returns query results as a PyArrow Table. This is the most efficient option for large datasets.
 
@@ -188,7 +188,7 @@ Apache Arrow is a columnar memory format that enables:
 - **Interoperability**: Share data between pandas, polars, DuckDB, Spark
 - **Efficient serialization**: Arrow IPC format is compact and fast
 
-### When to Use
+### When to use
 
 ✅ **Use `query_arrow()` when:**
 - Processing very large datasets
@@ -196,7 +196,7 @@ Apache Arrow is a columnar memory format that enables:
 - Saving results to Parquet files
 - Maximum performance is required
 
-## Query Estimation
+## Query estimation
 
 Preview the cost of a query before executing it:
 
@@ -215,14 +215,14 @@ with ArcClient(host="localhost", token="your-token") as client:
         print("Consider adding filters or LIMIT clause")
 ```
 
-### Estimate Result
+### Estimate result
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `estimated_rows` | `int` | Approximate row count |
 | `warning_level` | `str` | `none`, `low`, `medium`, `high` |
 
-## List Measurements
+## List measurements
 
 Discover what measurements exist in a database:
 
@@ -238,9 +238,9 @@ with ArcClient(host="localhost", token="your-token") as client:
         print(f"  Size: {m.total_size_mb:.1f} MB")
 ```
 
-## Common Query Patterns
+## Common query patterns
 
-### Time-Series Aggregation
+### Time-series aggregation
 
 Use `time_bucket()` to aggregate data into time intervals:
 
@@ -259,7 +259,7 @@ df = client.query.query_pandas("""
 """)
 ```
 
-### Latest Value Per Host
+### Latest value per host
 
 ```python
 df = client.query.query_pandas("""
@@ -285,7 +285,7 @@ df = client.query.query_pandas("""
 """)
 ```
 
-### Join Measurements
+### Join measurements
 
 ```python
 df = client.query.query_pandas("""
@@ -302,7 +302,7 @@ df = client.query.query_pandas("""
 """)
 ```
 
-## Async Queries
+## Async queries
 
 All query methods have async equivalents:
 
@@ -327,7 +327,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### Concurrent Queries
+### Concurrent queries
 
 Run multiple queries in parallel:
 
@@ -351,7 +351,7 @@ async def main():
 asyncio.run(main())
 ```
 
-## Error Handling
+## Error handling
 
 ```python
 from arc_client import ArcClient
@@ -372,9 +372,9 @@ with ArcClient(host="localhost", token="your-token") as client:
         print(f"Connection error: {e}")  # Server unreachable
 ```
 
-## Performance Tips
+## Performance tips
 
-### 1. Filter Early
+### 1. Filter early
 
 Push filters to Arc rather than filtering in Python:
 
@@ -391,7 +391,7 @@ df = client.query.query_pandas("SELECT * FROM default.cpu")
 df = df[df["host"] == "server01"]
 ```
 
-### 2. Select Only Needed Columns
+### 2. Select only needed columns
 
 ```python
 # ✅ Good: Select specific columns
@@ -403,14 +403,14 @@ df = client.query.query_pandas("""
 df = client.query.query_pandas("SELECT * FROM default.cpu")
 ```
 
-### 3. Use LIMIT for Exploration
+### 3. Use LIMIT for exploration
 
 ```python
 # ✅ Good: Limit during exploration
 df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 100")
 ```
 
-### 4. Use Arrow for Large Results
+### 4. Use Arrow for large results
 
 ```python
 # For 100K+ rows, Arrow is significantly faster
@@ -418,7 +418,7 @@ table = client.query.query_arrow("SELECT * FROM default.cpu")
 df = table.to_pandas()  # Zero-copy conversion
 ```
 
-## Next Steps
+## Next steps
 
 - **[Data Management](/arc-enterprise/sdks/python/data-management/)** - Retention, CQs, and deletion
 - **[Data Ingestion](/arc-enterprise/sdks/python/ingestion/)** - Write data to Arc

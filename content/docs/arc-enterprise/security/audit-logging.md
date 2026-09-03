@@ -14,7 +14,7 @@ Arc Enterprise audit logging provides:
 - **Configurable retention** — Automatic cleanup of old audit entries
 - **Non-blocking** — Audit events are captured asynchronously with zero impact on request latency
 
-## Event Types
+## Event types
 
 | Category | Events | Description |
 |----------|--------|-------------|
@@ -37,7 +37,7 @@ retention_days = 90          # Auto-cleanup entries older than this
 include_reads = false        # Log GET/query requests (high volume)
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 ARC_AUDIT_LOG_ENABLED=true
@@ -49,11 +49,11 @@ ARC_AUDIT_LOG_INCLUDE_READS=false
 Enabling `include_reads` logs every query and GET request. This can generate significant log volume in high-throughput environments. Enable it only when needed for compliance or debugging, and consider a shorter `retention_days` when active.
 </Callout>
 
-## API Reference
+## API reference
 
 All audit endpoints require admin authentication.
 
-### Query Audit Logs
+### Query audit logs
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
@@ -122,7 +122,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### Get Audit Statistics
+### Get audit statistics
 
 Aggregate event counts by type, useful for dashboards and alerting.
 
@@ -154,7 +154,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-## Compliance Use Cases
+## Compliance use cases
 
 ### SOC 2
 
@@ -168,11 +168,11 @@ SOC 2 requires logging of access to systems and data. Arc audit logging captures
 
 For healthcare data, enable `include_reads = true` to log all data access, including queries. Set `retention_days` according to your HIPAA retention requirements (typically 6 years).
 
-### Security Monitoring
+### Security monitoring
 
 Monitor `auth.failed` events to detect brute-force attempts. Use the stats API to set up alerts when failed authentication counts exceed normal thresholds.
 
-## Best Practices
+## Best practices
 
 1. **Start with writes only** — Keep `include_reads = false` (default) and enable read logging only when compliance requires it.
 
@@ -184,7 +184,7 @@ Monitor `auth.failed` events to detect brute-force attempts. Use the stats API t
 
 5. **Export for long-term analysis** — For retention beyond what Arc stores, periodically export audit logs to your SIEM or log management system.
 
-## Next Steps
+## Next steps
 
 - [RBAC](/arc-enterprise/security/rbac/) — Control who can access your data
 - [Query Governance](/arc-enterprise/query/query-governance/) — Add rate limits and quotas

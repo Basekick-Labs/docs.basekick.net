@@ -26,7 +26,7 @@ POST /api/v1/import/parquet
 | `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
-## Query Parameters
+## Query parameters
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
@@ -68,7 +68,7 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 - Maximum file size: **500 MB**.
 - RBAC: write permissions are checked for the target measurement.
 
-## Error Responses
+## Error responses
 
 | Status | Description |
 |--------|-------------|

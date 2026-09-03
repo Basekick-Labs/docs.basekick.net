@@ -5,7 +5,7 @@ description: "Arc's three query-path caches — SQL transform, partition path, a
 
 Arc implements multiple caching layers to optimize query performance, particularly for dashboard and monitoring use cases where the same queries are executed repeatedly.
 
-## Cache Layers
+## Cache layers
 
 Arc uses three complementary caches that work together:
 
@@ -15,7 +15,7 @@ Arc uses three complementary caches that work together:
 | Partition Path Cache | 60s | Caches `OptimizeTablePath()` results | Avoids repeated path resolution |
 | Glob Cache | 30s | Caches filesystem glob results | Avoids repeated directory listing |
 
-## SQL Transform Cache
+## SQL transform cache
 
 When you execute a query like:
 
@@ -31,14 +31,14 @@ SELECT * FROM read_parquet('./data/mydb/cpu/**/*.parquet') WHERE time > now() - 
 
 This string transformation uses regex matching and happens on every query. The SQL Transform Cache stores the result so repeated queries skip this processing.
 
-### Performance Impact
+### Performance impact
 
 | Scenario | Time | Speedup |
 |----------|------|---------|
 | Without cache (first query) | 13-37μs | - |
 | With cache (repeated query) | ~300ns | 49-104x |
 
-### When It Helps
+### When it helps
 
 The SQL Transform Cache is most beneficial for:
 
@@ -47,14 +47,14 @@ The SQL Transform Cache is most beneficial for:
 - **API integrations**: Clients polling the same metrics
 - **Multi-user dashboards**: Shared queries across users
 
-### Cache Behavior
+### Cache behavior
 
 - **Key**: SHA256 hash of the raw SQL string
 - **TTL**: 60 seconds (matches partition cache)
 - **Max entries**: 10,000 queries
 - **Eviction**: Expired entries removed first, then oldest
 
-## Partition Path Cache
+## Partition path cache
 
 After SQL transformation, Arc optimizes the storage path by applying time-based partition pruning. This cache stores the optimized paths.
 
@@ -68,19 +68,19 @@ SELECT * FROM mydb.cpu WHERE time > 1704067200000000
 Without cache: Scans partition metadata to find relevant directories.
 With cache: Returns pre-computed path like `./data/mydb/cpu/2024/01/**/*.parquet`.
 
-### Performance Impact
+### Performance impact
 
 Saves 50-100ms per query on large datasets with many partitions.
 
-## Glob Cache
+## Glob cache
 
 After determining the partition path, Arc uses filesystem globs to find matching Parquet files. The Glob Cache stores these file listings.
 
-### Performance Impact
+### Performance impact
 
 Saves 5-10ms per query by avoiding repeated filesystem operations.
 
-## Cache Statistics
+## Cache statistics
 
 Monitor cache performance via the pruner stats:
 
@@ -106,9 +106,9 @@ Returns:
 }
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Use Consistent Query Strings
+### 1. Use consistent query strings
 
 Cache keys are based on exact SQL text. These are different cache entries:
 
@@ -120,7 +120,7 @@ select * from mydb.cpu where time > 1704067200000000   -- lowercase
 
 Normalize your queries for better cache hit rates.
 
-### 2. Use Parameterized Time Ranges
+### 2. Use parameterized time ranges
 
 For dashboard queries, use relative time:
 
@@ -132,7 +132,7 @@ SELECT * FROM mydb.cpu WHERE time > now() - INTERVAL '1 hour'
 SELECT * FROM mydb.cpu WHERE time > 1704067200000000
 ```
 
-### 3. Monitor Hit Rates
+### 3. Monitor hit rates
 
 Healthy dashboards should see 60-80%+ cache hit rates. Low hit rates may indicate:
 
@@ -151,7 +151,7 @@ Cache parameters are currently fixed but tuned for typical workloads:
 | Partition Cache TTL | 60s | Balance freshness vs. performance |
 | Glob Cache TTL | 30s | Files change less frequently |
 
-## Cache Invalidation
+## Cache invalidation
 
 Caches automatically expire based on TTL. Manual invalidation happens when:
 
@@ -160,16 +160,16 @@ Caches automatically expire based on TTL. Manual invalidation happens when:
 
 The SQL Transform Cache is not invalidated by data changes since the transformation logic doesn't depend on data content.
 
-## Technical Details
+## Technical details
 
-### Thread Safety
+### Thread safety
 
 All caches use `sync.RWMutex` for concurrent access:
 - Multiple readers allowed
 - Exclusive write lock for updates
 - Lock-free atomic counters for hit/miss tracking
 
-### Memory Usage
+### Memory usage
 
 Approximate memory per cache:
 
@@ -181,7 +181,7 @@ Approximate memory per cache:
 
 Total cache overhead: ~6MB typical, ~10MB maximum.
 
-## Next Steps
+## Next steps
 
 - **[Compaction](/arc/advanced/compaction/)** - Optimize query performance through file merging
 - **[WAL](/arc/advanced/wal/)** - Write-ahead log for durability

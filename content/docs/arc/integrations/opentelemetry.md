@@ -56,7 +56,7 @@ Build the collector:
 ocb --config builder-config.yaml
 ```
 
-### Option 2: Pre-built Binary
+### Option 2: pre-built binary
 
 Download from the [releases page](https://github.com/basekick-labs/arc-opentelemetry-exporter/releases):
 
@@ -72,7 +72,7 @@ chmod +x arc-exporter-${LATEST}-linux-amd64
 ./arc-exporter-${LATEST}-linux-amd64 --config=config.yaml
 ```
 
-## Quick Start
+## Quick start
 
 ### 1. Start Arc
 
@@ -83,7 +83,7 @@ docker run -d -p 8000:8000 \
   ghcr.io/basekick-labs/arc:latest
 ```
 
-### 2. Get Your API Token
+### 2. Get your API token
 
 ```bash
 # Check logs for admin token
@@ -99,7 +99,7 @@ curl -X POST http://localhost:8000/api/v1/auth/tokens \
   }'
 ```
 
-### 3. Create Collector Configuration
+### 3. Create collector configuration
 
 Create `otel-config.yaml`:
 
@@ -166,7 +166,7 @@ service:
 ./otelcol-arc-linux-amd64 --config=otel-config.yaml
 ```
 
-### 5. Send Telemetry Data
+### 5. Send telemetry data
 
 Your applications instrumented with OpenTelemetry SDKs will now send data to Arc!
 
@@ -193,9 +193,9 @@ with tracer.start_as_current_span("my-operation"):
 
 ## Configuration
 
-### Database Organization Strategies
+### Database organization strategies
 
-#### Strategy 1: Single Database (Simple)
+#### Strategy 1: single database (simple)
 
 All signals in one database:
 
@@ -218,7 +218,7 @@ default/
 **Pros:** Simple, easy cross-signal correlation
 **Cons:** All data in one namespace
 
-#### Strategy 2: Database Per Signal (Recommended)
+#### Strategy 2: database per signal (recommended)
 
 Separate databases for each signal type:
 
@@ -256,7 +256,7 @@ logs/
 
 **✅ Recommended for production deployments.**
 
-### Configuration Options
+### Configuration options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -275,7 +275,7 @@ logs/
 | `retry_on_failure.max_interval` | Maximum retry interval | `30s` |
 | `retry_on_failure.max_elapsed_time` | Maximum total retry time | `300s` |
 
-## Data Format
+## Data format
 
 The exporter uses Arc's high-performance **columnar MessagePack format** with **dynamic columns**. All OpenTelemetry attributes automatically become individual columns for optimal query performance.
 
@@ -351,7 +351,7 @@ All log attributes and resource attributes become columns:
 }
 ```
 
-## Querying Data
+## Querying data
 
 ### Traces
 
@@ -468,11 +468,11 @@ GROUP BY service_name, "host.name"
 ORDER BY error_count DESC;
 ```
 
-## Unified Observability: Join Across Signals
+## Unified observability: Join across signals
 
 Arc's most powerful feature: **correlate traces, metrics, and logs in a single SQL query**.
 
-### Example 1: Failed Requests with Full Context
+### Example 1: failed requests with full context
 
 Get traces, error logs, and CPU metrics for failed requests:
 
@@ -501,7 +501,7 @@ LIMIT 100;
 
 **Result:** Traces + error logs + CPU usage at time of failure — all in one query!
 
-### Example 2: Service Health Dashboard
+### Example 2: service health dashboard
 
 Complete service health metrics:
 
@@ -559,7 +559,7 @@ ORDER BY ts.bucket DESC, ts.service_name;
 
 All from one database, in one query!
 
-### Example 3: Debug Incident Timeline
+### Example 3: debug incident timeline
 
 Unified timeline of traces and logs for a single request:
 
@@ -593,9 +593,9 @@ ORDER BY time;
 
 **Result:** Complete chronological view of all events for a single request!
 
-## Use Cases
+## Use cases
 
-### Application Performance Monitoring
+### Application performance monitoring
 
 Monitor service latency, error rates, and throughput:
 
@@ -613,7 +613,7 @@ GROUP BY minute, service_name
 ORDER BY minute DESC;
 ```
 
-### Distributed Tracing
+### Distributed tracing
 
 Analyze request flows across microservices:
 
@@ -632,7 +632,7 @@ WHERE trace_id = 'your-trace-id'
 ORDER BY time;
 ```
 
-### Log Analysis
+### Log analysis
 
 Search and analyze structured logs:
 
@@ -653,9 +653,9 @@ WHERE user_id = '12345'
 ORDER BY time DESC;
 ```
 
-## Performance Optimization
+## Performance optimization
 
-### 1. Use Batch Processor
+### 1. Use batch processor
 
 Always use the `batch` processor for high throughput:
 
@@ -666,7 +666,7 @@ processors:
     send_batch_size: 1000  # Adjust based on your load
 ```
 
-### 2. Configure Retry Logic
+### 2. Configure retry logic
 
 Handle transient failures:
 
@@ -680,7 +680,7 @@ exporters:
       max_elapsed_time: 300s
 ```
 
-### 3. Enable Compression
+### 3. Enable compression
 
 Reduce network bandwidth:
 
@@ -690,7 +690,7 @@ exporters:
     compression: gzip  # Default and recommended
 ```
 
-### 4. Tune Collector Resources
+### 4. Tune collector resources
 
 For high-volume deployments:
 
@@ -702,7 +702,7 @@ service:
   extensions: [health_check]
 ```
 
-### 5. Use Separate Databases
+### 5. Use separate databases
 
 For production, use database-per-signal strategy:
 
@@ -716,7 +716,7 @@ exporters:
 
 ## Troubleshooting
 
-### Collector Not Sending Data
+### Collector not sending data
 
 ```bash
 # Check collector logs
@@ -730,7 +730,7 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/auth/verify
 ```
 
-### High Memory Usage
+### High memory usage
 
 Reduce batch size:
 
@@ -741,7 +741,7 @@ processors:
     send_batch_size: 500  # Reduce from 1000
 ```
 
-### Data Not Appearing in Arc
+### Data not appearing in Arc
 
 ```sql
 -- Check if data is being written
@@ -754,7 +754,7 @@ SELECT COUNT(*) FROM traces.distributed_traces
 WHERE time > NOW() - INTERVAL '5 minutes';
 ```
 
-### Connection Timeouts
+### Connection timeouts
 
 Increase timeout:
 
@@ -771,7 +771,7 @@ exporters:
 - **[Arc Query API](/arc/api-reference/overview/)**
 - **[OpenTelemetry SDK Documentation](https://opentelemetry.io/docs/instrumentation/)**
 
-## Next Steps
+## Next steps
 
 - **[Getting Started with Arc](/arc/getting-started/)** - Install Arc
 - **[Grafana Integration](/arc/integrations/grafana/)** - Visualize OpenTelemetry data

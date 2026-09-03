@@ -18,7 +18,7 @@ Retention policies in Arc help you:
 - Maintain compliance with data retention requirements
 - Test deletion operations safely with dry-run mode
 
-## How It Works
+## How it works
 
 Arc implements retention through physical file deletion:
 
@@ -29,9 +29,9 @@ Arc implements retention through physical file deletion:
 
 **Cutoff Calculation**: `cutoff_date = today - retention_days - buffer_days`
 
-## API Endpoints
+## API endpoints
 
-### Create Policy
+### Create policy
 
 Create a new retention policy:
 
@@ -59,7 +59,7 @@ POST /api/v1/retention
 - `buffer_days` (integer, required): Safety margin in days
 - `is_active` (boolean, required): Enable/disable the policy
 
-### List Policies
+### List policies
 
 Retrieve all retention policies:
 
@@ -85,7 +85,7 @@ GET /api/v1/retention
 ]
 ```
 
-### Get Single Policy
+### Get single policy
 
 Retrieve a specific retention policy:
 
@@ -93,7 +93,7 @@ Retrieve a specific retention policy:
 GET /api/v1/retention/{policy_id}
 ```
 
-### Update Policy
+### Update policy
 
 Update an existing retention policy:
 
@@ -103,7 +103,7 @@ PUT /api/v1/retention/{policy_id}
 
 **Request Body**: Same as create policy
 
-### Delete Policy
+### Delete policy
 
 Remove a retention policy:
 
@@ -111,7 +111,7 @@ Remove a retention policy:
 DELETE /api/v1/retention/{policy_id}
 ```
 
-### Execute Policy
+### Execute policy
 
 Manually trigger a retention policy:
 
@@ -149,7 +149,7 @@ POST /api/v1/retention/{policy_id}/execute
 }
 ```
 
-### View Execution History
+### View execution history
 
 View past executions of a retention policy:
 
@@ -170,9 +170,9 @@ GET /api/v1/retention/{policy_id}/executions?limit=50
 ]
 ```
 
-## Configuration Parameters
+## Configuration parameters
 
-### Retention Days
+### Retention days
 
 The number of days to keep data before it becomes eligible for deletion. Choose based on:
 - Business requirements
@@ -182,7 +182,7 @@ The number of days to keep data before it becomes eligible for deletion. Choose 
 
 **Example**: `retention_days: 90` keeps data for 90 days.
 
-### Buffer Days
+### Buffer days
 
 A safety margin added to the retention period to prevent accidental deletion of recent data.
 
@@ -192,7 +192,7 @@ A safety margin added to the retention period to prevent accidental deletion of 
 
 **Example**: With `retention_days: 90` and `buffer_days: 7`, data older than 97 days will be deleted.
 
-### Database vs Measurement Level
+### Database vs measurement level
 
 **Database-wide policy**:
 ```json
@@ -214,9 +214,9 @@ A safety margin added to the retention period to prevent accidental deletion of 
 
 Use measurement-specific policies for granular control over different data types.
 
-## Usage Examples
+## Usage examples
 
-### Example 1: Clean Old Metrics
+### Example 1: clean old metrics
 
 ```python
 import os
@@ -259,7 +259,7 @@ if input("Proceed? (yes/no): ") == "yes":
     print(f"Deleted {result.json()['total_files']} files")
 ```
 
-### Example 2: Database-wide Retention
+### Example 2: database-wide retention
 
 ```python
 import os
@@ -281,7 +281,7 @@ response = requests.post(
 )
 ```
 
-### Example 3: List and Monitor Policies
+### Example 3: list and monitor policies
 
 ```python
 import os
@@ -307,9 +307,9 @@ for policy in policies.json():
     print(f"  Recent executions: {len(history.json())}")
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Always Test First
+### 1. Always test first
 
 Use dry-run mode before executing retention policies:
 
@@ -324,7 +324,7 @@ result = requests.post(
 print(f"Files to delete: {result.json()['files_to_delete']}")
 ```
 
-### 2. Use Buffer Days
+### 2. Use buffer days
 
 Implement a safety buffer to prevent accidental deletion:
 
@@ -335,7 +335,7 @@ Implement a safety buffer to prevent accidental deletion:
 }
 ```
 
-### 3. Start Conservative
+### 3. Start conservative
 
 Begin with longer retention periods and gradually shorten:
 
@@ -347,7 +347,7 @@ Begin with longer retention periods and gradually shorten:
 {"retention_days": 180, "buffer_days": 14}
 ```
 
-### 4. Test in Non-Production
+### 4. Test in non-production
 
 Create and test policies in a development environment first:
 
@@ -357,7 +357,7 @@ export ARC_ENV=dev
 # Test policies thoroughly before production
 ```
 
-### 5. Monitor Execution History
+### 5. Monitor execution history
 
 Regularly check the `last_deleted_count` field:
 
@@ -368,7 +368,7 @@ if policy['last_deleted_count'] > 10000:
     print("Warning: Large deletion detected!")
 ```
 
-### 6. Use Measurement-Specific Policies
+### 6. Use measurement-specific policies
 
 Create granular policies for different data types:
 
@@ -380,13 +380,13 @@ Create granular policies for different data types:
 {"measurement": "revenue", "retention_days": 730}
 ```
 
-## Important Limitations
+## Important limitations
 
-### Local Storage Only
+### Local storage only
 
 Currently, retention policies only work with local filesystem storage. Cloud storage backends (S3, MinIO, GCS) are not yet implemented.
 
-### File-Level Granularity
+### File-level granularity
 
 Retention operates at the file level, not row level. A file is only deleted if **all** rows are older than the cutoff date.
 
@@ -394,24 +394,24 @@ Retention operates at the file level, not row level. A file is only deleted if *
 For optimal retention policy effectiveness, ensure your data is properly compacted. Files with mixed timestamps may not be eligible for deletion.
 </Callout>
 
-### No Rollback
+### No rollback
 
 Deleted data cannot be recovered. Always:
 1. Use dry-run mode first
 2. Maintain backups of critical data
 3. Test in non-production environments
 
-### Sequential Processing
+### Sequential processing
 
 Retention policies process measurements sequentially. Large databases may take time to process.
 
-### Works Best with Compacted Files
+### Works best with compacted files
 
 Retention policies are most effective when files contain data from similar time periods. Enable [automatic compaction](/arc-enterprise/advanced/compaction/) for better results.
 
 ## Troubleshooting
 
-### No Files Being Deleted
+### No files being deleted
 
 **Problem**: Dry run shows 0 files to delete.
 
@@ -420,7 +420,7 @@ Retention policies are most effective when files contain data from similar time 
 - Verify the policy targets the correct database and measurement
 - Ensure files are fully older than the cutoff (file-level granularity)
 
-### Policy Not Executing
+### Policy not executing
 
 **Problem**: Manual execution returns an error.
 
@@ -429,7 +429,7 @@ Retention policies are most effective when files contain data from similar time 
 - Check that `confirm: true` is set for actual execution
 - Ensure you have write permissions on the data directory
 
-### Unexpected File Count
+### Unexpected file count
 
 **Problem**: More/fewer files than expected are being deleted.
 
@@ -438,7 +438,7 @@ Retention policies are most effective when files contain data from similar time 
 - Check file timestamps using `ls -l` on the measurement directory
 - Review recent compaction activity that may have merged files
 
-## Related Topics
+## Related topics
 
 - [Delete Operations](/arc-enterprise/data-lifecycle/delete-operations/) - Manual delete operations for specific data
 - [Continuous Queries](/arc-enterprise/data-lifecycle/continuous-queries/) - Downsample data before deletion

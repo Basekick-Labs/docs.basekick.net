@@ -31,7 +31,7 @@ Organization (e.g., "Acme Corp")
 - Authentication must be enabled (`ARC_AUTH_ENABLED=true`)
 - Arc Enterprise license with RBAC feature
 
-## Permission Model
+## Permission model
 
 Permissions are defined at the role level and apply to specific databases:
 
@@ -44,13 +44,13 @@ Permissions are defined at the role level and apply to specific databases:
 
 Roles can optionally restrict access to specific measurements within a database using wildcard patterns (e.g., `metrics_*` matches `metrics_cpu`, `metrics_memory`, etc.).
 
-## API Reference
+## API reference
 
 All RBAC endpoints require admin authentication.
 
 ### Organizations
 
-#### Create Organization
+#### Create organization
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rbac/organizations \
@@ -77,21 +77,21 @@ curl -X POST http://localhost:8000/api/v1/rbac/organizations \
 }
 ```
 
-#### List Organizations
+#### List organizations
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/organizations
 ```
 
-#### Get Organization
+#### Get organization
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/organizations/1
 ```
 
-#### Update Organization
+#### Update organization
 
 ```bash
 curl -X PATCH http://localhost:8000/api/v1/rbac/organizations/1 \
@@ -100,7 +100,7 @@ curl -X PATCH http://localhost:8000/api/v1/rbac/organizations/1 \
   -d '{"description": "Updated description"}'
 ```
 
-#### Delete Organization
+#### Delete organization
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/rbac/organizations/1 \
@@ -109,7 +109,7 @@ curl -X DELETE http://localhost:8000/api/v1/rbac/organizations/1 \
 
 ### Teams
 
-#### Create Team
+#### Create team
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rbac/organizations/1/teams \
@@ -137,21 +137,21 @@ curl -X POST http://localhost:8000/api/v1/rbac/organizations/1/teams \
 }
 ```
 
-#### List Teams
+#### List teams
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/organizations/1/teams
 ```
 
-#### Get Team
+#### Get team
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/teams/1
 ```
 
-#### Update Team
+#### Update team
 
 ```bash
 curl -X PATCH http://localhost:8000/api/v1/rbac/teams/1 \
@@ -160,7 +160,7 @@ curl -X PATCH http://localhost:8000/api/v1/rbac/teams/1 \
   -d '{"description": "Updated team description"}'
 ```
 
-#### Delete Team
+#### Delete team
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/rbac/teams/1 \
@@ -169,7 +169,7 @@ curl -X DELETE http://localhost:8000/api/v1/rbac/teams/1 \
 
 ### Roles
 
-#### Create Role
+#### Create role
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rbac/teams/1/roles \
@@ -203,21 +203,21 @@ curl -X POST http://localhost:8000/api/v1/rbac/teams/1/roles \
 Use `*` as the database pattern to grant permissions across all databases. For example, `"database_pattern": "*"` with `"permissions": ["read"]` grants read access to every database.
 </Callout>
 
-#### List Roles
+#### List roles
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/teams/1/roles
 ```
 
-#### Get Role
+#### Get role
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/roles/1
 ```
 
-#### Update Role
+#### Update role
 
 ```bash
 curl -X PATCH http://localhost:8000/api/v1/rbac/roles/1 \
@@ -226,18 +226,18 @@ curl -X PATCH http://localhost:8000/api/v1/rbac/roles/1 \
   -d '{"permissions": ["read", "write", "delete"]}'
 ```
 
-#### Delete Role
+#### Delete role
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/rbac/roles/1 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-### Measurement Permissions
+### Measurement permissions
 
 Restrict a role to specific measurements within its database pattern.
 
-#### Add Measurement Permission
+#### Add measurement permission
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rbac/roles/1/measurements \
@@ -248,25 +248,25 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/1/measurements \
   }'
 ```
 
-#### List Measurement Permissions
+#### List measurement permissions
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/rbac/roles/1/measurements
 ```
 
-#### Remove Measurement Permission
+#### Remove measurement permission
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/rbac/roles/1/measurements/1 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-## Walkthrough: Setting Up RBAC
+## Walkthrough: Setting up RBAC
 
 This example sets up a typical organization with two teams and different access levels.
 
-### Step 1: Create the Organization
+### Step 1: create the organization
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rbac/organizations \
@@ -275,7 +275,7 @@ curl -X POST http://localhost:8000/api/v1/rbac/organizations \
   -d '{"name": "Acme Corp"}'
 ```
 
-### Step 2: Create Teams
+### Step 2: create teams
 
 ```bash
 # Data Engineering team — full access
@@ -291,7 +291,7 @@ curl -X POST http://localhost:8000/api/v1/rbac/organizations/1/teams \
   -d '{"name": "Analytics"}'
 ```
 
-### Step 3: Create Roles
+### Step 3: create roles
 
 ```bash
 # Data Engineering: read/write/delete on production database
@@ -315,7 +315,7 @@ curl -X POST http://localhost:8000/api/v1/rbac/teams/2/roles \
   }'
 ```
 
-### Step 4: Restrict Measurements (Optional)
+### Step 4: restrict measurements (optional)
 
 ```bash
 # Analytics team can only see metrics_* and events_* measurements
@@ -330,7 +330,7 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
   -d '{"measurement_pattern": "events_*"}'
 ```
 
-## Best Practices
+## Best practices
 
 1. **Principle of least privilege** — Start with minimal permissions and expand as needed. Use read-only roles as the default for analytics users.
 
@@ -342,7 +342,7 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
 
 5. **Plan your hierarchy** — Design your organization and team structure before implementation. A typical pattern is one organization per company, teams per department or function.
 
-## Next Steps
+## Next steps
 
 - [Audit Logging](/arc-enterprise/security/audit-logging/) — Track all access and changes for compliance
 - [Query Governance](/arc-enterprise/query/query-governance/) — Add rate limits and quotas per token

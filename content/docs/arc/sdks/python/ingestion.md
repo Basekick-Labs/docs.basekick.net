@@ -18,11 +18,11 @@ The SDK provides multiple ways to ingest data, each optimized for different use 
 
 All write methods are available on `client.write`.
 
-## Columnar Format (Recommended)
+## Columnar format (recommended)
 
 The fastest way to write data. Data is organized by columns (like a DataFrame) rather than rows, which enables efficient compression and fast serialization.
 
-### Basic Usage
+### Basic usage
 
 ```python
 import os
@@ -52,7 +52,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 | `columns` | `dict` | Yes | Column name → list of values |
 | `database` | `str` | No | Target database (default: client's database) |
 
-### Column Types
+### Column types
 
 The SDK automatically handles type conversion:
 
@@ -107,7 +107,7 @@ Arc 26.05.1, note that those writes produced files whose `time` column type
 disagreed with normally-ingested files, which prevented those partitions from
 compacting. Sending a numeric epoch avoids this entirely.
 
-### Tags vs Fields
+### Tags vs fields
 
 In Arc:
 - **Tags** are indexed string columns used for filtering (e.g., `host`, `region`, `sensor_id`)
@@ -117,11 +117,11 @@ For `write_columnar()`, all columns are sent directly to Arc. Tag/field distinct
 
 For `write_dataframe()`, you can explicitly specify which columns are tags using the `tag_columns` parameter.
 
-## DataFrame Ingestion
+## DataFrame ingestion
 
 Write directly from pandas or polars DataFrames. The SDK converts DataFrames to columnar format automatically.
 
-### pandas Example
+### pandas example
 
 ```python
 import os
@@ -159,7 +159,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 | `tag_columns` | `list[str]` | No | Columns to treat as indexed tags |
 | `database` | `str` | No | Target database |
 
-### Polars Example
+### Polars example
 
 ```python
 import os
@@ -188,11 +188,11 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     )
 ```
 
-## Buffered Writes
+## Buffered writes
 
 For streaming or high-throughput scenarios, use buffered writes. The buffer automatically batches records and flushes them efficiently.
 
-### Basic Usage
+### Basic usage
 
 ```python
 import os
@@ -219,14 +219,14 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 | `batch_size` | `int` | 5000 | Flush after N records |
 | `flush_interval` | `float` | 5.0 | Flush after N seconds (even if batch not full) |
 
-### How It Works
+### How it works
 
 1. Records are queued in memory
 2. When `batch_size` is reached OR `flush_interval` expires, the buffer flushes
 3. On context manager exit, any remaining records are flushed
 4. Uses columnar format internally for best performance
 
-### When to Use Buffered Writes
+### When to use buffered writes
 
 ✅ **Use buffered writes when:**
 - Processing streaming data (sensors, logs, events)
@@ -237,7 +237,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 - You already have data in columnar format or DataFrame
 - You're writing a single batch (use `write_columnar()` directly)
 
-### Async Buffered Writes
+### Async buffered writes
 
 ```python
 import os
@@ -264,7 +264,7 @@ asyncio.run(ingest_stream())
 
 For compatibility with InfluxDB tooling (Telegraf, etc.), use line protocol format.
 
-### Basic Usage
+### Basic usage
 
 ```python
 import os
@@ -287,7 +287,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     client.write.write_line_protocol(lines)
 ```
 
-### Line Protocol Format
+### Line Protocol format
 
 ```text
 <measurement>,<tag_key>=<tag_value>,... <field_key>=<field_value>,... [timestamp]
@@ -303,7 +303,7 @@ cpu,host=server01,region=us-east usage_idle=95.2,usage_system=2.1 17040672000000
 └── measurement name
 ```
 
-### When to Use Line Protocol
+### When to use Line Protocol
 
 ✅ **Use line protocol when:**
 - Integrating with Telegraf or other InfluxDB tools
@@ -314,7 +314,7 @@ cpu,host=server01,region=us-east usage_idle=95.2,usage_system=2.1 17040672000000
 - Building new applications (use columnar format)
 - Performance is critical (columnar is considerably faster)
 
-## Async Ingestion
+## Async ingestion
 
 All write methods have async equivalents:
 
@@ -348,7 +348,7 @@ async def main():
 asyncio.run(main())
 ```
 
-## Error Handling
+## Error handling
 
 ```python
 import os
@@ -376,9 +376,9 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         print(f"Connection error: {e}")
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Batch Your Data
+### 1. Batch your data
 
 Send multiple rows per request rather than one at a time:
 
@@ -405,13 +405,13 @@ for record in records:
     )
 ```
 
-### 2. Use Appropriate Batch Sizes
+### 2. Use appropriate batch sizes
 
 - **Small batches** (100-1000): Lower latency, more HTTP overhead
 - **Medium batches** (1000-10000): Good balance for most use cases
 - **Large batches** (10000+): Best throughput, higher memory usage
 
-### 3. Handle Backpressure
+### 3. Handle backpressure
 
 For high-throughput scenarios, implement backpressure handling:
 
@@ -429,7 +429,7 @@ def write_with_backoff(client, data, max_retries=3):
             time.sleep(2 ** attempt)  # Exponential backoff
 ```
 
-## Next Steps
+## Next steps
 
 - **[Querying](/arc/sdks/python/querying/)** - Query data and work with DataFrames
 - **[Data Management](/arc/sdks/python/data-management/)** - Retention, CQs, and deletion

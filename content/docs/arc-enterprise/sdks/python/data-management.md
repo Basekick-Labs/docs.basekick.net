@@ -29,14 +29,14 @@ prefer to drive execution from an external orchestrator (cron, Airflow, etc.).
 
 </Callout>
 
-## Retention Policies
+## Retention policies
 
 Retention policies define rules for deleting data older than a specified age. Use them to:
 - Control storage costs
 - Comply with data retention regulations
 - Remove stale data on a schedule
 
-### Create a Policy
+### Create a policy
 
 ```python
 from arc_client import ArcClient
@@ -63,7 +63,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `measurement` | `str` | No | Limit to specific measurement (all if omitted) |
 | `buffer_days` | `int` | No | Extra buffer days before deletion |
 
-### List Policies
+### List policies
 
 ```python
 policies = client.retention.list()
@@ -74,7 +74,7 @@ for p in policies:
     print(f"{p.name}: {p.retention_days} days on {measurement} ({status})")
 ```
 
-### Execute a Policy
+### Execute a policy
 
 Always use `dry_run=True` first to preview what will be deleted:
 
@@ -88,7 +88,7 @@ result = client.retention.execute(policy.id, dry_run=False, confirm=True)
 print(f"Deleted {result.deleted_count} rows")
 ```
 
-### Update a Policy
+### Update a policy
 
 ```python
 client.retention.update(
@@ -98,13 +98,13 @@ client.retention.update(
 )
 ```
 
-### Delete a Policy
+### Delete a policy
 
 ```python
 client.retention.delete(policy.id)
 ```
 
-### Full Example
+### Full example
 
 ```python
 from arc_client import ArcClient
@@ -137,7 +137,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 See [Retention Policies](/arc-enterprise/data-lifecycle/retention-policies/) for more details on how retention works in Arc.
 
-## Continuous Queries
+## Continuous queries
 
 Continuous queries (CQs) define aggregation rules that transform data from one measurement to another. Use them to:
 - Downsample high-resolution data to save storage
@@ -148,7 +148,7 @@ Continuous queries (CQs) define aggregation rules that transform data from one m
 CQs define *what* to aggregate and *where* to store results. The `interval` parameter documents the intended frequency, but you must trigger execution manually or via an external scheduler. See [Scheduling with External Tools](#scheduling-with-external-tools).
 </Callout>
 
-### Create a Continuous Query
+### Create a continuous query
 
 ```python
 from arc_client import ArcClient
@@ -188,7 +188,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `interval` | `str` | Yes | Execution interval (e.g., `1h`, `15m`, `1d`) |
 | `description` | `str` | No | Human-readable description |
 
-### Query Guidelines
+### Query guidelines
 
 Your CQ query should:
 - Use `time_bucket()` to aggregate time into intervals
@@ -196,7 +196,7 @@ Your CQ query should:
 - Use aggregate functions (`avg`, `sum`, `count`, `min`, `max`, etc.)
 - Reference the source measurement with `database.measurement` syntax
 
-### List Continuous Queries
+### List continuous queries
 
 ```python
 cqs = client.continuous_queries.list(database="default")
@@ -207,7 +207,7 @@ for cq in cqs:
     print(f"  Interval: {cq.interval} ({status})")
 ```
 
-### Manual Execution
+### Manual execution
 
 Execute a CQ manually for a specific time range:
 
@@ -247,7 +247,7 @@ client.continuous_queries.update(
 client.continuous_queries.delete(cq.id)
 ```
 
-### Full Example
+### Full example
 
 ```python
 from arc_client import ArcClient
@@ -296,14 +296,14 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 See [Continuous Queries](/arc-enterprise/data-lifecycle/continuous-queries/) for more details.
 
-## Delete Operations
+## Delete operations
 
 Delete data matching specific conditions. Use this for:
 - Removing erroneous data
 - Deleting data for specific hosts or time ranges
 - GDPR/compliance data removal
 
-### Delete with Conditions
+### Delete with conditions
 
 ```python
 from arc_client import ArcClient
@@ -340,7 +340,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `dry_run` | `bool` | No | Preview only, don't delete (default: `True`) |
 | `confirm` | `bool` | No | Required for large deletes |
 
-### Common Delete Patterns
+### Common delete patterns
 
 ```python
 # Delete old data
@@ -377,7 +377,7 @@ See [Delete Operations](/arc-enterprise/data-lifecycle/delete-operations/) for m
 
 Manage API tokens for accessing Arc.
 
-### Verify Current Token
+### Verify current token
 
 ```python
 from arc_client import ArcClient
@@ -393,7 +393,7 @@ with ArcClient(host="localhost", token="your-token") as client:
         print("Token is invalid or expired")
 ```
 
-### Create a New Token
+### Create a new token
 
 ```python
 result = client.auth.create_token(
@@ -407,7 +407,7 @@ print(f"New token: {result.token}")
 print(f"Token ID: {result.token_id}")
 ```
 
-### Available Permissions
+### Available permissions
 
 | Permission | Description |
 |------------|-------------|
@@ -415,7 +415,7 @@ print(f"Token ID: {result.token_id}")
 | `write` | Write/ingest data |
 | `admin` | Manage tokens, retention policies, CQs |
 
-### List Tokens
+### List tokens
 
 ```python
 tokens = client.auth.list_tokens()
@@ -426,7 +426,7 @@ for t in tokens:
     print(f"  Last used: {t.last_used_at or 'never'}")
 ```
 
-### Rotate a Token
+### Rotate a token
 
 Generate a new token value while keeping the same token ID and permissions:
 
@@ -437,14 +437,14 @@ result = client.auth.rotate_token(token_id=123)
 print(f"New token: {result.new_token}")
 ```
 
-### Revoke a Token
+### Revoke a token
 
 ```python
 client.auth.revoke_token(token_id=123)
 print("Token revoked")
 ```
 
-## Error Handling
+## Error handling
 
 All data management operations can raise specific exceptions:
 
@@ -478,7 +478,7 @@ with ArcClient(host="localhost", token="your-token") as client:
         print("Current token doesn't have permission to create tokens")
 ```
 
-## Async Support
+## Async support
 
 All data management operations have async equivalents:
 
@@ -519,9 +519,9 @@ async def main():
 asyncio.run(main())
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Always Dry Run First
+### 1. Always dry run first
 
 For any destructive operation (delete, retention execution), always preview first:
 
@@ -535,7 +535,7 @@ print(f"Would delete {result.deleted_count} rows")
 result = client.delete.delete(..., dry_run=False, confirm=True)
 ```
 
-### 2. Use Descriptive Names
+### 2. Use descriptive names
 
 ```python
 # ✅ Good: Descriptive names
@@ -546,7 +546,7 @@ client.continuous_queries.create(name="cpu-hourly-avg-by-host", ...)
 client.retention.create(name="policy1", ...)
 ```
 
-### 3. Document Your CQ Queries
+### 3. Document your CQ queries
 
 ```python
 # ✅ Good: Include description
@@ -557,7 +557,7 @@ cq = client.continuous_queries.create(
 )
 ```
 
-### 4. Secure Token Management
+### 4. Secure token management
 
 ```python
 # ✅ Good: Use environment variables
@@ -571,11 +571,11 @@ client = ArcClient(host="localhost", token=token)
 client = ArcClient(host="localhost", token="arc_abc123...")
 ```
 
-## Scheduling with External Tools
+## Scheduling with external tools
 
 Since Arc OSS doesn't include a built-in scheduler, you need to trigger retention policies and continuous queries externally. Here are several approaches:
 
-### Simple Python Script with Cron
+### Simple Python script with cron
 
 Create a script that executes your policies and CQs:
 
@@ -738,7 +738,7 @@ pip install apscheduler
 python arc_scheduler_advanced.py
 ```
 
-### Docker Deployment
+### Docker deployment
 
 Run the scheduler as a Docker container alongside Arc:
 
@@ -881,7 +881,7 @@ with DAG(
     retention_task >> cq_task
 ```
 
-## Next Steps
+## Next steps
 
 - **[Data Ingestion](/arc-enterprise/sdks/python/ingestion/)** - Write data to Arc
 - **[Querying](/arc-enterprise/sdks/python/querying/)** - Query data with DataFrames

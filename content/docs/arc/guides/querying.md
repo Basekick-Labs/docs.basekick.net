@@ -5,7 +5,7 @@ description: "Write analytical SQL against Arc measurements: the database.measur
 
 Arc runs a full analytical SQL engine over data stored as Parquet files, so window functions, CTEs, and joins are all available.
 
-## SQL Syntax
+## SQL syntax
 
 Queries use the format `database.measurement` as the table name:
 
@@ -19,7 +19,7 @@ If your database is named `default`, you can omit it:
 SELECT * FROM default.cpu LIMIT 10
 ```
 
-## Query Endpoints
+## Query endpoints
 
 | Endpoint | Response Format | Best For |
 |----------|----------------|----------|
@@ -27,7 +27,7 @@ SELECT * FROM default.cpu LIMIT 10
 | `POST /api/v1/query/arrow` | Apache Arrow IPC | Large result sets |
 | `GET /api/v1/query/:measurement` | JSON | Quick measurement queries |
 
-### JSON Query
+### JSON query
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query" \
@@ -36,7 +36,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
   -d '{"sql": "SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' LIMIT 100"}'
 ```
 
-### Arrow Query
+### Arrow query
 
 For large result sets, Arrow IPC provides ~2x throughput vs JSON:
 
@@ -48,7 +48,7 @@ curl -X POST "http://localhost:8000/api/v1/query/arrow" \
   -o results.arrow
 ```
 
-## Time Filtering
+## Time filtering
 
 Arc stores timestamps in the `time` column. Use standard SQL intervals for time-range queries:
 
@@ -70,7 +70,7 @@ WHERE time BETWEEN '2026-01-01' AND '2026-01-31';
 Time-range filters using the `time` column automatically trigger partition pruning, skipping Parquet files outside the range. Always include a time filter for best performance.
 </Callout>
 
-## Time-Series Aggregation
+## Time-series aggregation
 
 ### time_bucket
 
@@ -106,7 +106,7 @@ GROUP BY day, host
 ORDER BY day DESC, host;
 ```
 
-## Window Functions
+## Window functions
 
 Compute rolling metrics and detect anomalies:
 
@@ -130,7 +130,7 @@ FROM default.cpu
 WHERE time > NOW() - INTERVAL '1 hour';
 ```
 
-## Common Table Expressions (CTEs)
+## Common table expressions (CTEs)
 
 Break complex queries into readable steps:
 
@@ -156,7 +156,7 @@ FROM anomalies
 ORDER BY avg_cpu DESC;
 ```
 
-## Cross-Database Queries
+## Cross-database queries
 
 Join data across databases and measurements:
 
@@ -174,7 +174,7 @@ JOIN production.deployments d
 WHERE c.time > NOW() - INTERVAL '24 hours';
 ```
 
-## Useful SQL Functions
+## Useful SQL functions
 
 These are the functions most useful for analytical and time-series queries:
 
@@ -190,7 +190,7 @@ These are the functions most useful for analytical and time-series queries:
 | `LAG(col) OVER (...)` | Previous row value | `LAG(value) OVER (ORDER BY time)` |
 | `LEAD(col) OVER (...)` | Next row value | `LEAD(value) OVER (ORDER BY time)` |
 
-## Aggregate Functions
+## Aggregate functions
 
 Arc supports the **full analytical SQL aggregate set** — there is no allowlist. Beyond the standard `COUNT`/`SUM`/`AVG`/`MIN`/`MAX`, the following are commonly useful for analytics:
 
@@ -213,7 +213,7 @@ Arc supports the **full analytical SQL aggregate set** — there is no allowlist
 
 This is a selection, not the full set. There is no allowlist — if a standard analytical aggregate exists, Arc accepts it. An unrecognised function returns a query error naming it, so trying one is safe.
 
-## Performance Tips
+## Performance tips
 
 1. **Always filter by time** -- Partition pruning skips entire Parquet files outside the range, often by a wide margin.
 
@@ -227,7 +227,7 @@ This is a selection, not the full set. There is no allowlist — if a standard a
 
 6. **Use `time_bucket` over `date_trunc`** -- `time_bucket` supports arbitrary intervals (5 min, 15 min, 4 hours) while `date_trunc` is limited to calendar boundaries.
 
-## Next Steps
+## Next steps
 
 - **[API Reference](/arc/api-reference/overview/)** -- Full endpoint documentation
 - **[Python SDK Querying](/arc/sdks/python/querying/)** -- Query with pandas, polars, and PyArrow

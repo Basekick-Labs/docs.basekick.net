@@ -26,14 +26,14 @@ POST /api/v1/import/lp
 | `Authorization` | Yes | - | `Bearer $ARC_TOKEN` |
 | `X-Arc-Database` | Yes | - | Target database name (or use `db` query param) |
 
-## Query Parameters
+## Query parameters
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `measurement` | No | *(all)* | Filter to a single measurement from the LP file |
 | `precision` | No | `ns` | Timestamp precision: `ns`, `us`, `ms`, `s` |
 
-## Basic Example
+## Basic example
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/import/lp" \
@@ -42,7 +42,7 @@ curl -X POST "http://localhost:8000/api/v1/import/lp" \
   -F "file=@export.lp"
 ```
 
-## Example with Precision
+## Example with precision
 
 ```bash
 # Import LP file with second-precision timestamps
@@ -67,7 +67,7 @@ curl -X POST "http://localhost:8000/api/v1/import/lp?precision=s" \
 }
 ```
 
-## InfluxDB Migration
+## InfluxDB migration
 
 Export from InfluxDB and import directly into Arc. For InfluxDB 1.x, use `influx_inspect export` (the `influx` CLI does not support Line Protocol output):
 
@@ -92,7 +92,7 @@ measurements, use [tsm2arc](https://github.com/Basekick-Labs/tsm2arc), which rej
 fields into a single point. See the full [InfluxDB migration guide](/arc/migration/influxdb/).
 </Callout>
 
-## How It Works
+## How it works
 
 Data flows through Arc's high-performance columnar ingest pipeline (ArrowBuffer -> ArrowWriter -> Parquet -> storage) -- the same path used by streaming LP ingestion. This means bulk imports benefit from the same throughput, sort optimization, and hourly partitioning.
 
@@ -104,7 +104,7 @@ Data flows through Arc's high-performance columnar ingest pipeline (ArrowBuffer 
 - **RBAC** -- write permissions are checked for every measurement in the file.
 - Maximum file size: **500 MB** (after decompression).
 
-## Error Responses
+## Error responses
 
 | Status | Description |
 |--------|-------------|

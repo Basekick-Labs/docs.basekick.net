@@ -18,7 +18,7 @@ Both features are opt-in and can be used independently or together. When disable
 For production deployments, enable **both** shared secret and TLS. The shared secret prevents unauthorized joins, while TLS encrypts all traffic between nodes. Using shared secret without TLS means the HMAC tokens are visible on the network.
 </Callout>
 
-## Shared Secret Authentication
+## Shared secret authentication
 
 When a shared secret is configured, every node joining the cluster must prove it knows the secret. The joining node computes an HMAC-SHA256 signature over a random nonce, its node ID, the cluster name, and a timestamp. The leader validates the signature before accepting the join.
 
@@ -54,7 +54,7 @@ ARC_CLUSTER_SHARED_SECRET=my-secure-cluster-secret-key
 Use a strong, randomly generated secret (at least 32 characters). Store it securely using environment variables or a secrets manager — avoid committing it to version control. In Kubernetes, use a Secret resource and reference it in your pod spec.
 </Callout>
 
-### What Happens on Join
+### What happens on join
 
 1. The joining node generates a cryptographically random nonce (32 bytes)
 2. It computes `HMAC-SHA256(secret, nonce:nodeID:clusterName:timestamp)`
@@ -63,7 +63,7 @@ Use a strong, randomly generated secret (at least 32 characters). Store it secur
 5. If the HMACs match and the timestamp is within tolerance, the join is accepted
 6. If not, the join is rejected with an authentication error
 
-## TLS Encryption
+## TLS encryption
 
 When TLS is enabled, all inter-node TCP connections are encrypted. This covers:
 
@@ -111,7 +111,7 @@ ARC_CLUSTER_TLS_CA_FILE=/etc/arc/cluster-ca.pem
 </Tab>
 </Tabs>
 
-### Configuration Reference
+### Configuration reference
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -120,7 +120,7 @@ ARC_CLUSTER_TLS_CA_FILE=/etc/arc/cluster-ca.pem
 | `tls_key_file` | — | Path to the TLS private key file (PEM format). Required when `tls_enabled=true`. |
 | `tls_ca_file` | — | Optional CA certificate for verifying peer certificates. When set, enables mutual TLS (mTLS) — each node verifies the other's certificate against this CA. |
 
-### Certificate Requirements
+### Certificate requirements
 
 - TLS 1.2 minimum is enforced
 - Certificates must be in PEM format
@@ -129,7 +129,7 @@ ARC_CLUSTER_TLS_CA_FILE=/etc/arc/cluster-ca.pem
   - **Certificates expiring within 30 days** generate an early warning
 - When `tls_ca_file` is set, both client and server sides verify peer certificates against the CA
 
-## Generating Certificates
+## Generating certificates
 
 For testing or internal deployments, you can generate self-signed certificates:
 
@@ -158,7 +158,7 @@ Use a wildcard SAN like `*.arc-cluster.svc.cluster.local` to cover all pods in a
 
 For production, use your organization's PKI or a tool like [cert-manager](https://cert-manager.io/) to automate certificate issuance and rotation.
 
-## Kubernetes Deployment Example
+## Kubernetes deployment example
 
 In Kubernetes, store the shared secret and TLS certificates as Secrets and mount them into the pod:
 
@@ -213,11 +213,11 @@ volumes:
 
 ## Troubleshooting
 
-### Join rejected: shared secret required
+### Join rejected: Shared secret required
 
 The leader has `shared_secret` configured but the joining node does not. Ensure all nodes use the same `shared_secret` value.
 
-### Join rejected: authentication failed
+### Join rejected: Authentication failed
 
 The joining node's shared secret does not match the leader's, or the system clocks are more than 5 minutes apart. Verify the secret is identical on all nodes and that NTP is configured.
 
@@ -231,7 +231,7 @@ The joining node's shared secret does not match the leader's, or the system cloc
 
 Arc logs a warning if the cluster TLS certificate expires within 30 days. Rotate the certificate before it expires to avoid connection failures. If using cert-manager, configure automatic renewal.
 
-## Next Steps
+## Next steps
 
 - [Clustering & High Availability](/arc-enterprise/configuration/clustering/) — Node roles, Raft consensus, and deployment patterns
 - [RBAC](/arc-enterprise/security/rbac/) — Role-based access control for API authentication

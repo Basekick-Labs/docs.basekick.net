@@ -16,7 +16,7 @@ An **organization** is a tenant: a group of members who share a set of Arc conne
 
 Switch the active organization from the selector at the top of the sidebar. Connections and console access are scoped to the active org.
 
-## Members and Roles
+## Members and roles
 
 Invite people into an organization from the **Team** page: enter an email address, pick a role, and **Send invite**.
 
@@ -33,14 +33,14 @@ Roles govern what you can do *in Launchpad*. What any of them can do on a given 
 
 ![Launchpad team management](/img/launchpad/launchpad-team.png)
 
-## Platform Users & Super-Admins
+## Platform users & super-admins
 
 The **Platform users** section (Orgs page) manages accounts across the whole deployment:
 
 - **Invite a new user by email**: a personal organization is created for the new user on acceptance.
 - **Super-admin**: super-admins can manage all organizations, not just their own. Grant this only to operators who should see everything.
 
-## Signup and Invitations
+## Signup and invitations
 
 The **first account you create becomes the admin.** After that, self-service signup is closed by default; additional users join **by invitation only**. It's your deployment; you decide who's in it.
 

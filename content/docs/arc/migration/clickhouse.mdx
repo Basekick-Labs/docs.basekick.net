@@ -28,7 +28,7 @@ On ClickBench with the same storage format (Parquet) and the same hardware, Arc 
 | `SummingMergeTree` / `AggregatingMergeTree`, materialized views | Scheduled rollups | No table engines and no insert-time materialized views; run a bucketed aggregation on a schedule and write the rollup to a measurement. |
 | `MergeTree` proprietary storage | Apache Parquet | Portable Parquet you own, queryable in place by any Parquet tool. |
 
-## Step 0: Install and run Arc
+## Step 0: install and run Arc
 
 <Tabs items={['Native (macOS)', 'Native (Linux)', 'Docker']}>
   <Tab value="Native (macOS)">
@@ -109,7 +109,7 @@ curl http://localhost:8000/health
 Arc reads an optional `arc.toml` (searched in the current directory, then `/etc/arc/`, then `$HOME/.arc/`) and environment variables prefixed with `ARC_` (a TOML key `section.key` maps to `ARC_SECTION_KEY`). To disable anonymous usage telemetry, set `ARC_TELEMETRY_ENABLED=false`. See [Authentication](/arc/configuration/authentication/) and [Native Installation](/arc/installation/native/) for the full reference.
 </Callout>
 
-## Step 1: Set your Arc token
+## Step 1: set your Arc token
 
 Every request below authenticates with a bearer token. Export it once:
 
@@ -126,7 +126,7 @@ curl http://localhost:8000/api/v1/auth/verify \
 
 For production, create scoped write tokens rather than reusing the admin token, see [Authentication](/arc/configuration/authentication/).
 
-## Step 2: Move ongoing writes
+## Step 2: move ongoing writes
 
 ClickHouse shares no wire protocol with Arc. ClickHouse clients write over the native TCP protocol (port 9000) or HTTP `INSERT` (port 8123); Arc ingests over its own HTTP API. There is no drop-in driver compatibility, so plan for a real change to your write path.
 
@@ -137,7 +137,7 @@ ClickHouse shares no wire protocol with Arc. ClickHouse clients write over the n
 Keep ClickHouse authoritative while you backfill history into Arc and shadow-read to compare results. Cut over only once you trust Arc.
 </Callout>
 
-## Step 3: Migrate historical data
+## Step 3: migrate historical data
 
 Export each table with `clickhouse-client`, then bulk-import into Arc. Both CSV and Parquet work; Parquet is the cleanest because column types carry through.
 
@@ -218,7 +218,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 Compare with ClickHouse: `SELECT count(), min(time), max(time) FROM cpu`. Counts and time range should match.
 
-## Step 4: Translate your queries
+## Step 4: translate your queries
 
 Arc runs standard SQL. ClickHouse's SQL dialect diverges more than most, but the common time-series patterns have direct, tested equivalents.
 

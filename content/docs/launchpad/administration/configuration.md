@@ -30,7 +30,7 @@ This one value drives several behaviors that silently break if it's wrong for ho
 There is no single global default. `npm run dev` serves on `http://localhost:5173` and the dev-mode fallbacks assume it; the Docker image and Helm chart both default to `http://localhost:3000`. Set it explicitly to the exact scheme + host + port users hit (e.g. `http://localhost:3000` or `https://launchpad.example.com`).
 </Callout>
 
-## adapter-node / Reverse Proxy
+## adapter-node / reverse proxy
 
 Launchpad is a SvelteKit app built with `adapter-node`. It validates the `Origin` header on POST form submissions (CSRF). The Docker image handles this automatically by deriving `ORIGIN` from `LAUNCHPAD_BASE_URL`. For other cases:
 
@@ -43,7 +43,7 @@ Launchpad is a SvelteKit app built with `adapter-node`. It validates the `Origin
 
 See the [adapter-node environment variables](https://svelte.dev/docs/kit/adapter-node#Environment-variables-ORIGIN) reference for details.
 
-## Private Endpoints
+## Private endpoints
 
 By default Launchpad **rejects** Arc endpoints that resolve to a private, loopback, or link-local address (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `*.internal`, cloud metadata, …). This is an SSRF safeguard: the built-in proxy forwards requests to whatever endpoint you register, so untrusted endpoints must not be able to reach internal services.
 
@@ -51,7 +51,7 @@ Set `LAUNCHPAD_ALLOW_PRIVATE_ENDPOINTS=true` only when your Arc server is intent
 
 Even when it's enabled, the proxy still resolves the target hostname and connects to a pinned IP address rather than re-resolving at connect time, which bounds exposure to DNS rebinding. Resolutions are cached briefly, so the pin is refreshed periodically rather than on literally every request.
 
-## Email (Optional)
+## Email (optional)
 
 Email is normally configured in the UI. As an alternative, operators can set it via env vars (the DB setting wins if both are present). Without any email config, transactional emails (invites, verification, password reset) are **printed to the server console** instead of being sent.
 
@@ -73,7 +73,7 @@ Email is normally configured in the UI. As an alternative, operators can set it 
 | `SMTP_USER` / `SMTP_PASS` | Credentials. |
 | `EMAIL_FROM` | From header, e.g. `Arc Launchpad <noreply@example.com>`. Defaults to a `noreply@` address derived from the provider settings. |
 
-## Other Optional Integrations
+## Other optional integrations
 
 | Variable | Purpose |
 |---|---|
@@ -81,6 +81,6 @@ Email is normally configured in the UI. As an alternative, operators can set it 
 | `GCHAT_OPS_WEBHOOK_URL` | Google Chat webhook for ops alerting on silent server-side failures. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Credentials for the Google OAuth callback routes. Setting them does not by itself add a Google button to the login page. |
 
-## Put It Behind TLS
+## Put it behind TLS
 
 For anything beyond local testing, run Launchpad behind a reverse proxy that terminates TLS, and set `LAUNCHPAD_BASE_URL` to your public HTTPS URL so cookies, CSRF, email links, and passkey origins all line up. If you're already using Traefik for Arc, the same pattern extends cleanly to Launchpad; see the [Traefik + Let's Encrypt guide](https://basekick.net/blog/arc-traefik).
