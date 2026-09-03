@@ -4,6 +4,7 @@
     "[Overview](/arc-enterprise/operations/)",
     "telemetry",
     "automated-scheduling",
-    "profiling"
+    "profiling",
+    "legacy-token-upgrade"
   ]
 }
