@@ -1,0 +1,53 @@
+---
+title: "Performance and Scaling"
+description: "Sizing a tsm2arc migration: workers against the Arc node's memory, migration-host memory math, shard-level parallelism with a memory budget, and spreading load across multi-writer clusters."
+---
+
+The knobs that matter, in order: `--workers` (sized against the **Arc node**, not the migration host), `--chunk-bytes` (per-request memory on both sides), and for shard-shaped bottlenecks, `--shard-split` with `--merge-memory`. None of them affect correctness or resume; all of them are safe to change between runs except the shaping flags the checkpoint fingerprints (see the [runbook](/arc/migration/tsm2arc/runbook/#if-it-stops-just-resume)).
+
+## Size `--workers` Against the Arc Node
+
+`--workers N` migrates N shards concurrently (default 2). Shards are fully independent, each with its own chunk sequence and checkpoint rows, so this scales cleanly. The binding constraint is the **Arc node's memory**: Arc's import endpoint buffers each request fully in memory while parsing, so peak transient Arc-side memory is roughly:
+
+```text
+workers × (~1 to 1.3 GB)      at the default 450 MB chunk size
+```
+
+Guidance:
+
+- The default `2` is safe for almost any Arc node.
+- If the Arc node has RAM headroom, raise it (4 to 8) for throughput. The big dedicated migration host is rarely the bottleneck; Arc is.
+- On Arc 429s or memory pressure, lower `--workers` (the tool backs off on 429 automatically, but fewer workers reduces peak pressure). Lowering `--chunk-bytes` (e.g. `200MB`) also reduces per-request memory, at the cost of more requests; note it is a checkpoint-fingerprinted shaping flag, so change it between migrations, not mid-checkpoint.
+
+## Migration-Host Memory
+
+- **Extraction** (`--dry-run` and the read side of a load) streams one series at a time and, within a series, one TSM block at a time. Peak heap is a few MiB and does **not** grow with the shard, the dataset, or the largest series (measured at 3.7/3.8/3.9 MiB for series of 500K/2M/8M values).
+- **The load adds the chunk buffers**: each worker holds up to `--chunk-bytes` of raw Line Protocol being accumulated plus, since 0.1.5, a second chunk in flight to Arc (extraction and upload overlap by default). Budget roughly `workers × 2 × chunk-bytes` (e.g. `4 × 2 × 450 MB ≈ 3.6 GB`). `--pipeline=false` reverts to serial send and halves that. This dominates the host budget.
+- **The index cache** (`--index-cache`, default 2 GiB per in-flight shard, 0 disables) keeps parsed TSM file indexes so per-series file reopens do not re-parse them, a large CPU cost on shards with many series. Worst case adds `workers × index-cache` to the host budget. If the run prints "budget full; raise --index-cache", extraction is paying re-parse CPU; raise it if the host has headroom.
+- **File descriptors**: extraction holds one handle per TSM file containing the series currently being merged. Files with non-overlapping time ranges are merged in separate passes, so this is normally one or two; if every file in a shard spans the same time range, budget `workers × files-per-shard` and raise `ulimit -n`.
+
+<Callout type="warn" title="OOM on the extraction side means an old binary">
+If the process is OOM-killed during extraction, `--workers` and `--chunk-bytes` are the wrong knobs; they bound the load buffer, not the read. Versions 0.1.3 and earlier held one whole series in memory at roughly 8 to 32 times its compressed on-disk size, so a single very large series could exhaust any instance. Upgrade to 0.1.4+, where extraction memory is flat.
+</Callout>
+
+`--start`/`--end` bound work as well as output: blocks outside the window are skipped straight from the TSM index and never read or decoded.
+
+## Intra-Shard Parallelism
+
+When a few large shards dominate wall-clock time and cores sit idle, `--shard-split N` merges up to N windows of a shard concurrently while emitting **byte-identical output**: resume, checkpoints, and the audit trail are unaffected, and N may change between a crash and its resume.
+
+Run [`--analyze`](/arc/migration/tsm2arc/runbook/#profile-the-shards-optional) first. It profiles whether each shard's file time ranges partition into windows (SPLIT-FRIENDLY) or overlap fully (OVERLAPPING). On fully overlapping generations, every window still holds the whole run's decoded blocks and the admission budget serializes the tasks, so the flag buys little there.
+
+`--merge-memory` is required with `--shard-split > 1`: a concurrent merge holds roughly one decoded block (~64 KiB) per (file × field) stream, so wide shards cost GiBs per concurrent task. Size it against free RAM:
+
+```text
+(host RAM − workers × 2 × chunk-bytes − index caches) / workers
+```
+
+then set `--shard-split` to 2 to 4. A task whose estimate exceeds the budget runs alone (the serial memory profile); that is never an error, just no extra parallelism for that task.
+
+## Spread Load Across a Multi-Writer Cluster
+
+If Arc Enterprise runs several writer nodes behind a standard Kubernetes `Service`, be aware that a ClusterIP Service balances **per TCP connection**, not per request. tsm2arc keeps HTTP connections alive and reuses them for its large sequential POSTs, so a handful of long-lived connections each stay pinned to whichever pod they first dialed. One writer can end up taking nearly all the import traffic while the others idle.
+
+The fix is on the routing layer, not the client: put an **L7 (HTTP-aware) load balancer** in front of the writers (an ingress controller, Envoy or HAProxy, or a cloud ALB), which balances each request independently. With that in place, import traffic spreads evenly across writers with no tsm2arc changes. See [Deployment patterns](/arc-enterprise/configuration/deployment-patterns/) for the Enterprise-side picture.

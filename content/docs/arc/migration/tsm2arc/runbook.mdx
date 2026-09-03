@@ -1,0 +1,191 @@
+---
+title: "Migration Runbook"
+description: "Operator walkthrough for a tsm2arc migration: source layout, dry run, shard profiling with redaction, measurement renames, running, resuming after a crash, and count verification."
+---
+
+This is the operator guide for migrating InfluxDB 1.x/2.x data into Arc with tsm2arc, covering the common case: terabytes of InfluxDB data on a cold or unmounted volume that no running `influxd` serves. For flag reference and install, see the [tsm2arc overview](/arc/migration/tsm2arc/); for sizing and throughput, see [Performance and Scaling](/arc/migration/tsm2arc/performance/).
+
+## Before You Start
+
+- [ ] The InfluxDB data volume is mounted **read-only** on the migration host (`mount -o ro /dev/xvdf1 /mnt/influx`). tsm2arc only ever reads the source files, but a read-only mount means a mistake cannot damage them.
+- [ ] You know the InfluxDB root or data path (1.x: `.../influxdb` or `.../data`; 2.x: the v2 root containing `engine/` and `influxd.bolt`).
+- [ ] You have an **admin-tier** Arc API token (the import endpoint requires admin) and the network path to the Arc base URL is open.
+- [ ] You have somewhere durable for the SQLite checkpoint file (tiny, KB to MB).
+
+## Understand the Source Layout
+
+tsm2arc auto-detects 1.x vs 2.x; the TSM/WAL file format is identical between them, only the directory layout differs.
+
+```text
+# InfluxDB 1.x
+<root>/data/<database>/<retention-policy>/<shard-id>/*.tsm   # compacted data
+<root>/wal/<database>/<retention-policy>/<shard-id>/*.wal    # un-flushed data
+
+# InfluxDB 2.x (default root ~/.influxdbv2)
+<root>/engine/data/<bucket-id>/autogen/<shard-id>/*.tsm
+<root>/engine/wal/<bucket-id>/autogen/<shard-id>/*.wal
+<root>/influxd.bolt                                          # bucket id-to-name map
+```
+
+<Callout type="warn" title="2.x: grab influxd.bolt">
+On a cold-volume migration, copy `influxd.bolt` alongside the `engine/` directory (or point `--bolt` at it). Without it, tsm2arc cannot recover bucket names: buckets migrate under their 16-hex IDs and the `_monitoring`/`_tasks` system buckets cannot be skipped (it warns loudly). Resume is robust either way, since the checkpoint keys on the stable bucket ID, but keep the bolt available for the whole migration so Arc database names stay consistent.
+</Callout>
+
+Confirm what you have before running anything:
+
+```bash
+ls /mnt/influx/data                                  # databases present
+find /mnt/influx/data/<db> -name '*.tsm' | head      # shards and TSM files
+find /mnt/influx/wal/<db>  -name '*.wal' -size +0c   # non-empty WAL segments
+```
+
+## Dry Run: The Safe First Contact
+
+```bash
+tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal --dry-run --sample 10
+```
+
+Check the output:
+
+- **Databases** match what you expect. `_internal` (InfluxDB's own monitoring DB) is skipped by default; pass `--include-internal` only if you truly want it.
+- **points / fields / keys** are non-zero and roughly the expected magnitude; **skipped-keys** should be 0 or explainable.
+- **Time range** looks sane. Pre-1970 timestamps are supported and show as negative epoch dates.
+- **Sample Line Protocol** lines look right: measurement names, tags, field types (`i` integer, `u` unsigned, quoted strings, booleans).
+- **`INVALID:` lines** list measurement names Arc would reject, with point counts, so you can author renames before the load (next section).
+
+If an expected database is missing, check whether its data is WAL-only and whether you passed `--waldir`.
+
+## Profile the Shards (Optional)
+
+`--analyze` reads only the TSM indexes and finishes in seconds: nothing is decoded, nothing is sent. It prints per-shard series/file/key counts and, for the largest merge runs, whether the files' time ranges partition into windows or overlap fully. Run it when discussing throughput, since the profile determines which optimizations help your data shape (see [shard-level parallelism](/arc/migration/tsm2arc/performance/#intra-shard-parallelism)).
+
+```bash
+tsm2arc --datadir /mnt/influx/data --analyze
+```
+
+<Callout type="info" title="Sharing the report outside your organization: --redact">
+If the analysis has to leave your organization (a support ticket, a GitHub issue), add `--redact`: database, retention policy, and series names are replaced with stable hashed pseudonyms (`series_3f9a2c1b04d7`). The report keeps every number but carries no internal identifiers, and the pseudonyms are stable across runs and machines, so a conversation can keep referring to the same series.
+</Callout>
+
+## Scope the Migration (Optional)
+
+Migrate a subset first to validate the round-trip end to end:
+
+```bash
+# one database
+tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal --database-filter telemetry --dry-run
+
+# a time window (RFC3339, UTC)
+tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal \
+        --start 2024-01-01T00:00:00Z --end 2024-02-01T00:00:00Z --dry-run
+```
+
+`--start`/`--end` skip out-of-window TSM blocks straight from the index, so a window bounds read work and time, not just output. A large source can be migrated in sequential windows; use a **separate `--checkpoint` file per window** (the tool enforces this, refusing to resume a checkpoint whose window changed).
+
+Each source database maps to an Arc database of the same name; rename with `--db-map old=new` (repeatable).
+
+## Handle Measurement Names Arc Rejects
+
+Arc accepts only measurement names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` (the dot is Arc's `database.measurement` separator in queries and RBAC grant keys). InfluxDB is far more permissive, and dotted `<env>.<service>` names are common. tsm2arc validates **client-side, before sending**, so a bad name cannot end a multi-hour load with a mid-flight Arc 400.
+
+1. **Dry-run first.** Every name Arc would reject is listed with its point count.
+2. **Author a rename map** with deterministic targets you choose:
+
+   ```text
+   # renames.map: one old=new per line; # comments allowed
+   edge-prod.gateway_services=edge_prod_gateway_services
+   qa.node-b=qa_node_b
+   ```
+
+   Pass it with `--measurement-map-file renames.map` (or inline, repeatable, with `--measurement-map`). Targets are validated at startup, so a typo fails immediately rather than mid-load.
+3. **Pick the policy for anything still invalid** with `--on-invalid-measurement`:
+   - `fail` (default): abort with an actionable error before sending. Keep this with a map; it guarantees nothing unmapped slips through.
+   - `skip`: drop those points, keep loading, report names and point counts at the end. Use it to land the good data now and deal with stragglers later.
+   - `map`: deterministic auto-rename (disallowed characters become `_`, an `m_` prefix if the name does not start with a letter). Beware that distinct names can collide after sanitizing (`a.b` and `a_b` both become `a_b`) and would merge; prefer an explicit map when names sit close together.
+
+Every rename and skip is **recorded in the checkpoint** (table `measurement_actions`: source db, shard, source name, final name, origin, point count) and summarized when the run finishes, so renames are auditable and skipped data is on record rather than quietly missing:
+
+```bash
+sqlite3 /var/lib/tsm2arc/migration.checkpoint.db \
+  'SELECT source_db, measurement, action, renamed_to, origin, SUM(points)
+   FROM measurement_actions GROUP BY source_db, measurement'
+```
+
+<Callout type="warn" title="Hyphenated names need Arc 26.09.1 or later to query">
+A name like `has-hyphen` is valid, Arc accepts it at write time and tsm2arc migrates it, but Arc versions before 26.09.1 cannot reference it in SQL at all. From 26.09.1 on, quote it: `FROM "has-hyphen"` (with the `x-arc-database` header) or `FROM "db"."has-hyphen"`. If the target Arc predates 26.09.1 and cannot be upgraded first, rename at migration time (`--measurement-map 'has-hyphen=has_hyphen'`). Data migrated with hyphens before an upgrade is stored correctly and becomes queryable as soon as Arc is upgraded, with no re-migration.
+</Callout>
+
+## Run the Migration
+
+```bash
+export ARC_TOKEN='<admin-tier-token>'
+
+tsm2arc \
+  --datadir   /mnt/influx/data \
+  --waldir    /mnt/influx/wal \
+  --arc-url   https://arc.example.net \
+  --token     "$ARC_TOKEN" \
+  --workers   4 \
+  --checkpoint /var/lib/tsm2arc/migration.checkpoint.db \
+  --verbose
+```
+
+A heartbeat line reports progress while it runs:
+
+```text
+[12/40 shards] 3821 chunks, 18402991 rows, 4210.5 MB raw — 38211 rows/s, 9.4 MB/s (480s)
+```
+
+- Put the `--checkpoint` file somewhere durable and **keep it**: it is how resume works, and its audit tables are your record of exactly what was sent.
+- Run one process; scale with `--workers` (size it against the Arc node, see [Performance and Scaling](/arc/migration/tsm2arc/performance/)). Never run two processes against the same checkpoint file.
+- Transient failures (429, 5xx, network) retry with exponential backoff; 4xx errors are permanent and abort the run.
+
+## If It Stops: Just Resume
+
+Re-run the **exact same command**. tsm2arc skips shards already fully migrated, and for a partially migrated shard it **seeks** to the stored cursor: series before it are never read, already-sent TSM blocks are skipped at the index without being decoded, and sending resumes from the first un-acknowledged chunk within seconds to minutes. Chunk progress commits only after Arc returns 2xx, and Arc's import handler flushes to storage before returning, so 2xx means durably persisted.
+
+Resume requires the same shaping flags: the checkpoint fingerprints `--chunk-bytes`, `--start`, `--end`, `--db-map`, `--precision`, the measurement-map flags, and `--on-invalid-measurement`. Changing any of them would misalign chunk boundaries, so tsm2arc refuses with `checkpoint was created with different settings` rather than corrupting the migration. To change a shaping flag, start a fresh `--checkpoint` (a full re-migration).
+
+**Duplicates:** a clean, uninterrupted run produces **zero** duplicates. The only duplication window is a crash between Arc persisting a chunk and the tool recording it; on resume that single chunk is re-sent. Arc compaction collapses the duplicate for tag-bearing series automatically; tagless series can retain at most one chunk of duplicate rows per shard per crash (bounded and attributable, the `--verbose` log names the re-sent chunk).
+
+## Verify Counts Before Declaring Success
+
+Count reconciliation is how you know the migration is complete and correct.
+
+```bash
+# Tool side: re-run --dry-run with the SAME flags (including --waldir/--start/--end)
+tsm2arc --datadir <same> --waldir <same> --dry-run --sample 0
+
+# Arc side: count rows per measurement, with the same time bounds if you used a window
+curl -s -X POST "https://arc.example.net/api/v1/query" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT count(*) FROM <database>.<measurement>"}'
+```
+
+- **Tag-bearing data**: after Arc compaction runs, counts should match exactly.
+- **Tagless data**: a small positive delta on Arc's side is resume-overlap duplicates (bounded per the previous section); a clean run shows no delta.
+- **A short count on Arc's side** is the signal to investigate: check the `--verbose` log for `WARN` lines, non-zero `skipped-keys`, or an errored shard, then resume.
+- If you loaded with `--on-invalid-measurement=skip`, subtract the skipped point counts (printed at run end and stored in `measurement_actions`) before comparing. If you used a rename map, query Arc under the **renamed** names.
+
+Also confirm WAL coverage if you did not pass `--waldir` (`find <waldir> -name '*.wal' -size +0c`; non-empty segments mean un-migrated data, so re-run with `--waldir` and the same checkpoint), and spot-check a few series' min/max time and sampled values against the dry-run output.
+
+## Cleanup
+
+Keep the checkpoint until the migration is **verified**; delete it only to force a full re-migration. Unmount the read-only source volume, and rotate the Arc admin token if it was placed on a shared host.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| `no shards with TSM/WAL data found` | data is WAL-only and `--waldir` omitted, or wrong `--datadir` | pass `--waldir` (auto for 2.x); point `--datadir` at the InfluxDB root or data dir |
+| A database/bucket is missing from output | WAL-only without `--waldir`, filtered out, or (2.x) a system bucket | add `--waldir`; check `--database-filter`; confirm it is not a system bucket |
+| 2.x buckets show as 16-hex IDs | `influxd.bolt` missing or unreadable | provide `--bolt` or copy `influxd.bolt` next to `engine/` |
+| `arc 401` / permanent error | token not admin-tier or wrong | use an admin token |
+| `invalid measurement name …` before sending | source names violate Arc's rule (dots etc.) | dry-run to list them, then `--measurement-map`/`--measurement-map-file`, or `--on-invalid-measurement=skip\|map` |
+| `arc 413` | `--chunk-bytes` too large for Arc's cap | keep `--chunk-bytes` under 500MB (the 450MB default is safe) |
+| Repeated `arc 429` then backoff | Arc under load / too many workers | lower `--workers` and/or `--chunk-bytes` |
+| Arc node OOM | `--workers` too high for Arc's RAM | lower `--workers`; see the [memory math](/arc/migration/tsm2arc/performance/) |
+| `checkpoint was created with different settings` | resuming with a changed shaping flag | restore the original flags, or use a fresh `--checkpoint` |
+| Run aborts on a corrupt TSM file | damaged source file | note the file from the error; use `--database-filter`/`--start`/`--end` to skip the affected range, then handle it separately |
+| Resume re-sends everything | wrong or missing `--checkpoint` path | always point `--checkpoint` at the same durable file |

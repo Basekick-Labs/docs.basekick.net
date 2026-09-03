@@ -5,6 +5,7 @@
     "questdb",
     "timescaledb",
     "clickhouse",
-    "influxdb"
+    "influxdb",
+    "tsm2arc"
   ]
 }

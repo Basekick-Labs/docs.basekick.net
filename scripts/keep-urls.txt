@@ -26,6 +26,7 @@
 /arc-enterprise/integrations/telegraf/
 /arc-enterprise/integrations/vscode/
 /arc-enterprise/operations/automated-scheduling/
+/arc-enterprise/operations/legacy-token-upgrade/
 /arc-enterprise/operations/profiling/
 /arc-enterprise/operations/telemetry/
 /arc-enterprise/performance/benchmarks/
@@ -85,6 +86,9 @@
 /arc/migration/influxdb/
 /arc/migration/questdb/
 /arc/migration/timescaledb/
+/arc/migration/tsm2arc/
+/arc/migration/tsm2arc/performance/
+/arc/migration/tsm2arc/runbook/
 /arc/operations/backup-restore/
 /arc/operations/profiling/
 /arc/operations/telemetry/

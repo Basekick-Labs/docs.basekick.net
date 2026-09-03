@@ -1,0 +1,87 @@
+---
+title: "tsm2arc"
+description: "Migrate InfluxDB 1.x and 2.x data into Arc by reading TSM and WAL files directly off disk: no running influxd, resumable checkpoints, multi-field point reconstruction."
+---
+
+[tsm2arc](https://github.com/Basekick-Labs/tsm2arc) (Apache-2.0) migrates **InfluxDB 1.x (1.7/1.8) and 2.x (2.0–2.7)** data into Arc by reading TSM **and WAL** files **directly off disk**. No running `influxd` is required, which makes it the right tool when the InfluxDB data sits on cold or unmounted volumes (an EBS snapshot, a decommissioned server's disk) that can be mounted read-only but are not served by any InfluxDB instance.
+
+The on-disk TSM/WAL format is the same across 1.x and 2.x, and tsm2arc auto-detects the layout. For 2.x it resolves bucket IDs to readable names from `influxd.bolt` and skips InfluxDB's internal system buckets (`_monitoring`, `_tasks`). InfluxDB 3.x stores Parquet rather than TSM, so for 3.x use the [Line Protocol export/import path](/arc/migration/influxdb/#step-3-migrate-historical-data) instead.
+
+<Callout type="info" title="When to use which migration path">
+Live ingestion moves with a URL change (Arc speaks Line Protocol natively; dual-write from Telegraf and cut over). For history: tsm2arc for 1.x/2.x datasets, especially large ones on cold volumes; Line Protocol export/import for 3.x or small datasets. The [InfluxDB migration guide](/arc/migration/influxdb/) covers the whole journey; these pages are the full tsm2arc reference.
+</Callout>
+
+## What It Does
+
+InfluxDB stores each field of a point as a separate TSM key, each with its own timestamp and value stream. tsm2arc:
+
+1. Parses the TSM index (header/index/footer) of each file.
+2. Decodes every block with native Go implementations of the TSM codecs (timestamp, float, integer, unsigned, boolean, string), validated against the real InfluxDB encoder and cross-checked against real 2.7 data.
+3. **Rejoins fields by (series, timestamp)** so multi-field points are reconstructed as single Line Protocol lines. (This is the correctness gap in `influx_inspect export`, which emits one line per field.)
+4. Streams gzipped, size-bounded chunks into Arc's `/api/v1/import/lp` endpoint, in parallel across shards, with a SQLite checkpoint for crash-safe resume.
+
+Capabilities at a glance:
+
+- Native TSM reader, field rejoin, LP encode, and `--dry-run`
+- Chunked gzip POST to Arc `/api/v1/import/lp` with per-database routing
+- SQLite checkpoint with crash-safe, cursor-seeking resume
+- WAL (`.wal`) reader, merged with TSM per shard
+- Parallel workers (`--workers`) with live progress reporting
+- InfluxDB 2.x layout auto-detection and bucket-name resolution
+- Measurement rename map and invalid-name policy with a checkpoint audit trail
+- Index-only shard profiling (`--analyze`), shareable with `--redact`
+
+## Install
+
+Download a prebuilt binary from [Releases](https://github.com/Basekick-Labs/tsm2arc/releases) (Linux and macOS on amd64/arm64, Windows on amd64), or:
+
+```bash
+# from source (Go 1.25+)
+go install github.com/basekick-labs/tsm2arc/cmd/tsm2arc@latest
+
+# container (multi-arch, linux amd64/arm64)
+docker run --rm ghcr.io/basekick-labs/tsm2arc:latest --version
+```
+
+Each release ships an SBOM (SPDX) and `checksums.txt`.
+
+## Quick Start: Dry Run First
+
+A dry run discovers shards, decodes every block, reconstructs points, and prints per-database counts plus sample Line Protocol, **without writing to Arc**. It is the safe first contact with the source data.
+
+```bash
+# InfluxDB 1.x: point at the data dir or its parent (layout auto-detected)
+tsm2arc --datadir /var/lib/influxdb --dry-run --sample 10
+
+# InfluxDB 2.x: point at the v2 root; engine/data, engine/wal, and
+# influxd.bolt (for bucket names) are auto-detected
+tsm2arc --datadir /var/lib/influxdb2 --dry-run --sample 10
+```
+
+Then load:
+
+```bash
+tsm2arc \
+  --datadir /mnt/influxdb/data \
+  --waldir  /mnt/influxdb/wal \
+  --arc-url https://arc.example.net \
+  --token   "$ARC_TOKEN" \
+  --verbose
+```
+
+<Callout type="warn" title="Always pass --waldir">
+InfluxDB does not flush the write-ahead log to TSM on shutdown, so small or recently written shards can live entirely in `.wal` files. Without `--waldir`, that data is silently skipped. For 2.x the WAL directory is auto-detected from `engine/wal`; for 1.x pass it explicitly. When a point exists in both TSM and WAL, the WAL value wins (last-write-wins, matching InfluxDB and Arc compaction).
+</Callout>
+
+## Where to Go Next
+
+<Cards>
+  <Card title="Migration Runbook" href="/arc/migration/tsm2arc/runbook/" description="The operator walkthrough: layout, dry run, measurement renames, resume, and count verification." />
+  <Card title="Performance and Scaling" href="/arc/migration/tsm2arc/performance/" description="Sizing workers against the Arc node, memory math, shard-level parallelism, and multi-writer clusters." />
+</Cards>
+
+The repo's [DESIGN.md](https://github.com/Basekick-Labs/tsm2arc/blob/main/docs/DESIGN.md) covers the internals: the verified Arc ingest constraints, the resume protocol, and the duplicate-bounding argument.
+
+<Callout type="idea" title="Reusable beyond Arc">
+The extraction side produces standard InfluxDB Line Protocol; the Arc sink is just the first sink. The TSM/WAL decoder is Apache-2.0 and contributions of new sinks (ClickHouse, QuestDB, TimescaleDB) are welcome. See [CONTRIBUTING.md](https://github.com/Basekick-Labs/tsm2arc/blob/main/CONTRIBUTING.md).
+</Callout>
