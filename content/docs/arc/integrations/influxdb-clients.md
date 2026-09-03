@@ -256,7 +256,7 @@ While Arc is compatible with InfluxDB clients, there are some differences:
 
 | Feature | InfluxDB | Arc |
 |---------|----------|-----|
-| Query Language | Flux, InfluxQL | SQL (DuckDB) |
+| Query Language | Flux, InfluxQL | Standard analytical SQL |
 | Organizations | Supported | Ignored |
 | Retention Policies | Per-bucket | Via retention API |
 | Tasks | Built-in | Via continuous queries |

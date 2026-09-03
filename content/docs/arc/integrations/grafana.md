@@ -9,7 +9,7 @@ Connect Arc to Grafana for real-time monitoring, alerting, and beautiful visuali
 
 The Arc datasource plugin for Grafana provides:
 - **Apache Arrow Protocol**: High-performance columnar data transfer
-- **Native SQL Support**: Full DuckDB SQL with syntax highlighting
+- **Native SQL Support**: Full analytical SQL with syntax highlighting
 - **Template Variables**: Dynamic dashboards with filters
 - **Alerting**: Built-in alert rule support
 - **Multi-database**: Query across different Arc databases

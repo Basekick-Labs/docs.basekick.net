@@ -23,7 +23,7 @@ When you execute a query like:
 SELECT * FROM mydb.cpu WHERE time > now() - INTERVAL '1 hour'
 ```
 
-Arc converts the table reference `mydb.cpu` to a DuckDB `read_parquet()` call:
+Arc converts the table reference `mydb.cpu` to a `read_parquet()` call:
 
 ```sql
 SELECT * FROM read_parquet('./data/mydb/cpu/**/*.parquet') WHERE time > now() - INTERVAL '1 hour'

@@ -20,7 +20,7 @@ Continuous queries in Arc help you:
 
 ## How It Works
 
-Continuous queries use DuckDB SQL to aggregate data from source measurements into destination measurements:
+Continuous queries use standard analytical SQL to aggregate data from source measurements into destination measurements:
 
 1. **Define Query**: Specify aggregation logic using SQL
 2. **Set Schedule**: Configure time intervals for grouping (e.g., hourly, daily)
@@ -115,7 +115,7 @@ POST /api/v1/continuous_queries
 - `database` (string, required): Target database name
 - `source_measurement` (string, required): Source measurement to aggregate
 - `destination_measurement` (string, required): Where to store results
-- `query` (string, required): DuckDB SQL aggregation query
+- `query` (string, required): SQL aggregation query
 - `interval` (string, required): Time bucket interval (`1m`, `5m`, `1h`, `1d`, etc.)
 - `tag_columns` (array of strings, optional): The **grouping dimension** columns in the query's output (e.g. `["host"]` for `GROUP BY host`). See [Idempotency and `tag_columns`](#idempotency-and-tag_columns) below — set this for any `GROUP BY` query so re-runs don't produce duplicate rows.
 - `retention_policy` (string, optional): Retention for aggregated data (e.g., `90d`, `365d`)
@@ -257,7 +257,7 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 
 ## Query Syntax
 
-Continuous queries use DuckDB SQL with temporal optimizations.
+Continuous queries use standard analytical SQL with temporal optimizations.
 
 ### Recommended Approach
 
@@ -277,7 +277,7 @@ GROUP BY date_trunc('hour', epoch_us(time)), host
 
 ### Common Aggregations
 
-These are common examples. Arc runs the **full DuckDB SQL dialect** — any DuckDB aggregate works (e.g. `MEDIAN`, `MODE`, `QUANTILE_CONT`, `APPROX_QUANTILE`, `ARG_MAX`, `HISTOGRAM`, `CORR`, `REGR_*`). See the [Querying guide](/arc/guides/querying/#useful-duckdb-functions) for more.
+These are common examples. Arc supports the **full analytical SQL aggregate set** — `MEDIAN`, `MODE`, `QUANTILE_CONT`, `APPROX_QUANTILE`, `ARG_MAX`, `HISTOGRAM`, `CORR`, `REGR_*` and the rest all work. See the [Querying guide](/arc/guides/querying/#useful-sql-functions) for more.
 
 - `AVG()` - Average values
 - `SUM()` - Sum of values
@@ -669,7 +669,7 @@ Match intervals to data characteristics:
 **Solutions**:
 - Test the query directly using the `/query` endpoint
 - Verify column names exist in source measurement
-- Check for DuckDB-specific syntax requirements
+- Check for dialect-specific syntax requirements
 - Use `epoch_us()` for timestamp conversion
 
 ### Slow Execution
@@ -680,7 +680,7 @@ Match intervals to data characteristics:
 - Reduce the time range per execution
 - Ensure source measurement is properly compacted
 - Consider creating indexes on frequently grouped columns
-- Monitor DuckDB query performance
+- Monitor query engine performance
 
 ### Duplicate Data
 

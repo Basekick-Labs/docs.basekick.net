@@ -10,7 +10,7 @@ Parquet bulk import is available starting Arc v26.02.1 (February 2026).
 </Callout>
 
 <Callout type="info" title="Changed in v26.06.2">
-Parquet import now reads the file in-process (via Apache Arrow) instead of through DuckDB. The request and response are unchanged. Two things to be aware of: `DECIMAL` columns are imported as `DOUBLE`, and empty files / duplicate column names / a `time_column` rename that collides with an existing `time` column are rejected with `400`.
+Parquet import now reads the file in-process (via Apache Arrow) instead of through the query engine. The request and response are unchanged. Two things to be aware of: `DECIMAL` columns are imported as `DOUBLE`, and empty files / duplicate column names / a `time_column` rename that collides with an existing `time` column are rejected with `400`.
 </Callout>
 
 ## Endpoint

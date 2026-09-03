@@ -1,16 +1,16 @@
 ---
 title: "Arc OSS"
-description: "Arc is an open, SQL-native time-series database on DuckDB and Parquet: ingest MessagePack or Line Protocol, query with standard SQL, and store data on local disk, S3, MinIO, or Azure Blob."
+description: "Arc is an open, SQL-native time-series database on Parquet and object storage: ingest MessagePack or Line Protocol, query with standard SQL, and store data on local disk, S3, MinIO, or Azure Blob."
 ---
 
-**Open, SQL-native time-series database built on DuckDB and Parquet**
+**Open, SQL-native time-series database**
 
-Arc is a SQL-native time-series database built on DuckDB and Parquet with flexible storage backends. Use it for analytics, observability, AI/ML, IoT, and log management. High-throughput columnar ingestion, fast analytical queries. Single Go binary. S3/Azure native. No vendor lock-in. AGPL-3.0.
+Arc is a SQL-native time-series database that stores data as Parquet with flexible storage backends. Use it for analytics, observability, AI/ML, IoT, and log management. High-throughput columnar ingestion, fast analytical queries. Single Go binary. S3/Azure native. No vendor lock-in. AGPL-3.0.
 
 ## Key Features
 
 - **High-throughput ingestion**: Columnar MessagePack write path
-- **Fast Analytical Queries**: Powered by DuckDB with full SQL support
+- **Fast Analytical Queries**: Vectorized columnar execution with full SQL support
 - **Flexible Storage**: Local filesystem, MinIO, AWS S3, Azure Blob Storage
 - **Multi-Database Architecture**: Organize data by environment, tenant, or application
 - **Automatic Compaction**: Tiered (hourly/daily) file merging to keep queries fast
@@ -98,7 +98,7 @@ HAVING MAX(pressure) > 850 OR STDDEV(vibration) > 2.5;
   </Tab>
 </Tabs>
 
-**Standard DuckDB SQL. Window functions, CTEs, joins. No proprietary query language.**
+**Standard analytical SQL. Window functions, CTEs, joins. No proprietary query language.**
 
 ## Quick Example
 
@@ -155,17 +155,17 @@ response = requests.post(
 )
 ```
 
-{/* TODO(diagram): replace the ASCII box-flow below with a real diagram of the write path (client -> API -> buffer -> Parquet -> object storage) and the read path (DuckDB querying Parquet in place). The separation of compute and storage is Arc's central design claim and deserves better than monospace arrows. */}
+{/* TODO(diagram): replace the ASCII box-flow below with a real diagram of the write path (client -> API -> buffer -> Parquet -> object storage) and the read path (the query engine reading Parquet in place). The separation of compute and storage is Arc's central design claim and deserves better than monospace arrows. */}
 
 ## Architecture
 
 ```text
 Client → Arc API → Buffer → Parquet → Storage (S3/MinIO/Azure/Local)
                      ↓
-                  DuckDB Query Engine
+                    Query Engine
 ```
 
-Arc separates compute and storage, allowing you to scale them independently. Data is stored as Parquet files on object storage, queried directly by DuckDB's efficient columnar engine.
+Arc separates compute and storage, allowing you to scale them independently. Data is stored as Parquet files on object storage, queried directly by Arc's vectorized columnar engine.
 
 ## Performance
 

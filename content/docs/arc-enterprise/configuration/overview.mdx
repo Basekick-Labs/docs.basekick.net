@@ -51,7 +51,7 @@ port = 8000
 level = "info"       # debug, info, warn, error
 format = "console"   # json or console
 
-# Database (DuckDB)
+# Database (query engine)
 [database]
 # Auto-detected if not set (recommended)
 # max_connections = 28    # 2x CPU cores
@@ -318,9 +318,9 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
-### Database (DuckDB)
+### Database (Query Engine)
 
-DuckDB connection pool and resource settings:
+Query engine connection pool and resource settings:
 
 ```toml
 [database]
@@ -331,9 +331,9 @@ DuckDB connection pool and resource settings:
 
 # Manual override examples:
 max_connections = 28      # Connection pool size
-memory_limit = "8GB"      # DuckDB memory limit
+memory_limit = "8GB"      # Query engine memory limit
 thread_count = 14         # Query execution threads
-enable_wal = false        # DuckDB WAL (not Arc WAL)
+enable_wal = false        # Query engine WAL (not Arc WAL)
 ```
 
 ### Ingestion
@@ -653,7 +653,7 @@ export ARC_STORAGE_S3_SECRET_KEY="your_secret_key"
 
 ### 3. Let Arc Auto-Detect Resources
 
-Arc automatically detects optimal DuckDB settings based on your system. Only override if you have specific requirements:
+Arc automatically detects optimal query engine settings based on your system. Only override if you have specific requirements:
 
 ```toml
 [database]

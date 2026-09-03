@@ -24,7 +24,7 @@ Arc uses a rewrite-based deletion approach:
 
 ### 1. Find Affected Files
 
-Scan the measurement directory to identify Parquet files containing rows that match the WHERE clause using DuckDB.
+Scan the measurement directory to identify Parquet files containing rows that match the WHERE clause.
 
 ### 2. Rewrite Files
 

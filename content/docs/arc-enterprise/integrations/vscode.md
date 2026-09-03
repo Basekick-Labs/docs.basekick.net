@@ -10,7 +10,7 @@ Complete development toolkit for Arc Database directly in Visual Studio Code.
 The Arc Database Manager extension provides a full-featured IDE for working with Arc:
 
 - **Connection Management**: Multiple saved connections with secure token storage
-- **SQL IntelliSense**: Auto-completion for tables, columns, and DuckDB functions
+- **SQL IntelliSense**: Auto-completion for tables, columns, and SQL functions
 - **Interactive Results**: Export to CSV/JSON/Markdown with automatic chart visualization
 - **Arc Notebooks**: Mix SQL and Markdown in `.arcnb` files with parameterized queries
 - **Schema Explorer**: Browse databases and tables with context menus
@@ -98,7 +98,7 @@ Get auto-completion for:
 - Database names
 - Table names
 - Column names
-- DuckDB functions
+- SQL functions
 - SQL keywords
 
 **How to use:**

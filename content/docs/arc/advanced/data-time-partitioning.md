@@ -38,7 +38,7 @@ data/mydb/cpu/2024/12/01/15/...
 
 **Impact:**
 - **Broken queries** - Time-range queries can't find historical data
-- **No partition pruning** - DuckDB must scan all files, not just relevant partitions
+- **No partition pruning** - The query engine must scan all files, not just relevant partitions
 - **Mixed data** - Historical and current data mixed in same partition
 - **Poor compaction** - Files with mixed timestamps don't compact efficiently
 
@@ -51,7 +51,7 @@ With data-time partitioning, your data is always organized correctly:
 SELECT * FROM mydb.cpu
 WHERE time >= '2024-12-01' AND time < '2025-01-01'
 
-→ DuckDB scans only: data/mydb/cpu/2024/12/**/*.parquet
+→ Arc scans only: data/mydb/cpu/2024/12/**/*.parquet
 → Skips all 2025 partitions entirely
 ```
 
@@ -131,7 +131,7 @@ Each Parquet file contains data sorted by timestamp in ascending order:
 
 ```sql
 -- Data is pre-sorted, enabling efficient scans
--- DuckDB can use sorted file metadata for:
+-- Sorted file metadata enables:
 -- - Early termination on LIMIT queries
 -- - Efficient MIN/MAX aggregations
 -- - Optimized range scans
@@ -182,7 +182,7 @@ GROUP BY host
 **What happens:**
 1. Arc parses the time range from the WHERE clause
 2. Converts range to partition paths: `2024/12/**/*.parquet`
-3. DuckDB receives only relevant file list
+3. The query engine receives only the relevant file list
 4. Files outside the range are never opened
 
 **Performance impact:**

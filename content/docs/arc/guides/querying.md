@@ -1,9 +1,9 @@
 ---
 title: "SQL Querying Guide"
-description: "Write DuckDB SQL against Arc measurements: the database.measurement naming, time_bucket aggregation, window functions, and filtering that enables partition pruning."
+description: "Write analytical SQL against Arc measurements: the database.measurement naming, time_bucket aggregation, window functions, and filtering that enables partition pruning."
 ---
 
-Arc uses DuckDB as its SQL engine, giving you full analytical SQL capabilities on data stored as Parquet files.
+Arc runs a full analytical SQL engine over data stored as Parquet files, so window functions, CTEs, and joins are all available.
 
 ## SQL Syntax
 
@@ -174,9 +174,9 @@ JOIN production.deployments d
 WHERE c.time > NOW() - INTERVAL '24 hours';
 ```
 
-## Useful DuckDB Functions
+## Useful SQL Functions
 
-Arc supports all DuckDB functions. Here are the most useful for analytical queries:
+These are the functions most useful for analytical and time-series queries:
 
 | Function | Description | Example |
 |----------|-------------|---------|
@@ -192,7 +192,7 @@ Arc supports all DuckDB functions. Here are the most useful for analytical queri
 
 ## Aggregate Functions
 
-Arc runs the **full DuckDB SQL dialect**, so every DuckDB aggregate is available — there is no allowlist. Beyond the standard `COUNT`/`SUM`/`AVG`/`MIN`/`MAX`, the following are commonly useful for analytics:
+Arc supports the **full analytical SQL aggregate set** — there is no allowlist. Beyond the standard `COUNT`/`SUM`/`AVG`/`MIN`/`MAX`, the following are commonly useful for analytics:
 
 | Function | Description | Example |
 |----------|-------------|---------|
@@ -211,7 +211,7 @@ Arc runs the **full DuckDB SQL dialect**, so every DuckDB aggregate is available
 | `REGR_SLOPE(y, x)` / `REGR_INTERCEPT(y, x)` | Linear regression slope / intercept | `REGR_SLOPE(value, epoch(time))` |
 | `ENTROPY(col)` | Shannon entropy | `ENTROPY(status_code)` |
 
-This is a selection, not the full set — see the [DuckDB aggregate functions reference](https://duckdb.org/docs/sql/functions/aggregates) for everything available.
+This is a selection, not the full set. There is no allowlist — if a standard analytical aggregate exists, Arc accepts it. An unrecognised function returns a query error naming it, so trying one is safe.
 
 ## Performance Tips
 

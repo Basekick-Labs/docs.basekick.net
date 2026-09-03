@@ -1,6 +1,6 @@
 ---
 title: "Apache Superset Integration"
-description: "Connect Apache Superset to Arc with the arc-superset-dialect SQLAlchemy driver: build the arc:// URI, register the database, and chart DuckDB SQL results."
+description: "Connect Apache Superset to Arc with the arc-superset-dialect SQLAlchemy driver: build the arc:// URI, register the database, and chart analytical SQL results."
 ---
 
 Connect Arc to Apache Superset for interactive dashboards and visualizations.
@@ -8,7 +8,7 @@ Connect Arc to Apache Superset for interactive dashboards and visualizations.
 ## Overview
 
 Arc provides a native SQLAlchemy dialect for Apache Superset, enabling:
-- Full SQL query support via DuckDB
+- Full analytical SQL query support
 - Multi-database schema support
 - Cross-database joins
 - Time-series visualizations
@@ -244,7 +244,7 @@ Example monitoring dashboard layout:
 
 ### Custom SQL
 
-Superset supports full DuckDB SQL:
+Superset supports the full analytical SQL dialect:
 
 ```sql
 -- Window functions

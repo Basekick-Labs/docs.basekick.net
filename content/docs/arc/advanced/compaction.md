@@ -12,7 +12,7 @@ Compaction is Arc's file optimization system that **merges small files into larg
 **Key Features:**
 - **Automatic** - Runs on schedule (default: hourly at :05)
 - **Safe** - Locked partitions prevent concurrent compaction
-- **Efficient** - Uses DuckDB for fast, parallel merging
+- **Efficient** - Parallel, sorted merging by the query engine
 - **Non-blocking** - Queries work during compaction
 - **Enabled by default** - Essential for production
 
@@ -34,7 +34,7 @@ At high ingest rates with a 5-second flush interval:
 ```
 
 **Impact on Queries:**
-- **Slow queries** - DuckDB must open/scan hundreds of files
+- **Slow queries** - The query engine must open/scan hundreds of files
 - **High costs** - More S3/MinIO API calls
 - **Poor compression** - Small files compress less efficiently
 - **Reduced pruning** - Less effective partition elimination
@@ -61,7 +61,7 @@ Compaction time: 5 seconds
 - **Far fewer file opens** - Single file scan vs hundreds
 - **99% fewer API calls** - Massive cost reduction (2,704 → 3 LIST operations)
 - **80.4% compression** - ZSTD compaction vs Snappy writes
-- **Effective pruning** - DuckDB can skip entire files
+- **Effective pruning** - The query engine can skip entire files
 
 ## How It Works
 
@@ -81,7 +81,7 @@ Compaction time: 5 seconds
    ↓
 5. Download small files to temp directory
    ↓
-6. Compact using DuckDB (parallel, sorted)
+6. Compact via the query engine (parallel, sorted)
    ↓
 7. Upload compacted file to storage
    ↓
@@ -188,12 +188,12 @@ max_concurrent = 2    # Run 2 compactions in parallel (default)
 `memory_limit` and `threads` are configurable starting in Arc **v26.09.1**. On earlier versions each compaction subprocess inherits the full `database.memory_limit` and uses all CPU cores.
 </Callout>
 
-Each compaction job runs in an isolated subprocess with its own DuckDB instance. These keys bound that instance's resources:
+Each compaction job runs in an isolated subprocess with its own query engine instance. These keys bound that instance's resources:
 
 ```toml
 [compaction]
-memory_limit = ""    # Per-subprocess DuckDB memory limit; "" (default) = auto
-threads = 0          # Per-subprocess DuckDB threads; 0 (default) = auto
+memory_limit = ""    # Per-subprocess engine memory limit; "" (default) = auto
+threads = 0          # Per-subprocess engine threads; 0 (default) = auto
 # memory_limit = "2GB"   # Explicit cap
 # threads = 4            # Explicit thread count
 ```
@@ -230,7 +230,7 @@ Valid range is **2–500**. Values outside it fall back to the default with a st
 
 This bounds the **file count** per job, not the output size in bytes — compacted file size tracks input file size, which follows your ingest buffer settings. The main reason to lower it is transferring compacted files over a constrained or intermittent link (edge deployments), where smaller, independently-transferable files resume better after an interruption. The trade-off is more compaction jobs per partition, and in cluster mode proportionally more Raft manifest entries.
 
-The upper bound exists because DuckDB can abort when a single `read_parquet()` call spans too many files.
+The upper bound exists because a single `read_parquet()` call spanning too many files can abort.
 
 #### Compression
 

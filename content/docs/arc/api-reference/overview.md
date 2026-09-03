@@ -165,7 +165,7 @@ Three values tell you a column is **not** natively typed on the wire:
 - `string_encoded` — a recognized type Arc transmits as text (`DATE64`, `TIME`,
   `INTERVAL`, `DURATION`, `FLOAT16`, fixed-size binary).
 - `list` / `struct` / `map` — nested values, transmitted as text.
-- `unknown:<detail>` — a type with no published Arc name (a DuckDB `ENUM`
+- `unknown:<detail>` — a type with no published Arc name (an engine-level `ENUM`
   arrives here). Never bind to the text after the prefix; it is diagnostic.
 
 `SUM(int_col)` and other decimal-producing aggregates are normalized to
@@ -226,11 +226,11 @@ All metrics in JSON format.
 
 ### GET /api/v1/metrics/memory
 
-Detailed memory statistics including Go runtime and DuckDB.
+Detailed memory statistics including the Go runtime and the query engine.
 
 ### GET /api/v1/metrics/query-pool
 
-DuckDB connection pool statistics.
+Query engine connection pool statistics.
 
 ### GET /api/v1/metrics/endpoints
 

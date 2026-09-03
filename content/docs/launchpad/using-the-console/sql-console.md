@@ -24,7 +24,7 @@ Type SQL in the editor and click **Execute** (or press the shortcut shown on the
 SELECT * FROM citibike_trips LIMIT 100;
 ```
 
-Arc speaks standard analytical SQL (DuckDB-powered), so window functions, CTEs, and joins all work. See the [Arc SQL reference](/arc/) for the full dialect.
+Arc speaks standard analytical SQL, so window functions, CTEs, and joins all work. See the [Arc SQL reference](/arc/) for the full dialect.
 
 ## Multi-statement Scripts
 

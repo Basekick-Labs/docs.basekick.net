@@ -163,11 +163,11 @@ All metrics in JSON format.
 
 ### GET /api/v1/metrics/memory
 
-Detailed memory statistics including Go runtime and DuckDB.
+Detailed memory statistics including the Go runtime and the query engine.
 
 ### GET /api/v1/metrics/query-pool
 
-DuckDB connection pool statistics.
+Query engine connection pool statistics.
 
 ### GET /api/v1/metrics/endpoints
 

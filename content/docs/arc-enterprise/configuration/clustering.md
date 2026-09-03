@@ -25,7 +25,7 @@ Arc Enterprise clustering uses a role-based architecture where each node in the 
 | **standalone** | Single-node mode (default) | All capabilities |
 
 - **Writers** receive data via the ingestion API, buffer it, and flush Parquet files to shared storage. WAL replication ensures durability.
-- **Readers** query data directly from shared storage using DuckDB. Scale readers horizontally to handle more concurrent queries.
+- **Readers** query Parquet directly from shared storage. Scale readers horizontally to handle more concurrent queries.
 - **Compactors** run hourly and daily file compaction in the background without impacting write or read performance.
 
 ## Configuration
