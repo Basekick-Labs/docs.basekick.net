@@ -1,5 +1,5 @@
 ---
-title: "Upgrading pre-26.06.1 API tokens"
+title: "Upgrading Pre-26.06.1 API Tokens"
 description: "Migrate API tokens created before 26.06.1 to the replicated auth path: inventory and re-issue each token cluster-wide, then remove the legacy rows locally with the node stopped."
 ---
 
@@ -11,7 +11,7 @@ Plan a maintenance window and preserve administrative access throughout. Bootstr
 The cluster revoke endpoint (`POST /api/v1/auth/tokens/:id/revoke`) resolves the ID in the replicated FSM, which never held pre-26.06.1 tokens. Two failure modes follow: an unknown ID is an idempotent no-op even though the API reports success, so the legacy token keeps working on its home node; and if a legacy `AUTOINCREMENT` ID collides with a replicated token ID, the same request revokes the replacement token cluster-wide instead. Legacy tokens are removed locally, with the node stopped, as described below.
 </Callout>
 
-## Maintenance procedure
+## Maintenance Procedure
 
 1. **Inventory active tokens on every node** before upgrading: record node, local token identity, name, permissions, owner, and consumers. Preserve enough non-secret identity to distinguish legacy rows from their replacements; a numeric ID alone is insufficient. Do not export hashes or plaintext into the inventory.
 2. **Back up each node's auth database** with the node stopped: the file configured by `auth.db_path`, including SQLite `-wal` and `-shm` sidecars when present. Keep the backup access-restricted. Never copy or delete the live database while the node is writing.
@@ -22,7 +22,7 @@ The cluster revoke endpoint (`POST /api/v1/auth/tokens/:id/revoke`) resolves the
 7. **Remove the old token locally on every node that holds it.** Stop the node, take a fresh backup, and remove only the positively identified legacy rows from its local auth database, or use the supported rebuild from replicated FSM state. Do not select rows by ID alone, and do not remove a replicated replacement. If identity cannot be established, stop and seek support rather than guessing. Restart and verify that replacement tokens still authenticate and legacy tokens do not. Keep quorum available during node maintenance, or use a planned full-cluster outage. Repeat steps 5 through 7 one token at a time.
 8. **Verify completion**: every active consumer uses a replacement, apply counters converge across nodes, `arc_cluster_auth_rejected_total` is stable, and every legacy token is rejected on every node.
 
-## Divergence and rollback
+## Divergence and Rollback
 
 On a collision or a growing `arc_cluster_auth_rejected_total`, stop the affected node and preserve its backup. Reconcile only the conflicting legacy rows, or rebuild the node's local auth database from authoritative FSM state before it rejoins. Never remove Raft state to repair the SQLite cache, and do not invent SQL cleanup by token ID.
 
