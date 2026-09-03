@@ -9,6 +9,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@basekick-labs/launchpulse": "^0.1.2",
     "cnfast": "^0.1.0",
     "fumadocs-core": "16.15.5",
     "fumadocs-mdx": "15.4.0",
