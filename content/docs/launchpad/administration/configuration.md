@@ -83,4 +83,4 @@ Email is normally configured in the UI. As an alternative, operators can set it 
 
 ## Put it behind TLS
 
-For anything beyond local testing, run Launchpad behind a reverse proxy that terminates TLS, and set `LAUNCHPAD_BASE_URL` to your public HTTPS URL so cookies, CSRF, email links, and passkey origins all line up. If you're already using Traefik for Arc, the same pattern extends cleanly to Launchpad; see the [Traefik + Let's Encrypt guide](https://basekick.net/blog/arc-traefik).
+For anything beyond local testing, run Launchpad behind a reverse proxy that terminates TLS, and set `LAUNCHPAD_BASE_URL` to your public HTTPS URL so cookies, CSRF, email links, and passkey origins all line up. If you're already using Traefik for Arc, the same pattern extends cleanly to Launchpad; see the [Traefik + Let's Encrypt guide](https://basekick.net/blog/arc-traefik?utm_source=docs&utm_medium=referral&utm_campaign=launchpad).

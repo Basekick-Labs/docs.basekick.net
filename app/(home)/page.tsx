@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getLatestPosts } from '@/lib/blog';
+import { withUtm } from '@/lib/utm';
 import { ArcMark, EnterpriseMark } from '@/components/ProductMarks';
 
 const PRODUCTS = [
@@ -160,7 +161,7 @@ export default async function HomePage() {
           <div className="mb-5 flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-semibold">From the blog</h2>
             <a
-              href="https://basekick.net/blog"
+              href={withUtm('https://basekick.net/blog', 'homepage')}
               className="text-sm text-fd-muted-foreground underline underline-offset-4 transition-colors hover:text-fd-foreground"
             >
               All posts
@@ -170,7 +171,7 @@ export default async function HomePage() {
             {posts.map((post) => (
               <a
                 key={post.url}
-                href={post.url}
+                href={withUtm(post.url, 'homepage-blog')}
                 className="group flex flex-col overflow-hidden rounded-xl border border-fd-border bg-fd-card transition-colors hover:border-fd-primary/50"
               >
                 {post.image && (

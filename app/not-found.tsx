@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { baseOptions } from '@/lib/layout.shared';
+import { withUtm } from '@/lib/utm';
 
 const DESTINATIONS = [
   { name: 'Arc', href: '/arc/', description: 'Install, configure, ingest and query.' },
@@ -45,7 +46,7 @@ export default function NotFound() {
         <p className="mt-8 text-sm text-fd-muted-foreground">
           You can also{' '}
           <a
-            href="https://basekick.net"
+            href={withUtm('https://basekick.net', '404')}
             className="underline underline-offset-4 hover:text-fd-foreground"
           >
             visit basekick.net

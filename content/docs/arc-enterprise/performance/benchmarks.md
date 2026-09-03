@@ -9,21 +9,21 @@ Benchmark results for Arc are published on the Basekick blog rather than in thes
 
 Start with the ClickBench summary, which covers methodology, dataset, and how Arc was configured for each run:
 
-- **[Arc on ClickBench](https://basekick.net/blog/arc-fastest-timeseries-database-clickbench)** — methodology and headline results
+- **[Arc on ClickBench](https://basekick.net/blog/arc-fastest-timeseries-database-clickbench?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)** — methodology and headline results
 
 Per-database comparisons:
 
-- [vs InfluxDB](https://basekick.net/blog/arc-clickbench-vs-influxdb)
-- [vs TimescaleDB](https://basekick.net/blog/arc-clickbench-vs-timescaledb)
-- [vs DuckDB](https://basekick.net/blog/arc-clickbench-vs-duckdb)
-- [vs CrateDB](https://basekick.net/blog/arc-clickbench-vs-cratedb)
-- [vs StarRocks](https://basekick.net/blog/arc-clickbench-vs-starrocks)
-- [vs Elasticsearch](https://basekick.net/blog/arc-clickbench-vs-elasticsearch)
+- [vs InfluxDB](https://basekick.net/blog/arc-clickbench-vs-influxdb?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
+- [vs TimescaleDB](https://basekick.net/blog/arc-clickbench-vs-timescaledb?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
+- [vs DuckDB](https://basekick.net/blog/arc-clickbench-vs-duckdb?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
+- [vs CrateDB](https://basekick.net/blog/arc-clickbench-vs-cratedb?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
+- [vs StarRocks](https://basekick.net/blog/arc-clickbench-vs-starrocks?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
+- [vs Elasticsearch](https://basekick.net/blog/arc-clickbench-vs-elasticsearch?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
 
 Additional runs:
 
-- [Cold-run results](https://basekick.net/blog/arc-clickbench-cold-runs) — first-query latency against object storage
-- [Log benchmark](https://basekick.net/blog/arc-log-benchmark-2026)
+- [Cold-run results](https://basekick.net/blog/arc-clickbench-cold-runs?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise) — first-query latency against object storage
+- [Log benchmark](https://basekick.net/blog/arc-log-benchmark-2026?utm_source=docs&utm_medium=referral&utm_campaign=arc-enterprise)
 
 ## Reproduce locally
 
