@@ -481,7 +481,7 @@ The `auto` default detects the unit from magnitude, which is usually correct but
 - [Arc output reference docs](https://docs.redpanda.com/redpanda-connect/components/outputs/arc/)
 - [Redpanda Connect documentation](https://docs.redpanda.com/redpanda-connect/about/)
 - [Bloblang language reference](https://docs.redpanda.com/redpanda-connect/guides/bloblang/about/)
-- [Basekick blog post on the integration](https://basekick.net/blog/arc-redpanda-connect-output-plugin)
+- [Basekick blog post on the integration](https://basekick.net/blog/arc-redpanda-connect-output-plugin?utm_source=docs&utm_medium=referral&utm_campaign=arc)
 
 ## Next steps
 

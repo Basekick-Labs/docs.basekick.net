@@ -239,7 +239,7 @@ No. Both Arc OSS and Arc Enterprise use identical telemetry collection. Arc Ente
 
 ## Privacy policy
 
-For detailed information about how Basekick handles data, see our [Privacy Policy](https://basekick.net/privacy) (Coming Soon).
+For detailed information about how Basekick handles data, see our [Privacy Policy](https://basekick.net/privacy?utm_source=docs&utm_medium=referral&utm_campaign=arc) (Coming Soon).
 
 ## Support
 

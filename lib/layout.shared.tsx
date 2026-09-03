@@ -1,5 +1,6 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { gitConfig } from './shared';
+import { withUtm } from './utm';
 
 /**
  * Shared nav for both layouts.
@@ -31,8 +32,8 @@ export function baseOptions(): BaseLayoutProps {
       { text: 'Arc OSS', url: '/arc/', active: 'nested-url' },
       { text: 'Arc Enterprise', url: '/arc-enterprise/', active: 'nested-url' },
       { text: 'Arc Launchpad', url: '/launchpad/', active: 'nested-url' },
-      { text: 'Blog', url: 'https://basekick.net/blog', external: true },
-      { text: 'Website', url: 'https://basekick.net', external: true },
+      { text: 'Blog', url: withUtm('https://basekick.net/blog', 'nav'), external: true },
+      { text: 'Website', url: withUtm('https://basekick.net', 'nav'), external: true },
     ],
     githubUrl: `https://github.com/${gitConfig.user}`,
   };
