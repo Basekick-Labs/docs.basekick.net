@@ -108,3 +108,4 @@ lerna-debug.log*
 .claude/*
 !.claude/CLAUDE.md
 !.claude/*.md
+tsconfig.tsbuildinfo
