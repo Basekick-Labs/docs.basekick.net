@@ -1,0 +1,12 @@
+---
+title: "API Reference"
+description: "REST endpoints for Arc Enterprise ingestion, query, and administration, including the cluster, RBAC, audit log, and query management routes that OSS deployments do not expose."
+---
+
+Arc Enterprise serves the full Arc REST API plus the administrative routes that the licensed features add. Ingestion and query endpoints are identical to OSS, so existing clients keep working against a cluster endpoint unchanged.
+
+What differs is authorization and routing. Tokens carry [RBAC](/arc-enterprise/security/rbac/) scopes, requests may be forwarded between nodes according to role, and [query governance](/arc-enterprise/query/query-governance/) can reject a request that exceeds a token's quota.
+
+<Cards>
+  <Card title="API overview" href="/arc-enterprise/api-reference/overview/" description="Write, query, health, and administration endpoints with request and response examples." />
+</Cards>

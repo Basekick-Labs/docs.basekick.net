@@ -1,0 +1,9 @@
+{
+  "title": "Operations",
+  "pages": [
+    "[Overview](/arc-enterprise/operations/)",
+    "telemetry",
+    "automated-scheduling",
+    "profiling"
+  ]
+}

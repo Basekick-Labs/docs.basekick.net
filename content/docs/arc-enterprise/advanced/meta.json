@@ -1,0 +1,10 @@
+{
+  "title": "Advanced",
+  "pages": [
+    "[Overview](/arc-enterprise/advanced/)",
+    "wal",
+    "compaction",
+    "caching",
+    "data-time-partitioning"
+  ]
+}

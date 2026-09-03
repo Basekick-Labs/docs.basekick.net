@@ -1,0 +1,19 @@
+---
+title: "Integrations"
+description: "Connect Arc Enterprise to Grafana, Superset, Telegraf, MQTT, OpenTelemetry, Redpanda Connect, VS Code, and InfluxDB clients using RBAC-scoped tokens against a cluster endpoint."
+---
+
+Every integration below works the same way against Arc Enterprise as against Arc OSS — the wire protocols are identical. Two things change in a clustered deployment.
+
+Writers and readers are different nodes, so point ingestion tools at the writer endpoint (behind an L7 load balancer if you run more than one writer) and dashboards at a reader endpoint. And each tool gets its own token, scoped by [RBAC](/arc-enterprise/security/rbac/) to the databases it needs, so a compromised dashboard credential cannot write.
+
+<Cards>
+  <Card title="MQTT" href="/arc-enterprise/integrations/mqtt/" description="Native broker subscriptions managed through the API, without restarting nodes." />
+  <Card title="Grafana" href="/arc-enterprise/integrations/grafana/" description="The Basekick Arc data source, pointed at a reader endpoint." />
+  <Card title="Telegraf" href="/arc-enterprise/integrations/telegraf/" description="Native Arc output plugin sending MessagePack columnar batches." />
+  <Card title="InfluxDB clients" href="/arc-enterprise/integrations/influxdb-clients/" description="Drop-in compatibility for existing InfluxDB client libraries." />
+  <Card title="OpenTelemetry" href="/arc-enterprise/integrations/opentelemetry/" description="Traces, metrics, and logs from the OpenTelemetry Collector." />
+  <Card title="Apache Superset" href="/arc-enterprise/integrations/superset/" description="The arc:// SQLAlchemy dialect for BI dashboards." />
+  <Card title="VS Code" href="/arc-enterprise/integrations/vscode/" description="Browse databases, run SQL, and import CSV from the editor." />
+  <Card title="Redpanda Connect" href="/arc-enterprise/integrations/redpanda-connect/" description="Stream from any Redpanda Connect source via the native arc output." />
+</Cards>

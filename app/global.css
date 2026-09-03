@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* Brand accent, taken from basekick.net: cyan is the primary channel,
+   fuchsia/purple the secondary. Only the accent and surface colours are
+   borrowed - typography stays Fumadocs'. */
+:root {
+  --brand-cyan: oklch(0.789 0.154 211.53);
+  --brand-cyan-strong: oklch(0.715 0.143 215.22);
+  --brand-fuchsia: oklch(0.74 0.238 322.16);
+}
+
+/* Dark mode is pure black rather than Fumadocs' near-black, matching the
+   basekick.net hero. The surrounding surfaces step up from it so cards still
+   read as raised. */
+.dark {
+  --color-fd-background: oklch(0 0 0);
+  --color-fd-card: oklch(0.16 0 0);
+  --color-fd-popover: oklch(0.14 0 0);
+  --color-fd-secondary: oklch(0.18 0 0);
+  --color-fd-muted: oklch(0.18 0 0);
+  --color-fd-accent: oklch(0.22 0 0);
+  --color-fd-border: oklch(0.26 0 0);
+  --color-fd-primary: var(--brand-cyan);
+  --color-fd-ring: var(--brand-cyan);
+}
+
+:root:not(.dark) {
+  --color-fd-primary: var(--brand-cyan-strong);
+  --color-fd-ring: var(--brand-cyan-strong);
+}
+
+/* One layout width for the nav, the docs shell and the homepage, so the three
+   line up instead of each having its own container. Fumadocs reads this for
+   its own containers; the homepage uses max-w-[--fd-layout-width] to match. */
+:root {
+  --fd-layout-width: 1400px;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* Graph-paper texture from basekick.net's hero, with the same radial mask so
+   it fades out rather than ending on a hard edge. */
+.arc-grid-bg {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 35%, transparent 78%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 35%, transparent 78%);
+}
+
+:root:not(.dark) .arc-grid-bg {
+  background-image:
+    linear-gradient(rgba(100, 116, 139, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100, 116, 139, 0.09) 1px, transparent 1px);
+}

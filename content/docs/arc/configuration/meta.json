@@ -1,0 +1,10 @@
+{
+  "title": "Configuration",
+  "pages": [
+    "[In this section](/arc/configuration/)",
+    "overview",
+    "authentication",
+    "fips",
+    "storage-file-format"
+  ]
+}

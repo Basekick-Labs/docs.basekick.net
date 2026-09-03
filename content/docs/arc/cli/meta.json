@@ -1,0 +1,12 @@
+{
+  "title": "arcctl",
+  "pages": [
+    "[Overview](/arc/cli/)",
+    "connections",
+    "query",
+    "write",
+    "db",
+    "measurement",
+    "import"
+  ]
+}

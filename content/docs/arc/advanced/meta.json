@@ -1,0 +1,11 @@
+{
+  "title": "Advanced",
+  "pages": [
+    "[Overview](/arc/advanced/)",
+    "data-time-partitioning",
+    "wal",
+    "compaction",
+    "caching",
+    "edge-sync"
+  ]
+}

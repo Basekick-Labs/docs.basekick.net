@@ -1,0 +1,19 @@
+{
+  "title": "Arc Enterprise",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "installation",
+    "configuration",
+    "api-reference",
+    "sdks",
+    "integrations",
+    "data-lifecycle",
+    "advanced",
+    "performance",
+    "operations",
+    "query",
+    "security"
+  ]
+}

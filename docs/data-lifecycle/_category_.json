@@ -1,8 +1,0 @@
-{
-  "label": "Data Lifecycle",
-  "position": 8,
-  "link": {
-    "type": "generated-index",
-    "description": "Manage data lifecycle with retention policies, delete operations, and continuous queries."
-  }
-}

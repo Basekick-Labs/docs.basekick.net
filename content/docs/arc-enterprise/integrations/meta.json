@@ -1,0 +1,14 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "[Overview](/arc-enterprise/integrations/)",
+    "mqtt",
+    "grafana",
+    "telegraf",
+    "influxdb-clients",
+    "opentelemetry",
+    "superset",
+    "vscode",
+    "redpanda-connect"
+  ]
+}

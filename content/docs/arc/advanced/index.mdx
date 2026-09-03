@@ -1,0 +1,14 @@
+---
+title: "Advanced"
+description: "How Arc works underneath: data-time partitioning, the optional ingestion WAL, scheduled file compaction, the query-path caches, and edge-to-hub file sync."
+---
+
+These pages explain mechanisms rather than tasks — useful when tuning a deployment or working out why Arc behaved the way it did.
+
+<Cards>
+  <Card title="Data-time partitioning" href="/arc/advanced/data-time-partitioning/" description="Why files are partitioned by event time, not ingestion time." />
+  <Card title="Write-ahead log" href="/arc/advanced/wal/" description="The optional WAL that bounds data loss on a crash." />
+  <Card title="File compaction" href="/arc/advanced/compaction/" description="Merging small Parquet files on an hourly and daily schedule." />
+  <Card title="Query caching" href="/arc/advanced/caching/" description="The three caches on the query path and what each memoizes." />
+  <Card title="Edge sync" href="/arc/advanced/edge-sync/" description="Shipping Parquet files from an edge spoke to a central hub." />
+</Cards>

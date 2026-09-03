@@ -1,0 +1,12 @@
+---
+title: "Data Lifecycle"
+description: "Manage how long data lives in Arc: retention windows, WHERE-clause deletes that rewrite Parquet files, and continuous queries that downsample into materialized views."
+---
+
+These features control what happens to data after it lands. In Arc OSS each one is triggered through the API; scheduled execution is an [Arc Enterprise](/arc-enterprise/operations/automated-scheduling/) feature.
+
+<Cards>
+  <Card title="Retention policies" href="/arc/data-lifecycle/retention-policies/" description="Define retention windows per database or measurement." />
+  <Card title="Delete operations" href="/arc/data-lifecycle/delete-operations/" description="Remove rows with a WHERE predicate by rewriting Parquet files." />
+  <Card title="Continuous queries" href="/arc/data-lifecycle/continuous-queries/" description="Downsample high-frequency data into materialized views." />
+</Cards>

@@ -1,8 +1,0 @@
-{
-  "label": "Data Lifecycle",
-  "position": 7,
-  "link": {
-    "type": "generated-index",
-    "description": "Manage data retention and lifecycle policies."
-  }
-}

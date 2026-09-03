@@ -1,0 +1,9 @@
+{
+  "title": "Data Lifecycle",
+  "pages": [
+    "[Overview](/arc/data-lifecycle/)",
+    "retention-policies",
+    "delete-operations",
+    "continuous-queries"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Python SDK",
+  "pages": [
+    "[Overview](/arc-enterprise/sdks/python/)",
+    "installation",
+    "ingestion",
+    "querying",
+    "data-management"
+  ]
+}

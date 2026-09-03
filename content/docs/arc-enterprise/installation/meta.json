@@ -1,0 +1,10 @@
+{
+  "title": "Installation",
+  "pages": [
+    "[Overview](/arc-enterprise/installation/)",
+    "docker",
+    "native",
+    "kubernetes",
+    "aws-marketplace"
+  ]
+}

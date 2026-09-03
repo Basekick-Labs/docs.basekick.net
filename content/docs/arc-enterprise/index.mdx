@@ -1,0 +1,139 @@
+---
+title: "Arc Enterprise"
+description: "Arc Enterprise adds clustering, RBAC, tiered storage, audit logging, and query governance to the Arc binary. Enable them with a license key in arc.toml; no data migration."
+---
+
+**Production-grade time-series database infrastructure for scale, security, and compliance.**
+
+Arc Enterprise extends the [Arc](/arc/) time-series database with enterprise features designed for production deployments. Same binary, same performance — with clustering, access control, tiered storage, audit logging, and more.
+
+![Arc Enterprise Architecture](/img/arc-enterprise-architecture.jpg)
+
+## OSS vs Enterprise
+
+| Capability | Arc OSS | Arc Enterprise |
+|-----------|---------|----------------|
+| **Deployment & Scale** | | |
+| Single-node deployment | Yes | Yes |
+| Clustering (multi-node) | - | Yes |
+| Role separation (writer / reader / compactor) | - | Yes |
+| Automatic failover (writer + compactor) | - | Yes |
+| Shared-storage deployment (S3 / MinIO / Azure) | Yes | Yes |
+| Local-storage deployment with peer replication | - | Yes |
+| Heartbeat-based cluster health detection | - | Yes |
+| **Security & Access** | | |
+| Token-based authentication | Yes | Yes |
+| Organizations, teams, and RBAC | - | Yes |
+| Measurement-level permissions | - | Yes |
+| Cluster TLS encryption + shared secret auth | - | Yes |
+| Audit logging | - | Yes |
+| **Data Lifecycle** | | |
+| Continuous queries (manual execution) | Yes | Yes |
+| Retention policies (manual execution) | Yes | Yes |
+| Automatic scheduling (continuous queries + retention policies) | - | Yes |
+| Auto-aggregation | - | Yes |
+| Hot/cold tiered storage with per-database policies | - | Yes |
+| Backup & restore | - | Yes |
+| **Observability & Operations** | | |
+| Prometheus metrics | Yes | Yes |
+| Active query management | - | Yes |
+| Query governance (rate limits, quotas, row limits) | - | Yes |
+| SLA monitoring | - | Yes |
+| **Integrations** | | |
+| MQTT subscription management | Yes | Yes |
+| **Storage** | | |
+| S3 / Azure / MinIO storage | Yes | Yes |
+
+## Getting Started
+
+Arc Enterprise uses the same binary as Arc OSS. Enable enterprise features by adding your license key:
+
+```toml
+# arc.toml
+[license]
+key = "ARC-XXXX-XXXX-XXXX-XXXX"
+```
+
+Or via environment variable:
+
+```bash
+export ARC_LICENSE_KEY="ARC-XXXX-XXXX-XXXX-XXXX"
+```
+
+On startup, Arc validates your license and enables the features included in your plan. No data migration is required — your existing databases, measurements, and configurations are fully preserved.
+
+<Callout type="idea" title="Zero-Downtime Upgrade">
+Upgrading from Arc OSS to Enterprise requires no data migration. Add your license key, enable the features you need, and restart. Your existing data and configuration remain intact.
+</Callout>
+
+## Features
+
+<Cards>
+  <Card title="Clustering and high availability" href="/arc-enterprise/configuration/clustering/" description="Multi-node clusters with dedicated writer, reader, and compactor roles on shared object storage or local disks with peer replication, plus automatic failover." />
+  <Card title="Role-based access control" href="/arc-enterprise/security/rbac/" description="Organizations, teams, and roles with granular database and measurement-level permissions, built on Arc's token authentication." />
+  <Card title="Tiered storage" href="/arc-enterprise/data-lifecycle/tiered-storage/" description="Automatic hot/cold data tiering with S3 Glacier and Azure Archive support, with no query-time complexity." />
+  <Card title="Audit logging" href="/arc-enterprise/security/audit-logging/" description="Event tracking for compliance: authentication, data access, RBAC changes, and infrastructure events with configurable retention." />
+  <Card title="Query governance" href="/arc-enterprise/query/query-governance/" description="Per-token rate limiting, query quotas, and row limits to protect the cluster from runaway queries." />
+  <Card title="Query management" href="/arc-enterprise/query/query-management/" description="Monitor active queries in real time, review query history, and cancel long-running queries." />
+  <Card title="Automated scheduling" href="/arc-enterprise/operations/automated-scheduling/" description="Automatic execution of continuous queries and retention policies on configurable schedules." />
+  <Card title="MQTT integration" href="/arc-enterprise/integrations/mqtt/" description="Native MQTT subscription management with API-driven configuration for IoT brokers and topic tag extraction." />
+</Cards>
+
+## Configuration Example
+
+A complete enterprise configuration combining multiple features:
+
+```toml
+# arc.toml — Enterprise deployment example
+
+[license]
+key = "ARC-XXXX-XXXX-XXXX-XXXX"
+
+[server]
+port = 8000
+
+[storage]
+backend = "s3"
+s3_bucket = "arc-production"
+s3_region = "us-east-1"
+
+[auth]
+enabled = true
+
+[cluster]
+enabled = true
+node_id = "writer-01"
+role = "writer"
+cluster_name = "production"
+seeds = ["10.0.1.10:9000", "10.0.1.11:9000"]
+
+[tiered_storage]
+enabled = true
+default_hot_max_age_days = 30
+
+[tiered_storage.cold]
+enabled = true
+backend = "s3"
+s3_bucket = "arc-archive"
+s3_region = "us-east-1"
+s3_storage_class = "GLACIER"
+
+[audit_log]
+enabled = true
+retention_days = 90
+
+[governance]
+enabled = true
+default_rate_limit_per_min = 60
+default_max_queries_per_hour = 500
+
+[query_management]
+enabled = true
+```
+
+## Contact
+
+To get started with Arc Enterprise, request a trial, or learn more about licensing:
+
+- **Email**: enterprise@basekick.net
+- **Discord**: [Join our community](https://discord.gg/nxnWfUxsdm)

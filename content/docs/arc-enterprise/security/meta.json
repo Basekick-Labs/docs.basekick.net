@@ -1,0 +1,9 @@
+{
+  "title": "Security",
+  "pages": [
+    "[Overview](/arc-enterprise/security/)",
+    "rbac",
+    "audit-logging",
+    "cluster-security"
+  ]
+}

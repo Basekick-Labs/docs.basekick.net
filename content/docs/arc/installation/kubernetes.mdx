@@ -1,0 +1,691 @@
+---
+title: "Kubernetes Installation"
+description: "Deploy Arc on Kubernetes with the Helm chart: configure storage backends and credentials, size persistent volumes, set resource limits, and expose the service."
+---
+
+Deploy Arc on Kubernetes using Helm for production-grade analytical data management.
+
+## Prerequisites
+
+- Kubernetes 1.24+
+- Helm 3.0+
+- `kubectl` configured to access your cluster
+- Persistent storage (for local storage backend)
+
+## Quick Start
+
+```bash
+# Install Arc
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm install arc https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz
+
+# Port forward to access locally
+kubectl port-forward svc/arc 8000:8000
+
+# Verify installation
+curl http://localhost:8000/health
+```
+
+## Get Your Admin Token
+
+```bash
+# Get the pod name
+kubectl get pods -l app=arc
+
+# View logs to find admin token
+kubectl logs -l app=arc | grep -i "admin"
+```
+
+You should see:
+
+```bash
+======================================================================
+  FIRST RUN - INITIAL ADMIN TOKEN GENERATED
+======================================================================
+  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+======================================================================
+```
+
+<Callout type="warn" title="Save This Token">
+Copy this token immediately - you won't see it again!
+</Callout>
+
+<Callout type="info" title="Arc Enterprise cluster mode (v26.06.1+)">
+In a multi-pod Arc Enterprise cluster, **only one pod prints the banner** — the Raft leader that wins the bootstrap election. Other pods log `INFO Deferring initial token bootstrap until cluster Raft proposer is wired` during startup and then `INFO Cluster auth state replication enabled — token writes now propagate via Raft` once the leader is elected. The non-leader pods silently no-op the bootstrap (they get an "already exists" response from the leader's FSM) and converge on the leader's token via Raft. The `kubectl logs -l app=arc | grep -i "admin"` command above still works — it just returns the single banner from whichever pod won the election. See [Cluster auth replication](/arc/configuration/authentication/#cluster-auth-replication-enterprise) for the full semantics, including token-propagation behaviour and the divergence-detection error log.
+</Callout>
+
+## Installation Methods
+
+<Tabs items={['Quick Install', 'Custom Values', 'Custom Namespace']}>
+  <Tab value="Quick Install">
+
+```bash
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm install arc https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz
+```
+
+  </Tab>
+  <Tab value="Custom Values">
+
+```bash
+# Download chart
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm pull https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz
+tar -xzf arc-${LATEST}.tgz
+
+# Edit values
+vim arc/values.yaml
+
+# Install with custom values
+helm install arc ./arc -f custom-values.yaml
+```
+
+  </Tab>
+  <Tab value="Custom Namespace">
+
+```bash
+# Create namespace
+kubectl create namespace arc
+
+# Install in namespace
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm install arc \
+  https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz \
+  --namespace arc
+```
+
+  </Tab>
+</Tabs>
+
+## Storage Backends
+
+The OSS chart selects the backend with `arc.storageBackend` (`local`, `s3`, or
+`minio`). The chart auto-sets `ARC_STORAGE_BACKEND` and `ARC_STORAGE_LOCAL_PATH`;
+everything else (bucket, region, keys, endpoint) is passed through as
+`ARC_STORAGE_*` environment variables via the free-form `arc.env[]` list.
+
+<Tabs items={['Persistent Volume', 'AWS S3', 'MinIO']}>
+  <Tab value="Persistent Volume">
+
+**Local disk on a Persistent Volume** - the default. The chart provisions a PVC
+mounted at `/app/data/arc`.
+
+```yaml
+# values.yaml
+arc:
+  storageBackend: local
+
+persistence:
+  enabled: true
+  size: 100Gi
+  accessMode: ReadWriteOnce
+  storageClass: ""        # default storage class
+```
+
+```bash
+helm install arc ./arc -f values.yaml
+```
+
+  </Tab>
+  <Tab value="AWS S3">
+
+**AWS S3** - recommended for EKS. Pass the S3 settings through `arc.env[]`.
+
+```yaml
+# values.yaml
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_STORAGE_S3_USE_SSL
+      value: "true"
+```
+
+```bash
+helm install arc ./arc -f values.yaml
+```
+
+<Callout type="idea" title="IRSA (recommended) — no static keys">
+The OSS chart never auto-injects S3 keys, so IRSA works by simply **omitting**
+`ARC_STORAGE_S3_ACCESS_KEY` / `ARC_STORAGE_S3_SECRET_KEY` from `arc.env[]` and
+attaching an IAM role to the ServiceAccount. Arc's AWS credential chain then
+resolves the pod role automatically.
+
+```yaml
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    # no access/secret key — resolved via the pod IAM role
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
+```
+
+Full IRSA support requires Arc **26.09.1** or later. Earlier binaries have two
+separate problems:
+
+- On **26.06.1**, IRSA authenticates writes but not query reads at all.
+- On **26.06.2 and 26.06.3**, query reads work for roughly **one hour** after each
+  pod starts and then fail with `ExpiredToken` until the pod is restarted. Writes
+  and `/health` keep working, so liveness and readiness probes do not catch it.
+  ([#600](https://github.com/Basekick-Labs/arc/issues/600))
+
+Set `image.tag: "26.09.1"` (or later) for IRSA that keeps working past the first
+hour.
+
+<Callout type="info" title="EKS Pod Identity">
+As of 26.09.1 Arc's credential refresher covers every source the AWS SDK
+resolves: **IRSA** and **EKS Pod Identity** both work, as do EC2 instance
+roles for non-EKS deployments. Static keys, when configured, always win.
+</Callout>
+</Callout>
+
+With static keys (not recommended — prefer IRSA):
+
+```yaml
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_STORAGE_S3_ACCESS_KEY
+      value: your_key
+    - name: ARC_STORAGE_S3_SECRET_KEY
+      value: your_secret
+```
+
+  </Tab>
+  <Tab value="MinIO">
+
+**MinIO** - self-hosted S3-compatible storage.
+
+```yaml
+# values.yaml
+arc:
+  storageBackend: minio
+  env:
+    - name: ARC_STORAGE_S3_ENDPOINT
+      value: minio.minio-system.svc.cluster.local:9000
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc
+    - name: ARC_STORAGE_S3_ACCESS_KEY
+      value: minioadmin
+    - name: ARC_STORAGE_S3_SECRET_KEY
+      value: minioadmin123
+    - name: ARC_STORAGE_S3_USE_SSL
+      value: "false"
+    - name: ARC_STORAGE_S3_PATH_STYLE
+      value: "true"
+```
+
+Deploy with in-cluster MinIO:
+
+```bash
+# Install MinIO first
+helm repo add minio https://charts.min.io/
+helm install minio minio/minio --namespace minio-system --create-namespace
+
+# Then install Arc
+helm install arc ./arc -f values.yaml
+```
+
+  </Tab>
+</Tabs>
+
+## Configuration Profiles
+
+The OSS chart is a single Deployment. Arc's own settings (auth, WAL, log level,
+ingest buffers, etc.) are passed as environment variables through `arc.env[]`,
+not a structured `config:` block.
+
+<Tabs items={['Development', 'Production', 'High Durability']}>
+  <Tab value="Development">
+
+Minimal resources for development/testing:
+
+```yaml
+# values-dev.yaml
+replicaCount: 1
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "2Gi"
+    cpu: "1"
+
+arc:
+  storageBackend: local
+  env:
+    - name: ARC_AUTH_ENABLED
+      value: "false"
+    - name: ARC_LOG_LEVEL
+      value: "debug"
+
+persistence:
+  enabled: true
+  size: 10Gi
+```
+
+```bash
+helm install arc ./arc -f values-dev.yaml
+```
+
+  </Tab>
+  <Tab value="Production">
+
+Production-ready configuration backed by S3:
+
+```yaml
+# values-prod.yaml
+replicaCount: 1
+
+resources:
+  requests:
+    memory: "4Gi"
+    cpu: "2"
+  limits:
+    memory: "16Gi"
+    cpu: "8"
+
+arc:
+  storageBackend: s3
+  env:
+    - name: ARC_STORAGE_S3_BUCKET
+      value: arc-production
+    - name: ARC_STORAGE_S3_REGION
+      value: us-east-1
+    - name: ARC_AUTH_ENABLED
+      value: "true"
+    - name: ARC_LOG_LEVEL
+      value: "info"
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/arc-s3
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: arc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: arc-tls
+      hosts:
+        - arc.example.com
+```
+
+```bash
+helm install arc ./arc -f values-prod.yaml --namespace arc
+```
+
+  </Tab>
+  <Tab value="High Durability">
+
+Local disk on fast storage with WAL enabled:
+
+```yaml
+# values-durable.yaml
+replicaCount: 1
+
+resources:
+  requests:
+    memory: "8Gi"
+    cpu: "4"
+  limits:
+    memory: "32Gi"
+    cpu: "16"
+
+arc:
+  storageBackend: local
+  env:
+    - name: ARC_AUTH_ENABLED
+      value: "true"
+    - name: ARC_WAL_ENABLED
+      value: "true"
+    - name: ARC_LOG_LEVEL
+      value: "info"
+
+persistence:
+  enabled: true
+  size: 500Gi
+  storageClass: fast-ssd     # use a fast storage class
+
+nodeSelector:
+  node-type: high-memory
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "arc"
+    effect: "NoSchedule"
+```
+
+```bash
+helm install arc ./arc -f values-durable.yaml --namespace arc
+```
+
+<Callout type="info" title="Env var names">
+Arc reads its configuration from `ARC_*` environment variables. Confirm exact
+names against the [configuration reference](/arc/configuration/overview/) before
+relying on a specific key.
+</Callout>
+
+  </Tab>
+</Tabs>
+
+## Sizing the data volume when the WAL is on
+
+With an object-storage backend (`storageBackend: s3`), the pod's PersistentVolume
+holds only the WAL and local cache — but that does **not** make it small. The
+WAL absorbs everything between ingest and flush, so size it against your **peak
+ingest rate × worst-case flush lag**, with generous headroom. The default
+`persistence.size: 10Gi` is a development default: at a bulk-load rate of
+100 MB/s it fills in under two minutes.
+
+A full WAL volume is a bad failure: the writer can't create its startup WAL file
+on a full disk, so the pod cannot boot again until the volume is grown or
+cleaned by hand (tracked in
+[arc#676](https://github.com/Basekick-Labs/arc/issues/676)). For one-off bulk
+migrations, either size the volume for the burst or set `ARC_WAL_ENABLED=false`
+for the migration window and re-enable it afterwards.
+
+## Helm Values Reference
+
+### Core Settings
+
+```yaml
+# Number of pod replicas (single Deployment).
+replicaCount: 1
+
+# Container image (tag defaults to the chart appVersion).
+image:
+  repository: ghcr.io/basekick-labs/arc
+  tag: ""                # set "26.06.2" for full IRSA query-read support
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8000
+```
+
+### Resources
+
+```yaml
+resources: {}            # empty by default; set requests/limits as needed
+  # requests:
+  #   memory: "2Gi"
+  #   cpu: "1"
+  # limits:
+  #   memory: "8Gi"
+  #   cpu: "4"
+```
+
+### Storage
+
+```yaml
+arc:
+  # local | s3 | minio. The chart sets ARC_STORAGE_BACKEND from this and
+  # ARC_STORAGE_LOCAL_PATH automatically.
+  storageBackend: local
+
+  # Free-form env vars passed straight to the Arc container. Use ARC_STORAGE_*
+  # for bucket/region/keys/endpoint, plus any other ARC_* settings.
+  env: []
+    # - name: ARC_STORAGE_S3_BUCKET
+    #   value: arc-production
+    # - name: ARC_STORAGE_S3_REGION
+    #   value: us-east-1
+    # - name: ARC_STORAGE_S3_ENDPOINT
+    #   value: https://s3.us-east-1.amazonaws.com
+    # - name: ARC_STORAGE_S3_ACCESS_KEY   # omit for IRSA
+    #   value: ""
+    # - name: ARC_STORAGE_S3_SECRET_KEY   # omit for IRSA
+    #   value: ""
+    # - name: ARC_STORAGE_S3_USE_SSL
+    #   value: "true"
+    # - name: ARC_STORAGE_S3_PATH_STYLE
+    #   value: "false"
+
+# PVC used when storageBackend is local (mounted at /app/data/arc).
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: ""
+  # existingClaim: ""
+```
+
+### Ingress
+
+```yaml
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: arc.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+```
+
+### Service Account
+
+```yaml
+serviceAccount:
+  create: true
+  automount: true
+  name: ""
+  annotations: {}        # eks.amazonaws.com/role-arn for IRSA on EKS
+```
+
+<Callout type="info" title="Clustering & HA are Enterprise features">
+The OSS chart runs Arc as a single Deployment with no writer/reader/compactor
+roles, Raft clustering, or multi-writer failover. For high availability,
+multi-writer ingest, and peer replication see the
+[Arc Enterprise Kubernetes guide](/arc-enterprise/installation/kubernetes/).
+</Callout>
+
+## Operations
+
+### View Logs
+
+```bash
+# Follow logs
+kubectl logs -l app=arc -f
+
+# Last 100 lines
+kubectl logs -l app=arc --tail=100
+
+# Logs from last hour
+kubectl logs -l app=arc --since=1h
+```
+
+### Check Status
+
+```bash
+# Pod status
+kubectl get pods -l app=arc
+
+# Describe pod
+kubectl describe pod -l app=arc
+
+# Check events
+kubectl get events --field-selector involvedObject.name=arc-0
+```
+
+### Scale (Restart)
+
+```bash
+# Restart pod
+kubectl rollout restart deployment arc
+
+# Or delete pod (will be recreated)
+kubectl delete pod -l app=arc
+```
+
+### Port Forward
+
+```bash
+kubectl port-forward svc/arc 8000:8000
+```
+
+### Access Shell
+
+```bash
+kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
+```
+
+## Upgrade
+
+```bash
+# Upgrade to new version
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm upgrade arc https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz
+
+# With custom values
+helm upgrade arc ./arc -f values-prod.yaml
+```
+
+## Uninstall
+
+```bash
+# Uninstall Arc
+helm uninstall arc
+
+# Delete PVCs (optional - removes all data!)
+kubectl delete pvc -l app=arc
+
+# Delete namespace (if dedicated)
+kubectl delete namespace arc
+```
+
+## Monitoring
+
+### Prometheus Metrics
+
+Arc exposes Prometheus metrics at `/metrics`:
+
+```yaml
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arc
+spec:
+  selector:
+    matchLabels:
+      app: arc
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+```
+
+### Readiness/Liveness Probes
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 30
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+
+As of **26.09.1**, `/health` includes a `storage` field with per-tier credential
+state (`ok` / `degraded` / `expired` / `fallback` / `unknown`), computed from
+Arc's credential refresher — no S3/Azure probing from the probe path. Alert on
+`storage.*.state != "ok"` or on `expires_at` approaching. For **reader pools**,
+setting `server.storage_credentials_fail_ready = true` makes `/ready` return
+503 while any tier's credentials are `expired`, so Kubernetes recycles the pod
+(a restart re-resolves credentials). Leave it off for writers — ingest keeps
+working through credential expiry, and Arc warns at startup if it is enabled on
+a cluster writer.
+
+## Troubleshooting
+
+### Pod Won't Start
+
+```bash
+# Check pod status
+kubectl describe pod -l app=arc
+
+# Check events
+kubectl get events --sort-by='.lastTimestamp'
+
+# Common issues:
+# - ImagePullBackOff: Check image name/tag
+# - Pending: Check PVC status, node resources
+# - CrashLoopBackOff: Check logs
+```
+
+### Storage Issues
+
+```bash
+# Check PVC status
+kubectl get pvc -l app=arc
+
+# Check PV
+kubectl get pv
+
+# Describe PVC for errors
+kubectl describe pvc -l app=arc
+```
+
+### Connection Issues
+
+```bash
+# Check service
+kubectl get svc arc
+
+# Test from within cluster
+kubectl run curl --image=curlimages/curl -it --rm -- curl http://arc:8000/health
+```
+
+### Memory Issues
+
+```bash
+# Check resource usage
+kubectl top pod -l app=arc
+
+# Increase limits in values.yaml
+resources:
+  limits:
+    memory: "16Gi"
+```
+
+## Next Steps
+
+- [Write your first data](/arc/getting-started/#write-data)
+- [Configure storage backends](/arc/configuration/overview/)
+- [Set up monitoring](/arc/operations/telemetry/)
+- [Enable WAL for durability](/arc/advanced/wal/)

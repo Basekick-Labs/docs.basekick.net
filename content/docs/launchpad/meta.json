@@ -1,0 +1,10 @@
+{
+  "title": "Arc Launchpad",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "using-the-console",
+    "administration"
+  ]
+}
