@@ -63,6 +63,8 @@ If an expected database is missing, check whether its data is WAL-only and wheth
 tsm2arc --datadir /mnt/influx/data --analyze
 ```
 
+Text output shows the five largest runs per shard and says so when it truncates; `--analyze-runs=0` prints everything. For tooling, use `--format=json`: one JSON document with every run of every shard and nothing else on stdout. Add `--redact` to replace database, retention policy, and series names with stable hashed identifiers when the report must leave your organization.
+
 <Callout type="info" title="Sharing the report outside your organization: --redact">
 If the analysis has to leave your organization (a support ticket, a GitHub issue), add `--redact`: database, retention policy, and series names are replaced with stable hashed pseudonyms (`series_3f9a2c1b04d7`). The report keeps every number but carries no internal identifiers, and the pseudonyms are stable across runs and machines, so a conversation can keep referring to the same series.
 </Callout>
@@ -85,6 +87,8 @@ tsm2arc --datadir /mnt/influx/data --waldir /mnt/influx/wal \
 Each source database maps to an Arc database of the same name; rename with `--db-map old=new` (repeatable).
 
 ## Handle measurement names Arc rejects
+
+Under the default `--on-invalid-measurement=fail`, a load runs a pre-flight census: every measurement name in the (time-windowed) corpus is checked against your map **before the first POST**, and a failure lists every offending name at once, so one map fix covers all of them. The census reads only TSM indexes and WAL keys; it does not decode data.
 
 Arc accepts only measurement names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` (the dot is Arc's `database.measurement` separator in queries and RBAC grant keys). InfluxDB is far more permissive, and dotted `<env>.<service>` names are common. tsm2arc validates **client-side, before sending**, so a bad name cannot end a multi-hour load with a mid-flight Arc 400.
 
@@ -139,6 +143,12 @@ A heartbeat line reports progress while it runs:
 - Put the `--checkpoint` file somewhere durable and **keep it**: it is how resume works, and its audit tables are your record of exactly what was sent.
 - Run one process; scale with `--workers` (size it against the Arc node, see [Performance and scaling](/arc/migration/tsm2arc/performance/)). Never run two processes against the same checkpoint file.
 - Transient failures (429, 5xx, network) retry with exponential backoff; 4xx errors are permanent and abort the run.
+
+## If a writer restarts mid-load
+
+A rolling restart of Arc (or anything that severs keep-alive connections, such as an L7 proxy in front of the writers) makes the in-flight POST fail fast and retry, visibly: requests send `Expect: 100-continue` so a dead backend usually fails the attempt in about a second, each attempt has a deadline (`--send-timeout`, auto-derived from `--chunk-bytes`), every failed attempt logs one line, and retries open a fresh connection. The heartbeat shows the oldest shard's idle age and the last send failure, and warns once a shard exceeds `--stall-warn`. When the whole retry budget is spent the process exits non-zero, and a plain re-run resumes exactly where it left off.
+
+Avoid setting `--send-timeout` aggressively low: the deadline covers Arc's flush-before-ack, and a timeout that races a *successful* import re-sends the chunk (tag-bearing series dedupe at compaction; tagless rows can keep the duplicate).
 
 ## If it stops: Just resume
 

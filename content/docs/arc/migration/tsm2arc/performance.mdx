@@ -3,7 +3,7 @@ title: "Performance and scaling"
 description: "Sizing a tsm2arc migration: workers against the Arc node's memory, migration-host memory math, shard-level parallelism with a memory budget, and spreading load across multi-writer clusters."
 ---
 
-The knobs that matter, in order: `--workers` (sized against the **Arc node**, not the migration host), `--chunk-bytes` (per-request memory on both sides), and for shard-shaped bottlenecks, `--shard-split` with `--merge-memory`. None of them affect correctness or resume; all of them are safe to change between runs except the shaping flags the checkpoint fingerprints (see the [runbook](/arc/migration/tsm2arc/runbook/#if-it-stops-just-resume)).
+The knobs that matter, in order: `--workers` (sized against the **Arc node**, not the migration host), `--chunk-bytes` (per-request memory on both sides), `--inflight` (upload concurrency per shard), and for shard-shaped bottlenecks, `--shard-split` with `--merge-memory`. None of them affect correctness or resume; all of them are safe to change between runs except the shaping flags the checkpoint fingerprints (see the [runbook](/arc/migration/tsm2arc/runbook/#if-it-stops-just-resume)).
 
 ## Size `--workers` against the Arc node
 
@@ -45,6 +45,10 @@ Run [`--analyze`](/arc/migration/tsm2arc/runbook/#profile-the-shards-optional) f
 ```
 
 then set `--shard-split` to 2 to 4. A task whose estimate exceeds the budget runs alone (the serial memory profile); that is never an error, just no extra parallelism for that task.
+
+## Upload concurrency
+
+When extraction outruns the network — few fat shards, chunks acknowledged in seconds, CPU mostly idle — the ceiling is one in-flight POST per shard. `--inflight 2` or `3` sends that many chunks per shard concurrently while checkpoint commits still apply strictly in order, so resume stays exact and the value can change between runs. Costs to budget: host memory becomes `workers × (inflight + 1) × chunk-bytes`, Arc buffers `workers × inflight` decompressed chunks server-side (assume the worst case lands on one writer behind a load balancer), and the unclean-crash duplicate bound for tagless series widens from at most one chunk per shard to at most `inflight`.
 
 ## Spread load across a multi-writer cluster
 
