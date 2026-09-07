@@ -47,6 +47,15 @@ Arc sends the following anonymous data every 24 hours:
 - **memory**: System memory
   - Total RAM in gigabytes
 
+### CLI installations (Arc releases after 26.09.1)
+
+- **clients.arcli**: the [arcli](https://github.com/Basekick-Labs/arcli) installations that talked to this node since its previous report
+  - arcli sends a random per-installation UUID (`Arcli-Installation-Id` header) and its version (`User-Agent`); the node keeps at most 256 distinct ids per report and marks the list `truncated` beyond that
+  - Only requests the node authenticated are counted (public routes such as `/health` never are; with authentication disabled every served request is trusted); the id is never logged and nothing about the request (database, query, token) is recorded
+  - The same id reaches every Arc server that installation uses, so Basekick can count how many CLI installations talk to how many instances
+  - Users disable it on the CLI side with `DO_NOT_TRACK=1` or `send_installation_id = false` in `~/.arcli/config.toml`; disabling Arc telemetry on the node also stops it
+  - Omitted entirely when no CLI installation was seen
+
 ### Example payload
 
 ```json
@@ -67,6 +76,15 @@ Arc sends the following anonymous data every 24 hours:
   },
   "memory": {
     "total_gb": 32
+  },
+  "clients": {
+    "arcli": {
+      "installations": 1,
+      "truncated": false,
+      "list": [
+        { "id": "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", "version": "26.09.1", "last_seen": "2024-01-20T09:58:12Z" }
+      ]
+    }
   }
 }
 ```
@@ -88,9 +106,10 @@ Arc explicitly avoids collecting:
 
 ### Telemetry schedule
 
-1. **First Transmission**: 1 minute after Arc starts
-2. **Subsequent Transmissions**: Every 24 hours
-3. **Primary Worker Only**: Only the primary worker process sends telemetry (multi-worker deployments send one report)
+1. **First Transmission**: right after Arc starts
+2. **Subsequent Transmissions**: Every 24 hours (`telemetry.interval_seconds`)
+3. **Shutdown**: one final report if CLI installations were seen since the last one (best effort, 5 s timeout), so nodes restarted more often than the interval still report them
+4. **Primary Worker Only**: Only the primary worker process sends telemetry (multi-worker deployments send one report)
 
 ### Endpoint
 

@@ -127,4 +127,4 @@ When verification is skipped, a `WARNING:` line is printed to stderr. The flag i
 - The config file is mode 0600 (owner read/write only). The parent directory `~/.arcctl/` is mode 0700.
 - Tokens are stored plaintext. Same posture as `~/.aws/credentials`.
 - `arcctl` never logs the token. Help text, error messages, `config list`, and `config current` all use redaction.
-- `arcctl` does not phone home. No telemetry. No update checks.
+- The CLI never contacts Basekick or any third party; every request goes to the Arc server you configured. No update checks. Requests carry the CLI version and OS/architecture in `User-Agent` and, once a config file exists, a random installation id (`installation_id` in the config file, minted by the first `config create`) in the `Arcli-Installation-Id` header, so the server's own opt-out telemetry can count CLI installations per instance. Opt out with `DO_NOT_TRACK=1` or `send_installation_id = false` in the config file; see the arcli README's Privacy section.
