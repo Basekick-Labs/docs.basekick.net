@@ -8,7 +8,7 @@ This guide walks you through moving an InfluxDB workload to Arc: re-pointing liv
 InfluxDB is the smoothest migration to Arc, because Arc speaks InfluxDB Line Protocol natively:
 
 - **Live ingestion is a URL change.** Point Telegraf or any InfluxDB client at Arc's `/write` (1.x) or `/api/v2/write` (2.x) endpoint. Dual-write during the migration, cut over when ready. No agent changes, no downtime.
-- **History has a purpose-built tool.** [`tsm2arc`](https://github.com/Basekick-Labs/tsm2arc) reads InfluxDB 1.x/2.x TSM files directly off disk and loads Arc, reconstructing multi-field points correctly. Line Protocol export/import works for every version including 3.x.
+- **History has a purpose-built tool.** [`tsm2arc`](https://github.com/Basekick-Labs/tsm2arc) reads InfluxDB storage directly — 1.x/2.x TSM files off disk, 3.x parquet object stores from disk or S3 — and loads Arc, reconstructing multi-field points correctly. Line Protocol export/import remains a fallback for every version.
 - **Queries move to standard SQL.** InfluxQL and Flux map to standard SQL. Flux is deprecated in InfluxDB 3 anyway.
 
 ## How InfluxDB concepts map to Arc
@@ -219,9 +219,9 @@ curl -X POST "http://localhost:8000/api/v1/import/lp" \
 `influx_inspect export` writes one Line Protocol line per field, so a two-field point becomes two rows in Arc, each with one field populated and the other null. For single-field measurements this is fine. For multi-field measurements, either use **tsm2arc** (below), which rejoins fields into one point, or export with an InfluxQL `SELECT` per measurement so the fields stay together. See the full mechanics in [Line Protocol Bulk Import](/arc/data-import/line-protocol/).
 </Callout>
 
-### Bulk migration with tsm2arc (recommended for 1.x/2.x)
+### Bulk migration with tsm2arc (recommended)
 
-[tsm2arc](https://github.com/Basekick-Labs/tsm2arc) (Apache-2.0) reads InfluxDB 1.x/2.x TSM and WAL files **directly off disk**, reconstructs each multi-field point into a single Line Protocol record, and streams it into Arc's `/api/v1/import/lp` endpoint with resumable checkpointing. It does not need a running InfluxDB, which makes it ideal for cold volumes and EBS snapshots. (InfluxDB 3.x stores Parquet, not TSM, so use the Line Protocol path above for 3.x.)
+[tsm2arc](https://github.com/Basekick-Labs/tsm2arc) (Apache-2.0) reads InfluxDB storage **directly** — 1.x/2.x TSM and WAL files off disk, and 3.x parquet object stores from local disk or **in place on S3** — reconstructs each multi-field point into a single Line Protocol record, and streams it into Arc's `/api/v1/import/lp` endpoint with resumable checkpointing. It does not need a running InfluxDB, which makes it ideal for cold volumes, EBS snapshots, and orphaned S3 buckets. For 3.x it reads every catalog format natively and recovers un-snapshotted WAL (up to ~10 minutes of the newest writes live only there — a clean v3 shutdown does not flush them); see [InfluxDB 3 sources](/arc/migration/tsm2arc/influxdb3/) for the v3 specifics and the Enterprise/Pacha support matrix. The Line Protocol path above remains the fallback for the out-of-scope 3.x cases.
 
 Install:
 

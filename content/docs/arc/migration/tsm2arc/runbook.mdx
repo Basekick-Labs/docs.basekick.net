@@ -14,7 +14,7 @@ This is the operator guide for migrating InfluxDB 1.x/2.x data into Arc with tsm
 
 ## Understand the source layout
 
-tsm2arc auto-detects 1.x vs 2.x; the TSM/WAL file format is identical between them, only the directory layout differs.
+tsm2arc auto-detects 1.x vs 2.x vs 3.x; for 1.x/2.x the TSM/WAL file format is identical, only the directory layout differs.
 
 ```text
 # InfluxDB 1.x
@@ -26,6 +26,8 @@ tsm2arc auto-detects 1.x vs 2.x; the TSM/WAL file format is identical between th
 <root>/engine/wal/<bucket-id>/autogen/<shard-id>/*.wal
 <root>/influxd.bolt                                          # bucket id-to-name map
 ```
+
+InfluxDB 3.x is a parquet object store, not TSM — point `--datadir` at the store root (a local directory or an `s3://` URL) and see [InfluxDB 3 sources](/arc/migration/tsm2arc/influxdb3/) for the v3-specific behavior (native WAL recovery, catalogs, Enterprise tiers). Everything else on this page — dry run, sizing, resume, verification — applies to 3.x unchanged.
 
 <Callout type="warn" title="2.x: grab influxd.bolt">
 On a cold-volume migration, copy `influxd.bolt` alongside the `engine/` directory (or point `--bolt` at it). Without it, tsm2arc cannot recover bucket names: buckets migrate under their 16-hex IDs and the `_monitoring`/`_tasks` system buckets cannot be skipped (it warns loudly). Resume is robust either way, since the checkpoint keys on the stable bucket ID, but keep the bolt available for the whole migration so Arc database names stay consistent.

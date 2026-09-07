@@ -1,0 +1,78 @@
+---
+title: "InfluxDB 3 sources"
+description: "Migrate InfluxDB 3 (3.0–3.11) object stores into Arc: local disk or S3 read in place, all catalog formats decoded natively, un-snapshotted WAL recovered, Enterprise tiers explained."
+---
+
+tsm2arc reads **InfluxDB 3 (3.0–3.11, Parquet engine)** object stores directly — parquet data files, snapshot manifests, the catalog, and the WAL — with no running `influxdb3` required. Point `--datadir` at the store and everything is auto-detected:
+
+```bash
+# local directory (--object-store file, or any store synced to disk):
+# point at the store root — the directory holding the node prefix
+tsm2arc --datadir /mnt/influxdb3-store --arc-url https://arc.example.net --dry-run
+
+# straight from S3: listings and range reads, no scratch-volume sync.
+# Credentials come from the standard AWS chain (env vars, shared config,
+# IMDS/IRSA); --s3-endpoint for MinIO and on-prem gateways.
+tsm2arc --datadir s3://my-bucket/influxdb3 --arc-url https://arc.example.net --dry-run
+```
+
+**No v3-specific flags are needed.** Database and table names, series keys, and column types come from the store's catalog, and every catalog format is read natively — the JSON eras of 3.0–3.9 *and* the binary format of 3.10+/3.11 (decoded by the upstream codec itself, compiled to WebAssembly and embedded in the binary — tsm2arc stays a single static executable). Each live table migrates as one unit, and the whole 1.x/2.x toolbox applies unchanged: [dry runs, sizing, resume, verification](/arc/migration/tsm2arc/runbook/), [`--analyze` profiling](/arc/migration/tsm2arc/performance/), measurement policies, `--db-map`.
+
+## The WAL is recovered — nothing is left behind
+
+InfluxDB 3 keeps up to ~10 minutes of the newest writes **only in its WAL**, and a clean server shutdown does **not** flush them: v3 never snapshots on shutdown, so a cold store almost always carries un-snapshotted WAL — sometimes including entire recently-created tables that exist nowhere else. tsm2arc decodes those WAL files in-process and merges the rows into the migration:
+
+```
+decoded 40 row(s) from 4 un-snapshotted WAL file(s) (sequences 13-16); nothing left behind
+```
+
+`--skip-wal` skips the decode explicitly. Only use it when you know the WAL content is disposable — the skipped writes will be missing from Arc, and tsm2arc says so loudly.
+
+## Correctness semantics
+
+- **Duplicates resolve last-write-wins**, deterministically: when the same series and timestamp appear in multiple parquet files (or in the WAL), the newest write wins — the same overwrite semantics InfluxDB 3 applies at query time.
+- **Resume is byte-exact.** Emission order is a pure function of the store, and the live file set is part of the checkpoint fingerprint: a store that changed between a run and its resume fails up front as "different settings" instead of corrupting the migration. Migrate from a quiesced or frozen store.
+- **Three-way verification.** The snapshot manifests carry per-file row counts (`--analyze` prints the reconciled totals per table), tsm2arc reports what it extracted, and Arc can be counted after the load. If the source server can be run, its own `SELECT count(*)` — which replays its WAL — is the gold oracle; tsm2arc's totals match it exactly.
+
+## Enterprise stores
+
+Enterprise clusters keep the catalog under the **cluster prefix** next to the node prefix; tsm2arc resolves that automatically. Support depends on the **compactor**:
+
+| Scenario | Support |
+|---|---|
+| Compactor never ran (nodes in `--mode ingest,query`, or a pre-compaction copy) | ✅ Fully supported — identical to Core |
+| Compactor has run (`cs/`, `cd/`, `c/` exist under the node prefix) | ⛔ Refused — see below |
+| Pacha-tree engine (`.pt` files, default for new Enterprise 3.11+ clusters) | ⛔ Out of scope — see below |
+| Multi-node (clustered) stores | Not yet supported |
+
+<Callout type="warn" title="Why compacted Enterprise stores are refused">
+Compaction rewrites data behind a proprietary run-set index and **deletes the original gen1 parquet** shortly afterwards (`compaction-cleanup-wait`, ~10 minutes). A migration from such a store could silently miss whatever was already compacted, so tsm2arc refuses rather than migrating holes. The supported recipes, printed with the refusal: run the ingest/query nodes **without** compact mode and migrate that store; migrate a copy taken **before** the compactor first ran; or export from the running server with `influxdb3 query --format parquet`.
+</Callout>
+
+<Callout type="info" title="Pacha-tree stores">
+New Enterprise 3.11+ clusters default to the Pacha-tree storage engine (`.pt` files), which is proprietary. tsm2arc detects these stores and explains the two escape hatches: clusters **upgraded** from the Parquet engine retain all their pre-upgrade parquet until `influxdb3 cleanup-parquet` is run — migrate that data *before* cleanup; otherwise export via query from the running server.
+</Callout>
+
+## v3 flags reference
+
+All optional — the common case needs none of them:
+
+```
+--s3-endpoint URL     custom S3 endpoint (MinIO/on-prem); forces path-style addressing
+--s3-region REGION    override the AWS region from the credential chain
+--skip-wal            skip decoding un-snapshotted WAL (those newest writes will
+                      be MISSING from Arc; normally not needed)
+--v3-db id=name                     override a database id's name
+--v3-table db/table=name:tag1,tag2  override a table's name and series key
+                                    (tags in first-write order)
+```
+
+## Troubleshooting
+
+| Symptom | Meaning | Action |
+|---|---|---|
+| `…COMPACTOR has run…` | Enterprise compactor state in the store | use a non-compacting node's store, a pre-compaction copy, or query-export |
+| `…Pacha-tree storage engine…` | Enterprise 3.11+ new-cluster store | migrate retained parquet before `cleanup-parquet`, or query-export |
+| `cannot resolve names for N live table(s)` | catalog unreadable or incomplete | supply `--v3-db`/`--v3-table` overrides |
+| `checkpoint was created with different settings` on an unchanged command | the store changed between run and resume (new snapshot/WAL) | migrate from a frozen store; a fresh `--checkpoint` restarts against the new state |
+| `store has N node prefixes` | multi-node cluster store | not yet supported — migrate per-node exports or contact support |

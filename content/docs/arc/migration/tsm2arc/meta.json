@@ -3,6 +3,7 @@
   "pages": [
     "[Overview](/arc/migration/tsm2arc/)",
     "runbook",
+    "influxdb3",
     "performance"
   ]
 }

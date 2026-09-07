@@ -1,14 +1,14 @@
 ---
 title: "tsm2arc"
-description: "Migrate InfluxDB 1.x and 2.x data into Arc by reading TSM and WAL files directly off disk: no running influxd, resumable checkpoints, multi-field point reconstruction."
+description: "Migrate InfluxDB 1.x, 2.x, and 3.x data into Arc by reading the storage directly: no running server, resumable checkpoints, multi-field point reconstruction, S3 sources."
 ---
 
-[tsm2arc](https://github.com/Basekick-Labs/tsm2arc) (Apache-2.0) migrates **InfluxDB 1.x (1.7/1.8) and 2.x (2.0–2.7)** data into Arc by reading TSM **and WAL** files **directly off disk**. No running `influxd` is required, which makes it the right tool when the InfluxDB data sits on cold or unmounted volumes (an EBS snapshot, a decommissioned server's disk) that can be mounted read-only but are not served by any InfluxDB instance.
+[tsm2arc](https://github.com/Basekick-Labs/tsm2arc) (Apache-2.0) migrates **InfluxDB 1.x (1.7/1.8), 2.x (2.0–2.7), and 3.x (3.0–3.11, Parquet engine)** data into Arc by reading the storage **directly** — TSM and WAL files for 1.x/2.x, the parquet object store (including its WAL and catalog) for 3.x. No running `influxd`/`influxdb3` is required, which makes it the right tool when the data sits on cold or unmounted volumes (an EBS snapshot, a decommissioned server's disk) or in an S3 bucket no server is serving.
 
-The on-disk TSM/WAL format is the same across 1.x and 2.x, and tsm2arc auto-detects the layout. For 2.x it resolves bucket IDs to readable names from `influxd.bolt` and skips InfluxDB's internal system buckets (`_monitoring`, `_tasks`). InfluxDB 3.x stores Parquet rather than TSM, so for 3.x use the [Line Protocol export/import path](/arc/migration/influxdb/#step-3-migrate-historical-data) instead.
+The layout is auto-detected for every version. For 2.x it resolves bucket IDs to readable names from `influxd.bolt` and skips InfluxDB's internal system buckets (`_monitoring`, `_tasks`). For 3.x it reads all catalog formats natively (including the binary 3.10+/3.11 catalog), recovers un-snapshotted WAL so nothing is left behind, and can read the store **in place on S3** — see [InfluxDB 3 sources](/arc/migration/tsm2arc/influxdb3/).
 
 <Callout type="info" title="When to use which migration path">
-Live ingestion moves with a URL change (Arc speaks Line Protocol natively; dual-write from Telegraf and cut over). For history: tsm2arc for 1.x/2.x datasets, especially large ones on cold volumes; Line Protocol export/import for 3.x or small datasets. The [InfluxDB migration guide](/arc/migration/influxdb/) covers the whole journey; these pages are the full tsm2arc reference.
+Live ingestion moves with a URL change (Arc speaks Line Protocol natively; dual-write from Telegraf and cut over). For history: tsm2arc for 1.x/2.x/3.x datasets, especially large ones on cold volumes or in object stores; Line Protocol export/import remains an option for small datasets or the [out-of-scope 3.x cases](/arc/migration/tsm2arc/influxdb3/#enterprise-stores). The [InfluxDB migration guide](/arc/migration/influxdb/) covers the whole journey; these pages are the full tsm2arc reference.
 </Callout>
 
 ## What it does
@@ -28,6 +28,8 @@ Capabilities at a glance:
 - WAL (`.wal`) reader, merged with TSM per shard
 - Parallel workers (`--workers`) with live progress reporting
 - InfluxDB 2.x layout auto-detection and bucket-name resolution
+- InfluxDB 3.x object stores, local or **in place on S3** — all catalog eras,
+  native WAL recovery, deterministic last-write-wins dedup
 - Measurement rename map and invalid-name policy with a checkpoint audit trail
 - Index-only shard profiling (`--analyze`), shareable with `--redact`
 
@@ -56,6 +58,11 @@ tsm2arc --datadir /var/lib/influxdb --dry-run --sample 10
 # InfluxDB 2.x: point at the v2 root; engine/data, engine/wal, and
 # influxd.bolt (for bucket names) are auto-detected
 tsm2arc --datadir /var/lib/influxdb2 --dry-run --sample 10
+
+# InfluxDB 3.x: point at the object store root — a local directory or an
+# s3:// URL (read in place; credentials from the standard AWS chain)
+tsm2arc --datadir /var/lib/influxdb3 --dry-run --sample 10
+tsm2arc --datadir s3://my-bucket/influxdb3 --dry-run --sample 10
 ```
 
 Then load:
