@@ -39,11 +39,21 @@ jobs:
       - name: Verify URL contract in build output
         run: ./scripts/verify-urls.sh out scripts/keep-urls.txt
 
+      # An author's own machine path (/Users/someone/..., /home/someone/...)
+      # must never reach the build. Documented paths that happen to live under
+      # /home are legitimate and allowlisted by name: the arcli container runs
+      # as `nonroot` with HOME=/home/nonroot, and /home/you is the placeholder
+      # in sample command output. Extend ALLOWED, do not widen the pattern.
       - name: Check for leaked local paths
         run: |
-          if grep -rl -E '/(Users|home)/[a-z]' out/ 2>/dev/null | head -5 | grep -q .; then
+          ALLOWED='/home/(nonroot|you)([/"[:space:]]|$)'
+          hits=$(grep -rhoE '/(Users|home)/[a-z][a-z0-9_-]*' out/ 2>/dev/null \
+                 | grep -vE "$ALLOWED" | sort -u || true)
+          if [ -n "$hits" ]; then
             echo "Local filesystem paths found in build output:"
-            grep -rl -E '/(Users|home)/[a-z]' out/ | head -10
+            printf '%s\n' "$hits" | head -10
+            echo "--- files:"
+            printf '%s\n' "$hits" | head -3 | while read -r p; do grep -rl -F "$p" out/ | head -3; done
             exit 1
           fi
           echo "ok  no local paths in build output"
