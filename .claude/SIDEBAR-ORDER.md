@@ -26,7 +26,7 @@ pin the order shown, do not re-sort.
     "data-lifecycle",
     "integrations",
     "advanced",
-    "cli",
+    // "cli" moved to its own product root (content/docs/arcli/) on 2026-09-08
     "operations",
     "sdks",
     "changelog"
@@ -46,7 +46,7 @@ pin the order shown, do not re-sort.
      8.0  dir   data-lifecycle    (Data Lifecycle)
      9.0  dir   integrations    (Integrations)
     10.0  dir   advanced    (Advanced)
-    11.0  dir   cli    (CLI (arcctl))
+    11.0  dir   cli    (CLI (arcctl))   <- moved to the arcli product root (content/docs/arcli/) on 2026-09-08
     11.0  dir   operations    (Operations)
     12.0  dir   sdks    (SDKs)
     13.0  file  changelog    (changelog)
@@ -115,7 +115,7 @@ pin the order shown, do not re-sort.
   ```
   !! COLLISION at position 1.0: ['data-time-partitioning', 'wal'] - order above is the live order
 
-  ### arc/cli
+  ### arc/cli (historical: the section became the arcli product root on 2026-09-08; do not restore)
   ```json
   // content/docs/arc/cli/meta.json
   {"title": "CLI (arcctl)", "pages": ["index", "connections", "query", "write", "db", "measurement", "import"]}

@@ -15,6 +15,7 @@ const DESTINATIONS = [
     href: '/launchpad/',
     description: 'The self-hosted console for your Arc instances.',
   },
+  { name: 'arcli', href: '/arcli/', description: 'The command line for Arc.' },
 ];
 
 export default function NotFound() {
@@ -28,7 +29,7 @@ export default function NotFound() {
           Liftbridge documentation has been retired.
         </p>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {DESTINATIONS.map((destination) => (
             <Link
               key={destination.href}

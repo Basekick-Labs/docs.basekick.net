@@ -48,13 +48,6 @@
 /arc/advanced/wal/
 /arc/api-reference/overview/
 /arc/changelog/
-/arc/cli/
-/arc/cli/connections/
-/arc/cli/db/
-/arc/cli/import/
-/arc/cli/measurement/
-/arc/cli/query/
-/arc/cli/write/
 /arc/configuration/authentication/
 /arc/configuration/fips/
 /arc/configuration/overview/

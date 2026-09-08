@@ -31,8 +31,14 @@ H1 is the longer prose form:
 **More specific than the H1** - the H1 alone would produce duplicate or
 ambiguous sidebar entries, so the title names the command or the subject:
 
-    arc/cli/query.md                `arcctl query`
-        was "Querying" - collides with the SDK querying page in search.
+    arcli/commands/query.md         `arcli query`   (and every arcli/commands page:
+        `arcli write`, `arcli import`, `arcli db`, `arcli auth`, `arcli retention`,
+        `arcli cq`, `arcli delete`, `arcli backup`, `arcli cluster`, `arcli compaction`)
+        was "Querying" on the old /arc/cli/ page - collides with the SDK querying page,
+        and "Retention policies" / "Continuous queries" / "Tokens" exist in
+        three products, so the command name is the title.
+    arcli/getting-started/installation.mdx   Install arcli
+        "Installation" exists in three other products.
 
     arc/api-reference/overview.md   REST API overview
         was "API Reference" - identical to its own section label.

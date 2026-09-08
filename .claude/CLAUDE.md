@@ -3,7 +3,7 @@
 ## Project Overview
 
 The docs site for Arc — Fumadocs (Next.js App Router) + TypeScript + MDX.
-Three products: Arc OSS, Arc Enterprise, Arc Launchpad. Auto-deploys via
+Four products: Arc OSS, Arc Enterprise, Arc Launchpad, arcli (the CLI, a root of its own since 2026-09-08). Auto-deploys via
 GitHub Actions to nginx behind Traefik.
 
 Memtrace and Liftbridge are **retired**. Their source directories remain in
@@ -40,11 +40,11 @@ public/img/**                   images, referenced as /img/...
 ## Conventions
 
 ### URLs are a contract
-Every URL that exists today must keep working. They are enumerated in
+Every URL that exists today must keep working (200), or 301 in one hop to the page it became — listed in `scripts/moved-urls.txt` and `nginx.conf`. They are enumerated in
 `scripts/keep-urls.txt` and asserted by the post-deploy check. Renaming a
 page means adding a redirect in `nginx.conf`, not just moving the file.
 
-Trailing slash is canonical (`/arc/cli/query/`). nginx 301s the un-slashed
+Trailing slash is canonical (`/arcli/commands/query/`). nginx 301s the un-slashed
 form.
 
 ### Content

@@ -319,6 +319,23 @@ jobs:
           done < scripts/category-urls.txt
           echo "ok    category redirects: $cat_ok/$((cat_ok + cat_bad))"
 
+          # Moved pages redirect in one hop to exactly the listed target.
+          echo "--- moved URLs must 301 in one hop to their listed target ---"
+          mv_ok=0; mv_bad=0
+          while read -r from to; do
+            case "$from" in ''|\#*) continue;; esac
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$from")
+            loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$BASE$from")
+            final=$(curl -s -o /dev/null -L -w '%{http_code}' --max-time 20 "$BASE$from")
+            if [ "$code" = "301" ] && [ "$loc" = "$BASE$to" ] && [ "$final" = "200" ]; then
+              mv_ok=$((mv_ok + 1))
+            else
+              echo "FAIL  moved URL: $from -> $code to '$loc' (want 301 to $BASE$to), final $final"
+              mv_bad=$((mv_bad + 1)); fail=1
+            fi
+          done < scripts/moved-urls.txt
+          echo "ok    moved redirects: $mv_ok/$((mv_ok + mv_bad))"
+
           echo "--- trailing slash is canonical: unslashed redirects once ---"
           loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$BASE/arc/getting-started")
           hops=$(curl -s -o /dev/null -L -w '%{num_redirects}' --max-time 20 "$BASE/arc/getting-started")

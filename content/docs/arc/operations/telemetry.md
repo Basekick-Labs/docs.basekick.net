@@ -49,7 +49,7 @@ Arc sends the following anonymous data every 24 hours:
 
 ### CLI installations (Arc releases after 26.09.1)
 
-- **clients.arcli**: the [arcli](https://github.com/Basekick-Labs/arcli) installations that talked to this node since its previous report
+- **clients.arcli**: the [arcli](/arcli/) installations that talked to this node since its previous report (what the CLI sends and how to opt out: [arcli privacy](/arcli/reference/privacy/))
   - arcli sends a random per-installation UUID (`Arcli-Installation-Id` header) and its version (`User-Agent`); the node keeps at most 256 distinct ids per report and marks the list `truncated` beyond that
   - Only requests the node authenticated are counted (public routes such as `/health` never are; with authentication disabled every served request is trusted); the id is never logged and nothing about the request (database, query, token) is recorded
   - The same id reaches every Arc server that installation uses, so Basekick can count how many CLI installations talk to how many instances

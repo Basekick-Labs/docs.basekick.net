@@ -2,7 +2,7 @@
 
 Compiled from the migrated content. 69 fenced blocks contain box-drawing
 or arrow characters, but most are legitimately monospace: terminal output,
-`arcctl` table output, directory trees and code samples. Those should stay.
+`arcli` table output, directory trees and code samples. Those should stay.
 
 What follows is the subset where a real diagram would communicate better
 than characters, split by what kind of asset it needs.
@@ -96,7 +96,7 @@ cluster detail):
 
 - `FIRST RUN - INITIAL ADMIN TOKEN GENERATED` banners (8 pages) - real
   terminal output; a screenshot would be worse.
-- `arcctl` table output in cli/*.md - real CLI output.
+- `arcli` table output in arcli/**/*.md - real CLI output.
 - Directory trees (`data/`, `arc/`, `./data/wal/`) - monospace is the
   right medium; a picture of a file tree is harder to copy from.
 - Code samples that happened to match the heuristic.
