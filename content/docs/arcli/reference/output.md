@@ -30,7 +30,7 @@ Timestamps in tables are RFC 3339 in UTC. `-o json` never reformats them. The `c
 | Code | Meaning |
 |---|---|
 | `0` | The command did what it said. A `ping` that finds the server up and the token valid; a `--dry-run` that ran. |
-| `1` | Anything else: bad flags, no connection resolved, server error (`Error: arc: … (HTTP 4xx/5xx)`), network failure, timeout, a declined or refused confirmation prompt (except the two noted below), a `--estimate` the server could not produce. |
+| `1` | Anything else: bad flags, no connection resolved, server error (`Error: arc: … (HTTP 4xx/5xx)`), network failure, timeout, a declined or refused confirmation prompt, a `--estimate` the server could not produce. |
 | `130` | Interrupted by Ctrl-C (SIGINT) |
 | `143` | Terminated by SIGTERM |
 
@@ -38,9 +38,9 @@ On 130 and 143 arcli prints `interrupted; any operation already accepted by the 
 
 ## Confirmation prompts
 
-Destructive commands (`delete`, `retention execute`, `retention delete`, `cq delete`, `backup restore`, `backup delete`, `auth token rotate|revoke|delete`, `cluster node remove`) ask `… [y/N]` on stderr. The default is always no. When stdin is not a terminal (a pipe, a file, `/dev/null`) the prompt is refused with `Error: aborted` and exit 1 and the command does nothing; pass `--yes` (`-y`) to proceed without asking. There is no way to make the default yes.
+Destructive commands (`db drop`, `config delete`, `delete`, `retention execute`, `retention delete`, `cq delete`, `backup restore`, `backup delete`, `auth token rotate|revoke|delete`, `cluster node remove`) ask `… [y/N]` on stderr. The default is always no: anything but `y` or `yes` ends with `Error: aborted` and exit 1. When stdin is not a terminal (a pipe, a file, `/dev/null`) the prompt is refused with `Error: confirmation required but stdin is not a terminal; pass --yes`, again exit 1, and the command does nothing; pass `--yes` (`-y`) to proceed without asking. There is no way to make the default yes.
 
-Two older commands behave slightly differently: `db drop` and `config delete` also prompt, but a declined or non-terminal prompt prints `Aborted.` and exits **0** without doing anything. Scripts should not rely on the exit code there; pass `--yes` when the drop is intended.
+Before arcli 26.09.2, `db drop` and `config delete` printed `Aborted.` and exited 0 on a declined or non-terminal prompt.
 
 ## Patterns
 
