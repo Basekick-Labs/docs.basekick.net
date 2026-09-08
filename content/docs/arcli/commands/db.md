@@ -55,7 +55,7 @@ Names start with a letter and contain letters, digits, `_` or `-`, at most 64 ch
 
 ## db drop
 
-Destructive, and gated twice. The server only allows it when `delete.enabled = true` in `arc.toml` (otherwise 403), and the token must be admin. arcli asks `Delete database "staging" and ALL its files? [y/N]` on stderr; anything but `y` prints `Aborted.` and exits 0 without a request, which is also what happens when stdin is not a terminal, so scripts must pass `--yes`. The request is sent with `?confirm=true`, so the server never asks a second time.
+Destructive, and gated twice. The server only allows it when `delete.enabled = true` in `arc.toml` (otherwise 403), and the token must be admin. arcli asks `Delete database "staging" and ALL its files? [y/N]` on stderr; anything but `y` or `yes` ends with `Error: aborted` and exit 1, and when stdin is not a terminal the prompt is refused (exit 1) unless `--yes` is given, so no request is sent either way. The request is sent with `?confirm=true`, so the server never asks a second time.
 
 | Flag | Description | Default |
 |---|---|---|
