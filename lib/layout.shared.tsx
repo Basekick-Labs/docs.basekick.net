@@ -8,7 +8,7 @@ import { withUtm } from './utm';
  * The product links matter more than they look: each product tree is a
  * `root: true` folder, which scopes the sidebar to that product. From inside
  * /arc/ the sidebar shows no Enterprise or Launchpad links at all, so these
- * are the only navigation between the three.
+ * are the only navigation between the four.
  *
  * The logo is basekick.net's own mark plus its wordmark treatment - the
  * previous build squeezed a wide screenshot into a 20x20 box.
@@ -32,6 +32,7 @@ export function baseOptions(): BaseLayoutProps {
       { text: 'Arc OSS', url: '/arc/', active: 'nested-url' },
       { text: 'Arc Enterprise', url: '/arc-enterprise/', active: 'nested-url' },
       { text: 'Arc Launchpad', url: '/launchpad/', active: 'nested-url' },
+      { text: 'arcli', url: '/arcli/', active: 'nested-url' },
       { text: 'Blog', url: withUtm('https://basekick.net/blog', 'nav'), external: true },
       { text: 'Website', url: withUtm('https://basekick.net', 'nav'), external: true },
     ],

@@ -1,0 +1,77 @@
+---
+title: "arcli"
+description: "The Arc CLI: named connection profiles, SQL queries with table, JSON, CSV or Arrow output, line-protocol and MessagePack writes, bulk imports, token, retention and backup admin from a terminal or CI."
+---
+
+**The command line for Arc. Query and operate your instances from a terminal, a script, or CI.**
+
+`arcli` is the operator-facing client for [Arc](/arc/), the open, SQL-native time-series database. It talks to one or more Arc servers over the same HTTP API that [Arc Launchpad](/launchpad/) uses from the browser, and replaces hand-written `curl` calls with a workflow modelled on `influx`, `kubectl` and `clickhouse-client`: named connections, one active at a time, overridable per command.
+
+```bash
+# Install (macOS + Linux)
+brew install basekick-labs/tap/arcli
+
+# Save a connection and make it the active one
+arcli config create --name local --endpoint http://localhost:8000 --token YOUR-TOKEN --activate
+
+# Check it
+arcli ping
+
+# Query
+arcli query "SELECT host, avg(usage) FROM cpu GROUP BY 1"
+
+# Write line protocol from stdin
+echo "cpu,host=web-1 usage=0.63 $(date +%s)000000000" | arcli write
+```
+
+## What arcli is (and isn't)
+
+arcli connects to Arc servers you **already run**. It never starts Arc, stores none of your data, and keeps exactly one file on disk: `~/.arcli/config.toml` with your connection profiles (mode 0600).
+
+Every command is one request to the configured server, so what a token is allowed to do in Arc is what arcli can do with it: a read-only token can `query` but not `write`, and the admin commands (`import`, `auth token`, every `cq` subcommand, `retention create|update|delete|execute`, `delete`, `backup`, `logs`, `compaction trigger`, `cluster node remove`) need an admin token.
+
+## What you can do
+
+- **Query**: `arcli query` with table, JSON, CSV or Arrow output, SQL from an argument, a file or stdin, and `--estimate` to size a result before running it
+- **Write and import**: line protocol, MessagePack or JSON on stdin or from a file; bulk `import` of CSV, line protocol, Parquet and TLE files
+- **Databases**: list, show, create and drop databases; list measurements
+- **Tokens**: `auth whoami` and the full token lifecycle (create, rotate, revoke, delete, permissions, expiry)
+- **Data lifecycle**: retention policies and continuous queries with dry runs and execution history; predicate `delete`
+- **Backups**: create, list, inspect, restore and delete server-side backups
+- **Operations**: cluster and compaction status, scheduler status, server logs, `ping`
+- **Shell completion** for bash, zsh, fish and PowerShell, with connection names completed from your config file, plus man pages
+
+## How it fits together
+
+```text
+┌──────────┐   HTTP + Bearer token   ┌──────────────┐
+│ terminal │ ──── arcli ───────────▶ │  Arc server  │
+│  or CI   │                         │ (your data)  │
+└──────────┘                         └──────────────┘
+      │
+      ▼
+~/.arcli/config.toml    connection profiles (endpoint + token), one active
+```
+
+arcli holds only the connection records. It never contacts Basekick or any third party; see [Privacy](/arcli/reference/privacy/) for the one identifier it sends to your own Arc servers.
+
+## Compatibility and versions
+
+arcli follows Arc's calendar versioning (`26.09.1`) and talks to Arc 26.06 or newer. A newer arcli against an older Arc degrades gracefully for the basics (`query`, `write`) but features that need newer server endpoints report a clear error rather than guessing.
+
+## Get started
+
+<Cards>
+  <Card title="Install arcli" href="/arcli/getting-started/installation/" description="Homebrew, deb / rpm / Arch packages, Docker, archives, or go install; verify checksums and signatures; shell completion." />
+  <Card title="First connection" href="/arcli/getting-started/first-connection/" description="Get the admin token from Arc, save a profile, ping it, run a query, and use env vars in CI." />
+  <Card title="Commands" href="/arcli/commands/query/" description="Every command family with its flags, output formats and the server-side behaviour behind it." />
+  <Card title="Connections and the config file" href="/arcli/reference/connections/" description="The config file format, resolution precedence, environment variables, TLS and timeouts." />
+</Cards>
+
+## Links
+
+- **Source:** [github.com/Basekick-Labs/arcli](https://github.com/Basekick-Labs/arcli)
+- **Releases:** [GitHub releases](https://github.com/Basekick-Labs/arcli/releases) (archives, packages, checksums, SBOMs)
+- **Container image:** `ghcr.io/basekick-labs/arcli`
+- **License:** Apache-2.0
+- **Issues & requests:** [GitHub issues](https://github.com/Basekick-Labs/arcli/issues)

@@ -1,7 +1,7 @@
 /**
- * Card visuals for the two Arc products. Launchpad uses a real screenshot;
- * these two have no single screen that represents them, so they get a
- * diagram of what the product actually does.
+ * Card visuals for the Arc products. Launchpad uses a real screenshot;
+ * the others have no single screen that represents them, so they get a
+ * diagram of what the product actually does (arcli: a terminal).
  *
  * Both are inline SVG - no image requests, correct in either theme, and they
  * animate with CSS so there is nothing to hydrate. Motion is suppressed under
@@ -149,6 +149,49 @@ export function EnterpriseMark() {
           style={{ animationDelay: `${i * 0.4}s` }}
         />
       ))}
+    </svg>
+  );
+}
+
+/** A terminal running an arcli query and printing the result table. */
+export function ArcliMark() {
+  const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+  return (
+    <svg
+      viewBox="0 0 320 144"
+      className="h-full w-full"
+      preserveAspectRatio="xMidYMid slice"
+      role="img"
+      aria-label="A terminal running arcli query and printing a result table"
+    >
+      <style>{`
+        @keyframes pm-blink { 0%,49% { opacity:1 } 50%,100% { opacity:0 } }
+        .pm-cursor { animation: pm-blink 1.1s steps(1) infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .pm-cursor { animation: none; }
+        }
+      `}</style>
+      <Grid />
+      {/* terminal panel, kept inside the y 40-112 band that survives the card crop */}
+      <rect x="34" y="40" width="252" height="72" rx="6" fill="rgb(8,12,20)" stroke="rgba(148,163,184,0.35)" />
+      <rect x="34" y="40" width="252" height="12" rx="6" fill="rgba(148,163,184,0.12)" />
+      {[46, 56, 66].map((x) => (
+        <circle key={x} cx={x} cy="46" r="2.2" fill="rgba(148,163,184,0.5)" />
+      ))}
+      <g fontFamily={mono} fontSize="7.2" fill="rgb(226,232,240)">
+        <text x="42" y="63">
+          <tspan fill="rgb(34,211,238)">$</tspan> arcli query &quot;SELECT host, avg(usage) FROM cpu GROUP BY 1&quot;
+        </text>
+        <text x="42" y="75" fill="rgb(148,163,184)">
+          HOST      AVG(USAGE)
+        </text>
+        <text x="42" y="85">web-1     0.61</text>
+        <text x="42" y="95">web-2     0.71</text>
+        <text x="42" y="106">
+          <tspan fill="rgb(34,211,238)">$</tspan>
+          <tspan className="pm-cursor" fill="rgb(232,121,249)"> ▍</tspan>
+        </text>
+      </g>
     </svg>
   );
 }

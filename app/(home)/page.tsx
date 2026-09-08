@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getLatestPosts } from '@/lib/blog';
 import { withUtm } from '@/lib/utm';
-import { ArcMark, EnterpriseMark } from '@/components/ProductMarks';
+import { ArcMark, ArcliMark, EnterpriseMark } from '@/components/ProductMarks';
 
 const PRODUCTS = [
   {
@@ -38,6 +38,14 @@ const PRODUCTS = [
       />
     ),
   },
+  {
+    name: 'arcli',
+    href: '/arcli/',
+    tagline: 'The command line for Arc.',
+    description:
+      'Named connections, SQL queries, writes and bulk imports, token and retention admin, backups and cluster status from your terminal or a script.',
+    visual: <ArcliMark />,
+  },
 ];
 
 // The homepage is the site's highest-authority URL and carried no structured
@@ -51,7 +59,7 @@ const SITE_JSONLD = {
       name: 'Arc Documentation',
       url: 'https://docs.basekick.net/',
       description:
-        'Documentation for Arc, the open, SQL-native time-series database, plus Arc Enterprise and Arc Launchpad.',
+        'Documentation for Arc, the open, SQL-native time-series database, plus Arc Enterprise, Arc Launchpad and the arcli command line.',
       inLanguage: 'en',
       publisher: { '@id': 'https://basekick.net/#organization' },
     },
@@ -105,7 +113,7 @@ export default async function HomePage() {
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-fd-muted-foreground">
             Install guides, configuration reference, integrations and operational detail for Arc,
-            Arc Enterprise and Arc Launchpad.
+            Arc Enterprise, Arc Launchpad and the arcli command line.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -126,7 +134,7 @@ export default async function HomePage() {
 
       {/* Products */}
       <section className="mx-auto w-full max-w-(--fd-layout-width) px-4 py-16">
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {PRODUCTS.map((product) => (
             <Link
               key={product.href}

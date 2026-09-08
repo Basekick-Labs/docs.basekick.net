@@ -1,0 +1,4 @@
+{
+  "title": "Commands",
+  "pages": ["query", "write", "import", "db", "auth", "retention", "cq", "delete", "backup", "cluster", "compaction", "diagnostics"]
+}

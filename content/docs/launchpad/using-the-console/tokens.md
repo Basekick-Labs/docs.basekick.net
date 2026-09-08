@@ -33,8 +33,7 @@ When the token is created it's shown **once**: copy it immediately and store it 
 
 The token list shows each token's name, description, and permissions. From there you can:
 
-- **Revoke**: disable a token without deleting it, keeping the record so you can re-enable it later.
-- **Enable**: reactivate a revoked token.
+- **Revoke**: disable a token without deleting it, keeping the record for the audit trail. Arc has no API to re-enable a revoked token, so treat it as final.
 - **Delete**: permanently remove it.
 
 Rotating a credential is: create the new token, roll it out to the consumer, then delete the old one.

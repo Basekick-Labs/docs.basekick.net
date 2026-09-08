@@ -8,7 +8,7 @@ Mechanical rules. Apply them identically across all three products.
     docs-arc-enterprise/<path>.md  ->  content/docs/arc-enterprise/<path>.md
     docs-launchpad/<path>.md       ->  content/docs/launchpad/<path>.md
 
-URLs are unchanged: `content/docs/arc/cli/query.md` serves `/arc/cli/query/`.
+The file path is the URL: `content/docs/arcli/commands/query.md` serves `/arcli/commands/query/`.
 
 Three pages carry `slug: /` and become their product's `index`:
 
@@ -94,7 +94,7 @@ items={[...]}>`.
 The URL scheme is unchanged, so **absolute links are already correct**. Do
 not rewrite them. Two things only:
 
-1. Ensure a trailing slash: `/arc/cli/query` -> `/arc/cli/query/`.
+1. Ensure a trailing slash: `/arcli/commands/query` -> `/arcli/commands/query/`.
 2. `docs/advanced/edge-sync.md` has the one relative link in the corpus
    (`./compaction.md#files-per-batch`); point it at the absolute form.
 

@@ -1,0 +1,139 @@
+---
+title: "Install arcli"
+description: "Install arcli with Homebrew, a deb, rpm or Arch package, the distroless Docker image, a release archive, or go install; verify the checksums and cosign signature; set up shell completion."
+---
+
+arcli ships as a single static binary for Linux, macOS and Windows (amd64 and arm64). Every release on [GitHub](https://github.com/Basekick-Labs/arcli/releases) carries archives, Linux packages, a `checksums.txt` signed with cosign, and an SBOM per archive. The latest release is <LatestVersion repo="Basekick-Labs/arcli" />.
+
+<Callout type="info" title="Two spellings of the version">
+Git tags follow Arc's calendar versioning with a zero-padded month (`v26.09.1`), and the archives, the Docker image tags and `arcli --version` use that spelling. The Debian, RPM and Arch packagers normalise their version field, so those file names read `26.9.1`. The `V` and `PKG` variables below carry both.
+</Callout>
+
+## Homebrew (macOS and Linux)
+
+```bash
+brew install basekick-labs/tap/arcli
+arcli --version
+```
+
+The formula installs the binary, the man pages (`man arcli`, `man arcli-query`, …) and completion for bash, zsh and fish. Homebrew 6 treats third-party taps as untrusted until you run `brew trust basekick-labs/tap`; the fully qualified `brew install` above works either way, `brew upgrade` will ask you to trust the tap first.
+
+## Linux packages
+
+Set the version once, then pick your package manager:
+
+```bash
+V=26.09.1      # release tag without the v
+PKG=26.9.1     # the same version as the packagers spell it
+BASE=https://github.com/Basekick-Labs/arcli/releases/download/v$V
+```
+
+<Tabs items={['Debian / Ubuntu', 'RHEL / Fedora / Rocky', 'Arch']}>
+  <Tab value="Debian / Ubuntu">
+```bash
+curl -LO $BASE/arcli_${PKG}_amd64.deb      # or _arm64.deb
+sudo dpkg -i arcli_${PKG}_amd64.deb
+```
+  </Tab>
+  <Tab value="RHEL / Fedora / Rocky">
+```bash
+sudo rpm -i $BASE/arcli-${PKG}-1.x86_64.rpm   # or .aarch64.rpm
+```
+  </Tab>
+  <Tab value="Arch">
+```bash
+curl -LO $BASE/arcli-${PKG}-1-x86_64.pkg.tar.zst   # or -aarch64
+sudo pacman -U arcli-${PKG}-1-x86_64.pkg.tar.zst
+```
+  </Tab>
+</Tabs>
+
+All three install `/usr/bin/arcli`, the man pages, and completion files in the distribution's directories (`/usr/share/bash-completion/completions/arcli`, `/usr/share/zsh/vendor-completions/_arcli` on Debian and `site-functions` elsewhere, `/usr/share/fish/vendor_completions.d/arcli.fish`). The packages carry no GPG signature; verify the download with the checksum file below.
+
+## Docker
+
+The image is distroless and runs as user `65532` (`nonroot`) with `HOME=/home/nonroot`. Pass the connection as environment variables, or mount a config directory at `/home/nonroot/.arcli` readable by that user:
+
+```bash
+docker run --rm \
+  -e ARC_ENDPOINT=http://arc.internal:8000 -e ARC_TOKEN=YOUR-TOKEN \
+  ghcr.io/basekick-labs/arcli:latest ping
+
+# With a config file from the host
+docker run --rm -v "$HOME/.arcli:/home/nonroot/.arcli:ro" ghcr.io/basekick-labs/arcli:latest config list
+```
+
+Tags: the full version (`26.09.1`, immutable), `26.9`, `26` and `latest`; the floating tags move only on final releases. Running with `--user` set to anything but `65532` gives the process `HOME=/`, so a config mounted under `/home/nonroot` is not found and arcli cannot write one.
+
+## Archives
+
+For any other Linux, macOS or Windows machine, take the archive for your platform and put the binary on your `PATH`:
+
+```bash
+V=26.09.1
+curl -LO https://github.com/Basekick-Labs/arcli/releases/download/v$V/arcli_${V}_linux_amd64.tar.gz
+tar xzf arcli_${V}_linux_amd64.tar.gz
+sudo install arcli /usr/local/bin/
+```
+
+Archive names are `arcli_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) with `os` in `linux`, `darwin`, `windows` and `arch` in `amd64`, `arm64`. Each contains the binary, `LICENSE`, `README.md`, `completions/` (bash, zsh, fish, PowerShell) and `man/`.
+
+## Verify a download
+
+`checksums.txt` covers every archive, package and SBOM in the release and is signed keylessly with cosign from the release workflow. Download it and its bundle next to your file:
+
+```bash
+sha256sum -c --ignore-missing checksums.txt
+
+cosign verify-blob --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/Basekick-Labs/arcli/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+```
+
+A `Verified OK` means the checksum file was produced by the arcli release workflow for a `v*` tag; the `sha256sum` line then ties your download to it. The container image is not signed yet.
+
+## From source
+
+```bash
+go install github.com/basekick-labs/arcli/cmd/arcli@latest
+```
+
+This builds the current `main`, not a release: Go's module rules only accept `v0` and `v1` tags for this module path, so `@v26.09.1` is not possible. `arcli --version` on such a build reports `dev` with the commit it was built from. The release channels above are the supported ones.
+
+## Shell completion
+
+Packages and the Homebrew formula install completion for you. From an archive or a `go install` build, generate it once:
+
+<Tabs items={['bash', 'zsh', 'fish', 'PowerShell']}>
+  <Tab value="bash">
+```bash
+# needs bash-completion 2 (macOS: brew install bash bash-completion@2)
+arcli completion bash > /etc/bash_completion.d/arcli
+# or, per user:
+arcli completion bash > ~/.local/share/bash-completion/completions/arcli
+```
+  </Tab>
+  <Tab value="zsh">
+```bash
+arcli completion zsh > "${fpath[1]}/_arcli"
+rm -f ~/.zcompdump; compinit
+```
+  </Tab>
+  <Tab value="fish">
+```bash
+arcli completion fish > ~/.config/fish/completions/arcli.fish
+```
+  </Tab>
+  <Tab value="PowerShell">
+```powershell
+arcli completion powershell | Out-String | Invoke-Expression
+```
+  </Tab>
+</Tabs>
+
+Completion knows arcli: `-c <Tab>` lists the connections in your config file (with their endpoint, the active one marked), `--output`, `--format`, `--level`, `--precision`, `--permission` and `--time-format` complete to their valid values, and `-f` or `--query-file` complete file paths. Everything else completes to nothing rather than listing the current directory. Completion reads the config file only; it never contacts a server.
+
+## Next
+
+Continue with [First connection](/arcli/getting-started/first-connection/) to save a profile and run your first query.

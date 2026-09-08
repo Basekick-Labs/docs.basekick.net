@@ -38,7 +38,7 @@ app/(home)/                     the landing page
 components/mdx.tsx              MDX component registration
 lib/source.ts                   content source and loader
 public/img/**                   images, referenced as /img/...
-scripts/                        the URL contract and its checker
+scripts/                        the URL contract (keep / moved / dropped) and its checker
 ```
 
 ## Writing docs
@@ -70,7 +70,11 @@ there is no `note`, `tip` or `danger`.
 ## URLs are a contract
 
 `scripts/keep-urls.txt` lists every URL that existed before the Fumadocs
-migration. All of them must keep resolving:
+migration and still serves a page. All of them must keep returning 200. A page
+that moves leaves that list and enters `scripts/moved-urls.txt` (`from to`
+pairs) together with a 301 in `nginx.conf`; the deploy check requires each to
+redirect in one hop to exactly that target, and the build check requires the
+target to exist:
 
 ```bash
 npm run build
@@ -81,8 +85,10 @@ The deploy workflow runs the same check against the live site, plus the 410s in
 `dropped-urls.txt` and the redirects in `category-urls.txt`, and fails if any
 regress.
 
-Trailing slash is canonical (`/arc/cli/query/`); nginx 301s the un-slashed form.
-Renaming a page means adding a redirect in `nginx.conf`, not just moving a file.
+Trailing slash is canonical (`/arcli/commands/query/`); nginx 301s the un-slashed form.
+Renaming a page means adding a redirect in `nginx.conf` and a `moved-urls.txt`
+line (both slash forms as nginx keys, since a deleted directory no longer
+triggers the slash canonicaliser), not just moving a file.
 
 ## Deployment
 

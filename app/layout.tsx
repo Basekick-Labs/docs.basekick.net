@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     default: 'Arc Documentation',
   },
   description:
-    'Documentation for Arc, the open, SQL-native time-series database, plus Arc Enterprise and Arc Launchpad.',
+    'Documentation for Arc, the open, SQL-native time-series database, plus Arc Enterprise, Arc Launchpad and the arcli command line.',
   alternates: { canonical: '/' },
   // public/favicon.ico is not picked up automatically - Next only auto-detects
   // app/icon.*, so without this the site ships no favicon at all.

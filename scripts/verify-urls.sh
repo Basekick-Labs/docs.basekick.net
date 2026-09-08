@@ -8,6 +8,16 @@ while read -r u; do
   f="$OUT${u}index.html"
   if [ -f "$f" ]; then ok=$((ok+1)); else echo "MISSING: $u  (expected $f)"; miss=$((miss+1)); fi
 done < "$KEEP"
+# Redirect targets must exist in the build too, or a typo'd target is only
+# discovered once the site is live.
+MOVED="$(dirname "$KEEP")/moved-urls.txt"
+if [ -f "$MOVED" ]; then
+  while read -r from to; do
+    case "$from" in ''|\#*) continue;; esac
+    f="$OUT${to}index.html"
+    if [ -f "$f" ]; then ok=$((ok+1)); else echo "MISSING redirect target: $from -> $to  (expected $f)"; miss=$((miss+1)); fi
+  done < "$MOVED"
+fi
 echo "---"
 echo "present: $ok    missing: $miss    total: $((ok+miss))"
 [ "$miss" -eq 0 ] || exit 1

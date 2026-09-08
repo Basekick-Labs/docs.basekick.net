@@ -1,0 +1,10 @@
+# Pages that moved. `from to`, one per line. Each `from` must 301 in one hop
+# to exactly `to`, and `to` must exist in the build (verify-urls.sh checks the
+# target at build time, the deploy workflow checks the redirect on the live site).
+/arc/cli/ /arcli/
+/arc/cli/connections/ /arcli/reference/connections/
+/arc/cli/db/ /arcli/commands/db/
+/arc/cli/import/ /arcli/commands/import/
+/arc/cli/measurement/ /arcli/commands/db/
+/arc/cli/query/ /arcli/commands/query/
+/arc/cli/write/ /arcli/commands/write/

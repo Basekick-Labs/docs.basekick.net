@@ -9,6 +9,7 @@ const PRODUCTS: Record<string, string> = {
   arc: 'Arc',
   'arc-enterprise': 'Arc Enterprise',
   launchpad: 'Arc Launchpad',
+  arcli: 'arcli',
 };
 
 export function productOf(slugs: string[]): { key: string; name: string } | undefined {

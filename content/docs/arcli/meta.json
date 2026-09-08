@@ -1,0 +1,6 @@
+{
+  "title": "arcli",
+  "description": "The command line for Arc",
+  "root": true,
+  "pages": ["index", "getting-started", "commands", "reference"]
+}
