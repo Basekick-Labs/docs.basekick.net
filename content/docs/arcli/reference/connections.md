@@ -24,7 +24,7 @@ token = "3f8a…c91e"
 insecure_tls = false
 ```
 
-Tokens are stored in plain text, the same posture as `~/.aws/credentials`; the file mode is the protection. `installation_id` is explained in [Privacy](/arcli/reference/privacy/). Edit the file by hand if you like; arcli rewrites it atomically (temp file plus rename) so a crash never leaves it half-written.
+Tokens are stored in plain text, the same posture as `~/.aws/credentials`; the file mode is the protection. A profile for a server without authentication simply has no token: create it with `config create --name lab --endpoint http://lab:8000` (no `--token`), or clear one with `config update lab --token ""`; `config list` shows it as `(none)`. `installation_id` is explained in [Privacy](/arcli/reference/privacy/). Edit the file by hand if you like; arcli rewrites it atomically (temp file plus rename) so a crash never leaves it half-written.
 
 ## Precedence
 
@@ -33,12 +33,12 @@ Highest first. The first source that is present wins; nothing falls through past
 | Source | Example |
 |---|---|
 | 1. `--connection NAME` (`-c`) | `arcli query -c prod "…"` |
-| 2. `--endpoint URL --token T` | ad-hoc, no profile involved |
+| 2. `--endpoint URL [--token T]` | ad-hoc, no profile involved |
 | 3. `ARC_CONNECTION=NAME` | a profile from the config file |
-| 4. `ARC_ENDPOINT=URL` + `ARC_TOKEN=T` | ad-hoc from the environment |
+| 4. `ARC_ENDPOINT=URL` [+ `ARC_TOKEN=T`] | ad-hoc from the environment |
 | 5. `active` in the config file | the default |
 
-Pairs are all-or-nothing: `--endpoint` without `--token`, or `ARC_ENDPOINT` without `ARC_TOKEN`, is an error, never a silent fall-through to the active profile. A `-c` or `ARC_CONNECTION` naming a profile that does not exist is an error too. With no profile and nothing in the environment, every command says so and points at `arcli config create … --activate`.
+A token is optional (since arcli 26.09.3): an Arc running with `auth.enabled = false` takes requests without one, so `--endpoint` alone and `ARC_ENDPOINT` alone are valid and arcli then sends no `Authorization` header. A token without an endpoint (`--token` alone, `ARC_TOKEN` alone) is an error, never a silent fall-through to the active profile. A `-c` or `ARC_CONNECTION` naming a profile that does not exist is an error too. With no profile and nothing in the environment, every command says so and points at `arcli config create … --activate`.
 
 Commands print the resolved connection where it matters (`ping`, `auth whoami`); an ad-hoc one shows as `(flags)` or `(env)`.
 

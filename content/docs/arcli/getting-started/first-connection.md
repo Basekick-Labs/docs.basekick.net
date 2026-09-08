@@ -9,6 +9,8 @@ arcli needs two things per Arc server: its HTTP endpoint and a bearer token. Eve
 
 A fresh Arc prints its bootstrap admin token to stderr on first start, and Arc Launchpad and arcli can mint more later. If you run Arc with a fixed token (`ARC_AUTH_BOOTSTRAP_TOKEN` or `auth.bootstrap_token` in `arc.toml`), use that. Any token works for `query`; the admin commands need one with the `admin` permission.
 
+An Arc running with `auth.enabled = false` needs no token at all: leave `--token` out of `config create` (arcli prints a note that the profile only works against such a server) and every request goes out without an `Authorization` header.
+
 <Callout type="idea" title="Keep the token off the command line">
 `--token` shows up in shell history and in `ps`. Both `config create` and `config update` accept `--token-stdin`, which reads the token from the first line of a pipe:
 
@@ -101,7 +103,7 @@ export ARC_TOKEN=$(cat /run/secrets/arc-token)
 arcli query "SELECT count(*) FROM cpu"
 ```
 
-`ARC_CONNECTION=prod` selects a profile from the config file instead. Both must be set together: `ARC_ENDPOINT` without `ARC_TOKEN` (or `--endpoint` without `--token`) is an error rather than a silent fall-through to the active profile. The full precedence is in [Connections and the config file](/arcli/reference/connections/).
+`ARC_CONNECTION=prod` selects a profile from the config file instead. `ARC_ENDPOINT` alone (or `--endpoint` alone) is a token-less connection for a server without authentication; `ARC_TOKEN` without `ARC_ENDPOINT` (or `--token` without `--endpoint`) is an error rather than a silent fall-through to the active profile. The full precedence is in [Connections and the config file](/arcli/reference/connections/).
 
 ## Next
 
