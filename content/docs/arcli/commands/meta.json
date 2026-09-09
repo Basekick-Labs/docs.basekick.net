@@ -1,4 +1,18 @@
 {
   "title": "Commands",
-  "pages": ["query", "write", "import", "db", "auth", "retention", "cq", "delete", "backup", "cluster", "compaction", "diagnostics"]
+  "pages": [
+    "query",
+    "write",
+    "import",
+    "sample",
+    "db",
+    "auth",
+    "retention",
+    "cq",
+    "delete",
+    "backup",
+    "cluster",
+    "compaction",
+    "diagnostics"
+  ]
 }

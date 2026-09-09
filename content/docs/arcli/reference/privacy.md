@@ -1,9 +1,11 @@
 ---
 title: "Privacy"
-description: "What arcli sends and stores: requests only to the Arc servers you configure, a random installation id in the Arcli-Installation-Id header that Arc telemetry may report, and the two opt-outs."
+description: "What arcli sends and stores: requests to the Arc servers you configure, the one exception (arcli sample), a random installation id in the Arcli-Installation-Id header that Arc telemetry may report, and the two opt-outs."
 ---
 
-arcli never contacts Basekick or any third party. Every request goes to the Arc server you configured, and the only thing it stores is `~/.arcli/config.toml`.
+With one exception, every request goes to the Arc server you configured, and the only thing arcli stores is `~/.arcli/config.toml`.
+
+The exception is [`arcli sample`](/arcli/commands/sample/), which downloads published datasets from `samples.basekick.net`. See [Sample downloads](#sample-downloads) below.
 
 ## What a request carries
 
@@ -26,6 +28,19 @@ installation_id:  49ae95aa-997f-41ba-89e7-cb0f848e1cec (sent to Arc servers: no 
 ```
 
 Delete the key from the file and the next command that writes it (`config create|update|set-active|delete`) mints a new one. With no config file at all (an environment-only setup in a container or CI) there is no id and nothing is sent.
+
+## Sample downloads
+
+`arcli sample list`, `show` and `load` fetch dataset files from `samples.basekick.net`, a Basekick-controlled host. These are the only arcli commands that contact Basekick directly; everything else talks solely to the Arc servers you configure.
+
+What those requests carry:
+
+- The same `User-Agent` and `Arcli-Installation-Id` header as any other arcli request. Both opt-outs above apply here unchanged.
+- Nothing else from arcli: not your token, not your Arc endpoint, not the database or measurement you are loading into, and nothing about your data.
+
+What they necessarily reveal, as any download from any website does: your IP address, the file you asked for and when. Cloudflare serves the files and its platform logging records that on Basekick's behalf. The service keeps no application log of its own beyond that.
+
+If you would rather not fetch from us at all, `arcli sample show <dataset> -o json` prints every file URL and its SHA-256. Download them however you like, then use [`arcli import parquet`](/arcli/commands/import/); the checksums let you verify what you got.
 
 ## What is never sent or stored
 

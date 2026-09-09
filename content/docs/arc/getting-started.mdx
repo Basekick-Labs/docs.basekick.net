@@ -237,8 +237,28 @@ print(df.head())
   </Tab>
 </Tabs>
 
+## Load a real dataset
+
+One point proves the write path works. To see what Arc is actually for, load a real dataset with [arcli](/arcli/), the Arc command line:
+
+```bash
+# macOS and Linux (deb, rpm, Arch and Docker also available)
+brew install basekick-labs/tap/arcli
+
+# save the connection once
+arcli config create --name local --endpoint http://localhost:8000 --token $ARC_TOKEN
+
+# a month of NYC Citi Bike trips: about a million rows
+arcli sample load citibike
+```
+
+It downloads the files, verifies each one against a published checksum, imports them into a `nyc` database, and prints two queries to run against what just landed: the busiest stations, and departures per hour with a moving average. The whole thing takes a few seconds once the data is down.
+
+See [`arcli sample`](/arcli/commands/sample/) for the flags, and [Privacy](/arcli/reference/privacy/) for what the download does and does not send.
+
 ## Next steps
 
+- **[arcli](/arcli/)** - The command line for Arc: queries, writes, tokens, backups
 - **[Python SDK](/arc/sdks/python/)** - Official client with DataFrame support
 - **[Telegraf Integration](/arc/integrations/telegraf/)** - Collect system metrics
 - **[Apache Superset](/arc/integrations/superset/)** - Build dashboards
