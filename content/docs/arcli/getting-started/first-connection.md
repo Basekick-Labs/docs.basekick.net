@@ -1,41 +1,25 @@
 ---
 title: "First connection"
-description: "Get the admin token from Arc, save it as an arcli profile with config create, confirm it with ping, run a first query and write, and use ARC_ENDPOINT and ARC_TOKEN in CI instead of a config file."
+description: "Connect arcli to Arc, verify the connection, and run your first query."
 ---
 
-arcli needs two things per Arc server: its HTTP endpoint and a bearer token. Everything else is optional.
+arcli needs an Arc endpoint and, when authentication is enabled, an API token.
 
-## Get a token from Arc
+## Create a profile
 
-A fresh Arc prints its bootstrap admin token to stderr on first start, and Arc Launchpad and arcli can mint more later. If you run Arc with a fixed token (`ARC_AUTH_BOOTSTRAP_TOKEN` or `auth.bootstrap_token` in `arc.toml`), use that. Any token works for `query`; the admin commands need one with the `admin` permission.
+A new Arc server prints its bootstrap admin token on first start. Save the endpoint and token as a named connection:
 
-An Arc running with `auth.enabled = false` needs no token at all: leave `--token` out of `config create` (arcli prints a note that the profile only works against such a server) and every request goes out without an `Authorization` header.
+```bash
+arcli config create --name local --endpoint http://localhost:8000 --token YOUR-TOKEN
+```
 
-<Callout type="idea" title="Keep the token off the command line">
-`--token` shows up in shell history and in `ps`. Both `config create` and `config update` accept `--token-stdin`, which reads the token from the first line of a pipe:
+The first profile becomes active automatically. If Arc runs with `auth.enabled = false`, omit `--token`.
+
+To keep a token out of shell history, pipe it to `--token-stdin`:
 
 ```bash
 pass show arc/prod | arcli config create --name prod --endpoint https://arc.prod.example.com --token-stdin
 ```
-
-A terminal on stdin is refused, because the token would be echoed into the scrollback.
-</Callout>
-
-## Save a profile
-
-```bash
-arcli config create --name local --endpoint http://localhost:8000 --token YOUR-TOKEN --activate
-```
-
-```text
-Created connection "local" at /home/you/.arcli/config.toml
-Generated installation id 49ae95aa-997f-41ba-89e7-cb0f848e1cec; arcli sends it to the Arc servers you connect to (see README, Privacy). Disable with DO_NOT_TRACK=1 or send_installation_id = false.
-Active connection is now "local"
-```
-
-The first profile you create becomes the active one automatically; later ones need `--activate` (or `arcli config set-active NAME`). The second line appears once, when the config file is first written; it is explained in [Privacy](/arcli/reference/privacy/).
-
-Add `--default-database metrics` to save a default database for `query`, `write` and the commands that take `--database`, and `--insecure` to skip TLS verification for that one profile (lab servers with self-signed certificates only).
 
 ## Check the connection
 
@@ -43,59 +27,39 @@ Add `--default-database metrics` to save a default database for `query`, `write`
 arcli ping
 ```
 
-```text
-endpoint:   http://localhost:8000 (connection local)
-health:     ok (uptime 925.342375ms, latency 4.9ms) storage: hot=ok
-auth:       ok as "admin" (id 1, read,write,delete,admin)
+`ping` checks the server health and verifies the active token. It exits non-zero when either check fails.
+
+## Load and query real data
+
+```bash
+arcli sample load citibike
+arcli query --database nyc "SELECT start_station_name AS station, count(*) AS trips FROM citibike_trips GROUP BY 1 ORDER BY trips DESC LIMIT 5"
 ```
 
-`ping` calls `/health` without a token first, then verifies the token. It exits 0 only when both pass (or when the server runs without authentication); `-o json` prints the same report as a document, even on failure, so a script can tell "server down" from "token rejected".
+The sample command creates the database when needed, verifies and imports the dataset, and prints more queries to try.
 
-## First query and write
+## Write your own data
 
 ```bash
 arcli db create metrics
-printf 'cpu,host=web-1,region=us-east usage=0.63 1757203200000000000\n' | arcli write --database metrics
+echo "cpu,host=web-1,region=us-east usage=0.63" | arcli write --database metrics
 arcli query --database metrics "SELECT host, region, usage FROM cpu"
 ```
 
-```text
-┌───────┬─────────┬───────┐
-│ HOST  │ REGION  │ USAGE │
-├───────┼─────────┼───────┤
-│ web-1 │ us-east │ 0.63  │
-└───────┴─────────┴───────┘
-```
+Arc buffers writes briefly. If an immediate query returns no rows, try again after a few seconds.
 
-Arc buffers writes before they become queryable; if a query right after a write comes back empty, run it again a few seconds later. See [arcli query](/arcli/commands/query/) and [arcli write](/arcli/commands/write/) for output formats, stdin and file input, and the MessagePack and JSON write formats.
-
-## More than one server
-
-Profiles are named, and the active one is only the default:
+## Switch between servers
 
 ```bash
-arcli config create --name prod --endpoint https://arc.prod.example.com --token-stdin < prod.token
 arcli config list
-arcli query -c prod "SELECT count(*) FROM cpu"      # one command against prod
-arcli config set-active prod                         # switch the default
-arcli config current                                 # who am I talking to?
+arcli query -c prod "SELECT count(*) FROM cpu"
+arcli config set-active prod
+arcli config current
 ```
 
-```text
-$ arcli config list
-┌────────┬───────┬──────────────────────────────┬─────────────┬────────────┐
-│ ACTIVE │ NAME  │           ENDPOINT           │    TOKEN    │ DEFAULT DB │
-├────────┼───────┼──────────────────────────────┼─────────────┼────────────┤
-│ *      │ local │ http://localhost:8000        │ devt...0000 │ metrics    │
-│        │ prod  │ https://arc.prod.example.com │ 3f8a...c91e │ -          │
-└────────┴───────┴──────────────────────────────┴─────────────┴────────────┘
-```
+## Containers and CI
 
-Tokens are shown as their first and last four characters everywhere arcli prints them; the only commands that print a full token are `auth token create` and `auth token rotate`, because delivering the new secret is their purpose.
-
-## Containers and CI: no config file
-
-An endpoint and a token in the environment work without any file:
+Use environment variables when you do not need a saved profile:
 
 ```bash
 export ARC_ENDPOINT=https://arc.prod.example.com
@@ -103,10 +67,11 @@ export ARC_TOKEN=$(cat /run/secrets/arc-token)
 arcli query "SELECT count(*) FROM cpu"
 ```
 
-`ARC_CONNECTION=prod` selects a profile from the config file instead. `ARC_ENDPOINT` alone (or `--endpoint` alone) is a token-less connection for a server without authentication; `ARC_TOKEN` without `ARC_ENDPOINT` (or `--token` without `--endpoint`) is an error rather than a silent fall-through to the active profile. The full precedence is in [Connections and the config file](/arcli/reference/connections/).
+See [Connections and configuration](/arcli/reference/connections/) for profile precedence, TLS, and timeouts.
 
 ## Next
 
-- [arcli query](/arcli/commands/query/) and [arcli write](/arcli/commands/write/)
-- [arcli auth](/arcli/commands/auth/) to mint a read-only token for dashboards instead of using the admin one everywhere
-- [Output formats and exit codes](/arcli/reference/output/) before wiring arcli into scripts
+- [Query data](/arcli/commands/query/)
+- [Write data](/arcli/commands/write/)
+- [Import files](/arcli/commands/import/)
+- [Output formats and exit codes](/arcli/reference/output/)

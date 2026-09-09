@@ -1,18 +1,13 @@
 ---
 title: "Getting Started"
-description: "Run Arc for the first time with Docker, Helm, or a native package, read the first-run admin token from the logs, write a measurement, and query it back over SQL."
+description: "Start Arc, connect with arcli, load a real dataset, and run your first SQL query."
 ---
 
-Get Arc up and running in 5 minutes.
+Get Arc running and query real data in a few minutes.
 
-## Prerequisites
+## 1. Start Arc
 
-- 4GB RAM minimum, 8GB+ recommended
-- Docker, Kubernetes, or Linux (Debian/RHEL)
-
-## Quick start
-
-<Tabs items={['Docker', 'Kubernetes', 'Debian/Ubuntu', 'RHEL/Fedora']}>
+<Tabs items={['Docker', 'Kubernetes', 'Debian / Ubuntu', 'RHEL / Fedora']}>
   <Tab value="Docker">
 
 ```bash
@@ -33,39 +28,41 @@ kubectl port-forward svc/arc 8000:8000
 ```
 
   </Tab>
-  <Tab value="Debian/Ubuntu">
+  <Tab value="Debian / Ubuntu">
 
 ```bash
 LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
-wget https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc_${LATEST}_amd64.deb
+curl -LO https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc_${LATEST}_amd64.deb
 sudo dpkg -i arc_${LATEST}_amd64.deb
-sudo systemctl enable arc && sudo systemctl start arc
+sudo systemctl enable --now arc
 ```
 
   </Tab>
-  <Tab value="RHEL/Fedora">
+  <Tab value="RHEL / Fedora">
 
 ```bash
 LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
-wget https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}-1.x86_64.rpm
+curl -LO https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}-1.x86_64.rpm
 sudo rpm -i arc-${LATEST}-1.x86_64.rpm
-sudo systemctl enable arc && sudo systemctl start arc
+sudo systemctl enable --now arc
 ```
 
   </Tab>
 </Tabs>
 
-**Verify it's running:**
+Confirm that Arc is ready:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-## Get your admin token
+See [Installation](/arc/installation/) for storage, networking, other architectures, and production configuration.
 
-Arc generates an admin token on first startup. **Copy it immediately - you won't see it again!**
+## 2. Get the admin token
 
-<Tabs items={['Docker', 'Kubernetes', 'Native (systemd)']}>
+Arc prints an admin token the first time it starts.
+
+<Tabs items={['Docker', 'Kubernetes', 'Native']}>
   <Tab value="Docker">
 
 ```bash
@@ -80,7 +77,7 @@ kubectl logs -l app=arc | grep -i "admin"
 ```
 
   </Tab>
-  <Tab value="Native (systemd)">
+  <Tab value="Native">
 
 ```bash
 sudo journalctl -u arc | grep -i "admin"
@@ -89,220 +86,54 @@ sudo journalctl -u arc | grep -i "admin"
   </Tab>
 </Tabs>
 
-You'll see:
-```bash
-======================================================================
-  FIRST RUN - INITIAL ADMIN TOKEN GENERATED
-======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-======================================================================
-```
+Copy the value that begins with `arc_`:
 
-Save it:
 ```bash
 export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Write data
+## 3. Connect with arcli
 
-<Tabs items={['MessagePack (recommended)', 'Line Protocol', 'Python SDK']}>
-  <Tab value="MessagePack (recommended)">
-
-```python
-import msgpack
-import requests
-from datetime import datetime
-import os
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
-token = os.getenv("ARC_TOKEN")
-
-data = {
-    "m": "cpu",
-    "columns": {
-        # time must be a numeric Unix epoch (microseconds recommended).
-        # Strings (e.g. "2024-01-01T00:00:00Z") and nulls are rejected.
-        "time": [int(datetime.now().timestamp() * 1_000_000)],
-        "host": ["server01"],
-        "usage_idle": [95.0],
-        "usage_user": [3.2]
-    }
-}
-
-response = requests.post(
-    "http://localhost:8000/api/v1/write/msgpack",
-    headers={
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/msgpack",
-        "x-arc-database": "default"
-    },
-    data=msgpack.packb(data)
-)
-```
-
-  </Tab>
-  <Tab value="Line Protocol">
+Install [arcli](/arcli/), save the Arc endpoint, and verify the connection:
 
 ```bash
-# InfluxDB 1.x compatible endpoint
-curl -X POST "http://localhost:8000/write?db=default&p=$ARC_TOKEN" \
-  --data-binary "cpu,host=server01 usage_idle=95.0,usage_user=3.2"
-
-# Or with Authorization header
-curl -X POST "http://localhost:8000/write?db=default" \
-  -H "Authorization: Bearer $ARC_TOKEN" \
-  --data-binary "cpu,host=server01 usage_idle=95.0,usage_user=3.2"
-```
-
-  </Tab>
-  <Tab value="Python SDK">
-
-```python
-import os
-from arc_client import ArcClient
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
-with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
-    client.write.write_columnar(
-        measurement="cpu",
-        columns={
-            # numeric epoch in microseconds (2024-01-01 00:00:00 UTC)
-            "time": [1704067200000000],
-            "host": ["server01"],
-            "usage_idle": [95.0],
-        },
-    )
-```
-
-  </Tab>
-</Tabs>
-
-## Query data
-
-<Tabs items={['curl', 'Python', 'Arrow (fastest)']}>
-  <Tab value="curl">
-
-```bash
-curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer $ARC_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
-```
-
-  </Tab>
-  <Tab value="Python">
-
-```python
-import requests
-import os
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
-token = os.getenv("ARC_TOKEN")
-
-response = requests.post(
-    "http://localhost:8000/api/v1/query",
-    headers={"Authorization": f"Bearer {token}"},
-    json={"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}
-)
-
-print(response.json())
-```
-
-  </Tab>
-  <Tab value="Arrow (fastest)">
-
-```python
-import requests
-import pyarrow as pa
-import os
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
-token = os.getenv("ARC_TOKEN")
-
-response = requests.post(
-    "http://localhost:8000/api/v1/query/arrow",
-    headers={"Authorization": f"Bearer {token}"},
-    json={"sql": "SELECT * FROM default.cpu LIMIT 10000"}
-)
-
-reader = pa.ipc.open_stream(response.content)
-df = reader.read_all().to_pandas()
-print(df.head())
-```
-
-  </Tab>
-</Tabs>
-
-## Load a real dataset
-
-One point proves the write path works. To see what Arc is actually for, load a real dataset with [arcli](/arcli/), the Arc command line:
-
-```bash
-# macOS and Linux (deb, rpm, Arch and Docker also available)
 brew install basekick-labs/tap/arcli
+arcli config create --name local --endpoint http://localhost:8000 --token "$ARC_TOKEN"
+arcli ping
+```
 
-# save the connection once
-arcli config create --name local --endpoint http://localhost:8000 --token $ARC_TOKEN
+See [Install arcli](/arcli/getting-started/installation/) for Docker, Linux packages, and downloadable archives.
 
-# a month of NYC Citi Bike trips: about a million rows
+## 4. Load and query real data
+
+Load a month of NYC Citi Bike trips:
+
+```bash
 arcli sample load citibike
 ```
 
-It downloads the files, verifies each one against a published checksum, imports them into a `nyc` database, and prints two queries to run against what just landed: the busiest stations, and departures per hour with a moving average. The whole thing takes a few seconds once the data is down.
+arcli verifies and imports about one million rows, then prints useful queries. Try the busiest-stations query:
 
-See [`arcli sample`](/arcli/commands/sample/) for the flags, and [Privacy](/arcli/reference/privacy/) for what the download does and does not send.
+```bash
+arcli query --database nyc "SELECT start_station_name AS station, count(*) AS trips FROM citibike_trips GROUP BY 1 ORDER BY trips DESC LIMIT 5"
+```
+
+## Write your own data
+
+```bash
+arcli db create metrics
+echo "cpu,host=server01 usage=95.0" | arcli write --database metrics
+arcli query --database metrics "SELECT * FROM cpu"
+```
+
+Arc buffers new writes briefly. If the first query is empty, run it again after a few seconds.
 
 ## Next steps
 
-- **[arcli](/arcli/)** - The command line for Arc: queries, writes, tokens, backups
-- **[Python SDK](/arc/sdks/python/)** - Official client with DataFrame support
-- **[Telegraf Integration](/arc/integrations/telegraf/)** - Collect system metrics
-- **[Apache Superset](/arc/integrations/superset/)** - Build dashboards
-- **[Configuration](/arc/configuration/overview/)** - Tune Arc for your workload
+- [Querying Arc](/arc/guides/querying/)
+- [Importing data](/arc/data-import/)
+- [Configuring Arc](/arc/configuration/overview/)
+- [Using arcli](/arcli/)
+- [Connecting Grafana](/arc/integrations/grafana/)
 
-## Troubleshooting
-
-<Tabs items={['Docker', 'Kubernetes', 'Native']}>
-  <Tab value="Docker">
-
-```bash
-docker logs arc
-```
-
-  </Tab>
-  <Tab value="Kubernetes">
-
-```bash
-kubectl logs -l app=arc
-kubectl describe pod -l app=arc
-```
-
-  </Tab>
-  <Tab value="Native">
-
-```bash
-sudo journalctl -u arc -n 50
-sudo systemctl status arc
-```
-
-  </Tab>
-</Tabs>
-
-### Common issues
-
-**Authentication errors**: Make sure `ARC_TOKEN` is set and included in headers.
-
-**No data returned**: Data may not be flushed yet. Force flush:
-```bash
-curl -X POST http://localhost:8000/api/v1/write/line-protocol/flush \
-  -H "Authorization: Bearer $ARC_TOKEN"
-```
-
-## Need help?
-
-- [Discord Community](https://discord.gg/nxnWfUxsdm)
-- [GitHub Issues](https://github.com/basekick-labs/arc/issues)
+Need help? Visit [GitHub Issues](https://github.com/basekick-labs/arc/issues) or join the [Basekick Labs Discord](https://discord.gg/nxnWfUxsdm).

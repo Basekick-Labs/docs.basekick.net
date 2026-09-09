@@ -8,9 +8,9 @@ description: "Load a real public dataset into your own Arc with arcli sample loa
 ## Quick reference
 
 ```bash
-arcli sample list                    # what is published
-arcli sample show citibike           # details, licence, time range
-arcli sample load citibike           # download, verify, import
+arcli sample list
+arcli sample show citibike
+arcli sample load citibike
 ```
 
 ## Loading a dataset
@@ -68,14 +68,10 @@ Importing needs an **admin** token when the Arc server has authentication enable
 arcli sample show citibike -o json
 ```
 
-That is also the escape hatch if you would rather not fetch from Basekick at all: download the files however you like, verify them against those checksums, and load them with [`arcli import parquet`](/arcli/commands/import/).
+Use those URLs and checksums for custom download workflows, then load the files with [`arcli import parquet`](/arcli/commands/import/).
 
 ## About the data
 
 NYC Citi Bike trip records, published by NYC Bike Share under the [NYCBS Data Use Policy](https://ride.citibikenyc.com/data-sharing-policy), one month per dataset entry. The full archive lives at the [NYC source](https://citibikenyc.com/system-data).
 
 The `time` column carries local New York wall-clock time, which is what makes the hourly curve peak where a reader expects. Note that Arc stores every timestamp column other than `time` as integer microseconds, so `started_at` and `ended_at` need `to_timestamp(x/1000000)` if you want to read them as timestamps.
-
-## Privacy
-
-These are the only arcli commands that contact a Basekick-controlled host. They send the same `User-Agent` and installation id as any other arcli request, honouring `DO_NOT_TRACK=1` and `send_installation_id = false`, and never your token, your Arc endpoint or anything about your data. See [Privacy](/arcli/reference/privacy/) for the detail, including what any file download necessarily reveals.
