@@ -1,0 +1,300 @@
+---
+title: "Writing data"
+description: "Send MessagePack or line protocol data to Arc with curl, Python, Go, or Telegraf."
+---
+
+Arc accepts MessagePack for efficient typed batches and InfluxDB line protocol for simple, portable writes. Both APIs return `204 No Content` when a write is accepted.
+
+| Use case | Recommended path |
+| --- | --- |
+| Application writes and large batches | MessagePack columnar |
+| Shell scripts and existing InfluxDB clients | Line protocol |
+| Host, service, and infrastructure metrics | [Telegraf](/arc/integrations/telegraf/) |
+| Historical files | [Data import](/arc/data-import/) |
+
+The examples use a database named `metrics` and read the token from `ARC_TOKEN`. Create the database once before writing:
+
+```bash
+arcli db create metrics
+export ARC_TOKEN="your-token"
+```
+
+## MessagePack
+
+Send MessagePack to `POST /api/v1/write/msgpack`. The columnar format groups values by column, which keeps batches compact:
+
+```json
+{
+  "m": "cpu",
+  "columns": {
+    "time": [1788973200000000, 1788973201000000],
+    "host": ["server01", "server02"],
+    "usage": [45.2, 67.8]
+  }
+}
+```
+
+- `m` is the measurement name.
+- Every array in `columns` must have the same length.
+- Values within a column must use a consistent type.
+- `time` is a numeric Unix timestamp. Arc detects seconds, milliseconds, microseconds, or nanoseconds by magnitude.
+
+<Tabs items={['curl', 'Python', 'Go']}>
+  <Tab value="curl">
+
+`curl` can send an already encoded MessagePack file:
+
+```bash
+curl --request POST http://localhost:8000/api/v1/write/msgpack \
+  --header "Authorization: Bearer $ARC_TOKEN" \
+  --header "Content-Type: application/msgpack" \
+  --header "x-arc-database: metrics" \
+  --data-binary @cpu.msgpack
+```
+
+Use the Python or Go example to encode a payload, then write the resulting bytes to `cpu.msgpack` when a file-based workflow is useful.
+
+  </Tab>
+  <Tab value="Python">
+
+Install the dependencies:
+
+```bash
+python -m pip install msgpack requests
+```
+
+Then encode and send a batch:
+
+```python
+import os
+import time
+
+import msgpack
+import requests
+
+now = time.time_ns() // 1_000
+payload = {
+    "m": "cpu",
+    "columns": {
+        "time": [now, now + 1_000_000],
+        "host": ["server01", "server02"],
+        "usage": [45.2, 67.8],
+    },
+}
+
+response = requests.post(
+    "http://localhost:8000/api/v1/write/msgpack",
+    headers={
+        "Authorization": f"Bearer {os.environ['ARC_TOKEN']}",
+        "Content-Type": "application/msgpack",
+        "x-arc-database": "metrics",
+    },
+    data=msgpack.packb(payload, use_bin_type=True),
+    timeout=10,
+)
+response.raise_for_status()
+```
+
+  </Tab>
+  <Tab value="Go">
+
+Add a MessagePack encoder:
+
+```bash
+go get github.com/Basekick-Labs/msgpack/v6
+```
+
+Then encode and send a batch:
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/Basekick-Labs/msgpack/v6"
+)
+
+type payload struct {
+	Measurement string         `msgpack:"m"`
+	Columns     map[string]any `msgpack:"columns"`
+}
+
+func main() {
+	now := time.Now().UnixMicro()
+	data, err := msgpack.Marshal(payload{
+		Measurement: "cpu",
+		Columns: map[string]any{
+			"time":  []int64{now, now + 1_000_000},
+			"host":  []string{"server01", "server02"},
+			"usage": []float64{45.2, 67.8},
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"http://localhost:8000/api/v1/write/msgpack",
+		bytes.NewReader(data),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ARC_TOKEN"))
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set("x-arc-database", "metrics")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		log.Fatal(fmt.Errorf("write failed: %s: %s", resp.Status, body))
+	}
+}
+```
+
+  </Tab>
+</Tabs>
+
+For sustained ingestion, batch multiple rows per request. Arc also accepts `gzip` and `zstd` request compression through the `Content-Encoding` header.
+
+## Line protocol
+
+Line protocol is convenient for scripts and tools that already speak the InfluxDB protocol:
+
+```text
+measurement,tag=value field=value timestamp
+```
+
+This example writes a floating-point field, an integer field, and a nanosecond timestamp:
+
+```text
+cpu,host=server01,region=us-east usage=45.2,requests=12i 1788973200000000000
+```
+
+Send it to Arc's native `POST /api/v1/write/line-protocol` endpoint.
+
+<Tabs items={['curl', 'Python', 'Go']}>
+  <Tab value="curl">
+
+```bash
+curl --request POST http://localhost:8000/api/v1/write/line-protocol \
+  --header "Authorization: Bearer $ARC_TOKEN" \
+  --header "Content-Type: text/plain" \
+  --header "x-arc-database: metrics" \
+  --data-binary "cpu,host=server01,region=us-east usage=45.2,requests=12i $(date +%s)000000000"
+```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+import os
+import time
+
+import requests
+
+line = (
+    "cpu,host=server01,region=us-east "
+    f"usage=45.2,requests=12i {time.time_ns()}"
+)
+
+response = requests.post(
+    "http://localhost:8000/api/v1/write/line-protocol",
+    headers={
+        "Authorization": f"Bearer {os.environ['ARC_TOKEN']}",
+        "Content-Type": "text/plain",
+        "x-arc-database": "metrics",
+    },
+    data=line,
+    timeout=10,
+)
+response.raise_for_status()
+```
+
+  </Tab>
+  <Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+)
+
+func main() {
+	line := fmt.Sprintf(
+		"cpu,host=server01,region=us-east usage=45.2,requests=12i %d",
+		time.Now().UnixNano(),
+	)
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"http://localhost:8000/api/v1/write/line-protocol",
+		strings.NewReader(line),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ARC_TOKEN"))
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("x-arc-database", "metrics")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		log.Fatal(fmt.Errorf("write failed: %s: %s", resp.Status, body))
+	}
+}
+```
+
+  </Tab>
+</Tabs>
+
+Arc also supports the InfluxDB 1.x `/write` and InfluxDB 2.x `/api/v2/write` endpoints for compatible clients. See the [write API reference](/arc/api-reference/overview/#write-data) for their parameters.
+
+## Telegraf
+
+For system and service metrics, use Telegraf's native Arc output plugin. It batches metrics as MessagePack, supports compression, and can collect from hundreds of existing input plugins.
+
+<Card title="Send Telegraf metrics to Arc" href="/arc/integrations/telegraf/" description="Install Telegraf, configure the Arc output, and verify your metrics." />
+
+## Verify the write
+
+Query the measurement with arcli:
+
+```bash
+arcli query --database metrics "SELECT * FROM cpu ORDER BY time DESC LIMIT 10"
+```
+
+Arc buffers writes briefly, so newly accepted data may take a few seconds to appear in a query.
+
+## Related guides
+
+- [Querying Arc](/arc/guides/querying/)
+- [Writing with arcli](/arcli/commands/write/)
+- [Importing line protocol files](/arc/data-import/line-protocol/)
+- [API reference](/arc/api-reference/overview/)

@@ -1072,6 +1072,7 @@ See [Query Management](/arc-enterprise/query/query-management/) for detailed API
 
 ## Next steps
 
+- **[Writing data](/arc/guides/writing-data/)** - MessagePack and line protocol examples
 - **[Python SDK](/arc-enterprise/sdks/python/)** - Official Python client
 - **[Getting Started](/arc-enterprise/getting-started/)** - Quick start guide
 - **[Configuration](/arc-enterprise/configuration/overview/)** - Server configuration
