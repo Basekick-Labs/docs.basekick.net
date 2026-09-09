@@ -1,22 +1,32 @@
 ---
 title: "SQL Querying Guide"
-description: "Write analytical SQL against Arc measurements: the database.measurement naming, time_bucket aggregation, window functions, and filtering that enables partition pruning."
+description: "Write database-scoped analytical SQL against Arc measurements with time_bucket aggregation, window functions, and filters that enable partition pruning."
 ---
 
 Arc runs a full analytical SQL engine over data stored as Parquet files, so window functions, CTEs, and joins are all available.
 
 ## SQL syntax
 
-Queries use the format `database.measurement` as the table name:
+Select the database with the `x-arc-database` request header, then use the measurement name directly in SQL:
 
 ```sql
-SELECT * FROM mydb.cpu LIMIT 10
+SELECT * FROM cpu LIMIT 10
 ```
 
-If your database is named `default`, you can omit it:
+```bash
+curl --request POST http://localhost:8000/api/v1/query \
+  --header "Authorization: Bearer $ARC_TOKEN" \
+  --header "Content-Type: application/json" \
+  --header "x-arc-database: mydb" \
+  --data '{"sql": "SELECT * FROM cpu LIMIT 10", "format": "json"}'
+```
 
-```sql
-SELECT * FROM default.cpu LIMIT 10
+This is the recommended pattern for queries within one database. Fully qualified `database.measurement` names remain useful when a query needs data from more than one database.
+
+The SQL examples below assume this header:
+
+```http
+x-arc-database: default
 ```
 
 ## Query endpoints
@@ -33,7 +43,8 @@ SELECT * FROM default.cpu LIMIT 10
 curl -X POST "http://localhost:8000/api/v1/query" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM default.cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' LIMIT 100"}'
+  -H "x-arc-database: default" \
+  -d '{"sql": "SELECT * FROM cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' LIMIT 100"}'
 ```
 
 ### Arrow query
@@ -44,7 +55,8 @@ For large result sets, Arrow IPC provides ~2x throughput vs JSON:
 curl -X POST "http://localhost:8000/api/v1/query/arrow" \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM default.cpu LIMIT 1000000"}' \
+  -H "x-arc-database: default" \
+  -d '{"sql": "SELECT * FROM cpu LIMIT 1000000"}' \
   -o results.arrow
 ```
 
@@ -54,15 +66,15 @@ Arc stores timestamps in the `time` column. Use standard SQL intervals for time-
 
 ```sql
 -- Last hour
-SELECT * FROM default.cpu
+SELECT * FROM cpu
 WHERE time > NOW() - INTERVAL '1 hour';
 
 -- Last 7 days
-SELECT * FROM default.cpu
+SELECT * FROM cpu
 WHERE time > NOW() - INTERVAL '7 days';
 
 -- Specific date range
-SELECT * FROM default.cpu
+SELECT * FROM cpu
 WHERE time BETWEEN '2026-01-01' AND '2026-01-31';
 ```
 
@@ -83,7 +95,7 @@ SELECT
   AVG(cpu_usage) AS avg_cpu,
   MAX(cpu_usage) AS max_cpu,
   COUNT(*) AS samples
-FROM default.cpu
+FROM cpu
 WHERE time > NOW() - INTERVAL '7 days'
 GROUP BY bucket
 ORDER BY bucket;
@@ -100,7 +112,7 @@ SELECT
   host,
   AVG(cpu_usage) AS avg_cpu,
   AVG(mem_usage) AS avg_mem
-FROM default.cpu
+FROM cpu
 WHERE time > NOW() - INTERVAL '30 days'
 GROUP BY day, host
 ORDER BY day DESC, host;
@@ -126,7 +138,7 @@ SELECT
     ORDER BY time
     ROWS BETWEEN 60 PRECEDING AND CURRENT ROW
   ) AS deviation
-FROM default.cpu
+FROM cpu
 WHERE time > NOW() - INTERVAL '1 hour';
 ```
 
@@ -142,7 +154,7 @@ WITH hourly_stats AS (
     time_bucket('1 hour', time) AS bucket,
     AVG(cpu_usage) AS avg_cpu,
     STDDEV(cpu_usage) AS std_cpu
-  FROM default.cpu
+  FROM cpu
   WHERE time > NOW() - INTERVAL '24 hours'
   GROUP BY host, bucket
 ),

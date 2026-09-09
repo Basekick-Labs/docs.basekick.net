@@ -290,6 +290,8 @@ Query the measurement with arcli:
 arcli query --database metrics "SELECT * FROM cpu ORDER BY time DESC LIMIT 10"
 ```
 
+The `--database metrics` option sends `x-arc-database: metrics`, so the SQL only needs the measurement name: `FROM cpu`.
+
 Arc buffers writes briefly, so newly accepted data may take a few seconds to appear in a query.
 
 ## Related guides
