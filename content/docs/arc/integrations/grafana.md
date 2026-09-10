@@ -3,509 +3,404 @@ title: "Grafana Integration"
 description: "Connect Grafana to Arc with the Arc data source plugin: install the plugin, add the connection and its token, and build dashboard panels from SQL against your measurements."
 ---
 
-Connect Arc to Grafana for real-time monitoring, alerting, and beautiful visualizations using the Arc datasource plugin.
+Connect Arc to Grafana for real-time dashboards, alerting, and ad-hoc analysis, using the Arc data source plugin.
 
 ## Overview
 
-The Arc datasource plugin for Grafana provides:
-- **Apache Arrow Protocol**: High-performance columnar data transfer
-- **Native SQL Support**: Full analytical SQL with syntax highlighting
-- **Template Variables**: Dynamic dashboards with filters
-- **Alerting**: Built-in alert rule support
-- **Multi-database**: Query across different Arc databases
-- **Real-time Dashboards**: Sub-second query performance
+The Arc data source plugin gives Grafana:
+
+- **Three wire protocols** — Apache Arrow IPC (default), columnar MessagePack, and JSON
+- **Native SQL** — full DuckDB analytical SQL, not a query builder
+- **Grafana macros** — `$__timeFilter`, `$__timeGroup`, `$__interval` and friends
+- **Timezone-aware bucketing** — daily and weekly buckets align to the dashboard's local calendar
+- **Template variables** — dynamic dashboards with single- and multi-value filters
+- **Alerting** — full support for Grafana alert rules
+- **Query splitting** — long ranges are chunked and run in parallel, with automatic skipping where that would change results
+
+## Requirements
+
+- Grafana **12.3 or later**
+- Arc reachable from the Grafana server
+- An Arc API token
 
 ## Installation
 
-### From Grafana plugin catalog
+The plugin is not yet in the Grafana plugin catalog, so install it from a release or from source. Because it is unsigned, Grafana must be told to load it.
 
-1. In Grafana, go to **Configuration** → **Plugins**
-2. Search for **Arc**
-3. Click **Install**
-4. Restart Grafana if prompted
-
-### From release
+### From a release
 
 ```bash
 # Resolve the latest release tag, then download the matching plugin archive
-LATEST=$(curl -s https://api.github.com/repos/basekick-labs/grafana-arc-datasource/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/grafana-arc-datasource/releases/latest \
+  | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
 wget https://github.com/basekick-labs/grafana-arc-datasource/releases/download/v${LATEST}/basekick-arc-datasource-${LATEST}.zip
 
-# Extract to Grafana plugins directory
+# Extract into the Grafana plugins directory
 unzip basekick-arc-datasource-${LATEST}.zip -d /var/lib/grafana/plugins/
 
-# Restart Grafana
 systemctl restart grafana-server
 ```
+
+### Allow the unsigned plugin
+
+Grafana refuses to load unsigned plugins by default. Add the plugin ID to your configuration:
+
+```ini
+# /etc/grafana/grafana.ini
+[plugins]
+allow_loading_unsigned_plugins = basekick-arc-datasource
+```
+
+Or, with Docker:
+
+```yaml
+environment:
+  GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: basekick-arc-datasource
+```
+
+Without this, the plugin is downloaded and ignored, and the data source never appears in the list.
 
 ### From source
 
 ```bash
-# Clone repository
 git clone https://github.com/basekick-labs/grafana-arc-datasource
 cd grafana-arc-datasource
 
-# Install dependencies
 npm install
+npm run build     # frontend
+mage -v           # backend (requires Go 1.26.6+)
 
-# Build plugin
-npm run build
-
-# Build backend
-mage -v
-
-# Install to Grafana
 cp -r dist /var/lib/grafana/plugins/basekick-arc-datasource
 systemctl restart grafana-server
 ```
 
 ## Configuration
 
-### 1. Add data source
+### 1. Add the data source
 
-1. In Grafana, go to **Configuration** → **Data sources**
-2. Click **Add data source**
-3. Search for and select **Arc**
-4. Configure connection settings
+1. In Grafana, go to **Connections** → **Data sources**
+2. Click **Add new data source**
+3. Select **Arc**
 
 ### 2. Connection settings
 
 | Setting | Description | Required | Default |
 |---------|-------------|----------|---------|
 | **URL** | Arc API endpoint | Yes | `http://localhost:8000` |
-| **API Key** | Authentication token | Yes | - |
-| **Database** | Default database name | No | `default` |
+| **API Key** | Arc authentication token | Yes | — |
+| **Database** | Default database for this data source | No | `default` |
 | **Timeout** | Query timeout in seconds | No | `30` |
-| **Protocol** | Wire format: `Arrow`, `MessagePack`, or `JSON` | No | `Arrow` |
-| **Max Concurrency** | Parallel chunks when a query is split (max `32`) | No | `4` |
-| **Max Response MB** | Per-response body cap, in MiB (max `8192`) | No | `1024` |
-| **Allow Private IPs** | Permit an Arc URL that resolves to a private or loopback address | No | `false` |
-| **Allow Database Override** | Permit a panel to target a different database than the datasource default | No | `false` |
+| **Protocol** | `Arrow`, `MessagePack`, or `JSON` | No | `Arrow` |
+| **Max Concurrency** | Parallel chunks within one split query | No | `4` |
+| **Max In Flight** | Simultaneous Arc requests for this data source | No | `32` |
+| **Max Response MB** | Per-response size cap | No | `1024` |
+| **Allow Private IPs** | Permit the URL to resolve to a private address | No | on |
+| **Allow Database Override** | Permit a per-query database override | No | on |
 
-**Arrow** is the fastest and is recommended; **MessagePack** is stable as of
-Arc 26.09.1; **JSON** is a compatibility fallback. (Datasources saved by
-older plugin versions used a **Use Arrow** switch, which the Protocol
-selector supersedes — the saved choice is preserved.)
+**Allow Private IPs** is on because self-hosted Arc usually runs on a private network or a Docker service name such as `http://arc:8000`. Turn it off to require a public address. Link-local and cloud-metadata addresses are blocked either way.
 
-<Callout type="warn" title="Arc on a private network">
-**Allow Private IPs** is off by default: the plugin refuses datasource URLs
-that resolve to private or loopback addresses, so that users who can create
-datasources cannot point Grafana at internal services. Turn it on when Arc
-runs on an internal network or in Docker (`http://arc:8000`), or every query
-fails with `destination address is not permitted`. A `localhost` URL is
-always allowed, so local development never needs this.
-</Callout>
+Click **Save & test** to verify the connection.
 
-<Callout type="warn" title="Database override and token scope">
-**Allow Database Override** lets a dashboard editor query databases other
-than the configured default. Enable it only when the API key's scope already
-matches what those editors are allowed to see — otherwise the datasource
-becomes a way to read databases through a token they do not hold.
-</Callout>
+### 3. Choosing a protocol
 
-### 3. Example configuration
+- **Arrow** decodes Arc's Arrow IPC stream directly and is the fastest option. Keep it unless you have a reason not to.
+- **MessagePack** uses Arc's columnar msgpack endpoint. Slightly slower to decode, and it supports gzip compression, which helps on constrained links.
+- **JSON** is the slowest path, kept for compatibility and debugging.
 
-```text
-URL:      http://localhost:8000
-API Key:  arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-Database: prod
-Timeout:  30
-```
+One practical difference: `SHOW DATABASES` and `SHOW TABLES` are **not supported on the Arrow endpoint**. If you want to use them in a template variable, set the data source to MessagePack or JSON, or query a table directly instead.
 
-Click **Save & Test** to verify the connection.
-
-### 4. Get your API token
+### 4. Get an API token
 
 ```bash
-# Docker - check logs for admin token
+# Docker — the admin token is printed on first start
 docker logs <container-id> 2>&1 | grep "Admin token"
 
-# Or create a new token specifically for Grafana
+# Or mint a token scoped to Grafana
 curl -X POST http://localhost:8000/api/v1/auth/tokens \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "grafana-datasource",
-    "description": "Grafana datasource access"
+    "description": "Grafana data source access"
   }'
 ```
 
-## Creating queries
+Give Grafana a token scoped to what its dashboard viewers are allowed to read. Arc's token scope, not the plugin, is the authorization boundary.
 
-### Query editor
+## Writing queries
 
-The Arc datasource provides a SQL query editor with:
-- Syntax highlighting
-- Auto-completion
-- Time range macros
-- Multi-database support
+### Referring to tables
 
-Each panel also carries:
+The data source's **Database** setting is sent with every query, so **write table names unqualified**:
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| **Format** | `Time series` or `Table` | `Time series` |
-| **Database** | Query a different database than the datasource default (requires **Allow Database Override**) | datasource default |
-| **Splitting** | Break a long time range into chunks queried in parallel: `Auto`, `Off`, or `1 hour`-`7 days` | `Auto` |
+```sql
+-- Correct: the data source is configured with Database = telegraf
+SELECT time, usage_idle FROM cpu WHERE $__timeFilter(time)
+```
 
-Splitting speeds up wide time ranges. `Auto` does not split ranges shorter
-than three hours. The plugin also turns splitting off by itself wherever it
-would change results — queries with `LIMIT`, `UNION`, an aggregation without
-`$__timeGroup`, or timezone-aware bucketing (`$__timezone`, or `$__timeGroup`
-on a non-UTC dashboard), since chunk boundaries are computed in UTC and would
-cut a local day in two.
+```sql
+-- Rejected: "Cross-database queries (db.table syntax) not allowed
+-- when x-arc-database header is set"
+SELECT time, usage_idle FROM telegraf.cpu WHERE $__timeFilter(time)
+```
 
-### Basic query example
+To query a different database from one panel, use the **Database** field in the query editor rather than a qualified name. That requires **Allow Database Override** on the data source.
 
-**CPU Usage:**
+### Basic query
+
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
   AVG(usage_idle) * -1 + 100 AS cpu_usage,
   host
-FROM prod.cpu
+FROM cpu
 WHERE cpu = 'cpu-total'
   AND $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
+GROUP BY 1, host
 ORDER BY time ASC
 ```
 
-### Time macros
+Set the panel's **Format** to **Time series** so Grafana treats the first column as the time axis.
 
-Grafana provides powerful time macros for dynamic queries:
+### Macros
 
-| Macro | Description | Example |
-|-------|-------------|---------|
-| `$__timeFilter(columnName)` | Complete time range filter | `WHERE $__timeFilter(time)` |
-| `$__timeFrom()` | Start of time range | `time >= $__timeFrom()` |
-| `$__timeTo()` | End of time range | `time < $__timeTo()` |
-| `$__interval` | Bucket size chosen from the selected time range | `$__timeGroup(time, '$__interval')` |
-| `$__timeGroup(columnName, interval)` | Time bucket, aligned to the dashboard's timezone | `$__timeGroup(time, '1d') AS time` |
-| `$__timezone` | The dashboard's timezone, as a quoted IANA name | `timezone($__timezone, time)` |
+| Macro | Expands to | Example |
+|-------|-----------|---------|
+| `$__timeFilter(column)` | A range predicate on the column | `WHERE $__timeFilter(time)` |
+| `$__timeFrom()` | Start of the dashboard range | `time >= $__timeFrom()` |
+| `$__timeTo()` | End of the dashboard range | `time < $__timeTo()` |
+| `$__interval` | An interval sized from the range | `time_bucket(INTERVAL '$__interval', time)` |
+| `$__interval_ms` | The same interval in milliseconds | `SELECT $__interval_ms` |
+| `$__timeGroup(column, interval)` | A timezone-aware time bucket | `$__timeGroup(time, '1d')` |
 
-**How macros expand:**
+How they expand:
 
 ```sql
--- Your query
+-- You write
 WHERE $__timeFilter(time)
 
--- Expands to (the range is always sent in UTC)
-WHERE time >= '2025-01-17T10:00:00Z' AND time < '2025-01-17T11:00:00Z'
+-- Arc receives
+WHERE (time) >= '2026-01-17T10:00:00Z' AND (time) < '2026-01-17T11:00:00Z'
 ```
 
-`$__timeGroup` accepts `1s`, `5s`, `10s`, `30s`, `1m`, `5m`, `10m`, `15m`,
-`30m`, `1h`, `6h`, `12h`, `1d` and `1w`, in short or long form (`'10m'` or
-`'10 minutes'`). `1w` is a **calendar** week and starts on Monday. An
-unrecognised interval is left unexpanded, so Arc returns a clear error rather
-than silently bucketing differently.
-
-### Timezone-aware bucketing
+### `$__timeGroup` and timezones
 
 Arc stores and returns timestamps in UTC, and Grafana renders them in the
-dashboard's timezone. Anything that groups by **day or larger** has to bucket
-in that timezone too — otherwise a "day" starts at 00:00 UTC, which in UTC-6
-is 18:00 the previous evening, and every bar mixes two local calendar days.
+dashboard's timezone. Anything grouped by **day or larger** has to bucket in
+that timezone too — otherwise a "day" starts at 00:00 UTC, which in UTC−6 is
+18:00 the previous evening, and every bar mixes two local calendar days.
 
-`$__timeGroup` handles this for you:
+`$__timeGroup` buckets by the **dashboard's timezone**, so a daily bucket is the viewer's day rather than a UTC day:
 
 ```sql
 SELECT
   $__timeGroup(time, '1d') AS time,
-  COUNT(DISTINCT host) AS active_hosts
-FROM prod.cpu
+  COUNT(*) AS samples
+FROM cpu
 WHERE $__timeFilter(time)
 GROUP BY 1
-ORDER BY 1
-```
-
-Only whole calendar units are timezone-aware: `1h`, `1d` and `1w` truncate in
-the dashboard's timezone, which stays correct across DST transitions (a local
-day is not always 24 hours). Every other interval — including `6h` and `12h`,
-which are not whole calendar units — buckets on fixed epoch arithmetic in UTC.
-
-Because the macro follows the dashboard's own setting, including **Browser
-Time**, a shared dashboard is correct for every viewer without hardcoding a
-zone. It applies to template-variable queries too. An unrecognised timezone
-falls back to UTC.
-
-<Callout type="warn" title="Alert rules always bucket in UTC">
-Grafana evaluates alert and recording rules on the server, without a
-dashboard, so no timezone is sent and bucketing falls back to UTC. A panel
-and an alert built on the same query can therefore group differently. Pin the
-zone explicitly in alert queries — `timezone('America/Costa_Rica', ...)` —
-where the boundary matters.
-</Callout>
-
-For expressions `$__timeGroup` does not cover, `$__timezone` expands to the
-zone as a quoted IANA name:
-
-```sql
-SELECT timezone($__timezone, date_trunc('month', timezone($__timezone, time))) AS time
-```
-
-<Callout type="warn" title="Prefer timezone() over AT TIME ZONE">
-Use the `timezone(zone, ts)` function rather than the `ts AT TIME ZONE zone`
-infix form. The infix form's direction depends on the operand's type, and
-which of `TIMESTAMP`/`TIMESTAMPTZ` it returns differs between DuckDB builds,
-so the same expression can silently shift buckets by the UTC offset.
-</Callout>
-
-<Callout type="info" title="Requires plugin v1.3.6+">
-`$__timezone` and timezone-aware `$__timeGroup` were added in v1.3.3 and
-corrected in v1.3.5; `1w` bucketing arrived in v1.3.6. On earlier versions
-`$__timeGroup` always bucketed in UTC.
-</Callout>
-
-### Example queries
-
-**Memory Usage:**
-```sql
-SELECT
-  $__timeGroup(time, '$__interval') as time,
-  AVG(used_percent) AS memory_used,
-  host
-FROM prod.mem
-WHERE $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
-**Network Traffic (bytes to bits):**
+`$__timeGroup` accepts any `<n><unit>` interval — `20s`, `2m`, `10 minutes`,
+`1h`, `1d`, `1w` — in short or long form. An interval it cannot parse is left
+unexpanded, so Arc returns a clear error rather than silently bucketing
+differently.
+
+In a UTC−6 dashboard those buckets start at 06:00 UTC, which is local midnight. Setting the dashboard to "Browser Time" means each viewer sees their own days.
+
+Three details worth knowing:
+
+- **UTC dashboards are unaffected.** They use the same epoch arithmetic every earlier release used.
+- **Hour buckets** stay on epoch arithmetic in any zone whose offset is a whole number of hours, which is nearly all of them. The result is identical, and it avoids a daylight-saving hazard where a repeated local hour would merge two buckets into one.
+- **`7d` is not a calendar week.** Week buckets anchor on Monday, so ask for `1w` if that is what you mean. `7d` stays a fixed seven-day span.
+
+`$__timeGroup` also disables query splitting when the bucket is wider than a chunk, because a bucket split across chunks would come back as several partial rows.
+
+### More examples
+
+**Memory:**
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
+  AVG(used_percent) AS memory_used,
+  host
+FROM mem
+WHERE $__timeFilter(time)
+GROUP BY 1, host
+ORDER BY time ASC
+```
+
+**Network throughput, bytes to bits:**
+```sql
+SELECT
+  time_bucket(INTERVAL '$__interval', time) AS time,
   AVG(bytes_recv) * 8 AS bits_in,
   AVG(bytes_sent) * 8 AS bits_out,
   host,
   interface
-FROM prod.net
+FROM net
 WHERE $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host, interface
+GROUP BY 1, host, interface
 ORDER BY time ASC
 ```
 
 **Disk I/O:**
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
   AVG(read_bytes) AS disk_read,
   AVG(write_bytes) AS disk_write,
   host
-FROM prod.diskio
+FROM diskio
 WHERE $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
+GROUP BY 1, host
 ORDER BY time ASC
 ```
 
 ## Template variables
 
-Create dynamic dashboards with variables that filter your data.
+### Creating a variable
 
-### Creating variables
+1. **Dashboard settings** → **Variables** → **Add variable**
+2. Choose **Query**, select the Arc data source, and write SQL returning one column
 
-1. Go to **Dashboard settings** → **Variables**
-2. Click **Add variable**
-3. Configure variable settings
-
-### Variable examples
-
-**Host Variable:**
 ```sql
-SELECT DISTINCT host FROM prod.cpu ORDER BY host
+-- Host variable
+SELECT DISTINCT host FROM cpu ORDER BY host
 ```
 
-**Interface Variable:**
 ```sql
-SELECT DISTINCT interface FROM prod.net ORDER BY interface
+-- Interface variable
+SELECT DISTINCT interface FROM net ORDER BY interface
 ```
 
-**Database Variable:**
+Avoid `SHOW TABLES` in a variable query unless the data source uses the MessagePack or JSON protocol; the Arrow endpoint rejects it.
+
+### Quoting rules
+
+This plugin follows the same rule as Grafana's built-in SQL data sources, so queries port between them unchanged:
+
+| Variable kind | What the plugin does | How to write it |
+|---|---|---|
+| Single-value | Escapes embedded quotes; adds **no** quotes | You supply them: `WHERE host = '$server'` |
+| Multi-value or "Include All" | Quotes **each** value and joins with commas | Leave it bare: `WHERE host IN ($servers)` |
+
+So a single-value variable works inside a literal of any shape, including a regex:
+
 ```sql
-SELECT DISTINCT schema_name FROM information_schema.schemata
-WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
-ORDER BY schema_name
+WHERE host = '$server'
+WHERE host ~ '^$server$'
 ```
 
-### Using variables in queries
+and a multi-value variable must **not** be wrapped in quotes:
 
-Reference variables with `$variable` syntax:
+```sql
+-- Correct
+WHERE host IN ($servers)
+
+-- Wrong: produces ''a','b''
+WHERE host IN ('$servers')
+```
+
+If you need a multi-value variable inside a regex literal, use `${servers:regex}`.
+
+Embedded single quotes are always doubled, so a value cannot terminate the literal it sits in. Two cases fall outside that guarantee, both identical to Grafana's own SQL data sources: a variable used **without** quotes (`WHERE host = $server`), and a variable inside a DuckDB **escape-string** literal (`E'$server'`). Both are reasons to scope Arc's API token to what dashboard viewers may read.
+
+### Using a variable
 
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
   AVG(usage_idle) * -1 + 100 AS cpu_usage
-FROM $database.cpu
+FROM cpu
 WHERE host = '$server'
   AND cpu = 'cpu-total'
   AND $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval')
-ORDER BY time ASC
-```
-
-### Multi-select variables
-
-Enable **Multi-value** in variable settings, then use `IN`:
-
-```sql
-SELECT
-  $__timeGroup(time, '$__interval') as time,
-  AVG(usage_idle) * -1 + 100 AS cpu_usage,
-  host
-FROM prod.cpu
-WHERE host IN ($hosts)  -- Multi-select variable
-  AND cpu = 'cpu-total'
-  AND $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
+GROUP BY 1
 ORDER BY time ASC
 ```
 
 ## Alerting
 
-The Arc datasource fully supports Grafana alerting.
+Grafana alert rules work against Arc queries. Because an alert has no dashboard, it has no timezone: `$__timeGroup` buckets in UTC on the alerting path.
 
-### Creating alert rules
+### Creating a rule
 
 1. Open a panel with an Arc query
-2. Go to **Alert** tab
-3. Click **Create alert rule from this panel**
-4. Configure alert conditions
+2. **Alert** tab → **New alert rule**
+3. Set the condition and evaluation interval
 
-### Example alert query
+### Example: high CPU
 
-**High CPU Usage (> 80%):**
 ```sql
 SELECT
   time,
   100 - usage_idle AS cpu_usage,
   host
-FROM prod.cpu
+FROM cpu
 WHERE cpu = 'cpu-total'
   AND time >= NOW() - INTERVAL '5 minutes'
 ORDER BY time ASC
 ```
 
-**Alert Condition:**
-- `WHEN avg() OF query(A, 5m, now) IS ABOVE 80`
+Condition: `WHEN avg() OF query(A, 5m, now) IS ABOVE 80`
 
-### Example alert: Memory usage
+### Example: memory pressure
 
-**Query:**
 ```sql
 SELECT
   time,
   used_percent AS memory_used,
   host
-FROM prod.mem
+FROM mem
 WHERE time >= NOW() - INTERVAL '5 minutes'
 ORDER BY time ASC
 ```
 
-**Alert Condition:**
-- `WHEN avg() OF query(A, 5m, now) IS ABOVE 90`
+Condition: `WHEN avg() OF query(A, 5m, now) IS ABOVE 90`
 
-### Alert notifications
-
-Configure notification channels:
-1. Go to **Alerting** → **Contact points**
-2. Add notification channel (Email, Slack, PagerDuty, etc.)
-3. Link alert rules to notification channels
+Route rules to a contact point under **Alerting** → **Contact points**.
 
 ## Dashboard examples
 
-### System monitoring dashboard
-
-Create a comprehensive system monitoring dashboard:
-
-**Panels:**
-
-1. **CPU Usage by Host** (Time series)
+**CPU by host** (time series):
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
   AVG(100 - usage_idle) AS cpu_usage,
   host
-FROM prod.cpu
+FROM cpu
 WHERE cpu = 'cpu-total' AND $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
+GROUP BY 1, host
 ORDER BY time ASC
 ```
 
-2. **Memory Usage** (Time series)
-```sql
-SELECT
-  $__timeGroup(time, '$__interval') as time,
-  AVG(used_percent) AS memory_used,
-  host
-FROM prod.mem
-WHERE $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
-ORDER BY time ASC
-```
-
-3. **Disk Usage** (Gauge)
+**Disk usage** (gauge):
 ```sql
 SELECT
   host,
   AVG(used_percent) AS disk_used
-FROM prod.disk
+FROM disk
 WHERE $__timeFilter(time)
 GROUP BY host
 ```
 
-4. **Network Traffic** (Graph)
-```sql
-SELECT
-  $__timeGroup(time, '$__interval') as time,
-  SUM(bytes_recv) * 8 / 1000000 AS mbps_in,
-  SUM(bytes_sent) * 8 / 1000000 AS mbps_out,
-  host
-FROM prod.net
-WHERE $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
-ORDER BY time ASC
-```
-
-5. **Top Hosts by CPU** (Bar gauge)
+**Top hosts by CPU** (bar gauge):
 ```sql
 SELECT
   host,
   AVG(100 - usage_idle) AS avg_cpu
-FROM prod.cpu
-WHERE cpu = 'cpu-total'
-  AND time >= NOW() - INTERVAL '1 hour'
+FROM cpu
+WHERE cpu = 'cpu-total' AND $__timeFilter(time)
 GROUP BY host
 ORDER BY avg_cpu DESC
 LIMIT 10
 ```
 
-<!-- TODO(screenshot): a real Arc-backed Grafana dashboard with these four panels populated. The ASCII mock below conveys panel arrangement but not what the plugin's query editor, time picker, or rendered series actually look like — the thing a reader is trying to recognize on their own screen. -->
-
-### Dashboard layout
-
-```text
-┌─────────────────────────────────────────────────┐
-│  System Overview - Last 24 Hours                │
-│  [Host: All ▼] [Refresh: 30s ▼]                │
-├───────────────────────┬─────────────────────────┤
-│                       │                         │
-│  CPU Usage            │  Memory Usage           │
-│  (Time Series)        │  (Time Series)          │
-│                       │                         │
-├───────────────────────┼─────────────────────────┤
-│                       │                         │
-│  Network Traffic      │  Disk I/O               │
-│  (Graph)              │  (Graph)                │
-│                       │                         │
-├───────────────────────┴─────────────────────────┤
-│  Top 10 Hosts by CPU Usage (Bar Gauge)          │
-└─────────────────────────────────────────────────┘
-```
-
 ## Advanced queries
 
-### Window functions
-
-**Moving Average:**
+**Moving average** (window function):
 ```sql
 SELECT
   time,
@@ -515,204 +410,120 @@ SELECT
     PARTITION BY host
     ORDER BY time
     ROWS BETWEEN 5 PRECEDING AND CURRENT ROW
-  ) as moving_avg
-FROM prod.cpu
+  ) AS moving_avg
+FROM cpu
 WHERE cpu = 'cpu-total' AND $__timeFilter(time)
 ORDER BY time ASC
 ```
 
-### Percentiles
-
-**CPU Usage Percentiles:**
+**Percentiles:**
 ```sql
 SELECT
-  $__timeGroup(time, '$__interval') as time,
+  time_bucket(INTERVAL '$__interval', time) AS time,
   host,
-  PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY usage_idle) as p50,
-  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY usage_idle) as p95,
-  PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY usage_idle) as p99
-FROM prod.cpu
+  quantile_cont(usage_idle, 0.50) AS p50,
+  quantile_cont(usage_idle, 0.95) AS p95,
+  quantile_cont(usage_idle, 0.99) AS p99
+FROM cpu
 WHERE cpu = 'cpu-total' AND $__timeFilter(time)
-GROUP BY $__timeGroup(time, '$__interval'), host
+GROUP BY 1, host
 ORDER BY time ASC
 ```
 
-### Cross-database queries
+Queries containing a window function are not split into chunks, since a window spanning a chunk boundary would produce wrong results.
 
-**Production vs Staging Comparison:**
-```sql
-SELECT
-  $__timeGroup(time, '$__interval') as time,
-  AVG(p.usage_idle) as prod_cpu_idle,
-  AVG(s.usage_idle) as staging_cpu_idle
-FROM prod.cpu p
-JOIN staging.cpu s ON p.time = s.time AND p.host = s.host
-WHERE p.cpu = 'cpu-total'
-  AND s.cpu = 'cpu-total'
-  AND $__timeFilter(p.time)
-GROUP BY $__timeGroup(time, '$__interval')
-ORDER BY time ASC
-```
+## Performance
 
-## Performance optimization
+**Query splitting** breaks a long range into chunks that run in parallel. It is skipped automatically where chunking would change results: `LIMIT` queries, aggregations without a time bucket, `UNION`, window functions, buckets wider than a chunk, and queries with no time filter to split along.
 
-### 1. Use Apache Arrow
+**Keep the range honest.** `$__timeFilter()` is what lets Arc prune files; a panel without it scans everything.
 
-Arrow protocol is enabled by default and provides significantly faster data transfer:
-
-- Substantially faster than JSON for large result sets
-- Zero-copy deserialization
-- Columnar format perfect for time-series
-
-### 2. Optimize time ranges
-
-- Use Grafana's time picker to limit data scanned
-- Add time filters with `$__timeFilter()`
-- Avoid querying months of data for real-time dashboards
-
-### 3. Bucket with `$__timeGroup`
-
-Grafana adjusts `$__interval` to the dashboard's width, so let it choose the
-bucket size:
+**Let `$__interval` size the buckets.** It is derived from the selected range, so the point count stays sensible as the range grows:
 
 ```sql
--- Good: interval follows the panel width
-$__timeGroup(time, '$__interval')
+-- Good
+time_bucket(INTERVAL '$__interval', time)
 
--- Bad: fixed interval, far more points than the panel can show
-$__timeGroup(time, '1s')
+-- Bad: a day of data at one-second resolution
+time_bucket(INTERVAL '1 second', time)
 ```
 
-Prefer `$__timeGroup` over a bare `time_bucket(INTERVAL '$__interval', time)`:
-`time_bucket` always buckets in UTC, so daily and weekly panels are misaligned
-on any dashboard that is not set to UTC. See
-[Timezone-aware bucketing](#timezone-aware-bucketing).
+**Tune concurrency for the deployment.** *Max Concurrency* bounds one query's chunk fan-out; *Max In Flight* bounds the whole data source across every panel and viewer. Lower them to protect a busy Arc, raise *Max In Flight* if a large dashboard's panels queue behind each other.
 
-### 4. Use LIMIT for exploration
-
-```sql
-SELECT * FROM prod.cpu
-WHERE $__timeFilter(time)
-LIMIT 1000  -- Limit result size
-```
-
-### 5. Enable query caching
-
-Grafana's query caching is an Enterprise/Cloud feature configured per data
-source; it is not part of the Arc plugin. Where it is available, a short
-cache timeout lets repeated dashboard loads skip Arc entirely.
+**Cache repeated queries.** Grafana's per-data-source query caching helps most on dashboards several people watch at once.
 
 ## Troubleshooting
 
-### Plugin not appearing
+### The data source does not appear
 
 ```bash
-# Check plugin directory permissions
 ls -la /var/lib/grafana/plugins/basekick-arc-datasource
-
-# Verify plugin.json exists
-cat /var/lib/grafana/plugins/basekick-arc-datasource/plugin.json
-
-# Check Grafana logs
-tail -f /var/log/grafana/grafana.log
-
-# Restart Grafana
-systemctl restart grafana-server
+grep -i "unsigned\|basekick" /var/log/grafana/grafana.log
 ```
 
-### Connection failed
+The usual cause is the unsigned-plugin setting. Grafana logs `Plugin is unsigned` and skips loading unless `allow_loading_unsigned_plugins` names `basekick-arc-datasource`.
+
+### Save & test fails
 
 ```bash
-# Verify Arc is running
+# Is Arc up?
 curl http://localhost:8000/health
 
-# Test API token
-curl -H "Authorization: Bearer $ARC_TOKEN" \
-  http://localhost:8000/api/v1/auth/verify
-
-# Check network connectivity
-ping localhost
+# Is the token valid?
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
-### Blocked address
+If the message mentions a **blocked address**, the URL resolves to a private range and **Allow Private IPs** is off.
 
-```text
-Arc URL resolves to a blocked address (private/loopback).
-destination address is not permitted
-```
+### A query fails
 
-The plugin refuses datasource URLs resolving to private or loopback addresses
-unless **Allow Private IPs** is enabled. Turn it on in the datasource settings
-when Arc runs on an internal network or in Docker (for example
-`http://arc:8000`). See [Connection settings](#2-connection-settings).
-
-### Query errors
-
-**"Table not found":**
-```sql
--- List available tables
-SHOW TABLES FROM prod;
-
--- Verify database exists
-SHOW DATABASES;
-```
-
-**"Column not found":**
-```sql
--- Describe table schema
-DESCRIBE prod.cpu;
-```
-
-### Slow queries
+Parser and syntax errors from DuckDB are shown on the panel. Other errors are summarised, with the full text and the expanded SQL in the Grafana server log:
 
 ```bash
-# Check Arc query performance
+grep "Arc query failed" /var/log/grafana/grafana.log | tail
+```
+
+Common causes:
+
+- **"Cross-database queries not allowed"** — a `db.table` name while the data source has a Database configured. Drop the prefix.
+- **"SHOW DATABASES is not supported on the Arrow endpoint"** — switch the data source to MessagePack or JSON, or query a table instead.
+- **"Table with name X does not exist"** — the table is in a different database than the one configured.
+
+### Listing what exists
+
+`SHOW` statements need the MessagePack or JSON protocol, and Arc runs one
+statement per query, so use them in separate panels or variable queries:
+
+```sql
+SHOW DATABASES
+```
+
+```sql
+SHOW TABLES
+```
+
+### Slow dashboards
+
+Most panel latency is Arc-side query time, not plugin overhead. Check a query directly:
+
+```bash
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "sql": "EXPLAIN SELECT * FROM prod.cpu WHERE time > NOW() - INTERVAL '\''1 hour'\''",
-    "format": "json"
-  }'
-
-# Trigger compaction
-curl -X POST http://localhost:8000/api/v1/compaction/trigger \
-  -H "Authorization: Bearer $ARC_TOKEN"
+  -d '{"sql": "SELECT count(*) FROM cpu WHERE time > NOW() - INTERVAL 1 HOUR"}'
 ```
 
-### Backend plugin issues
-
-```bash
-# Ensure backend binary is compiled
-cd /path/to/grafana-arc-datasource
-mage -v
-
-# Check binary permissions
-chmod +x dist/gpx_arc-datasource_*
-
-# Verify Go version
-go version  # Should be 1.21+
-```
-
-## Performance tips
-
-1. **Use Arrow Protocol**: Enabled by default, provides considerably faster data transfer
-2. **Optimize Time Ranges**: Smaller ranges = faster queries
-3. **Bucket with `$__timeGroup`**: pass `$__interval` so the bucket follows the time range
-4. **Add Indexes**: Arc automatically indexes time columns
-5. **Enable Caching**: Configure query caching in datasource settings
-6. **Limit Result Size**: Use `LIMIT` for exploratory queries
-7. **Use Variables**: Filter data with template variables instead of loading everything
+If a single query is fast but the dashboard is slow, raise **Max In Flight** so panels stop queuing.
 
 ## Resources
 
-- **[Grafana Arc Datasource GitHub](https://github.com/basekick-labs/grafana-arc-datasource)**
-- **[Grafana Documentation](https://grafana.com/docs/grafana/latest/)**
+- **[Grafana Arc data source on GitHub](https://github.com/basekick-labs/grafana-arc-datasource)**
+- **[Grafana documentation](https://grafana.com/docs/grafana/latest/)**
 - **[Arc Query API](/arc/api-reference/overview/#querying)**
-- **[DuckDB SQL Reference](https://duckdb.org/docs/sql/introduction)**
+- **[DuckDB SQL reference](https://duckdb.org/docs/sql/introduction)**
 
 ## Next steps
 
 - **[Query API Reference](/arc/api-reference/overview/)**
-- **[Telegraf Integration](/arc/integrations/telegraf/)** - Collect system metrics
-- **[Apache Superset Integration](/arc/integrations/superset/)** - BI dashboards
+- **[Telegraf Integration](/arc/integrations/telegraf/)** — collect system metrics
+- **[Apache Superset Integration](/arc/integrations/superset/)** — BI dashboards
