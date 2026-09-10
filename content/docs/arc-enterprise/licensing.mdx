@@ -1,0 +1,122 @@
+---
+title: Licensing
+description: "Arc Enterprise tiers, buying a license online or through sales, activating the key, core and machine limits, moving to a new server, renewals, expiry, and upgrades."
+---
+
+Arc Enterprise is the Arc binary plus a license key. This page covers how to get a key, what it allows, and what happens over its lifetime. For putting the key into a running node, see [Getting Started](/arc-enterprise/getting-started/).
+
+## Tiers
+
+Licensing is core-based and annual. You are licensed for a maximum number of CPU cores across all nodes, and a maximum number of machines the key can be activated on.
+
+| Tier | Price | Cores | Machines | Scope | How to buy |
+|------|-------|-------|----------|-------|------------|
+| Tier I | $5,000 / year | Up to 8 | 1 | Single server | [Online](https://basekick.net/enterprise/buy) |
+| Tier II | $15,000 / year | Up to 32 | Up to 5 | Single cluster | [Online](https://basekick.net/enterprise/buy) |
+| Tier III | $40,000 / year | Up to 128 | Production + staging | Two clusters | [Sales](mailto:enterprise@basekick.net) |
+| Unlimited | Custom | Unlimited | Unlimited | Any | [Sales](mailto:enterprise@basekick.net) |
+
+Every tier unlocks the full feature set. Tiers differ in capacity and in [support](https://basekick.net/enterprise#pricing), not in features.
+
+<Callout type="info" title="Old tier names">
+Until September 2026 the tiers were called Starter, Professional, and Enterprise. Arc log lines and the license server still report those internal names (`starter` is Tier I, `professional` is Tier II, `enterprise` is Tier III). Limits and prices did not change.
+</Callout>
+
+## Buying online
+
+Tier I and Tier II are sold directly at [basekick.net/enterprise/buy](https://basekick.net/enterprise/buy). Checkout runs on Stripe.
+
+What checkout asks for:
+
+- **Billing details and tax ID.** Taxes are calculated at checkout from the billing address. Prices exclude tax.
+- **Company.** Goes on the license record.
+- **Technical contact email.** The person who receives the license key and activation instructions. Use a team address if the operator differs from the buyer.
+- **Payment.** Card or US bank transfer. Billing is yearly.
+
+What happens after you pay:
+
+1. Stripe emails a receipt and invoice to the buyer, with a link to the customer portal for billing details and renewal settings.
+2. Basekick Labs emails a confirmation to the buyer and the technical contact.
+3. The license key arrives at the technical contact address within one business day, with activation instructions. Keys are issued by a person, not instantly.
+
+A direct purchase can be refunded in full within 30 days if the license fails to activate on your infrastructure and we cannot resolve it. Full terms are at [basekick.net/terms#enterprise](https://basekick.net/terms#enterprise).
+
+## Buying through sales
+
+Contact [enterprise@basekick.net](mailto:enterprise@basekick.net) for:
+
+- Tier III and Unlimited
+- A 14-day trial before committing
+- Invoices, purchase orders, and vendor onboarding
+- Multi-year contracts, which carry a discount
+- Offline license files for air-gapped sites
+
+Sales-managed licenses renew by invoice rather than through Stripe.
+
+## Activating the key
+
+Put the key in `arc.toml` or the environment and restart Arc:
+
+```toml
+[license]
+key = "ARC-XXXX-XXXX-XXXX-XXXX"
+```
+
+```bash
+export ARC_LICENSE_KEY="ARC-XXXX-XXXX-XXXX-XXXX"
+```
+
+On startup Arc contacts the license server at `enterprise.basekick.net`, activates the key for this machine, and enables the licensed features. Activation binds the key to a machine fingerprint built from the hostname, network MAC addresses, and CPU model. Arc re-verifies with the server every few hours; if the server is unreachable it keeps the last signature-verified license cached on disk and runs on it until that license expires.
+
+Two limits are enforced at activation:
+
+- **Cores.** Arc counts the CPU cores on the machine. If they exceed the tier limit, activation is refused with `machine has more cores than licensed`. Restrict the container or VM to the licensed core count, or move up a tier.
+- **Machines.** Each distinct fingerprint uses one activation. When the tier's machine count is used up, the next machine is refused with `maximum machine activations reached`.
+
+A refused activation leaves Arc running in OSS mode. Ingestion and queries work; enterprise features stay off until the license validates. Check the startup log for `License activated successfully` or the failure reason.
+
+<Callout type="idea" title="Air-gapped environment?">
+Nodes with no route to `enterprise.basekick.net` use an offline license file instead of a key. It is verified against a public key pinned in the binary and makes no network calls. See [Configuration Overview](/arc-enterprise/configuration/overview/#air-gapped-offline-license-file-26091).
+</Callout>
+
+## Moving to a new machine
+
+Activations are per machine fingerprint. A replaced server, a VM rebuilt with new network interfaces, or a container with a different hostname consumes a new activation. On Tier I, where the limit is one machine, the old activation must be free before the new one succeeds.
+
+Activations free themselves: the license server releases any activation that has not verified for 72 hours, so a decommissioned machine drops off on its own. To move immediately, email [enterprise@basekick.net](mailto:enterprise@basekick.net) with your license key and the machine to release. Neither affects the license term.
+
+Restarts and upgrades on the same host keep the fingerprint. In Docker, pin the container hostname (`--hostname arc-01` or `hostname:` in Compose) so recreating the container does not look like a new machine.
+
+## Renewals, cancellation, and expiry
+
+Direct purchases renew automatically every year at the then-current price for the tier. Cancel from the Stripe customer portal linked in your receipt, or by emailing enterprise@basekick.net. Cancelling stops the next charge; the license runs to the end of the paid term.
+
+Keys are issued with a 14-day grace period past the paid term, so a renewal that lands a few days late does not interrupt anything. Watch the remaining days on the unauthenticated health endpoint:
+
+```bash
+curl -s http://localhost:8000/health | jq .license
+```
+
+```json
+{ "tier": "professional", "status": "active", "source": "server", "expires_at": "2027-09-24T00:00:00Z", "days_remaining": 372 }
+```
+
+When the key expires, the next periodic verification (or the next restart) rejects it and Arc continues in OSS mode: ingestion, queries, and compaction keep working, enterprise features such as clustering, RBAC, and tiered storage switch off. Offline license files are checked when Arc loads them, so an expired file takes effect at the next restart.
+
+Data is never deleted or locked by expiry. Adding a valid key restores enterprise features without migration.
+
+## Upgrades
+
+Move to a higher tier at any time. You pay the prorated difference for the remainder of the term and receive a new key for the higher tier. Swap the key in `arc.toml` and restart; no data changes. Email [enterprise@basekick.net](mailto:enterprise@basekick.net) with your current key.
+
+## FAQ
+
+**I lost the key.** Email enterprise@basekick.net from the buyer or technical contact address and we resend it.
+
+**Can I change the technical contact?** Yes, by email. The buyer address on the Stripe subscription is separate and is changed in the customer portal.
+
+**Does the key leave my network?** Online activation sends the key, the machine fingerprint, and the core count to `enterprise.basekick.net`, and repeats the verification every few hours. No database contents are sent. Offline license files send nothing.
+
+**Can I run the same key in staging and production?** Only within the machine limit of your tier. Tier III includes a separate staging cluster; Tier I and Tier II do not.
+
+**What if my machine has more cores than I need?** Licensing counts the cores Arc can see. Limit the container or VM CPU allocation to stay within the tier.

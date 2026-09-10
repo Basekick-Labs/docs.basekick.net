@@ -4,6 +4,7 @@
   "pages": [
     "index",
     "getting-started",
+    "licensing",
     "installation",
     "configuration",
     "api-reference",

@@ -20,7 +20,7 @@ Environment variable:
 ARC_LICENSE_KEY="ARC-XXXX-XXXX-XXXX-XXXX"
 ```
 
-On startup, Arc validates your license and enables the features included in your plan. See [Arc Enterprise Overview](/arc-enterprise/) for the full feature list.
+On startup, Arc validates your license and enables the features included in your plan. See [Arc Enterprise Overview](/arc-enterprise/) for the full feature list and [Licensing](/arc-enterprise/licensing/) for how to get a key, core and machine limits, and expiry behavior.
 
 As of **26.09.1**, a transient license-server failure no longer crash-loops Enterprise pods: startup retries briefly and then falls back to the last **signature-verified** license cached on disk, honored until that license's own expiry. A definitive server rejection (revoked, expired, unknown key) still disables enterprise features immediately.
 
