@@ -76,7 +76,32 @@ systemctl restart grafana-server
 | **API Key** | Authentication token | Yes | - |
 | **Database** | Default database name | No | `default` |
 | **Timeout** | Query timeout in seconds | No | `30` |
-| **Use Arrow** | Enable Apache Arrow protocol | No | `true` |
+| **Protocol** | Wire format: `Arrow`, `MessagePack`, or `JSON` | No | `Arrow` |
+| **Max Concurrency** | Parallel chunks when a query is split (max `32`) | No | `4` |
+| **Max Response MB** | Per-response body cap, in MiB (max `8192`) | No | `1024` |
+| **Allow Private IPs** | Permit an Arc URL that resolves to a private or loopback address | No | `false` |
+| **Allow Database Override** | Permit a panel to target a different database than the datasource default | No | `false` |
+
+**Arrow** is the fastest and is recommended; **MessagePack** is stable as of
+Arc 26.09.1; **JSON** is a compatibility fallback. (Datasources saved by
+older plugin versions used a **Use Arrow** switch, which the Protocol
+selector supersedes — the saved choice is preserved.)
+
+<Callout type="warn" title="Arc on a private network">
+**Allow Private IPs** is off by default: the plugin refuses datasource URLs
+that resolve to private or loopback addresses, so that users who can create
+datasources cannot point Grafana at internal services. Turn it on when Arc
+runs on an internal network or in Docker (`http://arc:8000`), or every query
+fails with `destination address is not permitted`. A `localhost` URL is
+always allowed, so local development never needs this.
+</Callout>
+
+<Callout type="warn" title="Database override and token scope">
+**Allow Database Override** lets a dashboard editor query databases other
+than the configured default. Enable it only when the API key's scope already
+matches what those editors are allowed to see — otherwise the datasource
+becomes a way to read databases through a token they do not hold.
+</Callout>
 
 ### 3. Example configuration
 
@@ -115,18 +140,33 @@ The Arc datasource provides a SQL query editor with:
 - Time range macros
 - Multi-database support
 
+Each panel also carries:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| **Format** | `Time series` or `Table` | `Time series` |
+| **Database** | Query a different database than the datasource default (requires **Allow Database Override**) | datasource default |
+| **Splitting** | Break a long time range into chunks queried in parallel: `Auto`, `Off`, or `1 hour`-`7 days` | `Auto` |
+
+Splitting speeds up wide time ranges. `Auto` does not split ranges shorter
+than three hours. The plugin also turns splitting off by itself wherever it
+would change results — queries with `LIMIT`, `UNION`, an aggregation without
+`$__timeGroup`, or timezone-aware bucketing (`$__timezone`, or `$__timeGroup`
+on a non-UTC dashboard), since chunk boundaries are computed in UTC and would
+cut a local day in two.
+
 ### Basic query example
 
 **CPU Usage:**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(usage_idle) * -1 + 100 AS cpu_usage,
   host
 FROM prod.cpu
 WHERE cpu = 'cpu-total'
   AND $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -139,7 +179,9 @@ Grafana provides powerful time macros for dynamic queries:
 | `$__timeFilter(columnName)` | Complete time range filter | `WHERE $__timeFilter(time)` |
 | `$__timeFrom()` | Start of time range | `time >= $__timeFrom()` |
 | `$__timeTo()` | End of time range | `time < $__timeTo()` |
-| `$__interval` | Auto-calculated interval | `time_bucket(INTERVAL '$__interval', time)` |
+| `$__interval` | Bucket size chosen from the selected time range | `$__timeGroup(time, '$__interval')` |
+| `$__timeGroup(columnName, interval)` | Time bucket, aligned to the dashboard's timezone | `$__timeGroup(time, '1d') AS time` |
+| `$__timezone` | The dashboard's timezone, as a quoted IANA name | `timezone($__timezone, time)` |
 
 **How macros expand:**
 
@@ -147,48 +189,111 @@ Grafana provides powerful time macros for dynamic queries:
 -- Your query
 WHERE $__timeFilter(time)
 
--- Expands to
-WHERE time >= '2025-01-17 10:00:00' AND time < '2025-01-17 11:00:00'
+-- Expands to (the range is always sent in UTC)
+WHERE time >= '2025-01-17T10:00:00Z' AND time < '2025-01-17T11:00:00Z'
 ```
+
+`$__timeGroup` accepts `1s`, `5s`, `10s`, `30s`, `1m`, `5m`, `10m`, `15m`,
+`30m`, `1h`, `6h`, `12h`, `1d` and `1w`, in short or long form (`'10m'` or
+`'10 minutes'`). `1w` is a **calendar** week and starts on Monday. An
+unrecognised interval is left unexpanded, so Arc returns a clear error rather
+than silently bucketing differently.
+
+### Timezone-aware bucketing
+
+Arc stores and returns timestamps in UTC, and Grafana renders them in the
+dashboard's timezone. Anything that groups by **day or larger** has to bucket
+in that timezone too — otherwise a "day" starts at 00:00 UTC, which in UTC-6
+is 18:00 the previous evening, and every bar mixes two local calendar days.
+
+`$__timeGroup` handles this for you:
+
+```sql
+SELECT
+  $__timeGroup(time, '1d') AS time,
+  COUNT(DISTINCT host) AS active_hosts
+FROM prod.cpu
+WHERE $__timeFilter(time)
+GROUP BY 1
+ORDER BY 1
+```
+
+Only whole calendar units are timezone-aware: `1h`, `1d` and `1w` truncate in
+the dashboard's timezone, which stays correct across DST transitions (a local
+day is not always 24 hours). Every other interval — including `6h` and `12h`,
+which are not whole calendar units — buckets on fixed epoch arithmetic in UTC.
+
+Because the macro follows the dashboard's own setting, including **Browser
+Time**, a shared dashboard is correct for every viewer without hardcoding a
+zone. It applies to template-variable queries too. An unrecognised timezone
+falls back to UTC.
+
+<Callout type="warn" title="Alert rules always bucket in UTC">
+Grafana evaluates alert and recording rules on the server, without a
+dashboard, so no timezone is sent and bucketing falls back to UTC. A panel
+and an alert built on the same query can therefore group differently. Pin the
+zone explicitly in alert queries — `timezone('America/Costa_Rica', ...)` —
+where the boundary matters.
+</Callout>
+
+For expressions `$__timeGroup` does not cover, `$__timezone` expands to the
+zone as a quoted IANA name:
+
+```sql
+SELECT timezone($__timezone, date_trunc('month', timezone($__timezone, time))) AS time
+```
+
+<Callout type="warn" title="Prefer timezone() over AT TIME ZONE">
+Use the `timezone(zone, ts)` function rather than the `ts AT TIME ZONE zone`
+infix form. The infix form's direction depends on the operand's type, and
+which of `TIMESTAMP`/`TIMESTAMPTZ` it returns differs between DuckDB builds,
+so the same expression can silently shift buckets by the UTC offset.
+</Callout>
+
+<Callout type="info" title="Requires plugin v1.3.6+">
+`$__timezone` and timezone-aware `$__timeGroup` were added in v1.3.3 and
+corrected in v1.3.5; `1w` bucketing arrived in v1.3.6. On earlier versions
+`$__timeGroup` always bucketed in UTC.
+</Callout>
 
 ### Example queries
 
 **Memory Usage:**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(used_percent) AS memory_used,
   host
 FROM prod.mem
 WHERE $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
 **Network Traffic (bytes to bits):**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(bytes_recv) * 8 AS bits_in,
   AVG(bytes_sent) * 8 AS bits_out,
   host,
   interface
 FROM prod.net
 WHERE $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host, interface
+GROUP BY $__timeGroup(time, '$__interval'), host, interface
 ORDER BY time ASC
 ```
 
 **Disk I/O:**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(read_bytes) AS disk_read,
   AVG(write_bytes) AS disk_write,
   host
 FROM prod.diskio
 WHERE $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -227,13 +332,13 @@ Reference variables with `$variable` syntax:
 
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(usage_idle) * -1 + 100 AS cpu_usage
 FROM $database.cpu
 WHERE host = '$server'
   AND cpu = 'cpu-total'
   AND $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time)
+GROUP BY $__timeGroup(time, '$__interval')
 ORDER BY time ASC
 ```
 
@@ -243,14 +348,14 @@ Enable **Multi-value** in variable settings, then use `IN`:
 
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(usage_idle) * -1 + 100 AS cpu_usage,
   host
 FROM prod.cpu
 WHERE host IN ($hosts)  -- Multi-select variable
   AND cpu = 'cpu-total'
   AND $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -316,24 +421,24 @@ Create a comprehensive system monitoring dashboard:
 1. **CPU Usage by Host** (Time series)
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(100 - usage_idle) AS cpu_usage,
   host
 FROM prod.cpu
 WHERE cpu = 'cpu-total' AND $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
 2. **Memory Usage** (Time series)
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(used_percent) AS memory_used,
   host
 FROM prod.mem
 WHERE $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -350,13 +455,13 @@ GROUP BY host
 4. **Network Traffic** (Graph)
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   SUM(bytes_recv) * 8 / 1000000 AS mbps_in,
   SUM(bytes_sent) * 8 / 1000000 AS mbps_out,
   host
 FROM prod.net
 WHERE $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -421,14 +526,14 @@ ORDER BY time ASC
 **CPU Usage Percentiles:**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   host,
   PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY usage_idle) as p50,
   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY usage_idle) as p95,
   PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY usage_idle) as p99
 FROM prod.cpu
 WHERE cpu = 'cpu-total' AND $__timeFilter(time)
-GROUP BY time_bucket(INTERVAL '$__interval', time), host
+GROUP BY $__timeGroup(time, '$__interval'), host
 ORDER BY time ASC
 ```
 
@@ -437,7 +542,7 @@ ORDER BY time ASC
 **Production vs Staging Comparison:**
 ```sql
 SELECT
-  time_bucket(INTERVAL '$__interval', time) as time,
+  $__timeGroup(time, '$__interval') as time,
   AVG(p.usage_idle) as prod_cpu_idle,
   AVG(s.usage_idle) as staging_cpu_idle
 FROM prod.cpu p
@@ -445,7 +550,7 @@ JOIN staging.cpu s ON p.time = s.time AND p.host = s.host
 WHERE p.cpu = 'cpu-total'
   AND s.cpu = 'cpu-total'
   AND $__timeFilter(p.time)
-GROUP BY time_bucket(INTERVAL '$__interval', time)
+GROUP BY $__timeGroup(time, '$__interval')
 ORDER BY time ASC
 ```
 
@@ -465,17 +570,23 @@ Arrow protocol is enabled by default and provides significantly faster data tran
 - Add time filters with `$__timeFilter()`
 - Avoid querying months of data for real-time dashboards
 
-### 3. Leverage time_bucket()
+### 3. Bucket with `$__timeGroup`
 
-Grafana automatically adjusts `$__interval` based on dashboard width:
+Grafana adjusts `$__interval` to the dashboard's width, so let it choose the
+bucket size:
 
 ```sql
--- Good: Automatic interval adjustment
-time_bucket(INTERVAL '$__interval', time)
+-- Good: interval follows the panel width
+$__timeGroup(time, '$__interval')
 
--- Bad: Fixed interval (too many points)
-time_bucket(INTERVAL '1 second', time)
+-- Bad: fixed interval, far more points than the panel can show
+$__timeGroup(time, '1s')
 ```
+
+Prefer `$__timeGroup` over a bare `time_bucket(INTERVAL '$__interval', time)`:
+`time_bucket` always buckets in UTC, so daily and weekly panels are misaligned
+on any dashboard that is not set to UTC. See
+[Timezone-aware bucketing](#timezone-aware-bucketing).
 
 ### 4. Use LIMIT for exploration
 
@@ -487,9 +598,9 @@ LIMIT 1000  -- Limit result size
 
 ### 5. Enable query caching
 
-In Grafana's data source settings:
-- Enable **Cache timeout**: 60 seconds
-- Repeated queries return instantly from cache
+Grafana's query caching is an Enterprise/Cloud feature configured per data
+source; it is not part of the Arc plugin. Where it is available, a short
+cache timeout lets repeated dashboard loads skip Arc entirely.
 
 ## Troubleshooting
 
@@ -522,6 +633,18 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 # Check network connectivity
 ping localhost
 ```
+
+### Blocked address
+
+```text
+Arc URL resolves to a blocked address (private/loopback).
+destination address is not permitted
+```
+
+The plugin refuses datasource URLs resolving to private or loopback addresses
+unless **Allow Private IPs** is enabled. Turn it on in the datasource settings
+when Arc runs on an internal network or in Docker (for example
+`http://arc:8000`). See [Connection settings](#2-connection-settings).
 
 ### Query errors
 
@@ -575,7 +698,7 @@ go version  # Should be 1.21+
 
 1. **Use Arrow Protocol**: Enabled by default, provides considerably faster data transfer
 2. **Optimize Time Ranges**: Smaller ranges = faster queries
-3. **Leverage time_bucket()**: Use `$__interval` for automatic aggregation
+3. **Bucket with `$__timeGroup`**: pass `$__interval` so the bucket follows the time range
 4. **Add Indexes**: Arc automatically indexes time columns
 5. **Enable Caching**: Configure query caching in datasource settings
 6. **Limit Result Size**: Use `LIMIT` for exploratory queries
