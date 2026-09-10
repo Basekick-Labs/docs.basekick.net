@@ -59,11 +59,11 @@ Put the key in `arc.toml` or the environment and restart Arc:
 
 ```toml
 [license]
-key = "ARC-XXXX-XXXX-XXXX-XXXX"
+key = "ARC-ENT-XXXX-XXXX-XXXX-XXXX"
 ```
 
 ```bash
-export ARC_LICENSE_KEY="ARC-XXXX-XXXX-XXXX-XXXX"
+export ARC_LICENSE_KEY="ARC-ENT-XXXX-XXXX-XXXX-XXXX"
 ```
 
 On startup Arc contacts the license server at `enterprise.basekick.net`, activates the key for this machine, and enables the licensed features. Activation binds the key to a machine fingerprint built from the hostname, network MAC addresses, and CPU model. Arc re-verifies with the server every few hours; if the server is unreachable it keeps the last signature-verified license cached on disk and runs on it until that license expires.
