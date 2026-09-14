@@ -283,7 +283,7 @@ Both audit counters existed but were never populated before v26.09.2, and `arc_a
 
 ## Metrics that are not wired yet
 
-These are exported with HELP and TYPE strings but **never incremented**. They read `0` forever — do not build panels or alerts on them.
+These are exported with HELP and TYPE strings but **never incremented**. They read `0` forever — do not build panels or alerts on them. Tracked collectively under [arc#802](https://github.com/Basekick-Labs/arc/issues/802).
 
 | Metric | Use instead | Tracking |
 |---|---|---|
@@ -291,7 +291,7 @@ These are exported with HELP and TYPE strings but **never incremented**. They re
 | `arc_db_connections_in_use` | No equivalent today | [arc#809](https://github.com/Basekick-Labs/arc/issues/809) |
 | `arc_db_queries_total` | `arc_query_requests_total` | [arc#809](https://github.com/Basekick-Labs/arc/issues/809) |
 | `arc_replication_sequence_gaps_total` | `arc_replication_entries_dropped_total` covers sender-side drops only | [arc#810](https://github.com/Basekick-Labs/arc/issues/810) |
-| `arc_decomp_buffer_discards_total` | No equivalent today | — |
+| `arc_decomp_buffer_discards_total` | No equivalent today | [arc#817](https://github.com/Basekick-Labs/arc/issues/817) |
 
 One metric is wired everywhere but has a deliberate exclusion:
 
