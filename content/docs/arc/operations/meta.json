@@ -2,6 +2,7 @@
   "title": "Operations",
   "pages": [
     "[Overview](/arc/operations/)",
+    "monitoring",
     "telemetry",
     "backup-restore",
     "profiling"
