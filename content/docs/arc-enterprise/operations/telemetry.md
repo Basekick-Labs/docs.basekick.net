@@ -13,12 +13,13 @@ Arc collects minimal, anonymous usage statistics to help the development team un
 - Basic system characteristics for optimization and testing
 
 <Callout type="info" title="Privacy First">
-Arc does not collect any personally identifiable information, user data, database contents, queries, or performance metrics.
+Arc does not collect user data, database contents, queries, or performance metrics. The only network information retained is a truncated subnet (never a full IP address), described below.
 </Callout>
 
 ## What is collected
 
-Arc sends the following anonymous data every 24 hours:
+Arc sends the following anonymous data every 24 hours (the `subnet` field is
+the one exception: it is derived by the receiving server, not sent by Arc):
 
 ### Instance information
 
@@ -30,6 +31,16 @@ Arc sends the following anonymous data every 24 hours:
 - **timestamp**: When the telemetry report was generated (UTC)
 
 - **arc_version**: The running version number (e.g., `0.1.0`)
+
+- **subnet**: The network prefix of the address the report arrived from, with
+  the host portion removed — IPv4 is truncated to a /24 (`203.0.113.47` is
+  recorded as `203.0.113.0`) and IPv6 to a /48. This is derived by the
+  telemetry server from the connection itself; Arc does not send it and does
+  not know its own public address. The full address is never stored and never
+  written to a log — only the truncated prefix is retained. It is used to
+  understand which regions Arc is deployed in; a /24 covers up to 254 hosts and
+  does not identify an individual machine. Recorded as `unknown` when the
+  address is unavailable.
 
 ### System information
 
@@ -96,7 +107,7 @@ Arc explicitly avoids collecting:
 - **User Data**: No usernames, emails, or personal information
 - **Database Contents**: No table names, schemas, or data
 - **Query Information**: No SQL queries or query patterns
-- **Network Information**: No IP addresses or hostnames
+- **Network Information**: No full IP addresses or hostnames — only the truncated subnet described under [What is collected](#what-is-collected)
 - **Credentials**: No API keys, passwords, or tokens
 - **File Paths**: No directory structures or file names
 - **Performance Metrics**: No query times, throughput, or resource usage
@@ -200,12 +211,14 @@ Anonymous telemetry helps the Arc team:
 2. **Test on Real Hardware**: Know what CPU and memory configurations are common
 3. **Track Version Adoption**: See how quickly users upgrade to new releases
 4. **Plan Deprecations**: Identify when old versions are no longer in use
+5. **Understand Reach**: See which regions Arc is deployed in, at subnet granularity
 
 ### Privacy considerations
 
 Arc's telemetry is designed with privacy as a priority:
 
-- **Anonymous**: No linkage to individuals or organizations
+- **Anonymous**: Not linked to any individual. Addresses are truncated to a
+  subnet before storage, so no report is tied to a specific machine
 - **Minimal**: Only essential system characteristics
 - **Transparent**: Full disclosure of what is collected
 - **Optional**: Easy opt-out with no functionality loss
