@@ -354,10 +354,11 @@ resources:
 
 arc:
   storageBackend: local
+  # WAL is on by default in the chart; shown here for clarity.
+  wal:
+    enabled: true
   env:
     - name: ARC_AUTH_ENABLED
-      value: "true"
-    - name: ARC_WAL_ENABLED
       value: "true"
     - name: ARC_LOG_LEVEL
       value: "info"
@@ -403,8 +404,9 @@ A full WAL volume is a bad failure: the writer can't create its startup WAL file
 on a full disk, so the pod cannot boot again until the volume is grown or
 cleaned by hand (tracked in
 [arc#676](https://github.com/Basekick-Labs/arc/issues/676)). For one-off bulk
-migrations, either size the volume for the burst or set `ARC_WAL_ENABLED=false`
-for the migration window and re-enable it afterwards.
+migrations, either size the volume for the burst or set `arc.wal.enabled: false`
+for the migration window and re-enable it afterwards — accepting that a crash
+during that window loses whatever is buffered.
 
 ## Helm values reference
 
@@ -447,6 +449,14 @@ arc:
   # local | s3 | minio. The chart sets ARC_STORAGE_BACKEND from this and
   # ARC_STORAGE_LOCAL_PATH automatically.
   storageBackend: local
+
+  # Write-ahead log. On by default in the chart; the Arc binary itself
+  # defaults wal.enabled to false for backwards compatibility, so the chart
+  # overrides it. Without a WAL a crash loses every record buffered since the
+  # last flush.
+  wal:
+    enabled: true
+    directory: /app/data/wal
 
   # Free-form env vars passed straight to the Arc container. Use ARC_STORAGE_*
   # for bucket/region/keys/endpoint, plus any other ARC_* settings.
@@ -687,5 +697,6 @@ resources:
 
 - [Write your first data](/arc/getting-started/#write-data)
 - [Configure storage backends](/arc/configuration/overview/)
-- [Set up monitoring](/arc/operations/telemetry/)
+- [Monitoring & ops playbook](/arc/operations/monitoring/) — what to scrape and alert on
+- [Telemetry](/arc/operations/telemetry/) — what Arc reports back, and how to opt out
 - [Enable WAL for durability](/arc/advanced/wal/)

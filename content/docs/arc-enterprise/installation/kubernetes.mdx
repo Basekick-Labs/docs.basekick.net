@@ -644,9 +644,17 @@ kubectl delete namespace arc
 
 ## Monitoring
 
+For what to actually watch — per-role expectations, cluster and replication
+signals, failover, and the metrics that are exported but never populated — see
+the [Monitoring & Ops Playbook](/arc-enterprise/operations/monitoring/).
+
 ### Prometheus metrics
 
-Arc exposes Prometheus metrics at `/metrics`:
+Arc exposes Prometheus metrics at `/metrics`. The endpoint is **unauthenticated
+by design**, because Prometheus scrapers expect an unauthenticated target;
+restrict it at your ingress if Arc is reachable beyond the cluster.
+
+The chart does not ship a `ServiceMonitor`, so create one yourself:
 
 ```yaml
 # ServiceMonitor for Prometheus Operator
@@ -681,6 +689,23 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 10
 ```
+
+The chart also sets a `startupProbe` with a 30-failure threshold (five minutes).
+Keep it: WAL replay runs before the HTTP listener binds, so without a startup
+gate a long recovery looks like a liveness failure and the pod crash-loops.
+
+<Callout type="warn" title="The two probes are not interchangeable">
+`/health` is **liveness only** and always returns 200 — deliberately, because
+restarting a pod does not fix expired storage credentials, it just loops the
+node through restarts. Alert on the `storage` block in its response body rather
+than on the status code.
+
+`/ready` is the one that returns 503, in exactly two cases: the node is starting
+up or shutting down, or storage credentials have expired **and**
+`server.storage_credentials_fail_ready` is `true`. That key defaults to `false`,
+so enable it on reader pools you want drained when credentials lapse. See the
+[Monitoring & Ops Playbook](/arc-enterprise/operations/monitoring/).
+</Callout>
 
 ## Troubleshooting
 
@@ -770,5 +795,6 @@ shared secret and inter-node TLS see
 
 - [Write your first data](/arc-enterprise/getting-started/#write-data)
 - [Configure storage backends](/arc-enterprise/configuration/overview/)
-- [Set up monitoring](/arc-enterprise/operations/telemetry/)
+- [Monitoring & ops playbook](/arc-enterprise/operations/monitoring/) — cluster, replication and failover signals
+- [Telemetry](/arc-enterprise/operations/telemetry/) — what Arc reports back, and how to opt out
 - [Enable WAL for durability](/arc-enterprise/advanced/wal/)
