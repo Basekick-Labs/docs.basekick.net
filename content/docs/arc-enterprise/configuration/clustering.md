@@ -44,6 +44,8 @@ health_check_interval = 10      # Health check interval (seconds)
 heartbeat_interval = 5          # Heartbeat interval (seconds)
 replication_enabled = true      # Enable WAL replication to readers
 query_gate_on_catchup = false   # See "Query gating during replication catch-up" below
+replication_catchup_enabled = true            # Walk the manifest on startup and pull what is missing
+replication_catchup_barrier_timeout_ms = 30000 # Bound on the pre-walk sync with the leader (see below)
 ```
 
 ### Environment variables
@@ -58,6 +60,8 @@ ARC_CLUSTER_COORDINATOR_ADDR=:9000
 ARC_CLUSTER_HEALTH_CHECK_INTERVAL=10
 ARC_CLUSTER_HEARTBEAT_INTERVAL=5
 ARC_CLUSTER_REPLICATION_ENABLED=true
+ARC_CLUSTER_REPLICATION_CATCHUP_ENABLED=true
+ARC_CLUSTER_REPLICATION_CATCHUP_BARRIER_TIMEOUT_MS=30000
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
 ```
 
@@ -135,6 +139,10 @@ A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients c
 - **Cumulative gate fires**: `QueryHandler.QueryGate503Total()` is exposed for Prometheus / metrics scrapes. Alert on a non-zero rate to detect that the gate is firing without inferring from generic HTTP error logs.
 - **Sampled log line**: while the gate is active, Arc emits at most one `WARN` log per second with the gate counter and request path. Avoids flooding under sustained catch-up while still surfacing the degraded state.
 - **Live status**: the `/api/v1/cluster` endpoint exposes `replication_catchup_status` with the same fields shown in the 503 body, so dashboards can show catch-up progress without waiting for a query to fail.
+
+### Syncing with the leader before the walk
+
+Before the startup walk, the node waits until its manifest reflects everything the leader had committed at that moment, so a restarted reader does not walk a half-replayed manifest. The leader uses Raft's own barrier; a follower forwards a barrier entry through the leader and waits for it to be applied locally (since 26.09.2, [#799](https://github.com/Basekick-Labs/arc/issues/799)). The gate stays closed while it waits. `cluster.replication_catchup_barrier_timeout_ms` (default 30000) bounds that wait; it has to outlast the leader's replication backoff toward a node that was down for a while (up to about ten seconds) and, on a node that was far behind, a snapshot install. On timeout the node logs `proceeding against possibly-stale manifest` with its applied, commit and last log index and walks anyway. In a mixed-version cluster an older leader rejects the barrier and the reader falls back to that same path: upgrade writers before readers.
 
 ### Known limitation
 
