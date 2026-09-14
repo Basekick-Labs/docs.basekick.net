@@ -2,6 +2,7 @@
   "title": "Operations",
   "pages": [
     "[Overview](/arc-enterprise/operations/)",
+    "monitoring",
     "telemetry",
     "automated-scheduling",
     "profiling",
