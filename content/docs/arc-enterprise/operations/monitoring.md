@@ -64,10 +64,12 @@ rate(arc_replication_entries_dropped_total[5m]) > 0
 
 A sender drops entries when the replication buffer overflows — the receiver is not keeping up, or the link is saturated. Tune `cluster.replication_pull_workers` and the fetch/serve timeouts, and check reader health.
 
-<Callout type="warn" title="arc_replication_sequence_gaps_total cannot fire">
-This metric is exported but nothing detects gaps, so it reads `0` regardless of whether entries went missing — it is **not** a receiver-side data-loss signal. Tracked in [arc#810](https://github.com/Basekick-Labs/arc/issues/810).
+<Callout type="info" title="arc_replication_sequence_gaps_total was removed in v26.09.2">
+This metric was exported but nothing detected gaps, so it read `0` regardless of whether entries went missing. It was removed rather than implemented, because the condition it claimed to measure cannot occur silently: the receiver checks checkpoint sequence equality and a cumulative payload hash, so a gap drops the connection instead of passing unnoticed. The counter could only ever report `0`, which reads as "no gaps" and is indistinguishable from "not measured". See [arc#810](https://github.com/Basekick-Labs/arc/issues/810).
 
-Until it is implemented, detect replication problems from `arc_replication_entries_dropped_total`, reader catch-up state in `GET /api/v1/cluster`, and 503s from readers with `cluster.query_gate_on_catchup` enabled.
+Detect replication problems from `arc_replication_entries_dropped_total`, reader catch-up state in `GET /api/v1/cluster`, and 503s from readers with `cluster.query_gate_on_catchup` enabled.
+
+Replication **lag** is the signal that is genuinely missing today — no lag metric is exported yet. Tracked in [arc#819](https://github.com/Basekick-Labs/arc/issues/819).
 </Callout>
 
 ### Readers serving stale results

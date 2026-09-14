@@ -7,8 +7,8 @@ Arc exposes operational metrics at `/metrics` in Prometheus text format, plus a 
 
 This page is the operator's reference: what to scrape, what to alert on, and the handful of metrics that are exported but not yet populated — so you do not build a dashboard on a signal that can never move.
 
-<Callout type="warn" title="A few exported metrics are still always zero">
-Four metrics are exported with HELP and TYPE strings that no code increments. They scrape as a permanent `0`, which looks identical to "healthy" on a graph. They are listed in [Metrics that are not wired yet](#metrics-that-are-not-wired-yet); everything else on this page is verified to move.
+<Callout type="info" title="Every metric on this page is verified to move">
+Each metric documented here was checked against a running Arc by scraping `/metrics` under load, not read off the emit code. Three metrics that could never leave `0` were removed in v26.09.2 rather than left to look healthy on a graph; see [Metrics removed in v26.09.2](#metrics-removed-in-v26092).
 </Callout>
 
 ## Endpoints
@@ -206,6 +206,33 @@ The default is computed from CPU count, not from actual system memory: Arc assum
 Always set `database.memory_limit` (or `ARC_DATABASE_MEMORY_LIMIT`) to match the machine.
 </Callout>
 
+### DuckDB connection pool
+
+```
+arc_db_connections_max
+arc_db_connections_open
+arc_db_connections_in_use
+arc_db_connections_idle
+arc_db_wait_count_total
+arc_db_wait_seconds_total
+```
+
+Saturation is `arc_db_connections_in_use / arc_db_connections_max`. Sustained near 1 means queries are queueing for a connection rather than executing.
+
+The wait counters are the signal that saturation is actually costing you something:
+
+```text
+rate(arc_db_wait_seconds_total[5m]) / rate(arc_db_wait_count_total[5m])
+```
+
+This is mean time blocked per waiting query. A rising `arc_db_wait_count_total` with a flat `in_use` well under `max` points at a pool sized below its configured maximum rather than at query load.
+
+`arc_db_connections_max` reflects the effective pool size, which Arc derives from CPU count unless you set it, so scrape it rather than assuming the configured value.
+
+<Callout type="info" title="Available since v26.09.2">
+All six are sampled per scrape. Before v26.09.2 the open/in-use gauges existed but were never populated and read `0` regardless of load; `max`, `idle`, and the two wait counters did not exist. Tracked in [arc#809](https://github.com/Basekick-Labs/arc/issues/809).
+</Callout>
+
 ## Health and readiness
 
 The two probes answer different questions and are not interchangeable.
@@ -281,17 +308,19 @@ The queue is a fixed 1000 events with no configuration key, so a sustained non-z
 Both audit counters existed but were never populated before v26.09.2, and `arc_audit_events_dropped_total` did not exist at all. On an earlier version, alert on the `Audit event channel full` log line instead.
 </Callout>
 
-## Metrics that are not wired yet
+## Metrics removed in v26.09.2
 
-These are exported with HELP and TYPE strings but **never incremented**. They read `0` forever — do not build panels or alerts on them. Tracked collectively under [arc#802](https://github.com/Basekick-Labs/arc/issues/802).
+These were exported with HELP and TYPE strings but had **no increment path**, so they read `0` forever regardless of what the system was doing. A counter that cannot rise is worse than an absent one: it answers "is this happening?" with a confident, permanent no. They were removed rather than left in place.
 
-| Metric | Use instead | Tracking |
-|---|---|---|
-| `arc_db_connections_open` | No equivalent today | [arc#809](https://github.com/Basekick-Labs/arc/issues/809) |
-| `arc_db_connections_in_use` | No equivalent today | [arc#809](https://github.com/Basekick-Labs/arc/issues/809) |
-| `arc_db_queries_total` | `arc_query_requests_total` | [arc#809](https://github.com/Basekick-Labs/arc/issues/809) |
-| `arc_replication_sequence_gaps_total` | `arc_replication_entries_dropped_total` covers sender-side drops only | [arc#810](https://github.com/Basekick-Labs/arc/issues/810) |
-| `arc_decomp_buffer_discards_total` | No equivalent today | [arc#817](https://github.com/Basekick-Labs/arc/issues/817) |
+| Removed metric | Use instead |
+|---|---|
+| `arc_db_queries_total` | `arc_query_requests_total` |
+| `arc_replication_sequence_gaps_total` | See the callout under [Replication](#replication) — a sequence gap cannot occur silently |
+| `arc_decomp_buffer_discards_total` | No equivalent, and none is needed: the discard it counted does not occur |
+
+<Callout type="info" title="If you are scraping an earlier version">
+On v26.09.1 and earlier these three names are present and always `0`. Remove them from dashboards and alerts rather than treating the zero as a healthy reading.
+</Callout>
 
 One metric is wired everywhere but has a deliberate exclusion:
 
@@ -321,7 +350,7 @@ Things that make a dashboard look healthy when it is not.
 
 **A query for a measurement that does not exist is not an error.** It returns HTTP 200 with `success: true` and zero rows, because Arc resolves measurements as a path glob at read time. No error counter moves. A dashboard that silently goes empty may be a typo in a measurement name, not an outage.
 
-**`/api/v1/metrics/query-pool` has two similar error fields.** `query_errors` is the API-level count (real); `query_errors_total` maps to a DuckDB connection-level counter that is never incremented. Pick the wrong one and the panel reads zero forever. The endpoint's `connections_*` and `queries_total` fields are also still zero ([arc#809](https://github.com/Basekick-Labs/arc/issues/809)) — prefer `/metrics` over this endpoint.
+**`/api/v1/metrics/query-pool` has two similar error fields.** `query_errors` is the API-level count (real); `query_errors_total` maps to a DuckDB connection-level counter that is never incremented. Pick the wrong one and the panel reads zero forever. The endpoint's `queries_total` is likewise always `0`: query execution does not route through the handle it counts. Its `connections_*` fields are populated as of v26.09.2, but prefer `/metrics` over this endpoint — the Prometheus surface has the pool gauges plus the wait counters this endpoint does not expose.
 
 **`/api/v1/metrics/endpoints` has no per-route breakdown** despite the name. It groups counters by subsystem.
 
