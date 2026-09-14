@@ -2,6 +2,7 @@
   "title": "Guides",
   "pages": [
     "[Overview](/arc/guides/)",
+    "data-model",
     "writing-data",
     "querying",
     "decimal-precision"
