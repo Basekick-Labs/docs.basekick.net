@@ -149,6 +149,40 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
   }'
 ```
 
+### Incomplete restores
+
+A restore that could not restore every data file ends with `status: failed`,
+even though every file it could read was written and stays in place. The status
+endpoint says what is absent:
+
+```json
+{
+  "operation": "restore",
+  "backup_id": "backup-20260913-175728-541f0e8c",
+  "status": "failed",
+  "total_files": 3,
+  "processed_files": 2,
+  "skipped_files": 1,
+  "skipped_sample": [
+    "backup-20260913-175728-541f0e8c/data/smoke/cpu/2026/09/13/16/cpu_20260913_175727_441274000.parquet"
+  ],
+  "error": "restore incomplete: 1 data files could not be read from backup storage and 0 files the backup inventoried were missing from it; the files that could be restored are in place, see skipped_sample"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `skipped_files` | Backup objects that could not be read. Up to 32 of their paths are listed in `skipped_sample`. |
+| `unaddressable_files` | Data files present in backup storage under names its listing cannot return, such as a dot-prefixed key an object store handed back at backup time. Up to 32 are listed in `unaddressable_sample`; rename them in the backup and re-run to recover them. |
+| `missing_files` | Data files the backup's manifest inventoried that are neither listed nor unaddressable in backup storage: they are gone, for example after a partial sync or a deleted object. |
+| `backup_skipped_files`, `backup_unaddressable_files` | Files the backup itself lacked when it was taken (see its manifest). Reported so a gap that predates the restore is not mistaken for one it caused; they do not fail the restore. |
+
+There is no tolerated fraction: any skipped, unaddressable, or missing file fails the restore.
+A write into data storage that fails (a full or read-only volume) aborts the
+restore immediately rather than being skipped. Treat `failed` as final and read
+the counts; re-running against the same backup reproduces the same gap until
+the backup is repaired.
+
 ## Deleting a backup
 
 ```bash
@@ -164,6 +198,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 - **Serialized operations** -- only one backup, restore, or delete can run at a time. Attempting a concurrent operation returns `409 Conflict`.
 - **Pre-restore safety** -- existing SQLite and config files are copied with `.before-restore` suffix before overwriting.
 - **Destructive restore protection** -- restore requires explicit `confirm: true` in the request body.
+- **Incomplete restores fail** -- a restore that could not restore every data file ends `failed`, with `skipped_files` and `missing_files` on the status endpoint; the files that could be restored stay in place.
 - **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), and `arc.toml` config.
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
 
