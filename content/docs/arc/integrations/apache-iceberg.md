@@ -110,7 +110,7 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
-| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written. Defaults alongside the data. |
+| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path). Defaults alongside the data. Outside the storage root, Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
 
 ## Schema mapping
@@ -158,7 +158,7 @@ The conflict lives in the data, not in Iceberg, so fix it at the source: keep a 
 
 ## Backup & restore
 
-Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact.
+Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact. A warehouse outside the storage root is backed up too, under `iceberg/` in the backup, and restored into the node's configured `iceberg.warehouse`. Both the storage root and the warehouse are recorded by absolute path in the Iceberg metadata, so restore to the same paths; see [Backup & restore](/docs/arc/operations/backup-restore) for the details and the cluster caveat.
 
 ## FAQ
 
