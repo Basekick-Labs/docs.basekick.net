@@ -311,6 +311,12 @@ When the writer fails:
 See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) for the full trade-off comparison.
 </Callout>
 
+### Membership after a restart
+
+Every node keeps two views of the cluster: the Raft-committed node table, written by the authenticated join and restored with each Raft snapshot, and an in-memory registry that the health checker, the heartbeat fan-out, the node listings and the file puller read. On a restart the node table comes back with the snapshot; the registry is rebuilt from it as the snapshot is restored and from any node-added entries replayed after it, so a restarted leader authorises forwarded writes from its followers, heartbeats them and lists them without any of them re-joining (since 26.09.2, [#807](https://github.com/Basekick-Labs/arc/issues/807)). A follower whose `cluster.seeds` is empty, or whose discovery ran after Raft already knew the leader, therefore no longer needs a re-join either: the leader answers its forwarded writes from the node table, and the follower resolves the leader's address from its own copy of it.
+
+Before 26.09.2 the leader consulted only its registry, which a snapshot restore did not refill, so after a whole-cluster restart followers that had not re-joined got `unknown node` on every forwarded write. A write on such a follower still returned success, because ingestion is local, but the file never reached the manifest. If a cluster on an older release shows `ForwardApply rejected: node not found in registry` in the leader's log after a restart, restarting the affected follower with `cluster.seeds` set makes it re-join.
+
 ## API reference
 
 All cluster endpoints require admin authentication.
