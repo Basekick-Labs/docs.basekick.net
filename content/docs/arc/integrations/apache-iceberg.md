@@ -25,8 +25,8 @@ Arc's Iceberg export is a background **reconciler** that registers Arc's **exist
 ## How it works
 
 1. Arc ingests as usual, writing Parquet under `{database}/{measurement}/{Y}/{M}/{D}/{H}/`.
-2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them against the Iceberg table's current file set.
-3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**.
+2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set.
+3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**. A file that the row-level delete API rewrote in place (same path, fewer rows) is re-registered in that same commit, so its record count and size in the Iceberg manifest follow the rewrite.
 4. Old snapshots are expired on a retention policy so metadata stays bounded.
 
 Because the reconciler is driven by what's actually on storage (not a transient event stream), it is **self-healing**: a missed or failed pass simply converges on the next tick. Measurements whose file set hasn't changed since the last pass are skipped entirely, so steady state is cheap.
@@ -169,3 +169,5 @@ Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest 
 **Can I still use Arc's SQL API?** Yes. Iceberg export is additive — Arc's native query API is unaffected. The same Parquet files serve both.
 
 **What happens to compacted/retained files?** The reconciler reflects them: when compaction replaces small files with a larger one, or retention deletes old files, the next pass updates the Iceberg table's file set accordingly.
+
+**What about the row-level delete API?** A delete that matches every row in a file removes the file, and the next pass drops it from the table. A delete that matches only some rows rewrites the file in place at the same path; the reconciler notices the changed file size and re-registers the file in a single commit, so the table's record count and file size follow the rewrite within one reconcile interval instead of keeping the values from the original registration. That commit merges the table's manifests into one (Iceberg's `commit.manifest-merge.enabled`, enabled for that commit only), which is what lets a path that already left the table come back.
