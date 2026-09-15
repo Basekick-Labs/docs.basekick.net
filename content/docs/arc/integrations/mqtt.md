@@ -286,6 +286,8 @@ Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic
 
 `topic_mapping` maps an **exact MQTT topic string to a target database name**, overriding the subscription's `database` for messages received on that topic. It is a flat `{ "<topic>": "<database>" }` object — it does not configure measurements or tags.
 
+Every target follows the same rule as `database`: it starts with a letter and contains only letters, digits, underscores and hyphens, up to 64 characters. Create and update requests with any other target are refused with `400`. The subscriber also re-checks the resolved database on every message, so a subscription edited directly in SQLite to an invalid name drops those messages, counts them in `messages_failed`, and logs the value once instead of writing under a name no query can address; a persisted subscription with an invalid target does not start and is left in the `error` status. Measurement names in payloads (`m` / `measurement`) follow the same rule as the HTTP write path (letter first, then letters, digits, underscore or hyphen, up to 128 characters); a message with an invalid one is rejected as a decode error.
+
 ```json
 {
   "name": "factory-sensors",
