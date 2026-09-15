@@ -99,6 +99,10 @@ Before v26.09.2 the Arrow endpoint counted its failures but not its requests or 
 
 `arc_query_timeouts_total` and `arc_slow_queries_total` are wired on both paths and are safe to alert on. `arc_slow_queries_total` only moves when `query.slow_query_threshold_ms` is set (it defaults to `0`, disabled).
 
+<Callout type="info" title="Arrow coverage since v26.09.2">
+Before v26.09.2 the Arrow endpoint never moved `arc_slow_queries_total`, and moved `arc_query_timeouts_total` only for a timeout that fired before streaming started. From v26.09.2 both counters cover `/api/v1/query/arrow` the same way they cover `/api/v1/query`.
+</Callout>
+
 ### Storage
 
 ```

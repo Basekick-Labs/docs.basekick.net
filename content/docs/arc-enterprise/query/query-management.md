@@ -14,6 +14,8 @@ Query management provides:
 - **Query cancellation** — Cancel long-running or runaway queries on demand
 - **Diagnostic details** — View parallel execution status and partition counts per query
 
+Both query endpoints are tracked: `POST /api/v1/query` and `POST /api/v1/query/arrow` (the Arrow endpoint since v26.09.2). Every tracked query returns its id in the `X-Arc-Query-ID` response header, which is the id the endpoints below take.
+
 <!-- TODO(screenshot): the active-queries response rendered in a console, showing a
      long-running query with its duration, partition count, and parallel-execution state
      side by side with a short one - the fields are described individually but their
@@ -122,7 +124,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### Cancel a query
 
-Stop a long-running or runaway query:
+Stop a long-running or runaway query. The id comes from the `X-Arc-Query-ID` response header of the query, or from the active list above:
 
 ```bash
 curl -X DELETE -H "Authorization: Bearer $TOKEN" \
@@ -140,6 +142,8 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
   }
 }
 ```
+
+The cancelled request itself ends with an error. On `POST /api/v1/query/arrow` a cancel that lands while DuckDB is still executing returns `500` with `Query cancelled` and no Arrow body, because the Arrow result is materialized before streaming starts; a cancel during the streaming phase ends the stream early with the `Arc-Stream-Truncated` trailer. Either way the query is recorded as `cancelled` in history.
 
 ## Use cases
 
