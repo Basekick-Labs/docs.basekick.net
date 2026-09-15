@@ -336,6 +336,8 @@ Execute SQL queries with Apache Arrow IPC response.
 
 **Response:** `application/vnd.apache.arrow.stream`
 
+**Response header:** `X-Arc-Query-ID` when query management is enabled (v26.09.2+ on this endpoint; the JSON endpoint has always returned it). It is the id `GET /api/v1/queries/:id` and `DELETE /api/v1/queries/:id` take.
+
 ### POST /api/v1/query/estimate
 
 Estimate query cost before execution.
