@@ -88,9 +88,12 @@ curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
 {backup_id}/
   manifest.json        # metadata: databases, measurements, file counts, sizes
   data/                # parquet files preserving partition layout
+  iceberg/             # Iceberg table metadata, only when iceberg.warehouse is outside the storage root
   metadata/arc.db      # SQLite database snapshot
   config/arc.toml      # configuration file
 ```
+
+Iceberg table metadata that lives under the storage root (the default warehouse) travels under `data/`. A warehouse configured outside the storage root is walked separately and stored under `iceberg/`; the manifest records it as `iceberg_warehouse` with the source path, file count and size.
 
 ## Restoring from a backup
 
@@ -199,7 +202,9 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 - **Pre-restore safety** -- existing SQLite and config files are copied with `.before-restore` suffix before overwriting.
 - **Destructive restore protection** -- restore requires explicit `confirm: true` in the request body.
 - **Incomplete restores fail** -- a restore that could not restore every data file ends `failed`, with `skipped_files` and `missing_files` on the status endpoint; the files that could be restored stay in place.
-- **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), and `arc.toml` config.
+- **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), Iceberg table metadata when Iceberg export is enabled, and `arc.toml` config.
+- **Iceberg warehouse outside the storage root** -- its metadata is restored into this node's configured `iceberg.warehouse` whenever `restore_data` or `restore_metadata` is set. The Iceberg catalog stores absolute paths, so the target node's `iceberg.warehouse` must be the same path the backup was taken from (a symlink to it works); a node with no such warehouse skips those files and reports them as `iceberg_warehouse_files_skipped` on the status endpoint. Restart promptly after a restore that includes Iceberg: the catalog snapshot is applied on the next start, and a reconciler still running on the old catalog can expire metadata the restore just wrote.
+- **Clusters** -- Iceberg export runs on one node; a backup taken on any other node carries no Iceberg catalog or warehouse.
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
 
 ## Error responses
