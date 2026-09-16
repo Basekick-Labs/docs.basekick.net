@@ -51,13 +51,20 @@ Each node has its own **local disks** (NVMe, SSD, or attached block storage). Pa
 ## How many writers
 
 Both patterns need **three writer-role nodes** to be highly available, for the
-same two reasons. Losing one still leaves a Raft quorum, so a leader is elected
-and the cluster keeps its manifest, tokens and singleton work. And the failover
-pool is made of writer-role nodes: readers replicate the WAL and serve queries,
-but they are never promoted, so readers do not substitute for writers.
+same reason: writer-role nodes are the entire redundancy pool. Readers replicate
+the WAL and serve queries, but they are never promoted, so they do not substitute
+for writers.
 
-One writer is a development shape. Two has no failure tolerance at all, because
-a quorum of two needs both nodes; the Helm chart refuses that count outright.
+One writer is a development shape. Two absorbs exactly one failure and then
+leaves you with a single writer, no spare, and no pod you can drain for a
+rolling upgrade; the Helm chart refuses that count outright. Arc itself logs a
+rate-limited warning while a cluster is running below three writer-role nodes,
+in both patterns.
+
+Raft quorum is a separate question and is not governed by the writer count
+today: every node that joins the cluster becomes a Raft voter regardless of its
+role, so readers and the compactor carry quorum too. Size the cluster for an odd
+total node count if Raft tolerance matters to you.
 
 What the three writers do differs by pattern. On shared storage all three take
 ingest simultaneously behind a load balancer. On local storage one is elected
