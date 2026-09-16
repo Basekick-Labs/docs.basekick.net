@@ -42,9 +42,43 @@ Each node has its own **local disks** (NVMe, SSD, or attached block storage). Pa
 | **New-node bootstrap** | Instant (no data transfer needed) | Startup catch-up pulls bytes from peers |
 | **Compactor outputs** | Written once to bucket, visible to all | Compactor writes locally, Raft announces, peers pull |
 | **Compactor failover** | Any healthy node can take over | Any healthy node can take over |
+| **Writer HA** | All writers take traffic; losing one is routed around | One writer takes ingest; a standby writer is promoted |
+| **Nodes needed for HA** | Three writer-role nodes | Three writer-role nodes |
 | **Best deployment** | Kubernetes, cloud-native | Bare metal, VMs, edge |
 | **Cost model** | Object storage API calls + egress | Local disk capacity × nodes |
 | **Network requirements** | Reliable path to object store | Reliable path between cluster nodes |
+
+## How many writers
+
+Both patterns need **three writer-role nodes** to be highly available, for the
+same reason: writer-role nodes are the entire redundancy pool. Readers replicate
+the WAL and serve queries, but they are never promoted, so they do not substitute
+for writers.
+
+One writer is a development shape. Two absorbs exactly one failure and then
+leaves you with a single writer, no spare, and no pod you can drain for a
+rolling upgrade; the Helm chart refuses that count outright. Arc itself logs a
+rate-limited warning while a cluster is running below three writer-role nodes,
+in both patterns.
+
+Raft quorum follows the same count, because only nodes that accept writes vote.
+Writers and any node left at the default `standalone` role are the voters;
+readers and compactors replicate the log and see all cluster state but never
+campaign. So three writers tolerate one loss on both counts at once, ingest and
+Raft, and two writers means two voters, where losing one leaves no leader and
+cluster-wide state changes stop until it returns. Adding readers does not help.
+
+Two caveats. A cluster upgraded in place keeps any node that did not shut down
+gracefully as a voter until it is removed and re-joins, so the voter set
+converges over a rolling restart rather than at the moment of upgrade. And if
+you run nodes at the default role alongside writers, they vote too, so count
+them.
+
+What the three writers do differs by pattern. On shared storage all three take
+ingest simultaneously behind a load balancer. On local storage one is elected
+primary and takes ingest while the other two replicate and stand by, because the
+data is not shared and a second active writer would hold rows no other node can
+see.
 
 ## Choosing a pattern
 
