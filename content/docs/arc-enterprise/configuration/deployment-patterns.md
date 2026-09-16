@@ -42,9 +42,28 @@ Each node has its own **local disks** (NVMe, SSD, or attached block storage). Pa
 | **New-node bootstrap** | Instant (no data transfer needed) | Startup catch-up pulls bytes from peers |
 | **Compactor outputs** | Written once to bucket, visible to all | Compactor writes locally, Raft announces, peers pull |
 | **Compactor failover** | Any healthy node can take over | Any healthy node can take over |
+| **Writer HA** | All writers take traffic; losing one is routed around | One writer takes ingest; a standby writer is promoted |
+| **Nodes needed for HA** | Three writer-role nodes | Three writer-role nodes |
 | **Best deployment** | Kubernetes, cloud-native | Bare metal, VMs, edge |
 | **Cost model** | Object storage API calls + egress | Local disk capacity × nodes |
 | **Network requirements** | Reliable path to object store | Reliable path between cluster nodes |
+
+## How many writers
+
+Both patterns need **three writer-role nodes** to be highly available, for the
+same two reasons. Losing one still leaves a Raft quorum, so a leader is elected
+and the cluster keeps its manifest, tokens and singleton work. And the failover
+pool is made of writer-role nodes: readers replicate the WAL and serve queries,
+but they are never promoted, so readers do not substitute for writers.
+
+One writer is a development shape. Two has no failure tolerance at all, because
+a quorum of two needs both nodes; the Helm chart refuses that count outright.
+
+What the three writers do differs by pattern. On shared storage all three take
+ingest simultaneously behind a load balancer. On local storage one is elected
+primary and takes ingest while the other two replicate and stand by, because the
+data is not shared and a second active writer would hold rows no other node can
+see.
 
 ## Choosing a pattern
 

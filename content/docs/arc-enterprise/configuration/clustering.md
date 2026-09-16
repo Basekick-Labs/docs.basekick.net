@@ -284,29 +284,31 @@ When a writer crashes:
 
 ### Pattern 1 — local storage with peer replication
 
-When each node has its own local storage, Arc Enterprise runs in **single-writer + multi-reader** mode: one writer takes all ingest, the readers replicate the WAL in real time, and on writer failure one of the readers is promoted via Arc's in-cluster failover controller.
+When each node has its own local storage, one writer at a time takes ingest, because the data is not shared: a second active writer would hold rows no other node can see. Arc elects that writer and promotes a replacement when it fails.
+
+**Deploy three writer-role nodes.** The failover pool is made of writer-role nodes, not readers. One is elected primary and takes ingest; the other two replicate and stand by. Readers serve queries and replicate the WAL, but they are not promotion candidates, so a deployment with a single writer cannot fail over at all, and two has no failure tolerance because a Raft quorum of two stalls when either node is lost.
 
 **Key characteristics:**
 
 - **Recovery time**: less than 30 seconds
 - **Health-based detection**: continuous health monitoring with configurable thresholds
-- **Automatic promotion**: a reader (acting as standby) is promoted to writer via Raft consensus (`CommandPromoteWriter` FSM apply)
+- **Automatic promotion**: a standby writer is promoted via Raft consensus (`CommandPromoteWriter` FSM apply)
 - **Cooldown protection**: prevents rapid failover flapping
 
-**Enable** by setting `cluster.failover.enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature.
+**Enable** by setting `cluster.failover.enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature. Set `cluster.replication_enabled=true` on the standby writers and the readers so both keep a real-time copy of the primary's WAL.
 
-**Deploy 1 writer + 2+ readers** with `cluster.replication_enabled=true` on the readers. The readers are the failover pool — each receives a real-time copy of the writer's WAL and can be promoted on writer failure.
-
-When the writer fails:
+When the primary writer fails:
 
 1. Health checks detect the failure.
-2. The Raft leader selects the most caught-up reader (by replication LSN).
-3. The selected reader is promoted to writer via `CommandPromoteWriter` Raft apply.
-4. Write traffic re-routes to the new writer (clients reconnect or the LB picks up the new writer's `/ready=200`).
+2. The Raft leader selects a healthy standby writer.
+3. The selected node is promoted via `CommandPromoteWriter` Raft apply.
+4. Write traffic re-routes to the new primary (clients reconnect, or the load balancer picks up its `/ready=200`).
 
 <Callout type="idea" title="Choosing between the patterns">
 - **Cloud-native deployments** (EKS/GKE/AKS, anywhere managed S3 is available) → **Pattern 2 multi-writer**. Simpler operationally, scales writes horizontally, the LB does failover.
-- **Bare metal, on-prem, edge** without easy access to S3-compatible storage → **Pattern 1 with writer failover**. Single-writer ceiling on throughput; HA via promotion.
+- **Bare metal, on-prem, edge** without easy access to S3-compatible storage → **Pattern 1 with writer failover**. One writer takes ingest at a time, so throughput has a single-node ceiling; HA comes from promoting a standby writer.
+
+Both patterns want **three writer-role nodes**. In shared storage all three take traffic; in local storage two of them stand by. Either way, three is what lets the cluster lose one node and still elect a leader.
 
 See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) for the full trade-off comparison.
 </Callout>
