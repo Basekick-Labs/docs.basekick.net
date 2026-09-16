@@ -63,8 +63,8 @@ in both patterns.
 
 Raft quorum is a separate question and is not governed by the writer count
 today: every node that joins the cluster becomes a Raft voter regardless of its
-role, so readers and the compactor carry quorum too. Size the cluster for an odd
-total node count if Raft tolerance matters to you.
+role, so readers carry quorum too. Size the voting membership for an odd count
+if Raft tolerance matters to you.
 
 What the three writers do differs by pattern. On shared storage all three take
 ingest simultaneously behind a load balancer. On local storage one is elected

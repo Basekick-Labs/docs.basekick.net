@@ -781,9 +781,9 @@ Set `writer.replicas` to control the topology:
 | `2` | **Refused by chart validation** — the second writer is the only spare, so one failure consumes it and no writer can be drained for a rolling upgrade. |
 
 Raft quorum is a separate, cluster-wide property: every node that joins becomes
-a voter regardless of its role, so readers and the compactor carry quorum too.
-Size the cluster for an odd total pod count if Raft tolerance matters to you,
-and size `writer.replicas` for ingest availability.
+a voter regardless of its role, so reader pods carry quorum too. Size the voting
+membership for an odd count if Raft tolerance matters to you, and size
+`writer.replicas` for ingest availability.
 
 In shared mode the reader uses `emptyDir` (no PVC — the bucket holds Parquet),
 and writer/compactor PVCs are WAL/scratch only (~20Gi). In **local mode**

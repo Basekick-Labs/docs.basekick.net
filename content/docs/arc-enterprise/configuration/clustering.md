@@ -288,6 +288,8 @@ When each node has its own local storage, one writer at a time takes ingest, bec
 
 **Deploy three writer-role nodes.** The failover pool is made of writer-role nodes, not readers. One is elected primary and takes ingest; the other two replicate and stand by. Readers serve queries and replicate the WAL, but they are not promotion candidates, so a deployment with a single writer cannot fail over at all, and two absorbs exactly one failure before it is back to a single writer with nothing left to promote. Arc logs a rate-limited warning while a cluster is below three writer-role nodes.
 
+Leave `cluster.failover_enabled` off and there is no primary election at all: nothing promotes a replacement, and every writer-role node treats itself as the primary for retention, continuous queries and deletes. Arc warns about that shape specifically. Enable failover before adding writers to a local-storage cluster.
+
 **Key characteristics:**
 
 - **Recovery time**: less than 30 seconds
