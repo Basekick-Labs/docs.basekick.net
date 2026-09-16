@@ -780,10 +780,15 @@ Set `writer.replicas` to control the topology:
 | `3` | HA + horizontal scale. Writes round-robin across all healthy pods, and losing one still leaves a spare. The chart default. |
 | `2` | **Refused by chart validation** — the second writer is the only spare, so one failure consumes it and no writer can be drained for a rolling upgrade. |
 
-Raft quorum is a separate, cluster-wide property: every node that joins becomes
-a voter regardless of its role, so reader pods carry quorum too. Size the voting
-membership for an odd count if Raft tolerance matters to you, and size
-`writer.replicas` for ingest availability.
+Raft quorum follows `writer.replicas` here, because only nodes that accept
+writes vote. In a deployment of writers, readers and a compactor the voters are
+the writer pods; the others replicate the log and see all cluster state but
+never campaign. That is why `2` is refused on both counts at once: two writers
+are two voters, so losing one costs the quorum as well as the spare.
+
+A cluster upgraded in place keeps any pod that did not shut down gracefully as
+a voter until it is removed and re-joins, so the voter set converges over a
+rolling restart rather than at the moment of upgrade.
 
 In shared mode the reader uses `emptyDir` (no PVC — the bucket holds Parquet),
 and writer/compactor PVCs are WAL/scratch only (~20Gi). In **local mode**

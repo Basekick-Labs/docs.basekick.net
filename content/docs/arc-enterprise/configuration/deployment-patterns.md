@@ -61,10 +61,18 @@ rolling upgrade; the Helm chart refuses that count outright. Arc itself logs a
 rate-limited warning while a cluster is running below three writer-role nodes,
 in both patterns.
 
-Raft quorum is a separate question and is not governed by the writer count
-today: every node that joins the cluster becomes a Raft voter regardless of its
-role, so readers carry quorum too. Size the voting membership for an odd count
-if Raft tolerance matters to you.
+Raft quorum follows the same count, because only nodes that accept writes vote.
+Writers and any node left at the default `standalone` role are the voters;
+readers and compactors replicate the log and see all cluster state but never
+campaign. So three writers tolerate one loss on both counts at once, ingest and
+Raft, and two writers means two voters, where losing one leaves no leader and
+cluster-wide state changes stop until it returns. Adding readers does not help.
+
+Two caveats. A cluster upgraded in place keeps any node that did not shut down
+gracefully as a voter until it is removed and re-joins, so the voter set
+converges over a rolling restart rather than at the moment of upgrade. And if
+you run nodes at the default role alongside writers, they vote too, so count
+them.
 
 What the three writers do differs by pattern. On shared storage all three take
 ingest simultaneously behind a load balancer. On local storage one is elected
