@@ -487,6 +487,22 @@ Execute SQL queries with JSON response.
 }
 ```
 
+
+**Stream completion fields (JSON):**
+
+| Field | Meaning |
+|---|---|
+| `truncated` | Optional. Present as `true` when streaming fails after the response has started; absent on a complete response. |
+| `truncation_reason` | Optional. The sanitized failure reason, accompanying `truncated: true`. |
+| `row_count` | Rows actually returned, not a guarantee that the full result was delivered. |
+
+A streamed JSON response can begin successfully and still fail after some rows
+have been sent. Clients must check `truncated` after reading the complete
+response. If it is `true`, treat the query as failed rather than displaying
+the partial rows as a complete result. An HTTP 200 response alone does not
+establish that streaming completed successfully.
+
+
 ### POST /api/v1/query/arrow
 
 Execute SQL queries with Apache Arrow IPC response.
@@ -499,6 +515,16 @@ Execute SQL queries with Apache Arrow IPC response.
 ```
 
 **Response:** `application/vnd.apache.arrow.stream`
+
+
+**Incomplete streams:** A failed Arrow IPC stream carries a non-empty
+`Arc-Stream-Truncated` HTTP response trailer containing the failure reason.
+The server also writes an invalid Arrow IPC message so a decoder rejects
+the incomplete stream instead of accepting fewer rows as a complete result.
+Treat either a decoding failure or a non-empty truncation trailer as a query
+failure. Trailers are available after the response body has been consumed;
+they are not ordinary initial response headers.
+
 
 **Response header:** `X-Arc-Query-ID` when query management is enabled (v26.09.2+ on this endpoint; the JSON endpoint has always returned it). It is the id `GET /api/v1/queries/:id` and `DELETE /api/v1/queries/:id` take.
 

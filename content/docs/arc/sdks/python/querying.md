@@ -63,6 +63,23 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 | `data` | `list[list]` | Rows as nested lists |
 | `row_count` | `int` | Number of rows returned |
 
+
+**Server-side truncation signals:** The underlying JSON API response may
+also contain these fields when a stream fails after returning some rows:
+
+| JSON response field | Type | Meaning |
+|---|---|---|
+| `truncated` | `bool` (optional) | Present as `true` when the result is incomplete. |
+| `truncation_reason` | `str` (optional) | Explains why streaming stopped. |
+
+These are **server JSON fields**, not confirmed `QueryResult` properties in
+the Python SDK version described above. Do not assume that checking
+`row_count` or successfully receiving a `QueryResult` proves that the full
+query completed. Applications requiring strict completeness must use a client
+version that explicitly handles the server's truncation signals, or inspect
+the underlying JSON response when their client provides access to it.
+
+
 ### When to use
 
 ✅ **Use `query()` when:**
