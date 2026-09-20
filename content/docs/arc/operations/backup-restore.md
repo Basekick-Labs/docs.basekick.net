@@ -86,12 +86,24 @@ curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
 
 ```text
 {backup_id}/
-  manifest.json        # metadata: databases, measurements, file counts, sizes
-  data/                # parquet files preserving partition layout
-  iceberg/             # Iceberg table metadata, only when iceberg.warehouse is outside the storage root
-  metadata/arc.db      # SQLite database snapshot
-  config/arc.toml      # configuration file
+  manifest.json              # metadata: databases, measurements, file counts, sizes
+  data/                      # parquet files preserving partition layout
+  data/_schema/              # field schema anchors (v26.09.2+), copied with the data
+  data/_compaction_state/    # compaction recovery manifests (v26.09.2+), copied before the data
+  iceberg/                   # Iceberg table metadata, only when iceberg.warehouse is outside the storage root
+  metadata/arc.db            # SQLite database snapshot
+  config/arc.toml            # configuration file
 ```
+
+Two counts in the manifest describe Arc's own state under the storage root
+(v26.09.2+). `auxiliary_files` counts the field schema anchors under `_schema/`:
+Parquet objects, so they are inside `total_files` and `total_size_bytes`,
+but they belong to no database and are absent from `databases`.
+`compaction_state_files` counts the objects under `_compaction_state/`: copied
+before the data files, counted in the backup progress but not in
+`total_files`. A recovery manifest that cannot be read while it still exists
+fails the backup rather than being skipped, because a backup holding a
+compacted output and its inputs with no manifest would restore both.
 
 Iceberg table metadata that lives under the storage root (the default warehouse) travels under `data/`. A warehouse configured outside the storage root is walked separately and stored under `iceberg/`; the manifest records it as `iceberg_warehouse` with the source path, file count and size.
 
@@ -151,6 +163,28 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
     "confirm": true
   }'
 ```
+
+### Compaction state
+
+A backup taken while a compaction job was between uploading its output and
+deleting its inputs holds both. Since v26.09.2 the restore reads the
+backed-up recovery manifests first and does not restore the inputs of any
+manifest whose output the backup holds intact (present, and of the size the
+manifest recorded), so the restored store serves each row once from the
+moment the restore finishes. The status endpoint reports them:
+
+| Field | Meaning |
+|-------|---------|
+| `consumed_inputs_skipped` | Input files the backup held next to the compacted output that replaced them; deliberately not restored. |
+| `compaction_state_restored` | Recovery manifests put back. The next compaction cycle retires each one after firing its receipt hooks. |
+
+A manifest whose output the backup does not hold, or holds damaged, keeps
+its inputs; recovery then discards the manifest (and a damaged output) so
+compaction retries. If
+metadata was restored as well, restart before the next compaction cycle so
+the staged metadata is applied first. A restored manifest older than seven
+days logs compaction's stale warning once when processed; that is expected.
+Backups taken by earlier releases carry no manifests to reconcile with.
 
 ### Incomplete restores
 

@@ -175,16 +175,33 @@ A rising `arc_wal_records_preserved_total` means flushes are failing or the flus
 
 ### Compaction
 
-```
+```text
 arc_compaction_jobs_total
 arc_compaction_jobs_success_total
 arc_compaction_jobs_failed_total
 arc_compaction_manifests_recovered_total
+arc_compaction_manifests_parked_unparseable_total
+arc_storage_invalid_path_quarantined_total
 ```
 
 ```text
 rate(arc_compaction_jobs_failed_total[1h]) > 0
 ```
+
+`arc_compaction_manifests_parked_unparseable_total` (v26.09.2+) should sit
+at zero. Growth means recovery parked a crash-recovery manifest whose body
+did not decode (typically a zero-length file left by a crash) under the
+`.quarantined` suffix in `_compaction_state/`, so it stopped blocking
+compaction without being completed. The parked file name gives the tier,
+database and job; check that partition for a zero-length `_compacted` file
+or for duplicate rows.
+
+`arc_storage_invalid_path_quarantined_total` (v26.09.2+) is broader: it
+counts any entry dropped from a compaction, tiering, reconciliation or
+replication work set because a stored key (a compaction input or manifest,
+a cluster manifest entry, an edge sync ledger row) names something no
+storage backend can address. The condition is permanent, so the entry is
+not retried; find the Error log line naming the key and act on it.
 
 Sustained compaction failure degrades query performance as small files accumulate, and on Enterprise it silently blocks tiering — only `_daily.parquet` files migrate to cold storage.
 

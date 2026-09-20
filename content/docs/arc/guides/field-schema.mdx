@@ -1,0 +1,189 @@
+---
+title: "Stable field schema"
+description: "How schema anchors keep a measurement's fields binding the same over any time range, with the query.stable_schema settings, the schema endpoints, and the empty-range scan."
+---
+
+<Callout type="info" title="Available since v26.09.2">
+Enabled by default. Set `query.stable_schema = false` to restore the previous behavior.
+</Callout>
+
+## The problem this solves
+
+Arc rewrites `FROM measurement` into a `read_parquet` call over the Parquet
+files the query's time range selects, with `union_by_name=true`. DuckDB
+binds the union of those files' columns. Before v26.09.2 that meant a field
+that no file in a narrow time range carried failed to bind:
+
+```text
+Binder Error: Referenced column "weeks_later" not found in FROM clause!
+```
+
+while the same projection over a wider range succeeded and returned `NULL`
+for the rows that lacked it. A dashboard panel worked or broke depending on
+the zoom level, `COALESCE` could not repair an identifier that never bound,
+and an empty range fell back to scanning the whole measurement and
+advertised every column, which made runtime schema discovery misleading.
+
+## How it works
+
+Every measurement has a registered field schema: a zero-row Parquet file,
+the anchor, stored at `_schema/{database}/{measurement}.parquet` on the
+storage backend. Ingest folds the schema of every file it writes into the
+anchor, and the query path lists a local copy of the anchor first in every
+`read_parquet` it emits, including the parallel partition path, tiered
+queries and continuous queries.
+
+- A registered field absent from the selected files binds as a typed `NULL`
+  column.
+- `SELECT *` returns the same columns in the same order over any range.
+- An empty range returns zero rows with the full registered schema.
+- An unknown field still raises a Binder Error.
+- The query plan stays a single Parquet scan with projection and filter
+  pushdown; there is no second scan and no `UNION`.
+
+The anchor records the narrowest type seen for each field and never widens
+it. In ascending order: `BOOLEAN`, `TINYINT`, `SMALLINT`, `INTEGER`,
+`BIGINT`, `FLOAT`, `DOUBLE`, `VARCHAR`; `DECIMAL` sits below `DOUBLE`, a
+`DECIMAL` with smaller precision and scale below a larger one, and
+`TIMESTAMP` below `TIMESTAMPTZ`. A
+pair DuckDB cannot order, such as `BIGINT` against `DECIMAL`, is recorded as
+`BOOLEAN`, which DuckDB promotes to every other type. Either way the anchor
+never changes what a query binds where files carry the column; DuckDB keeps
+promoting per query where files disagree, and conflicting writes are logged.
+
+Fields are only ever added. Deleting a database deletes its anchors; nothing
+else removes one, so a measurement emptied by retention keeps its anchor.
+
+## Configuration
+
+```toml
+[query]
+# Range-independent field binding through schema anchors (v26.09.2+).
+stable_schema = true
+
+# Build an anchor for a measurement written before v26.09.2 in the
+# background the first time it is queried.
+stable_schema_bootstrap = true
+
+# Files a bootstrap reads. A measurement with at most this many files is
+# read in full; a larger one is sampled, newest days first, compacted files
+# preferred.
+stable_schema_bootstrap_max_files = 500
+
+# EXPERIMENTAL: answer a time range proven to hold no data from the anchor
+# alone instead of scanning the whole measurement. See below.
+empty_range_anchor_scan = false
+```
+
+Environment variables: `ARC_QUERY_STABLE_SCHEMA`,
+`ARC_QUERY_STABLE_SCHEMA_BOOTSTRAP`,
+`ARC_QUERY_STABLE_SCHEMA_BOOTSTRAP_MAX_FILES`,
+`ARC_QUERY_EMPTY_RANGE_ANCHOR_SCAN`.
+
+## Existing measurements
+
+A measurement written before v26.09.2 has no anchor. With
+`stable_schema_bootstrap` on, the first query against it queues a bootstrap
+that builds one from its files; until it exists, queries behave as before.
+One bootstrap runs at a time per process, and a failed one backs off
+exponentially. Ingest keeps the anchor current from then on.
+
+Whether an anchor is complete matters only to the empty-range scan below.
+An anchor is complete when ingest created it for a measurement that had no
+files yet, or when a bootstrap or rebuild read every file, which happens
+only for a measurement with at most `stable_schema_bootstrap_max_files`
+files. The common upgrade case, ingest creating the anchor on the first
+flush into a measurement that already had files, produces an incomplete
+anchor: every field still binds, but the empty-range scan keeps the full
+scan for it until a rebuild on a measurement within that cap.
+
+To build or refresh an anchor on demand, use the rebuild endpoint below. A
+rebuild merges into the registered schema and never drops a field.
+
+## Inspecting the schema
+
+Read the registered fields and their DuckDB types:
+
+```bash
+curl "http://localhost:8000/api/v1/databases/prod/measurements/cpu/schema" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "database": "prod",
+  "measurement": "cpu",
+  "fields": [
+    {"name": "time", "type": "TIMESTAMP WITH TIME ZONE"},
+    {"name": "host", "type": "VARCHAR"},
+    {"name": "usage", "type": "DOUBLE"}
+  ]
+}
+```
+
+The endpoint needs read permission on the measurement (`403` otherwise). It
+returns `404` while no anchor exists yet and also when `query.stable_schema`
+is off, `400` for an invalid database or measurement name, and `503` when
+the anchor lookup fails.
+
+Queue a rebuild (admin token):
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/databases/prod/measurements/cpu/schema/rebuild" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+It returns `202` when queued, `409` while a rebuild for that measurement is
+already queued or running, `503` when the queue is full or the query engine
+is unavailable, and `404` when `query.stable_schema` is off.
+
+## Empty ranges (experimental)
+
+When partition pruning finds no directory for a query's time range, Arc
+falls back to the whole measurement, so an empty dashboard panel scans every
+file to return zero rows. With `empty_range_anchor_scan = true`, a range
+proven empty is answered by scanning the anchor alone: zero rows, the
+registered columns, no data file opened.
+
+The proof is deliberately narrow, because the range the pruner extracts is
+a regular-expression reading of the `WHERE` clause and the full scan is what
+keeps its imprecision harmless. The shortcut applies only when all of the
+following hold; anything else behaves exactly as before:
+
+- a single-table query, with no `JOIN`, subquery, CTE or set operation;
+- a `WHERE` clause that is a plain conjunction (no `OR`, `NOT`, `IN`,
+  `EXISTS` or `CASE`), with both bounds stated as bare `time` comparisons
+  against a literal or `NOW() +/- INTERVAL` (`<=`, `BETWEEN` and equality do
+  not qualify);
+- a range of at most 7 days;
+- a measurement whose directory holds year directories, which excludes a
+  hub's spoke namespaces;
+- an anchor that is complete: created by ingest for a measurement that had
+  no files yet, or rebuilt from every file;
+- every generated partition directory verified absent by listings no older
+  than two seconds, with any listing failure keeping the full scan.
+
+A proven-empty verdict is never cached. Completeness assumes every data file
+of the measurement passes through this node's ingest. A cluster whose nodes
+keep separate storage and receive each other's files by replication, or a
+restore into an existing measurement, can leave a column unregistered on the
+receiving node: keep the flag off there, or rebuild after such events.
+
+## Operational notes
+
+- `_schema/` is a reserved root directory. Compaction, reconciliation,
+  tiering, edge sync and the Iceberg exporter skip it.
+- Backups copy the anchors with the rest of the storage root, as auxiliary
+  files outside the database inventory, and restore them with the data.
+- The stored anchors are shared state on the storage backend, read by every
+  node and re-read on a short interval, so a field added on one node binds
+  on the others within about a minute. Each node keeps the copy DuckDB reads
+  under its upload directory.
+- A node that receives Parquet files from a peer rather than through its own
+  ingest path relies on bootstrap for those measurements.
+
+## Related
+
+- [SQL querying](/arc/guides/querying/)
+- [Configuration overview](/arc/configuration/overview/)
+- [Compaction](/arc/advanced/compaction/)

@@ -377,10 +377,11 @@ Automatic file optimization:
 enabled = true
 hourly_enabled = true
 hourly_min_age_hours = 0    # Files must be this old
-hourly_min_files = 5        # Minimum files to trigger
-daily_enabled = false       # Daily tier (optional)
+hourly_min_files = 10       # Minimum files to trigger
+daily_enabled = true        # Daily tier
 daily_min_age_hours = 24
-daily_min_files = 3
+daily_min_files = 12
+cycle_timeout = "30m"       # Budget for one cycle (v26.09.2+); positive Go duration
 ```
 
 ### Authentication
@@ -412,6 +413,30 @@ Safe deletion with confirmation:
 enabled = true
 confirmation_threshold = 10000   # Require confirmation above this
 max_rows_per_delete = 1000000    # Hard limit per operation
+```
+
+### Query
+
+Query execution limits and the query path's schema behavior. The schema
+anchor settings are explained in the
+[stable field schema guide](/arc/guides/field-schema/).
+
+```toml
+[query]
+timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
+slow_query_threshold_ms = 0   # Log queries slower than this (0 = off)
+
+# Range-independent field binding through schema anchors (v26.09.2+)
+stable_schema = true
+stable_schema_bootstrap = true            # build anchors for pre-26.09.2 measurements on first query
+stable_schema_bootstrap_max_files = 500   # max files a bootstrap reads; larger measurements are sampled to this many
+empty_range_anchor_scan = false           # EXPERIMENTAL: answer a proven-empty range from the anchor alone
+# On a cluster whose nodes keep separate storage and receive each other's
+# files by replication, leave empty_range_anchor_scan off (see the guide).
+
+# File-level time pruning of the live hour (v26.09.2+, experimental, local backend)
+file_time_pruning = false
+file_time_pruning_margin_seconds = 300    # writer clock-skew allowance
 ```
 
 ### Retention policies

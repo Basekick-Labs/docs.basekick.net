@@ -232,6 +232,23 @@ This bounds the **file count** per job, not the output size in bytes — compact
 
 The upper bound exists because a single `read_parquet()` call spanning too many files can abort.
 
+#### Cycle timeout
+
+One scheduled or manual compaction cycle runs under a wall-clock budget
+(v26.09.2+). A cycle that reaches it stops launching work, waits for the
+active jobs, and records the batches it completed, failed, interrupted and
+never started, so a long backfill is not reported as job failures.
+
+```toml
+[compaction]
+cycle_timeout = "30m"    # Positive Go duration: 90s, 30m, 2h
+```
+
+A longer budget does not reduce peak memory demand or guarantee that every
+candidate completes; it only lets one cycle process more of them. A
+scheduled tick that arrives while a cycle is still running is skipped, and a
+manual trigger during a running cycle returns `409`.
+
 #### Compression
 
 Compaction always writes its output with ZSTD, which is why compacted files are
@@ -263,7 +280,7 @@ Disabling compaction will cause queries to slow down significantly as files accu
 ### Check compaction status
 
 ```bash
-curl http://localhost:8000/api/compaction/status \
+curl http://localhost:8000/api/v1/compaction/status \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
@@ -288,14 +305,14 @@ curl http://localhost:8000/api/compaction/status \
 ### Get detailed statistics
 
 ```bash
-curl http://localhost:8000/api/compaction/stats \
+curl http://localhost:8000/api/v1/compaction/stats \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### List eligible partitions
 
 ```bash
-curl http://localhost:8000/api/compaction/candidates \
+curl http://localhost:8000/api/v1/compaction/candidates \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
@@ -326,21 +343,32 @@ curl http://localhost:8000/api/compaction/candidates \
 ### Manually trigger compaction
 
 ```bash
-curl -X POST http://localhost:8000/api/compaction/trigger \
+curl -X POST http://localhost:8000/api/v1/compaction/trigger \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+The manual cycle uses the configured `cycle_timeout`. Narrow it with query
+parameters: `tier` (comma-separated, defaults to every enabled tier),
+`database`, and `measurement` (v26.09.2+, requires `database`). The
+database and measurement filters also scope manifest recovery, so a targeted
+run touches nothing else.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=prod&measurement=cpu&tier=hourly" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### View active jobs
 
 ```bash
-curl http://localhost:8000/api/compaction/jobs \
+curl http://localhost:8000/api/v1/compaction/jobs \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### View job history
 
 ```bash
-curl http://localhost:8000/api/compaction/history \
+curl http://localhost:8000/api/v1/compaction/history \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
@@ -447,7 +475,7 @@ This is the **most effective optimization** - fewer files means faster compactio
 
 **Check status:**
 ```bash
-curl http://localhost:8000/api/compaction/status
+curl http://localhost:8000/api/v1/compaction/status
 ```
 
 **Verify configuration:**
@@ -578,13 +606,20 @@ List partitions eligible for compaction.
 
 ### POST /api/v1/compaction/trigger
 
-Manually trigger compaction.
+Manually trigger a compaction cycle. Query parameters: `tier`
+(comma-separated, defaults to every enabled tier), `database`, and
+`measurement` (v26.09.2+, requires `database`). Returns `409` while a cycle
+is already running.
 
 **Response:**
 ```json
 {
   "message": "Compaction triggered",
-  "job_id": "comp_1696775400"
+  "status": "running",
+  "tiers": ["hourly"],
+  "cycle_id": 42,
+  "database": "prod",
+  "measurement": "cpu"
 }
 ```
 

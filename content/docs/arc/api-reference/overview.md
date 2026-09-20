@@ -639,14 +639,14 @@ List files eligible for compaction.
 
 ### POST /api/v1/compaction/trigger
 
-Manually trigger compaction.
+Manually trigger a compaction cycle. Filters are query parameters, not a
+body: `tier` (comma-separated, defaults to every enabled tier), `database`,
+and `measurement` (v26.09.2+, requires `database`). Returns `409` while a
+cycle is already running.
 
-**Request:**
-```json
-{
-  "database": "default",
-  "measurement": "cpu"
-}
+```bash
+curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=default&measurement=cpu" \
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### GET /api/v1/compaction/jobs
@@ -759,6 +759,32 @@ Get information about a specific database.
   "error": "Database 'nonexistent' not found"
 }
 ```
+
+### GET /api/v1/databases/:database/measurements/:measurement/schema
+
+Registered field schema of a measurement (v26.09.2+): the columns and DuckDB
+types every query binds for it regardless of time range. Needs read
+permission on the measurement; `404` while no anchor exists. See the
+[stable field schema guide](/arc/guides/field-schema/).
+
+**Response:**
+```json
+{
+  "database": "production",
+  "measurement": "cpu",
+  "fields": [
+    {"name": "time", "type": "TIMESTAMP WITH TIME ZONE"},
+    {"name": "host", "type": "VARCHAR"},
+    {"name": "usage", "type": "DOUBLE"}
+  ]
+}
+```
+
+### POST /api/v1/databases/:database/measurements/:measurement/schema/rebuild
+
+Queue a rebuild of the registered schema from the measurement's files
+(v26.09.2+, admin token). Returns `202` when queued, `409` while one is
+already queued or running, `503` when the queue is full.
 
 ### GET /api/v1/databases/:name/measurements
 
