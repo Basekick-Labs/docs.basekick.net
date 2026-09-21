@@ -338,6 +338,13 @@ response. If it is `true`, treat the query as failed rather than displaying
 the partial rows as a complete result. An HTTP 200 response alone does not
 establish that streaming completed successfully.
 
+The `POST /api/v1/query/msgpack` endpoint uses a different completion
+contract: the `truncated` and `truncation_reason` fields are JSON-only. It
+materializes the full result before committing response headers, so a DuckDB
+failure becomes a proper 5xx rather than a marked partial body. A failure
+while writing the MessagePack body can still produce a partial response
+without an in-band truncation marker.
+
 
 ### POST /api/v1/query/arrow
 

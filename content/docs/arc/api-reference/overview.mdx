@@ -153,6 +153,12 @@ The response is a single MessagePack map:
 | `timestamp` | RFC3339, UTC |
 | `profile` | present only when `x-arc-profile: true` |
 
+The `truncated` and `truncation_reason` completion fields are JSON-only. The
+`POST /api/v1/query/msgpack` endpoint materializes the full result before
+committing response headers, so a DuckDB failure becomes a proper 5xx rather
+than a marked partial body. A failure while writing the MessagePack body can
+still produce a partial response without an in-band truncation marker.
+
 #### Type vocabulary
 
 The `types` values are a stable contract. Scalars are

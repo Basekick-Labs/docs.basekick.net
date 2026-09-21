@@ -72,12 +72,12 @@ also contain these fields when a stream fails after returning some rows:
 | `truncated` | `bool` (optional) | Present as `true` when the result is incomplete. |
 | `truncation_reason` | `str` (optional) | Explains why streaming stopped. |
 
-These are **server JSON fields**, not confirmed `QueryResult` properties in
-the Python SDK version described above. Do not assume that checking
-`row_count` or successfully receiving a `QueryResult` proves that the full
-query completed. Applications requiring strict completeness must use a client
-version that explicitly handles the server's truncation signals, or inspect
-the underlying JSON response when their client provides access to it.
+The Python SDK's `QueryResult` does not expose these fields yet (tracked in
+arc #726). Receiving a `QueryResult`, or a `row_count` that matches
+expectations, does not prove that the query completed. Applications that need
+strict completeness should read the raw JSON response and check `truncated`,
+or query through the Arrow IPC endpoint, where an incomplete stream fails to
+decode.
 
 
 ### When to use
