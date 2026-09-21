@@ -18,16 +18,16 @@ Three pages carry `slug: /` and become their product's `index`:
 
 ## .md or .mdx
 
-Use `.mdx` **only** where the page needs components (Tabs, LatestVersion,
-GitHubStars). 17 files use Tabs; everything else stays `.md`.
+Use `.mdx` where the page needs components (Callout, Tabs, LatestVersion,
+GitHubStars). Pages without JSX components stay `.md`.
 
 This matters for comments. `{/* ... */}` is a comment in MDX but **literal
 visible text** in plain Markdown. In a `.md` file use an HTML comment:
 
     <!-- TODO(screenshot): ... -->
 
-Callouts work in `.md` too - fumadocs-mdx processes both - so a page that
-only gains Callouts does not need renaming.
+Callouts require `.mdx`: Markdown pages are parsed without JSX support, so a
+`<Callout>` in `.md` is silently dropped from the rendered page.
 
 `docs-arc-enterprise/configuration/clustering.md` imports Tabs but never uses
 them. Delete the import; the file stays `.md`.

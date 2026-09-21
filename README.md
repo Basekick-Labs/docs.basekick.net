@@ -43,7 +43,7 @@ scripts/                        the URL contract (keep / moved / dropped) and it
 
 ## Writing docs
 
-Add a `.md` file under the right product directory, then list it in that
+Add a `.md` or `.mdx` file under the right product directory, then list it in that
 directory's `meta.json`. Ordering is explicit — filename order is not used.
 
 Front matter requires both `title` and `description`:
@@ -62,7 +62,9 @@ you want an HTML comment instead.
 
 Available components (registered in `components/mdx.tsx`): `Callout`, `Tabs`/
 `Tab`, `Steps`/`Step`, `Accordions`/`Accordion`, `Files`/`Folder`/`File`,
-`Cards`/`Card`, plus `LatestVersion` and `GitHubStars`.
+`Cards`/`Card`, plus `LatestVersion` and `GitHubStars`. Pages using these JSX
+components must use the `.mdx` extension; plain `.md` files are parsed as
+Markdown and do not instantiate registered components.
 
 `Callout` types are `info`, `warn`, `error`, `success`, `warning` and `idea` —
 there is no `note`, `tip` or `danger`.
