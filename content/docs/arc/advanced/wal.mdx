@@ -3,7 +3,7 @@ title: "Write-Ahead Log (WAL)"
 description: "How Arc's optional ingestion WAL persists writes before acknowledging them, the sync modes and segment limits available, and how recovery replays segments on restart."
 ---
 
-<!-- TODO(diagram): the WAL write path as a real diagram — request -> WAL append -> fsync mode -> ack -> buffer -> Parquet flush — showing exactly where the acknowledgement happens under each sync mode. That boundary is what bounds data loss, and it is the page's core idea. -->
+{/* TODO(diagram): the WAL write path as a real diagram — request -> WAL append -> fsync mode -> ack -> buffer -> Parquet flush — showing exactly where the acknowledgement happens under each sync mode. That boundary is what bounds data loss, and it is the page's core idea. */}
 
 Arc's Write-Ahead Log (WAL) provides **zero data loss guarantees** on system crashes.
 

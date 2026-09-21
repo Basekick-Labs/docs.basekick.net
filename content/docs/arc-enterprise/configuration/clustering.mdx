@@ -443,10 +443,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 7. **Monitor cluster health** — Use the `/api/v1/cluster/health` endpoint with your monitoring system (Prometheus, Grafana) to detect issues early.
 
-<!-- TODO(diagram): writer failover timeline — healthy writer missing heartbeats, the
+{/* TODO(diagram): writer failover timeline — healthy writer missing heartbeats, the
      compactor/reader detecting it past failover_timeout_seconds, Raft electing the new
      writer, and the cooldown window. The prose describes an ordered sequence of states
-     that the existing static topology diagrams cannot show. -->
+     that the existing static topology diagrams cannot show. */}
 
 ## Next steps
 
