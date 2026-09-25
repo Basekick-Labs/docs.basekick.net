@@ -249,6 +249,40 @@ candidate completes; it only lets one cycle process more of them. A
 scheduled tick that arrives while a cycle is still running is skipped, and a
 manual trigger during a running cycle returns `409`.
 
+#### Exclude databases
+
+Scheduled cycles — and manual triggers that don't name a database — skip the
+databases in this list during candidate discovery (v26.09.2+):
+
+```toml
+[compaction]
+exclude_databases = ["staging", "imports_backlog"]
+```
+
+Names match exactly and case-sensitively: no globs, no prefixes, and no
+splitting on separators, so excluding `wh` never touches `wh-other`. A
+trigger that names a database bypasses the list (see
+[Manually trigger compaction](#manually-trigger-compaction)) — exclude what
+should wait, then trigger scoped cycles in the order you want.
+
+On an edge-sync hub, received spoke data is excluded either as one
+pseudo-database (`spoke1/telemetry`) or as the whole namespace (`spoke1`);
+excluding the namespace also skips listing its children. While excluded, a
+received namespace accumulates raw files until it is un-excluded or
+triggered manually — at spoke granularity, since `database=` takes plain
+database names.
+
+The list gates compaction only: manifest recovery still completes
+interrupted compactions (exclusion stops new work, never the completion of
+started work), and retention, tiering, and Iceberg export ignore it. The
+candidates endpoint applies the same filter, `/api/v1/compaction/stats`
+reports the active list, and Arc warns at startup about entries whose shape
+can never match a discovered database.
+
+The environment override is whitespace-separated
+(`ARC_COMPACTION_EXCLUDE_DATABASES="staging imports_backlog"`); a name
+containing spaces needs the TOML array.
+
 #### Compression
 
 Compaction always writes its output with ZSTD, which is why compacted files are
@@ -351,7 +385,9 @@ The manual cycle uses the configured `cycle_timeout`. Narrow it with query
 parameters: `tier` (comma-separated, defaults to every enabled tier),
 `database`, and `measurement` (v26.09.2+, requires `database`). The
 database and measurement filters also scope manifest recovery, so a targeted
-run touches nothing else.
+run touches nothing else. A trigger that names a `database` also bypasses
+`exclude_databases` (v26.09.2+); an unscoped trigger honors the list and
+echoes it in the response.
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=prod&measurement=cpu&tier=hourly" \
