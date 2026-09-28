@@ -90,7 +90,7 @@ Start here:
 4. **Do you expect to scale readers elastically based on demand?** → Pattern A (shared).
 5. **Do you need a single-digit-ms query path?** → Pattern B (local).
 
-You can also mix — a cluster can use shared object storage for cold data (tiered storage to S3 Glacier) while keeping hot data on local disks. See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/).
+You can also mix — a cluster can use shared object storage for cold data (tiered storage to S3 or Azure Blob Storage) while keeping hot data on local disks. See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/).
 
 ## Pattern A — shared storage setup
 

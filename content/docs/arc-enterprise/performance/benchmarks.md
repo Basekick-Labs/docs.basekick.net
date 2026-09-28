@@ -41,7 +41,7 @@ Published numbers are measured on a single node. A clustered deployment adds var
 
 - **Node roles.** Writers, readers, and compactors are benchmarked separately — a reader's query throughput is unrelated to a writer's ingest ceiling. See [Clustering](/arc-enterprise/configuration/clustering/).
 - **Storage topology.** Shared object storage and local storage with peer replication have different latency profiles. See [Deployment patterns](/arc-enterprise/configuration/deployment-patterns/).
-- **Tiered storage.** Queries that reach cold-tier data pay a retrieval cost that hot-tier queries do not. See [Tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/).
+- **Tiered storage.** Queries that reach cold-tier data read it from object storage, a latency hot-tier queries do not pay. See [Tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/).
 - **Query governance.** Rate limits and row limits cap throughput by design; benchmark with the limits you intend to run. See [Query governance](/arc-enterprise/query/query-governance/).
 
 ## Next steps

@@ -152,7 +152,7 @@ increase(arc_compaction_jobs_success_total[24h]) == 0
 Also confirm the cold tier appears in `/health` under `storage`, alongside `hot`.
 </Callout>
 
-Cold-tier defaults are **S3 Glacier** and **Azure Archive**. Retrieval from those is measured in hours, not milliseconds — a query touching cold data is not slow, it is waiting on a restore. Size `tiered_storage.default_hot_max_age_days` (default 30) against your actual query patterns, not just storage cost.
+Cold-tier objects are written with no storage class or access tier set — **S3 Standard**, or the Azure storage account's default tier — and are read in place, so a query touching cold data pays object-store latency and a round trip per file, not a restore. Size `tiered_storage.default_hot_max_age_days` (default 30) against your actual query patterns, not just storage cost.
 
 ## Audit logging
 
