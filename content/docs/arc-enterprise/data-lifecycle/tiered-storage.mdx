@@ -1,13 +1,9 @@
 ---
 title: Tiered Storage
-description: Age Arc Enterprise data from hot storage to S3 Glacier or Azure Archive with per-database policies, and control retrieval behaviour when a query reaches cold-tier files.
+description: Age Arc Enterprise data from hot storage to S3 or Azure Blob Storage with per-database policies; cold files stay queryable in place, with no retrieval step.
 ---
 
-Reduce storage costs with automatic hot/cold data tiering. Recent data stays on fast local storage while older data moves to cost-efficient archive storage.
-
-{/* TODO(diagram): what a query touching cold-tier data does under each retrieval_mode -
-    the request path, where it blocks on an archive restore, and what the client sees
-    meanwhile. The retrieval modes are the page's subtlest concept and are text-only. */}
+Reduce storage costs with automatic hot/cold data tiering. Recent data stays on fast primary storage while older data moves to object storage that costs a fraction of block storage per gigabyte, and queries keep reading it in place.
 
 ## Overview
 
@@ -25,7 +21,7 @@ Arc Enterprise implements a 2-tier storage model:
 │           │ Automatic migration (age-based)                  │
 │           ▼                                                  │
 │                                                              │
-│  COLD TIER (S3 Glacier / Azure Archive)                     │
+│  COLD TIER (S3 / Azure Blob Storage)                        │
 │  ├── Historical data (30+ days)                             │
 │  ├── Optimized for cost efficiency                          │
 │  └── Cost: $                                                 │
@@ -71,18 +67,9 @@ s3_region = "us-east-1"
 # s3_secret_key = ""          # Use env: ARC_TIERED_STORAGE_COLD_S3_SECRET_KEY
 s3_use_ssl = true
 s3_path_style = false
-s3_storage_class = "GLACIER"  # GLACIER, DEEP_ARCHIVE, GLACIER_IR, STANDARD_IA
-retrieval_mode = "standard"   # standard, expedited, bulk
 ```
 
-**Storage classes:**
-
-| Class | Use Case | Retrieval Time |
-|-------|----------|----------------|
-| `STANDARD_IA` | Infrequent access, immediate retrieval | Milliseconds |
-| `GLACIER_IR` | Archive with instant retrieval | Milliseconds |
-| `GLACIER` | Long-term archive (default) | Minutes to hours |
-| `DEEP_ARCHIVE` | Lowest cost, rare access | Up to 12 hours |
+Cold objects are written with no storage class set, so they land in S3 Standard, and are queried in place. Arc has no storage-class setting, deliberately; see [Best practices](#best-practices). Keep bucket lifecycle rules off the cold prefix: a transition to `GLACIER` or `DEEP_ARCHIVE` makes those files unreadable to queries until restored.
 
   </Tab>
   <Tab value="Azure Blob Storage">
@@ -119,8 +106,6 @@ ARC_TIERED_STORAGE_COLD_S3_REGION=us-east-1
 ARC_TIERED_STORAGE_COLD_S3_ACCESS_KEY=your_key
 ARC_TIERED_STORAGE_COLD_S3_SECRET_KEY=your_secret
 ARC_TIERED_STORAGE_COLD_S3_USE_SSL=true
-ARC_TIERED_STORAGE_COLD_S3_STORAGE_CLASS=GLACIER
-ARC_TIERED_STORAGE_COLD_RETRIEVAL_MODE=standard
 
 # Cold tier (Azure)
 ARC_TIERED_STORAGE_COLD_BACKEND=azure
@@ -324,13 +309,13 @@ Two requirements follow. **Every replicating node must run tiering with the same
 
 1. **Start with 30-day hot retention** — This is a good default for most workloads. Monitor query patterns and adjust based on how often historical data is accessed.
 
-2. **Use GLACIER for long-term archive** — It offers the best cost-to-retrieval tradeoff. Use `STANDARD_IA` if you need frequent access to cold data.
+2. **Keep cold on S3 Standard or Azure Hot** — Arc writes cold objects with no storage class or access tier set, so on S3 they are Standard and on Azure they take the storage account's default tier, Hot unless the account owner changed it. Leave it that way. The saving tiering is built for is block storage versus object storage: a hot tier on EBS or local NVMe costs several times what S3 Standard does per gigabyte, and cold data stays queryable at object-store latency. Cold data in Arc is old telemetry you still query, not an archive you file away, so cheaper classes are a false economy: `STANDARD_IA` and `GLACIER_IR` add a per-gigabyte retrieval fee to every query that touches cold files, and `GLACIER`, `DEEP_ARCHIVE` and Azure Archive objects cannot be read at all without a restore. That is why Arc has no storage-class or access-tier setting. Do not attach a bucket lifecycle rule to the cold prefix that transitions objects out of Standard.
 
 3. **Schedule migrations during off-peak hours** — The default `0 2 * * *` (2am daily) works well for most deployments.
 
 4. **Use per-database policies for different retention needs** — Real-time dashboards may need 7-day hot data, while compliance databases may need 90 days.
 
-5. **Mark real-time databases as hot-only** — Databases used exclusively for real-time dashboards should skip tiering to avoid any retrieval latency.
+5. **Mark real-time databases as hot-only** — Databases used exclusively for real-time dashboards should skip tiering so no query on them pays object-store latency.
 
 6. **Use IAM roles or managed identity** — For cloud deployments, use IAM roles (AWS) or managed identity (Azure) instead of access keys.
 
