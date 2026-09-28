@@ -294,7 +294,9 @@ On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"
 
 A node in shared-storage mode must have `cluster.role` set to `writer`, `reader` or `compactor`. A node left at the default `standalone` refuses to start: it could win Raft leadership without ever passing the primary-writer gate, which would stop every singleton task on the cluster.
 
-**Per-node local storage (Pattern 1).** Tiering is not gated: each node migrates its own local copy, and its own metadata is authoritative for its own disk. Tiering does not yet coordinate with the file-replication manifest, so a file a node migrates and deletes locally can be pulled back from a peer. Until that is addressed, prefer shared storage when combining clustering with cold tiering.
+**Per-node local storage (Pattern 1).** A per-node cluster whose nodes keep each other in step with file replication (`cluster.replication_enabled = true`) is gated the same way: only the primary writer migrates, every node syncs its tier metadata from the cold tier each cycle, and every file the primary moves to cold is removed from the cluster file manifest before its hot copy goes — which is what unlinks the replica on every other node and stops replication from pulling it back. A per-node cluster without replication shares nothing and keeps migrating per node.
+
+Two requirements follow. **Every replicating node must run tiering with the same cold backend**: once the primary migrates a file, the only way a node can read it is through its own cold row and cold backend; a node with tiering off or no cold tier cannot see that data any more, and Arc says so at startup on such a node. And a node that has no cold row yet for a measurement does not read that measurement's first migrated file until its next cold sync — at the default `0 2 * * *` schedule up to a day; shorten `tiered_storage.migration_schedule` on readers if that matters.
 
 ## Best practices
 
