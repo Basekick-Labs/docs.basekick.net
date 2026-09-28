@@ -288,7 +288,7 @@ How tiering behaves in a cluster depends on the [deployment pattern](/arc-enterp
 Two consequences to plan for:
 
 - All nodes fire on the same cron minute, so a non-primary learns a cycle's moves on its next cycle. Only a measurement's very first cold file is affected, and only for one cycle: once a node has any cold row for a measurement, its cold reads cover later moves.
-- The sync only ever adds or flips rows to cold. A cold row whose object has since disappeared from the cold tier is reported in a warning and left alone.
+- The sync only ever adds or flips rows to cold. A cold row whose object has since disappeared from the cold tier is reported in a warning; the primary's reconciliation reverts such a row to hot when it finds the hot copy still present, so the file is migrated again rather than lost. A migration cycle requested while one is already running on the same node answers `409 Conflict` instead of overlapping it.
 
 On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"role_gated": true` under `scheduler`, and `POST /api/v1/tiering/migrate` answers `409 Conflict` with the node's role — retry it against the primary writer. `POST /api/v1/tiering/scan` runs the same sync on any node and reports how many rows it learned as `cold_synced`.
 
