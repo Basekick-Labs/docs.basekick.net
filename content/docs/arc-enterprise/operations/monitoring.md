@@ -30,6 +30,7 @@ arc_cluster_manifest_rejected_paths_total  # counter: manifest entries refused
 arc_cluster_auth_rejected_total            # counter: auth FSM commands refused
 arc_cluster_rbac_rejected_total            # counter: RBAC FSM commands refused
 arc_cluster_rbac_cascade_rejected_total    # counter: cascade limit exceeded
+arc_cluster_local_delete_pending           # gauge: manifest deletes not yet unlinked locally (per-node storage with replication)
 ```
 
 <Callout type="warn" title="Rejection counters are security canaries">
