@@ -252,7 +252,7 @@ When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Ente
 - **Recovery time**: immediate — the next request lands on a surviving writer via the LB
 - **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Traefik, nginx, HAProxy, and cloud ALBs all support this out of the box)
 - **No "promotion" step**: all writers are equivalent for ingestion; nothing in the cluster has to elect a new "primary"
-- **Singleton background tasks** (retention, continuous queries, deletes) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
+- **Singleton background tasks** (retention, continuous queries, deletes, tiered-storage migration) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
 
 **Enable** by setting `cluster.shared_storage_mode = true` (env: `ARC_CLUSTER_SHARED_STORAGE_MODE`). The Helm chart sets this automatically when `storage.mode=shared`. Requires an Enterprise license that includes the `shared_storage_multi_writer` feature.
 

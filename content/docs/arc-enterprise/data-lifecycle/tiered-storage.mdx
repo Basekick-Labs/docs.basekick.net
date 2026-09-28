@@ -254,6 +254,8 @@ curl -X POST http://localhost:8000/api/v1/tiering/migrate \
 }
 ```
 
+On a cluster node that is not the primary writer the request is refused with `409 Conflict` naming the node's role; see [Clusters and shared storage](#clusters-and-shared-storage).
+
 ### Get migration statistics
 
 ```bash
@@ -276,6 +278,23 @@ curl -H "Authorization: Bearer $TOKEN" \
   }
 }
 ```
+
+## Clusters and shared storage
+
+How tiering behaves in a cluster depends on the [deployment pattern](/arc-enterprise/configuration/deployment-patterns/).
+
+**Shared object storage (Pattern 2, `cluster.shared_storage_mode = true`).** The hot tier is the one bucket every node shares, so exactly one node moves files: migration runs on the Raft leader among the writers — the same primary-writer gate that retention and continuous queries use — and the gate is re-checked on every cycle, so a leader change takes effect at the next tick with no restart. Every other node, readers and the remaining writers alike, still runs a cycle on the same schedule, but only to bring its own tier metadata in line with storage: it lists the cold tier and records what the primary moved. Each node routes queries from its own metadata, so that sync is what keeps cold data in those nodes' query routing, and what stops a newly elected primary from re-migrating files its predecessor already moved.
+
+Two consequences to plan for:
+
+- All nodes fire on the same cron minute, so a non-primary learns a cycle's moves on its next cycle. Only a measurement's very first cold file is affected, and only for one cycle: once a node has any cold row for a measurement, its cold reads cover later moves.
+- The sync only ever adds or flips rows to cold. A cold row whose object has since disappeared from the cold tier is reported in a warning and left alone.
+
+On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"role_gated": true` under `scheduler`, and `POST /api/v1/tiering/migrate` answers `409 Conflict` with the node's role — retry it against the primary writer. `POST /api/v1/tiering/scan` runs the same sync on any node and reports how many rows it learned as `cold_synced`.
+
+A node in shared-storage mode must have `cluster.role` set to `writer`, `reader` or `compactor`. A node left at the default `standalone` refuses to start: it could win Raft leadership without ever passing the primary-writer gate, which would stop every singleton task on the cluster.
+
+**Per-node local storage (Pattern 1).** Tiering is not gated: each node migrates its own local copy, and its own metadata is authoritative for its own disk. Tiering does not yet coordinate with the file-replication manifest, so a file a node migrates and deletes locally can be pulled back from a peer. Until that is addressed, prefer shared storage when combining clustering with cold tiering.
 
 ## Best practices
 
