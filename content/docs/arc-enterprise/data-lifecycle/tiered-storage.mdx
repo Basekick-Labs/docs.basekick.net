@@ -256,6 +256,28 @@ curl -X POST http://localhost:8000/api/v1/tiering/migrate \
 
 On a cluster node that is not the primary writer the request is refused with `409 Conflict` naming the node's role; see [Clusters and shared storage](#clusters-and-shared-storage).
 
+### Rescan tiers
+
+```bash
+curl -X POST http://localhost:8000/api/v1/tiering/scan \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{
+  "files_scanned": 1590,
+  "files_registered": 3,
+  "files_skipped": 1587,
+  "errors": 0,
+  "cold_synced": 0,
+  "hot_retired": 2
+}
+```
+
+The scan brings the node's tier metadata in line with storage; every migration cycle runs the same pass first. It lists the hot tier and registers files that have no row yet (`files_registered`; files already known count as `files_skipped`), and it retires the rows of hot files that are no longer in hot storage (`hot_retired`) — what compaction leaves behind once it has consumed a measurement's raw files — after a five-minute grace period, so a file flushed while the scan runs is never retired. Cold rows are never touched. Without that retirement, a measurement whose files had all moved to cold kept an empty hot tier in every read, and a query without a time range on it returned no rows. In a cluster the scan also records the files other nodes moved to cold as `cold_synced`, and reports `"cold_sync_failed": true` when the cold tier could not be listed; see [Clusters and shared storage](#clusters-and-shared-storage).
+
 ### Get migration statistics
 
 ```bash
@@ -290,7 +312,7 @@ Two consequences to plan for:
 - All nodes fire on the same cron minute, so a non-primary learns a cycle's moves on its next cycle. Only a measurement's very first cold file is affected, and only for one cycle: once a node has any cold row for a measurement, its cold reads cover later moves.
 - The sync only ever adds or flips rows to cold. A cold row whose object has since disappeared from the cold tier is reported in a warning; the primary's reconciliation reverts such a row to hot when it finds the hot copy still present, so the file is migrated again rather than lost. A migration cycle requested while one is already running on the same node answers `409 Conflict` instead of overlapping it.
 
-On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"role_gated": true` under `scheduler`, and `POST /api/v1/tiering/migrate` answers `409 Conflict` with the node's role — retry it against the primary writer. `POST /api/v1/tiering/scan` runs the same sync on any node and reports how many rows it learned as `cold_synced`.
+On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"role_gated": true` under `scheduler`, and `POST /api/v1/tiering/migrate` answers `409 Conflict` with the node's role — retry it against the primary writer. `POST /api/v1/tiering/scan` runs the same sync on any node and reports how many rows it learned as `cold_synced`; see [Rescan tiers](#rescan-tiers).
 
 A node in shared-storage mode must have `cluster.role` set to `writer`, `reader` or `compactor`. A node left at the default `standalone` refuses to start: it could win Raft leadership without ever passing the primary-writer gate, which would stop every singleton task on the cluster.
 
