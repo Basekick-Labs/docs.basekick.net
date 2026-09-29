@@ -265,6 +265,15 @@ Arc automatically recovers from WAL files on startup:
 - Parallel recovery across workers
 - Corrupted entries are skipped (logged)
 
+### Replay is at-least-once
+
+Recovery replays every entry in the WAL files it finds — including entries whose batches had already been flushed to Parquet before the crash. Nothing acknowledged is lost, but already-durable records are re-ingested:
+
+- **Tagged measurements**: the duplicates are exact copies and are removed the next time compaction merges the partition (dedup keys on tags + time). Queries can read high between the recovery and that compaction pass.
+- **Measurements without tags**: compaction deliberately does not dedup tagless data (two tagless rows with one timestamp can be two legitimate events), so crash-recovery duplicates there currently persist. [arc#948](https://github.com/Basekick-Labs/arc/issues/948) tracks flush-watermark checkpointing, which will replay only genuinely unflushed entries.
+
+The replay window is bounded by rotation (`max_size_mb`, `max_age_seconds`). Graceful shutdown is unaffected: it flushes buffers and purges the WAL cleanly, so replay only comes into play after a hard crash (power loss, OOM kill, `kill -9`).
+
 ## Monitoring
 
 ### WAL status

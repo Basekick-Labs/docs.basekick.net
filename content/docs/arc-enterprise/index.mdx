@@ -73,7 +73,7 @@ Upgrading from Arc OSS to Enterprise requires no data migration. Add your licens
 <Cards>
   <Card title="Clustering and high availability" href="/arc-enterprise/configuration/clustering/" description="Multi-node clusters with dedicated writer, reader, and compactor roles on shared object storage or local disks with peer replication, plus automatic failover." />
   <Card title="Role-based access control" href="/arc-enterprise/security/rbac/" description="Organizations, teams, and roles with granular database and measurement-level permissions, built on Arc's token authentication." />
-  <Card title="Tiered storage" href="/arc-enterprise/data-lifecycle/tiered-storage/" description="Automatic hot/cold data tiering with S3 Glacier and Azure Archive support, with no query-time complexity." />
+  <Card title="Tiered storage" href="/arc-enterprise/data-lifecycle/tiered-storage/" description="Automatic hot/cold data tiering to S3 or Azure Blob Storage, queried in place with no query-time complexity." />
   <Card title="Audit logging" href="/arc-enterprise/security/audit-logging/" description="Event tracking for compliance: authentication, data access, RBAC changes, and infrastructure events with configurable retention." />
   <Card title="Query governance" href="/arc-enterprise/query/query-governance/" description="Per-token rate limiting, query quotas, and row limits to protect the cluster from runaway queries." />
   <Card title="Query management" href="/arc-enterprise/query/query-management/" description="Monitor active queries in real time, review query history, and cancel long-running queries." />
@@ -118,7 +118,6 @@ enabled = true
 backend = "s3"
 s3_bucket = "arc-archive"
 s3_region = "us-east-1"
-s3_storage_class = "GLACIER"
 
 [audit_log]
 enabled = true
