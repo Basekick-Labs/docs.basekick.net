@@ -336,7 +336,7 @@ These were exported with HELP and TYPE strings but had **no increment path**, so
 | Removed metric | Use instead |
 |---|---|
 | `arc_db_queries_total` | `arc_query_requests_total` |
-| `arc_replication_sequence_gaps_total` | See the callout under [Replication](#replication) — a sequence gap cannot occur silently |
+| `arc_replication_sequence_gaps_total` | See the callout under [Replication](/arc-enterprise/operations/monitoring/#replication) — a sequence gap cannot occur silently; replication lag gauges arrived in v26.09.3 |
 | `arc_decomp_buffer_discards_total` | No equivalent, and none is needed: the discard it counted does not occur |
 
 <Callout type="info" title="If you are scraping an earlier version">
