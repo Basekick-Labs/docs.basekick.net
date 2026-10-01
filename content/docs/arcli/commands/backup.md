@@ -53,12 +53,12 @@ contents:    2 files, 1.7 KiB, metadata true, config false
 
 ```text
 $ arcli backup list
-┌─────────────────────────────────┬──────────────────────┬──────┬───────────┬───────┬─────────┬───────────────────────────────────────┐
-│ ID                              │ CREATED              │ TYPE │ DATABASES │ FILES │  SIZE   │ INCOMPLETE                            │
-├─────────────────────────────────┼──────────────────────┼──────┼───────────┼───────┼─────────┼───────────────────────────────────────┤
+┌─────────────────────────────────┬──────────────────────┬──────┬───────────┬───────┬─────────┬────────────────────────────────────────┐
+│               ID                │       CREATED        │ TYPE │ DATABASES │ FILES │  SIZE   │               INCOMPLETE               │
+├─────────────────────────────────┼──────────────────────┼──────┼───────────┼───────┼─────────┼────────────────────────────────────────┤
 │ backup-20260917-000000-aaaaaaaa │ 2026-09-17T00:00:00Z │ full │ 1         │ 21    │ 2.0 KiB │ 3 skipped, 1 metadata, 2 unaddressable │
-│ backup-20260908-000537-3969cf1d │ 2026-09-08T00:05:37Z │ full │ 1         │ 2     │ 1.7 KiB │ -                                     │
-└─────────────────────────────────┴──────────────────────┴──────┴───────────┴───────┴─────────┴───────────────────────────────────────┘
+│ backup-20260908-000537-3969cf1d │ 2026-09-08T00:05:37Z │ full │ 1         │ 2     │ 1.7 KiB │ -                                      │
+└─────────────────────────────────┴──────────────────────┴──────┴───────────┴───────┴─────────┴────────────────────────────────────────┘
 ```
 
 `list` is newest first. `INCOMPLETE` says what the backup lacks, as the server counts it (Arc 26.09.3+), with the three counts kept apart because they are different populations: **skipped** data files were inventoried (they are in `FILES`) but not stored; **metadata** files (Iceberg metadata, compaction recovery state, not in `FILES`) were skipped; **unaddressable** files have a key no listing can return, so they were never inventoried. `-` means none reported, which is a complete backup or an Arc older than 26.09.3. With `-o csv`, three columns follow `total_size_bytes`: `skipped_files`, `skipped_metadata_files`, `unaddressable_files`.
@@ -73,7 +73,7 @@ INCOMPLETE:  3 of 21 files and 1 metadata file were skipped while backing up (1 
   unaddressable: mydb/cpu/2026/09/17/00/.hidden.parquet
 ```
 
-`status` shows the last operation (or `idle`) with files and bytes done, and is what `--wait` polls. It lists the skipped files the server names, reports files a backup could not list, and, for a restore, says what the restored backup already lacked when it was taken.
+`status` shows the last operation (or `idle`) with files and bytes done, and is what `--wait` polls. It lists the skipped files the server names, reports files a backup could not list (their names are in the manifest once the backup has completed, otherwise in the server log), and, for a restore, says what the restored backup already lacked when it was taken and how many Iceberg warehouse files were not restored because the node has no outside-root warehouse.
 
 ## restore
 
