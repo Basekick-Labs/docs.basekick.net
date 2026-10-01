@@ -228,7 +228,7 @@ endpoint says what is absent:
   "skipped_sample": [
     "backup-20260913-175728-541f0e8c/data/smoke/cpu/2026/09/13/16/cpu_20260913_175727_441274000.parquet"
   ],
-  "error": "restore incomplete: 1 data files could not be read from backup storage and 0 files the backup inventoried were missing from it; the files that could be restored are in place, see skipped_sample"
+  "error": "restore incomplete: 1 objects could not be read from backup storage (skipped_sample); the files that could be restored are in place"
 }
 ```
 
