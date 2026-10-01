@@ -131,13 +131,16 @@ copied them (a file compaction or retention removed after the listing) or whose
 backup destination key would exceed the storage key limit (a source key of 983
 bytes or more, which must be renamed). It spans every file group the backup
 copies and equals the backup status endpoint's `skipped_files`; the completed
-backup's manifest and the status endpoint name up to 32 of the files in
-`skipped_sample`. It is set by every backup that finishes its copy phases,
-including one the skip ratio then fails, and a clean backup sets it to 0.
+backup's manifest and the status endpoint name up to 32 of the skipped data and
+Iceberg metadata files in `skipped_sample` (a compaction recovery manifest or an
+outside-root warehouse file that was skipped is counted here but named only in
+the log). It is set by every backup that finishes its copy phases, including one
+the skip ratio then fails, and a clean backup sets it to 0.
 `arc_storage_unaddressable_files` counts files present in source storage that
-no listing can return, so the backup never inventoried them; it is set at the
-start of every backup, before any copy. Both are gauges, not counters, so fixing
-the files and running the next backup clears them.
+no listing can return, so the backup never inventoried them; it is set by every
+backup whose unaddressable check succeeds, before any copy. Both are gauges held
+in memory: fixing the files and running the next backup clears them, and a
+restart resets them to 0 until the next backup runs.
 
 <Callout type="info" title="Cancelled requests are not counted as storage errors">
 `arc_storage_errors_total` deliberately skips failures where the request context was already cancelled or past its deadline, so a client that disconnects mid-read does not register as a storage fault.
@@ -324,7 +327,7 @@ Every rule below uses a metric verified to move. Thresholds are starting points 
 | Compaction failing | `rate(arc_compaction_jobs_failed_total[1h]) > 0` | File count grows; tiering stalls. |
 | Memory near limit | `arc_memory_sys_bytes > 0.85 * <container limit>` | OOM-kill risk. |
 | Node not ready | `probe /ready != 200 for 5m` | Startup stuck or credentials expired. |
-| Backup incomplete | `min_over_time(arc_backup_skipped_files[24h]) > 0` | Consecutive backups are missing files. A handful of skips in one run is the tolerated compaction race; a count that never returns to zero is a file that must be renamed or a source that cannot be read. `/api/v1/backup/status` and the backup's manifest name them in `skipped_sample`. |
+| Backup incomplete | `min_over_time(arc_backup_skipped_files[24h]) > 0` | No clean backup has run in the last 24 hours after an incomplete one (on a daily schedule, two consecutive incomplete backups; size the window to your cadence). A handful of skips in one run is the tolerated compaction race; a count that never returns to zero is a file that must be renamed or a source that cannot be read. `/api/v1/backup/status` and the backup's manifest name them in `skipped_sample`. Resets on restart. |
 | Files no backup can see | `arc_storage_unaddressable_files > 0` | Files exist in storage under keys no listing returns, so no backup contains them. Rename them; the next backup clears the gauge. |
 
 ## Audit logging

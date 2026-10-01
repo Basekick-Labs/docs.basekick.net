@@ -90,7 +90,7 @@ check before relying on a backup:
 | `total_files` | Data files inventoried at backup time, including any that were skipped. |
 | `skipped_files` | Data files counted in `total_files` but not stored: the file vanished between the listing and the copy (compaction or retention), or its backup destination key would have exceeded the storage key limit (v26.09.3+). When non-zero the backup is incomplete; the backup log names each skipped file and `skipped_sample` names up to 32 of them. |
 | `skipped_metadata_files` | The same, for Iceberg metadata files under the storage root and compaction recovery state. |
-| `skipped_sample` | Up to 32 of the skipped data and Iceberg metadata files, in copy order, whichever the cause (v26.09.3+). A metadata key carries a `/metadata/` segment. Compaction recovery manifests that vanished because their job finished are not listed. |
+| `skipped_sample` | Up to 32 of the skipped data and Iceberg metadata files, in copy order, whichever the cause (v26.09.3+). A metadata key carries a `/metadata/` segment. Compaction recovery manifests that vanished because their job finished, and files of a warehouse outside the storage root, are counted but not listed; the backup log names them. |
 | `skipped_overlong_keys` | How many of the skips were for a destination key over the storage limit (v26.09.3+): the permanent cause, fixed by renaming the file, as opposed to a file that vanished. |
 | `unaddressable_files` | Files that exist in source storage but that no listing can return because their key breaks the storage key rules. Not backed up; a sample of their keys is in `unaddressable_sample`. |
 
