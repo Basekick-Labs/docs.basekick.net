@@ -82,6 +82,25 @@ curl "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c3d4" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
+The manifest describes what was inventoried and what was stored. The counts to
+check before relying on a backup:
+
+| Field | Meaning |
+|-------|---------|
+| `total_files` | Data files inventoried at backup time, including any that were skipped. |
+| `skipped_files` | Data files counted in `total_files` but not stored: the file vanished between the listing and the copy (compaction or retention), or its backup destination key would have exceeded the storage key limit (v26.09.3+). When non-zero the backup is incomplete, and the backup log names each skipped file. |
+| `skipped_metadata_files` | The same, for Iceberg metadata files under the storage root. |
+| `unaddressable_files` | Files that exist in source storage but that no listing can return because their key breaks the storage key rules. Not backed up; a sample of their keys is in `unaddressable_sample`. |
+
+A backup stores each data file under `<backup_id>/data/<source key>`, 37 bytes
+longer than the source key, against a 1019-byte key limit. A source key of 983
+bytes or more is therefore skipped and counted in `skipped_files` rather than
+aborting the backup (v26.09.3+; before that it failed every backup until the key
+was renamed). Arc's own partition layout stays well under the threshold; the
+case arises from keys placed in the storage root by other tools. If more than
+10% of a backup's files are skipped for any reason, the backup fails instead,
+and the error names both possible causes.
+
 ### Backup structure
 
 ```text
