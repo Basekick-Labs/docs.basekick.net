@@ -45,3 +45,19 @@ Creating and managing tokens requires an **admin-scoped** connection. If your co
 <Callout type="idea" title="Least privilege">
 Give each consumer its own token, with only the permissions it needs (an ingest pipeline rarely needs **Delete** or **Admin**) and a clear description. That way you can disable or rotate one consumer without touching the others.
 </Callout>
+
+## Tokens these permissions do not cover
+
+The four checkboxes are Arc's *coarse* permissions, and they are the whole
+story only while a token belongs to no RBAC team. On Arc Enterprise, adding a
+token to a team makes that team's grants authoritative for it: a token with
+**Read** checked still reads only the databases it is granted, and a denial is
+final. Removing it from every team returns it to the permissions shown here.
+
+This matters when handing a token to a tool that lists databases. Arc refuses
+to list them all for a scoped token rather than returning a partial list, so
+such a token cannot populate a database picker — it has to be pointed at a
+database by name. Launchpad itself is unaffected, because it connects with an
+instance admin token.
+
+See [RBAC](/arc-enterprise/security/rbac/#how-enforcement-is-decided).

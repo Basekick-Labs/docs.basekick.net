@@ -24,12 +24,52 @@ Organization (e.g., "Acme Corp")
 - **Teams** — Group users by function (engineering, analytics, operations)
 - **Roles** — Define permissions per database with optional measurement restrictions
 - **Measurement-level permissions** — Restrict access to specific measurements using wildcard patterns
-- **Backward compatible** — Existing OSS token permissions continue to work
+- **Backward compatible** — A token with no team memberships keeps using its own coarse permissions, exactly as before RBAC existed
 
 ## Prerequisites
 
 - Authentication must be enabled (`ARC_AUTH_ENABLED=true`)
-- Arc Enterprise license with RBAC feature
+- An Arc Enterprise license with the RBAC feature, **to create and change grants**
+
+The license gates RBAC *management* — the endpoints below. It does not gate
+*enforcement*: see [How enforcement is decided](#how-enforcement-is-decided).
+
+## How enforcement is decided
+
+Three cases, resolved in this order for every read and write Arc authorizes:
+
+1. **The token carries the coarse `admin` permission** → allowed. This is
+   deliberate break-glass: without it, putting an admin token into a team
+   could lock that token out of its own deployment.
+2. **The token belongs to at least one team** → its grants are authoritative,
+   and **a denial is final**. There is no fall-back to the token's coarse
+   permission list.
+3. **The token belongs to no team** → its coarse permissions apply, unchanged.
+   This is the backward-compatibility case, and it is what every token in a
+   deployment that does not use RBAC falls into.
+
+So a token is restricted by RBAC exactly when it has team memberships. Adding
+an existing token to a team narrows it; removing it from every team widens it
+back to its coarse permissions.
+
+### Enforcement does not depend on the license
+
+A licence is valid only while it is active or inside its grace period, and
+Arc drops the licence client entirely if validation fails at startup. If
+enforcement consulted the licence, a lapsed trial, a revoked key or a long
+outage to the activation service would switch enforcement **off** — silently
+widening every tenant token to full read at whatever hour the licence expired.
+
+Enforcement therefore never consults the licence. A lapse costs you the
+ability to *change* grants; it never changes what existing grants do.
+
+### A failure to load grants denies
+
+If Arc cannot read a token's grants — a broken or unreadable metadata
+database — it refuses the request rather than falling through to the token's
+coarse permissions. The refusal is an HTTP 403 whose message is
+`permission data unavailable`, which is a server-side fault and says nothing
+about the token. Check the Arc server log.
 
 ## Permission model
 
@@ -330,6 +370,75 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
   -d '{"measurement_pattern": "events_*"}'
 ```
 
+## What a scoped token can and cannot list
+
+A token whose grants cover particular databases cannot enumerate the ones it
+does not. Arc refuses the request rather than returning a filtered list:
+
+| Request | A token granted `production` only |
+|---|---|
+| `SHOW DATABASES` | `403` — refused |
+| `GET /api/v1/databases` | `403` — refused |
+| `SHOW TABLES FROM production` | the measurements it is granted |
+| `GET /api/v1/databases/production` | `200` |
+| `GET /api/v1/databases/analytics` | `403` |
+| `GET /api/v1/databases/nonexistent` | `403` — the grant is checked before existence, so a scoped token cannot probe for databases it has no grant for |
+
+This is deliberate and will not change. A filtered list leaks the shape of
+the deployment — how many databases exist, and by elimination which names are
+taken — and it makes a partial answer indistinguishable from a complete one.
+A scoped tenant names its database explicitly, which is the same bar every
+other scoped operation applies.
+
+Note the last row: on `GET /api/v1/databases/:name` the permission check runs
+**before** the existence check, so "no grant" and "does not exist" both answer
+`403` for a database the token has no grant for. A `404` therefore only ever
+comes back for a database the token *is* granted — which is what stops the
+endpoint being used to enumerate names.
+
+### Telling the refusals apart
+
+Arc answers `403` for several different reasons, and the status code alone
+does not distinguish them. The message does:
+
+| Message | Meaning | What fixes it |
+|---|---|---|
+| `no permission for read on database '<db>'` | the token's grants do not cover `<db>` | name a database it is granted |
+| `access denied: no read permission for database '<db>'` | same, from the query-path gates | name a database it is granted |
+| `access denied: no read permission to list databases` | `SHOW DATABASES` from a scoped token | name a database it is granted |
+| `token does not have 'read' permission` | the token has no coarse `read` and no grants | a token with read permission |
+| `Permission denied: read required` | same, on a deployment with no RBAC configured | a token with read permission |
+| `permission data unavailable` | Arc could not load the grants | nothing client-side — a server fault, check the log |
+
+The first three are a normal state for a tenant-scoped token, not a failure,
+and must not be retried: an identical request is refused identically. The
+database name is **empty** on the list-everything route, because that request
+names none.
+
+## What the client tools do
+
+Arc's own tooling distinguishes these and tells you which one you hit, rather
+than printing a bare status code:
+
+- **arcli** — `db list` reports that the token is scoped and points at
+  `arcli db show <database>` / `arcli measurement list --database <database>`.
+  `db show` on a database you lack a grant for says so and names it. See
+  [arcli db](/arcli/commands/db/).
+- **Arc Launchpad** — connects with an instance **admin** token, which takes
+  the break-glass path above, so the console is unaffected by scoping. A
+  read-scoped instance token is not supported. See
+  [Connecting to Arc](/launchpad/getting-started/connecting-to-arc/).
+- **arc-client-python** — raises `ArcScopedAccessError` (carrying the refused
+  database), `ArcPermissionError`, or
+  `ArcPermissionDataUnavailableError`, so the three cases can be handled
+  separately. See [Python SDK](/arc/sdks/python/data-management/#error-handling).
+- **VS Code extension** — uses the connection's configured database when Arc
+  will not list them, and otherwise says the token is scoped and that a
+  database has to be set. See [VS Code](/arc/integrations/vscode/).
+- **arc-mcp** — returns a structured "scoped" result telling the model to ask
+  which database to use, instead of reporting a tool failure the model would
+  retry.
+
 ## Best practices
 
 1. **Principle of least privilege** — Start with minimal permissions and expand as needed. Use read-only roles as the default for analytics users.
@@ -341,6 +450,16 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
 4. **Pair with audit logging** — Enable [audit logging](/arc-enterprise/security/audit-logging/) to track RBAC changes and access patterns.
 
 5. **Plan your hierarchy** — Design your organization and team structure before implementation. A typical pattern is one organization per company, teams per department or function.
+
+6. **Review grants before adding an existing token to a team** — a token with
+   no memberships uses its coarse permissions; the moment it has one, its
+   grants become authoritative and a denial is final. That can narrow a token
+   an integration is already relying on.
+
+7. **Keep a break-glass admin token outside every team** — a coarse `admin`
+   token is allowed regardless of grants, which is what lets you fix a
+   misconfigured hierarchy. Putting every admin token into a team removes
+   that escape hatch.
 
 ## Next steps
 
