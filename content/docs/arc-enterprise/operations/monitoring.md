@@ -18,10 +18,22 @@ A cluster runs three roles, and a metric that is healthy on one is a problem on 
 | `arc_ingest_records_total` | Rising | **Flat** | **Flat** |
 | `arc_query_requests_total` | Low | Rising | **Flat** |
 | `arc_compaction_jobs_total` | Flat | Flat | Rising |
-| `arc_buffer_records_buffered` | Meaningful | Near zero | Near zero |
+| `arc_buffer_records_buffered` | Meaningful | **See below** | Near zero |
+| `arc_buffer_deferred_buffers` | Meaningful | **See below** | Near zero |
 | `arc_wal_*` | Meaningful | Recovery only | Near zero |
 
 Ingest arriving at a reader, or queries served by a compactor, usually means a load balancer is routing to the wrong pool. The compactor cannot serve queries locally and forwards them.
+
+<Callout type="warning" title="A reader's ingest buffer is not idle">
+`arc_buffer_records_buffered` on a reader is **not** expected to be near zero when WAL replication is enabled. A reader applies replicated entries into its own ingest buffer so that queries served locally see recent data, which means it carries the writer's write volume through its own buffer, flush queue and storage backend.
+
+Two consequences when alerting:
+
+- A reader whose storage is slower than the writer's accumulates a backlog of its own, visible on `arc_buffer_records_buffered` and `arc_buffer_deferred_buffers`, even though the reader is accepting no client writes.
+- The reader has no way to push back. Client writes are forwarded to a writer rather than admitted locally, and replicated entries are applied unconditionally — rejecting one would stall the replication stream. So a reader that cannot keep up grows its backlog rather than shedding load.
+
+Alert on both gauges for readers as well as writers, and size reader storage against the writer's sustained ingest rate rather than against its own query load.
+</Callout>
 
 ## Cluster state
 
