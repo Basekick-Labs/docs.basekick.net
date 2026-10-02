@@ -19,7 +19,7 @@ A cluster runs three roles, and a metric that is healthy on one is a problem on 
 | `arc_query_requests_total` | Low | Rising | **Flat** |
 | `arc_compaction_jobs_total` | Flat | Flat | Rising |
 | `arc_buffer_records_buffered` | Meaningful | **See below** | Near zero |
-| `arc_ingest_deferred_buffers` | Meaningful | **See below** | Near zero |
+| `arc_buffer_deferred_buffers` | Meaningful | **See below** | Near zero |
 | `arc_wal_*` | Meaningful | Recovery only | Near zero |
 
 Ingest arriving at a reader, or queries served by a compactor, usually means a load balancer is routing to the wrong pool. The compactor cannot serve queries locally and forwards them.
@@ -29,7 +29,7 @@ Ingest arriving at a reader, or queries served by a compactor, usually means a l
 
 Two consequences when alerting:
 
-- A reader whose storage is slower than the writer's accumulates a backlog of its own, visible on `arc_buffer_records_buffered` and `arc_ingest_deferred_buffers`, even though the reader is accepting no client writes.
+- A reader whose storage is slower than the writer's accumulates a backlog of its own, visible on `arc_buffer_records_buffered` and `arc_buffer_deferred_buffers`, even though the reader is accepting no client writes.
 - The reader has no way to push back. Client writes are forwarded to a writer rather than admitted locally, and replicated entries are applied unconditionally — rejecting one would stall the replication stream. So a reader that cannot keep up grows its backlog rather than shedding load.
 
 Alert on both gauges for readers as well as writers, and size reader storage against the writer's sustained ingest rate rather than against its own query load.

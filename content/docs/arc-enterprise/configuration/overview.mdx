@@ -362,7 +362,7 @@ Data flushes when **either** condition is met:
 <Callout type="warning" title="Behaviour change in v26.09.3">
 When every flush worker is busy and the flush queue is full, Arc keeps the batch in its in-memory buffer and flushes it as soon as a worker frees a slot. Before v26.09.3 that batch was **discarded** and the write still returned success — with `wal.enabled = false`, the default, the records were lost.
 
-Two things follow for tuning. Deferred records are held in memory, and there is no cap on that yet, so a node with many active measurements and slow storage will grow its resident set rather than shed writes — watch `arc_ingest_deferred_buffers` and `arc_buffer_records_buffered`. And `max_buffer_size` is a *per-measurement* trigger, so the worst-case memory is roughly `active_measurements x max_buffer_size x bytes_per_record`; with `max_buffer_age_ms` at its default the age trigger normally fires long before that, which is what keeps it small in practice.
+Two things follow for tuning. Deferred records are held in memory and Arc does not bound that, so a node with many active measurements and slow storage grows its resident set rather than shedding writes — watch `arc_buffer_deferred_buffers` and `arc_buffer_records_buffered`. Lowering either setting below makes flushes smaller and more frequent, which is the lever if that becomes a problem. And `max_buffer_size` is a *per-measurement* trigger, so the worst-case memory is roughly `active_measurements x max_buffer_size x bytes_per_record`; with `max_buffer_age_ms` at its default the age trigger normally fires long before that, which is what keeps it small in practice.
 </Callout>
 
 <Callout type="idea" title="High Concurrency">
