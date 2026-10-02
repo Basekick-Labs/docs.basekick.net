@@ -54,7 +54,7 @@ Error: this token is scoped to specific databases, so Arc will not list them
 all; name a database you are granted (`arcli db show <database>`,
 `arcli measurement list --database <database>`)
 
-$ arcli db show analytics
+$ arcli db show analytics          # nothing granted inside analytics
 Error: this token has no read grant for database "analytics"; name a database
 it is granted, or ask an Arc administrator to grant it
 
@@ -74,10 +74,17 @@ need different fixes:
 | `Arc rejected this connection's token…` | the token is invalid, expired or revoked — issue a new one |
 | `arc could not read its own permission data…` | a server-side fault, not this token — check the Arc server log |
 
+`db show` and `measurement list` only need a grant for **something** inside
+the database, not for all of it — so a token granted `production.cpu` can run
+both against `production`, and `measurement list` returns just the
+measurements it is granted rather than the whole list. Only `db list` needs a
+grant covering every database, which is why it is the command that reports
+being scoped.
+
 `db show` on a database that does not exist still reports
 `Database 'x' not found (HTTP 404)`, so "you may not read it" and "it is not
 there" stay distinguishable. Note that on a server with per-database reads a
-database you have *no grant for* answers the former, not the latter — the
+database you have *no grant inside* answers the former, not the latter — the
 permission check runs first, which is what stops the endpoint being used to
 enumerate names.
 

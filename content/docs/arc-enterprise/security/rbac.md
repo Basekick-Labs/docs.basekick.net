@@ -82,7 +82,12 @@ Permissions are defined at the role level and apply to specific databases:
 | `delete` | Delete data from the database |
 | `admin` | Full administrative access |
 
-Roles can optionally restrict access to specific measurements within a database using wildcard patterns (e.g., `metrics_*` matches `metrics_cpu`, `metrics_memory`, etc.).
+Roles can optionally restrict access to specific measurements within a database using wildcard patterns (e.g., `metrics_*` matches `metrics_cpu`, `metrics_memory`, etc.). Both leading and trailing wildcards are matched (`metrics_*`, `*_metrics`, `prod*`).
+
+A role carrying measurement grants is restricted to them for **every**
+request, including requests that name no measurement at all. The role-level
+permission list underneath them is the set of actions the grants may convey,
+not a database-wide grant that applies when no measurement is named.
 
 ## API reference
 
@@ -372,29 +377,49 @@ curl -X POST http://localhost:8000/api/v1/rbac/roles/2/measurements \
 
 ## What a scoped token can and cannot list
 
-A token whose grants cover particular databases cannot enumerate the ones it
-does not. Arc refuses the request rather than returning a filtered list:
+Arc asks a **different question of each listing**, and that is what decides
+whether you get a refusal or a filtered answer.
 
-| Request | A token granted `production` only |
-|---|---|
-| `SHOW DATABASES` | `403` — refused |
-| `GET /api/v1/databases` | `403` — refused |
-| `SHOW TABLES FROM production` | the measurements it is granted |
-| `GET /api/v1/databases/production` | `200` |
-| `GET /api/v1/databases/analytics` | `403` |
-| `GET /api/v1/databases/nonexistent` | `403` — the grant is checked before existence, so a scoped token cannot probe for databases it has no grant for |
+- **Listing every database** asks for a grant covering every database. A
+  token scoped to particular ones is **refused**, not given a partial list.
+- **Listing inside one named database** asks the weaker question *"may this
+  caller read anything in here?"*. A token with any grant inside it is
+  allowed — and the names it gets back are then **filtered per name**, so the
+  listing never discloses a measurement the caller cannot read.
 
-This is deliberate and will not change. A filtered list leaks the shape of
-the deployment — how many databases exist, and by elimination which names are
-taken — and it makes a partial answer indistinguishable from a complete one.
-A scoped tenant names its database explicitly, which is the same bar every
-other scoped operation applies.
+| Request | Token granted `production` (whole database) | Token granted `production.cpu` only |
+|---|---|---|
+| `SHOW DATABASES` | `403` — refused | `403` — refused |
+| `GET /api/v1/databases` | `403` — refused | `403` — refused |
+| `GET /api/v1/databases/production` | `200` | `200` |
+| `SHOW TABLES FROM production` | every measurement | `["cpu"]` |
+| `GET /api/v1/databases/production/measurements` | every measurement | `["cpu"]` |
+| `GET /api/v1/measurements?database=production` | every measurement | `["cpu"]` |
+| `GET /api/v1/databases/analytics` | `403` — no grant inside it | `403` — no grant inside it |
+| `GET /api/v1/databases/nonexistent` | `403` — see below | `403` — see below |
 
-Note the last row: on `GET /api/v1/databases/:name` the permission check runs
-**before** the existence check, so "no grant" and "does not exist" both answer
-`403` for a database the token has no grant for. A `404` therefore only ever
-comes back for a database the token *is* granted — which is what stops the
-endpoint being used to enumerate names.
+### Why the list-everything routes refuse instead of filtering
+
+A filtered list of *databases* leaks the shape of the deployment — how many
+exist, and by elimination which names are taken — and it makes a partial
+answer indistinguishable from a complete one. A scoped tenant names its
+database explicitly, which is the bar every other scoped operation applies.
+This is deliberate and will not change.
+
+Filtering *within* a database does not carry that problem: the caller already
+had to name the database and prove it can read something in it.
+
+### A missing grant answers 403, not 404
+
+On `GET /api/v1/databases/:name` the permission check runs **before** the
+existence check, so "no grant inside it" and "does not exist" both answer
+`403` for a database the token has nothing in. A `404` therefore only ever
+comes back for a database the token *can* read inside — which is what stops
+the endpoint being used to enumerate names.
+
+A database that exists and that the caller can enumerate, but where every
+measurement is filtered out, answers `200` with an empty list rather than
+`404`.
 
 ### Telling the refusals apart
 

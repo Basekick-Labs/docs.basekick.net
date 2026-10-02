@@ -512,14 +512,19 @@ Endpoints for managing databases programmatically.
 <Callout type="info" title="The three read endpoints require read permission">
 `GET /api/v1/databases`, `GET /api/v1/databases/:name` and
 `GET /api/v1/databases/:name/measurements` require a token with the `read`
-permission. Where reads are restricted per database, they also require a
-grant covering the database being listed, and `GET /api/v1/databases`
-requires one covering every database.
+permission. Where reads are restricted per database, each asks a different
+question:
 
-Arc **refuses** the list-everything request for a token scoped to particular
-databases rather than returning a filtered list — the same bar
-`SHOW DATABASES` applies. A scoped caller names its database explicitly. See
-[Telling the refusals apart](#telling-the-refusals-apart) below.
+- `GET /api/v1/databases` requires a grant covering **every** database. A
+  token scoped to particular ones is **refused** rather than given a partial
+  list — the same bar `SHOW DATABASES` applies, and a scoped caller names its
+  database explicitly.
+- The two per-database routes require only that the caller can read
+  **something** inside the named database, and
+  `/:name/measurements` then **filters** the names it returns, so it never
+  discloses a measurement the caller cannot read.
+
+See [Telling the refusals apart](#telling-the-refusals-apart) below.
 </Callout>
 
 ### GET /api/v1/databases
@@ -631,9 +636,11 @@ different responses, so do not collapse them:
   caused this.
 
 On `GET /api/v1/databases/:name` the permission check runs **before** the
-existence check, so a database the token has no grant for answers `403` rather
-than `404`. A `404` only comes back for a database the token *is* granted,
-which is what prevents the endpoint being used to enumerate names.
+existence check, so a database the token has no grant inside answers `403`
+rather than `404`. A `404` only comes back for a database the token *can* read
+inside, which is what prevents the endpoint being used to enumerate names. A
+database whose measurements are all filtered out answers `200` with an empty
+list, not `404`.
 
 ### DELETE /api/v1/databases/:name
 
