@@ -478,6 +478,54 @@ with ArcClient(host="localhost", token="your-token") as client:
         print("Current token doesn't have permission to create tokens")
 ```
 
+### Permission errors
+
+Arc answers HTTP 403 for several different reasons, and the SDK raises a
+different exception for each so they can be handled separately:
+
+```python
+from arc_client.exceptions import (
+    ArcAuthenticationError,          # 401 — token missing, invalid or expired
+    ArcPermissionError,              # 403 — token lacks the permission needed
+    ArcScopedAccessError,            # 403 — may read, but not that database
+    ArcPermissionDataUnavailableError,  # 403 — Arc could not load the grants
+    ArcNotFoundError,                # 404
+)
+
+try:
+    databases = client.databases.list().databases
+except ArcScopedAccessError as e:
+    # Expected for a token scoped to specific databases: Arc refuses to list
+    # them all rather than returning a partial list, matching SHOW DATABASES.
+    # Not a failure, and not worth retrying — name a database instead.
+    print(f"scoped (refused for {e.database!r}); naming one instead")
+    measurements = client.databases.list_measurements("production")
+except ArcPermissionError:
+    # A different problem: this token has no read permission at all, so
+    # naming a database will not help.
+    raise
+```
+
+`ArcScopedAccessError.database` carries the database the call was refused for.
+It is **empty or `"*"`** when the call asked for every database, so test it
+against `None` rather than for truthiness if you need to tell "not a scoped
+refusal" from "scoped, no database named".
+
+`ArcScopedAccessError` and `ArcPermissionDataUnavailableError` both subclass
+`ArcPermissionError`, which subclasses `ArcAuthenticationError` — so code that
+already caught 403 as an authentication failure keeps working, and
+`except ArcPermissionError` catches any refusal if the distinction does not
+matter to you.
+
+<Callout type="warn" title="ArcAuthenticationError now means 401 only">
+Before this release a 403 also raised `ArcAuthenticationError`. Code that
+needs to distinguish "re-authenticate" from "this token lacks a permission"
+should catch `ArcAuthenticationError` and `ArcPermissionError` separately.
+</Callout>
+
+See [RBAC](/arc-enterprise/security/rbac/#telling-the-refusals-apart) for what
+each refusal means on the server side.
+
 ## Async support
 
 All data management operations have async equivalents:
