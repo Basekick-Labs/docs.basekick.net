@@ -203,10 +203,18 @@ Env vars: `ARC_COMPACTION_MEMORY_LIMIT`, `ARC_COMPACTION_THREADS`.
 
 **Auto behavior:**
 
-- `memory_limit` derives as `database.memory_limit / max_concurrent`, so all concurrent compaction jobs together stay within roughly one `database.memory_limit`. With `database.memory_limit = "8GB"` and the default concurrency of 2, each subprocess gets `4GB`.
-- `threads` defaults to half the CPU cores (minimum 1), so the default two concurrent jobs together use about one machine's worth of cores, leaving headroom for ingest and queries.
+- `memory_limit` depends on whether `database.memory_limit` is set.
+  - **Set explicitly:** it derives as `database.memory_limit / max_concurrent`, so all concurrent compaction jobs together stay within roughly one `database.memory_limit`. With `database.memory_limit = "8GB"` and the default concurrency of 2, each subprocess gets `4GB`.
+  - **Unset (the default since v26.09.3):** `database.memory_limit` is left to the query engine, which uses 80% of the container's cgroup limit — so there is no string to divide. Arc detects the limit itself for this one purpose and each subprocess gets `detected x 0.8 / (max_concurrent + 1)`. The `+ 1` is because the subprocesses and the main Arc process are separate processes sharing one cgroup, not independent budgets.
+
+  Worth knowing what that bounds: it caps the **subprocesses'** combined budget at roughly one share, but the main process still takes the engine's own 80% of the whole cgroup, so the worst-case total is around 133% of the container at the default concurrency. These are mostly spill thresholds rather than reservations, so that is tolerable — but if you are tight on memory, set `database.memory_limit` explicitly and size it with compaction in mind.
+
+  One sharp edge at small sizes: below roughly 85 MB the engine stops spilling and raises an out-of-memory error instead. A 256 MiB container at the default `max_concurrent = 2` derives about 68 MiB, which is inside that range. Compaction treats the failure as recoverable and halves its batch with a warning rather than crashing, so it is visible in the log — but such a container will make no compaction progress. Raise the container's memory or lower `max_concurrent`.
+- `threads` defaults to half the CPUs Arc may actually use (minimum 1), so the default two concurrent jobs together use about one process's worth of cores, leaving headroom for ingest and queries. "May actually use" means the container's CPU quota where there is one and the machine's core count where there is not — before v26.09.3 it was always the host's core count, so a 2-CPU pod on a 64-core node gave every job 32 threads ([arc#1030](https://github.com/Basekick-Labs/arc/issues/1030)). An explicit value is untouched.
 
 Accepted `memory_limit` forms are absolute sizes with a unit: `"8GB"`, `"512MB"`, `"0.5GB"`. Percent and unit-less forms are rejected at startup (DuckDB's `SET memory_limit` does not support them), as are other invalid values. The effective values appear in the startup log (`subprocess_memory_limit`, `subprocess_threads`).
+
+Thread count and memory budget interact, and the default trades one for the other. Measured under a 2-CPU quota on 351 files: with the ~4.47 GB per-subprocess budget a container with no memory limit derives, 32 threads finishes faster than 1 (9.8 s against 13.0 s) — but at 1 GB and at 512 MB the 32-thread run fails with `Out of Memory Error` while 1 thread completes, because sort and scan buffers scale with the thread count. A 2-CPU / 2 Gi pod on a 64-core node derives about 546 MB per subprocess, which is in the failing range. **If your container limits CPU but not memory, set `threads` explicitly** — the quota-derived default is deliberately conservative because the alternative fails rather than merely slows.
 
 When a job exceeds its memory limit, DuckDB spills to a `duckdb-spill/` directory inside the job's temp directory (under `compaction.temp_directory`) — size that volume for your largest partitions. Spill files are removed by normal job cleanup and by the crash sweeps on startup.
 

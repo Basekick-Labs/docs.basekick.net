@@ -55,8 +55,8 @@ format = "console"   # json or console
 [database]
 # Auto-detected if not set (recommended)
 # max_connections = 28    # 2x CPU cores
-# memory_limit = "8GB"    # ~50% system RAM
-# thread_count = 14       # CPU cores
+# memory_limit = "8GB"    # unset: engine uses 80% of the cgroup limit
+# thread_count = 14       # unset: engine uses the CPU quota
 enable_wal = false
 
 # Storage Backend
@@ -324,10 +324,13 @@ Query engine connection pool and resource settings:
 
 ```toml
 [database]
-# AUTO-DETECTION: If not set, Arc automatically configures:
-#   - max_connections: 2x CPU cores (min 4, max 64)
-#   - memory_limit: ~50% of system memory
-#   - thread_count: Number of CPU cores
+# AUTO-DETECTION: If not set:
+#   - max_connections: 2x CPU cores (min 4, max 64), set by Arc
+#   - memory_limit:    left to the query engine, which uses 80% of the
+#                      container's cgroup limit (or of host memory when
+#                      unlimited). Percent and unit-less forms are rejected.
+#   - thread_count:    left to the query engine, which uses the container's
+#                      CPU quota rather than the host's core count.
 
 # Manual override examples:
 max_connections = 28      # Connection pool size
@@ -335,6 +338,23 @@ memory_limit = "8GB"      # Query engine memory limit
 thread_count = 14         # Query execution threads
 enable_wal = false        # Query engine WAL (not Arc WAL)
 ```
+
+<Callout type="warning" title="Behaviour change in v26.09.3">
+`memory_limit` and `thread_count` are **unset** by default now, and that is deliberate: the query engine performs its own cgroup-aware detection and uses 80% of the memory limit it finds — your container's limit if you set one, host memory if you did not. It reads the CPU quota for threads the same way.
+
+Before v26.09.3 Arc overrode both from the CPU count: `min(cores, 32) GB` for memory and the core count for threads. `runtime.NumCPU()` reflects CPU affinity but **not** a CFS quota, and Kubernetes `limits.cpu` and docker `--cpus` are quotas — so a pod limited to 2 CPUs on a 64-core node saw 64 cores and was given a **32 GB** memory limit inside a 2 Gi container. The engine then allocated against that budget rather than spilling to `temp_directory`, and the kernel OOM-killed the container.
+
+Measured after the change: `--memory=512m` yields 409.5 MiB, `--memory=2g` yields 1.5 GiB, and `--cpus=2` yields 2 threads on an 8-core host.
+
+**Two things to check when you upgrade.**
+
+If you run with a **container memory limit**, the engine's limit now follows it. That is the fix, and in the example above it drops from 32 GB to about 1.6 GiB.
+
+If you run with **no memory limit** — including the OSS Helm chart, which ships `resources: {}` — the engine sees the node's total memory and takes 80% of it. On a 16-core/64 GiB node that is a **rise**, from Arc's old 16 GB to roughly 51 GiB. Set container limits, or set `memory_limit` explicitly, if you were relying on the old accidental cap.
+
+A smaller limit also makes spilling to `temp_directory` more likely. Spilling is slow but survivable where an OOM kill is not, so size that directory (or its volume) for the queries you run.
+</Callout>
+
 
 ### Ingestion
 
