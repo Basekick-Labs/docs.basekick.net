@@ -56,21 +56,31 @@ max(arc_cluster_auth_apply_create_total) - min(arc_cluster_auth_apply_create_tot
 ## Replication
 
 ```
-arc_replication_entries_dropped_total   # counter: sender-side drops
+arc_replication_lag_entries{peer="<reader>"}   # gauge: writer entries not yet acknowledged by that reader (v26.09.3+)
+arc_replication_lag_seconds{peer="<reader>"}   # gauge: age of the oldest of those entries since the writer appended it (v26.09.3+)
+arc_replication_entries_dropped_total          # counter: sender-side drops
 ```
 
+The two lag gauges are exported by the **writer**, one series per connected WAL replication reader, read from the live connections at scrape time: a reader that disconnects leaves no stale series, and a caught-up reader reads `0` on both. The age is taken on the writer's clock at both ends, so it does not depend on clock agreement between nodes. They need `wal.enabled = true`; without the WAL there is no replication stream to measure.
+
 ```text
+arc_replication_lag_seconds > 30
+arc_replication_lag_entries >= <cluster.replication_buffer_size>
 rate(arc_replication_entries_dropped_total[5m]) > 0
 ```
+
+How to read them:
+
+- A healthy reader's `seconds` sawtooths between `0` and `cluster.replication_ack_interval` (100 ms by default). Set the threshold well above that, and above any non-default value of the interval.
+- Lag is measured from the moment a reader attaches. The sender does not replay entries accepted before that, so a reader that restarts rejoins at `0` and counts only the entries that follow; the data it missed while away arrives through file replication, not this stream.
+- Once a reader is more than `cluster.replication_buffer_size` entries behind, the writer no longer holds the timestamp of the oldest outstanding entry, and `seconds` reports the age of the oldest it still holds: a lower bound, tight while the buffer is full. `entries` includes entries the full buffer dropped, which that reader will never receive on this stream. That is why the second and third rules belong next to the first: they are the saturation signals, and they are never omitted.
 
 A sender drops entries when the replication buffer overflows — the receiver is not keeping up, or the link is saturated. Tune `cluster.replication_pull_workers` and the fetch/serve timeouts, and check reader health.
 
 <Callout type="info" title="arc_replication_sequence_gaps_total was removed in v26.09.2">
 This metric was exported but nothing detected gaps, so it read `0` regardless of whether entries went missing. It was removed rather than implemented, because the condition it claimed to measure cannot occur silently: the receiver checks checkpoint sequence equality and a cumulative payload hash, so a gap drops the connection instead of passing unnoticed. The counter could only ever report `0`, which reads as "no gaps" and is indistinguishable from "not measured". See [arc#810](https://github.com/Basekick-Labs/arc/issues/810).
 
-Detect replication problems from `arc_replication_entries_dropped_total`, reader catch-up state in `GET /api/v1/cluster`, and 503s from readers with `cluster.query_gate_on_catchup` enabled.
-
-Replication **lag** is the signal that is genuinely missing today — no lag metric is exported yet. Tracked in [arc#819](https://github.com/Basekick-Labs/arc/issues/819).
+Detect replication problems from the lag gauges above, `arc_replication_entries_dropped_total`, reader catch-up state in `GET /api/v1/cluster`, and 503s from readers with `cluster.query_gate_on_catchup` enabled.
 </Callout>
 
 ### Readers serving stale results

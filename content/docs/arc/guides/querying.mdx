@@ -186,6 +186,14 @@ JOIN production.deployments d
 WHERE c.time > NOW() - INTERVAL '24 hours';
 ```
 
+The comma form of a join resolves the same way, including a self-join:
+
+```sql
+SELECT count(*)
+FROM otel_logs a, otel_logs b
+WHERE a.TraceId = b.TraceId AND a.TraceId <> '';
+```
+
 ## Useful SQL functions
 
 These are the functions most useful for analytical and time-series queries:
