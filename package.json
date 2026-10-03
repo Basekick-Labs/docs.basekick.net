@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "check:callouts": "node scripts/check-callout-extensions.mjs",
+    "prebuild": "npm run check:callouts",
     "build": "next build",
     "start": "npx serve out",
     "typecheck": "next typegen && tsc --noEmit"
