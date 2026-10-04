@@ -693,6 +693,24 @@ Get delete operation configuration.
 
 Endpoints for managing databases programmatically.
 
+<Callout type="info" title="The three read endpoints require read permission">
+`GET /api/v1/databases`, `GET /api/v1/databases/:name` and
+`GET /api/v1/databases/:name/measurements` require a token with the `read`
+permission. Where reads are restricted per database, each asks a different
+question:
+
+- `GET /api/v1/databases` requires a grant covering **every** database. A
+  token scoped to particular ones is **refused** rather than given a partial
+  list — the same bar `SHOW DATABASES` applies, and a scoped caller names its
+  database explicitly.
+- The two per-database routes require only that the caller can read
+  **something** inside the named database, and
+  `/:name/measurements` then **filters** the names it returns, so it never
+  discloses a measurement the caller cannot read.
+
+See [Telling the refusals apart](#telling-the-refusals-apart) below.
+</Callout>
+
 ### GET /api/v1/databases
 
 List all databases with measurement counts.
@@ -802,6 +820,37 @@ List all measurements in a database.
   "count": 3
 }
 ```
+
+### Errors on the read endpoints
+
+| Status | Body | Meaning |
+|---|---|---|
+| `401` | `{"success": false, "error": "Authentication required"}` | No token was sent |
+| `401` | `{"success": false, "error": "Invalid or expired token"}` | Re-authenticate |
+| `403` | `{"success": false, "error": "no permission for read on database 'analytics'"}` | The token's grants do not cover that database. Empty name on `GET /api/v1/databases`, which names none |
+| `403` | `{"success": false, "error": "token does not have 'read' permission"}` | The token has no `read` permission; a different token is needed |
+| `403` | `{"success": false, "error": "permission data unavailable"}` | Arc could not load the token's grants and refused rather than guess. A server-side fault — check the Arc server log |
+| `404` | `{"error": "Database 'nonexistent' not found"}` | No such database |
+
+#### Telling the refusals apart
+
+All three `403`s share a status code and differ only in message. They need
+different responses, so do not collapse them:
+
+- **"no permission for … on database"** — a normal state for a scoped token,
+  not a failure. Name a database the token is granted. An identical retry is
+  refused identically.
+- **"token does not have … permission"** — a different token is required.
+  Naming a database will not help.
+- **"permission data unavailable"** — nothing about the token or the database
+  caused this.
+
+On `GET /api/v1/databases/:name` the permission check runs **before** the
+existence check, so a database the token has no grant inside answers `403`
+rather than `404`. A `404` only comes back for a database the token *can* read
+inside, which is what prevents the endpoint being used to enumerate names. A
+database whose measurements are all filtered out answers `200` with an empty
+list, not `404`.
 
 ### DELETE /api/v1/databases/:name
 

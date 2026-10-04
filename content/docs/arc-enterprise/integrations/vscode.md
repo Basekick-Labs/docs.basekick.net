@@ -71,6 +71,17 @@ curl -X POST http://localhost:8000/api/v1/auth/tokens \
   }'
 ```
 
+The extension needs a token with the `read` permission to browse databases and
+run queries. Omitting `permissions` gives Arc's default, `read,write`.
+
+<Callout type="info" title="Tokens scoped to specific databases">
+Where Arc restricts reads per database, the extension works with a scoped
+token but **cannot enumerate databases** with one — Arc refuses to list them
+all rather than returning a partial list, the same bar `SHOW DATABASES`
+applies. Set the database on the connection and the schema explorer,
+completions and queries all use that one.
+</Callout>
+
 ### 3. Start querying
 
 1. Press `Ctrl+Shift+P` → `Arc: New Query`
@@ -181,6 +192,18 @@ Browse your Arc databases and tables in the sidebar.
 - Hierarchical view of databases and tables
 - Connection status indicator
 - Visual refresh button
+
+**With a token scoped to specific databases:**
+
+The explorer shows the connection's database when one is set. If none is set
+it shows a single entry — *"Token is scoped — set a database on this
+connection"* — with the full explanation on hover, rather than an empty tree
+or a bare `403`. Expanding a database the token has no grant for says
+*"No read access to '<name>' with this token"* on that node, leaving the rest
+of the tree usable.
+
+SQL completions behave the same way: they fall back to the connection's
+database instead of going empty.
 
 **Right-Click Context Menus:**
 
@@ -326,6 +349,11 @@ Manage Arc authentication tokens directly from VS Code.
 - Delete tokens
 - Verify token validity
 - Secure storage in system keychain
+
+Creating a token asks which permissions it should carry — `read`, `write`,
+`delete`, `admin` — defaulting to Arc's own `read,write`. `read` is what the
+extension itself needs. The created-token message lists the permissions and
+notes that RBAC grants narrow them further if the token belongs to a team.
 
 **Access:**
 1. Press `Ctrl+Shift+P`
