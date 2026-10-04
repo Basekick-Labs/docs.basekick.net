@@ -165,6 +165,13 @@ Also confirm the cold tier appears in `/health` under `storage`, alongside `hot`
 
 Cold-tier objects are written with no storage class or access tier set — **S3 Standard**, or the Azure storage account's default tier — and are read in place, so a query touching cold data pays object-store latency and a round trip per file, not a restore. Size `tiered_storage.default_hot_max_age_days` (default 30) against your actual query patterns, not just storage cost.
 
+On a cluster with peer file replication, each node's tier metadata follows its own disk (since 26.09.3): the puller registers what it pulls, and a copy removed because another node migrated the file is marked cold once the object is confirmed in the cold tier. Two signals say the path is working, and both should agree across nodes within seconds of a file arriving:
+
+- `tier_registered` next to `pulled` in `replication_catchup_status` on `GET /api/v1/cluster` — tracks `pulled` on a tiering node, zero on a node without tiering.
+- `replication_events` on `GET /api/v1/tiering/status` — `{applied, dropped, failed}`; `dropped` is zero on a healthy node. Non-zero `dropped` or `failed` means rows wait for the next tier scan, and the node loses partition pruning for the affected measurements until then.
+
+`GET /api/v1/tiering/files` counts converging across nodes is the end-to-end check. The startup tier scan logs `Startup tier scan completed` with its counts on every boot; `Startup tier scan did not complete` means the node is relying on the next migration cycle.
+
 ## Audit logging
 
 Enterprise deployments are the ones most likely to run `audit_log.enabled`. The counters are documented on the [OSS page](/arc/operations/monitoring/#audit-logging); the operational point bears repeating here:

@@ -1038,6 +1038,7 @@ See [RBAC](/arc-enterprise/security/rbac/) for detailed API documentation.
 | `GET` | `/api/v1/tiering/status` | Tiering status |
 | `GET` | `/api/v1/tiering/files` | List files by tier |
 | `POST` | `/api/v1/tiering/migrate` | Trigger migration |
+| `POST` | `/api/v1/tiering/scan` | Rescan tier metadata against storage |
 | `GET` | `/api/v1/tiering/stats` | Migration statistics |
 | `POST/GET/PUT/DELETE` | `/api/v1/tiering/policies` | Per-database policies |
 

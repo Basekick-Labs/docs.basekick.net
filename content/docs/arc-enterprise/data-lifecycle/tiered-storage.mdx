@@ -118,6 +118,10 @@ ARC_TIERED_STORAGE_COLD_AZURE_ACCOUNT_KEY=your_key
 Store access keys and secret keys in environment variables rather than in `arc.toml`. This keeps secrets out of version control.
 </Callout>
 
+<Callout type="warn" title="An empty environment variable does not clear a value set in arc.toml">
+Arc reads the environment through viper's `AutomaticEnv`, which treats an empty variable as unset. `ARC_TIERED_STORAGE_COLD_S3_ENDPOINT=""` therefore leaves whatever `s3_endpoint` the file sets in place — a cold tier meant for AWS silently keeps addressing that endpoint, every cold listing fails, and each migration cycle skips. To clear a key, remove it from the file or give the variable the value you actually want. The `arc.toml` shipped in the image set MinIO values (`localhost:9000`, static `minioadmin` keys, plain HTTP, path-style) under `[tiered_storage.cold]` through 26.09.2; since 26.09.3 those lines are commented out and Arc's built-in defaults apply — no endpoint, HTTPS, virtual-hosted addressing, credentials from the AWS chain. If you relied on the shipped MinIO values, uncomment that block as a set.
+</Callout>
+
 ## Per-database policies
 
 Override the global `default_hot_max_age_days` for specific databases, or exclude databases from tiering entirely.
@@ -204,6 +208,8 @@ curl -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
+On a cluster node with peer file replication the status also carries `replication_events` — `{"applied", "dropped", "failed"}` — counting the tier rows this node wrote for files it did not ingest itself: files the replication puller pulled, and local copies removed because another node moved them to cold (since 26.09.3, see [Clusters and shared storage](#clusters-and-shared-storage)). `dropped` is zero on a healthy node; a non-zero `dropped` or `failed` means some rows wait for the next tier scan, which costs that node partition pruning until then. The field is absent on a node that has never received such a report.
+
 ### List files by tier
 
 ```bash
@@ -257,11 +263,12 @@ curl -X POST http://localhost:8000/api/v1/tiering/scan \
   "files_skipped": 1587,
   "errors": 0,
   "cold_synced": 0,
-  "hot_retired": 2
+  "hot_retired": 2,
+  "hot_rows_written": 3
 }
 ```
 
-The scan brings the node's tier metadata in line with storage; every migration cycle runs the same pass first. It lists the hot tier and registers files that have no row yet (`files_registered`; files already known count as `files_skipped`), and it retires the rows of hot files that are no longer in hot storage (`hot_retired`) — what compaction leaves behind once it has consumed a measurement's raw files — after a five-minute grace period, so a file flushed while the scan runs is never retired. Cold rows are never touched. Without that retirement, a measurement whose files had all moved to cold kept an empty hot tier in every read, and a query without a time range on it returned no rows. In a cluster the scan also records the files other nodes moved to cold as `cold_synced`, and reports `"cold_sync_failed": true` when the cold tier could not be listed; see [Clusters and shared storage](#clusters-and-shared-storage).
+The scan brings the node's tier metadata in line with storage. Every migration cycle runs the same pass first, and since 26.09.3 every node runs it once at startup too, in the background, so files that arrived while the node was down — or were already on disk when upgrading — have rows as soon as the node is up; the log line `Startup tier scan completed` carries the same counts. It lists the hot tier and accounts for every hot file (`files_registered`; files whose row already says cold count as `files_skipped`), writing a row only where one is missing or out of date (`hot_rows_written`, zero on a node whose rows already match its disk), and it retires the rows of hot files that are no longer in hot storage (`hot_retired`) — what compaction leaves behind once it has consumed a measurement's raw files — after a five-minute grace period and a check that the file really is gone, so a file flushed or pulled while the scan runs is never retired. Cold rows are never touched. Without that retirement, a measurement whose files had all moved to cold kept an empty hot tier in every read, and a query without a time range on it returned no rows. In a cluster the scan also records the files other nodes moved to cold as `cold_synced`, and reports `"cold_sync_failed": true` when the cold tier could not be listed; see [Clusters and shared storage](#clusters-and-shared-storage).
 
 ### Get migration statistics
 
@@ -294,7 +301,7 @@ How tiering behaves in a cluster depends on the [deployment pattern](/arc-enterp
 
 Two consequences to plan for:
 
-- All nodes fire on the same cron minute, so a non-primary learns a cycle's moves on its next cycle. Only a measurement's very first cold file is affected, and only for one cycle: once a node has any cold row for a measurement, its cold reads cover later moves.
+- All nodes fire on the same cron minute, so a non-primary learns a cycle's moves on its next cycle. Only a measurement's very first cold file is affected, and only for one cycle: once a node has any cold row for a measurement, its cold reads cover later moves. A node that restarts learns them at boot instead, from the startup tier scan (since 26.09.3), which on shared storage lists the shared hot bucket once per node per start — the same listing the nightly cycle already performs.
 - The sync only ever adds or flips rows to cold. A cold row whose object has since disappeared from the cold tier is reported in a warning; the primary's reconciliation reverts such a row to hot when it finds the hot copy still present, so the file is migrated again rather than lost. A migration cycle requested while one is already running on the same node answers `409 Conflict` instead of overlapping it.
 
 On a node that syncs but never migrates, `GET /api/v1/tiering/status` reports `"role_gated": true` under `scheduler`, and `POST /api/v1/tiering/migrate` answers `409 Conflict` with the node's role — retry it against the primary writer. `POST /api/v1/tiering/scan` runs the same sync on any node and reports how many rows it learned as `cold_synced`; see [Rescan tiers](#rescan-tiers).
@@ -303,7 +310,13 @@ A node in shared-storage mode must have `cluster.role` set to `writer`, `reader`
 
 **Per-node local storage (Pattern 1).** A per-node cluster whose nodes keep each other in step with file replication (`cluster.replication_enabled = true`) is gated the same way: only the primary writer migrates, every node syncs its tier metadata from the cold tier each cycle, and every file the primary moves to cold is removed from the cluster file manifest before its hot copy goes — which is what unlinks the replica on every other node and stops replication from pulling it back. A per-node cluster without replication shares nothing and keeps migrating per node.
 
-Two requirements follow. **Every replicating node must run tiering with the same cold backend**: once the primary migrates a file, the only way a node can read it is through its own cold row and cold backend; a node with tiering off or no cold tier cannot see that data any more, and Arc says so at startup on such a node. And a node that has no cold row yet for a measurement does not read that measurement's first migrated file until its next cold sync — at the default `0 2 * * *` schedule up to a day; shorten `tiered_storage.migration_schedule` on readers if that matters.
+One requirement follows. **Every replicating node must run tiering with the same cold backend**: once the primary migrates a file, the only way a node can read it is through its own cold row and cold backend; a node with tiering off or no cold tier cannot see that data any more, and Arc says so at startup on such a node.
+
+Since 26.09.3 a node's tier rows follow its own disk, not only what it ingested. A file the replication puller pulls is registered as hot the moment it lands, and when the primary moves a file to cold the node that removes its local copy confirms the object is in the cold tier before flipping its row to cold — so a measurement's first migrated file is readable on every node within seconds of the migration, not at the next cycle, and nothing needs tuning for it. Two counters show the path working: `tier_registered` beside `pulled` in `replication_catchup_status` on `/api/v1/cluster` (it tracks `pulled` where tiering is on, and stays at zero where it is not), and `replication_events` on `/api/v1/tiering/status`, whose `dropped` is zero on a healthy node.
+
+<Callout type="warn" title="Before 26.09.3: a node's tier rows only described what it ingested">
+On 26.09.2 and earlier, a node recorded tier rows only for files it flushed itself. Files pulled from a peer had no row until the next scan, and a file another node migrated was not marked cold locally until the next cold sync — at the default `0 2 * * *` schedule up to a day. Because the query layer routes reads from those rows, a node not currently ingesting a measurement lost partition pruning for it (`GET /api/v1/tiering/files` showed far fewer files on it than on the ingesting node), and a measurement with a cold row and no hot row dropped that node's local files from reads entirely: a windowed `count(*)` over data on its disk returned `0` with `success: true`. `POST /api/v1/tiering/scan` on each affected node closes the gap until the next migration cycle reopens it; upgrading removes it.
+</Callout>
 
 ## Best practices
 
