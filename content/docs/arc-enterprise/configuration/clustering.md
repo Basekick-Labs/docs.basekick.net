@@ -129,7 +129,8 @@ Internal endpoints (cache invalidation, cluster status, replication-control APIs
     "catchup_dropped": 0,
     "queue_depth": 7,
     "inflight_count": 2,
-    "pulled": 1278
+    "pulled": 1278,
+    "tier_registered": 1278
   }
 }
 ```
@@ -143,6 +144,7 @@ A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients c
 - **Cumulative gate fires**: `QueryHandler.QueryGate503Total()` is exposed for Prometheus / metrics scrapes. Alert on a non-zero rate to detect that the gate is firing without inferring from generic HTTP error logs.
 - **Sampled log line**: while the gate is active, Arc emits at most one `WARN` log per second with the gate counter and request path. Avoids flooding under sustained catch-up while still surfacing the degraded state.
 - **Live status**: the `/api/v1/cluster` endpoint exposes `replication_catchup_status` with the same fields shown in the 503 body, so dashboards can show catch-up progress without waiting for a query to fail.
+- **Tier metadata**: `tier_registered` counts pulled files handed to this node's [tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/#clusters-and-shared-storage) metadata (since 26.09.3). With tiering on it tracks `pulled`; without tiering it stays at zero. `pulled` climbing while `tier_registered` stays flat on a tiering node means replicated files are not reaching tier metadata, which costs that node partition pruning until its next tier scan.
 
 ### Syncing with the leader before the walk
 

@@ -140,6 +140,8 @@ Settings are applied in this order (highest to lowest):
 2. **arc.toml file**
 3. **Built-in defaults**
 
+An environment variable set to the empty string counts as unset, not as an override: `ARC_TIERED_STORAGE_COLD_S3_ENDPOINT=""` does not clear an `s3_endpoint` the file sets. To blank a key the file sets, remove it from the file or give the variable the value you want.
+
 ## Storage backends
 
 <Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
