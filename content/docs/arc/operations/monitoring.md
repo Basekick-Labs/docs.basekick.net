@@ -176,6 +176,35 @@ arc_buffer_records_buffered > 500000
 These metrics were exported but never populated before v26.09.2, reading a permanent `0`. On an earlier version, infer flush pressure from ingest rate versus `rate(arc_storage_writes_total[5m])` and from flush failures instead.
 </Callout>
 
+### Flush-queue backpressure
+
+```
+arc_ingest_flush_deferred_total    # counter: flushes deferred because the queue was full
+arc_buffer_deferred_buffers        # gauge: buffers currently holding deferred records
+```
+
+<Callout type="warning" title="Behaviour change in v26.09.3">
+Before v26.09.3, a size-triggered flush that found the flush queue full **discarded that batch** and still returned success to the client. The records had already been removed from the in-memory buffer, so with `wal.enabled = false` — the default — they were lost; with the WAL on, nothing replayed them before the periodic purge deleted the file.
+
+Arc now keeps the batch in its buffer and flushes it when a worker frees a slot. The condition that used to be a silent drop is reported by these two metrics, so what was previously invisible is now measurable.
+</Callout>
+
+`arc_ingest_flush_deferred_total` counts the *events*, not the records. It increments every time a buffer crosses `max_buffer_size` while every flush-queue slot is taken, which under sustained backpressure is close to once per write to a hot measurement — so treat the rate as a saturation signal, not a volume.
+
+`arc_buffer_deferred_buffers` is the one to alert on. It is the number of buffers whose records no worker could take, sampled once per second. A value that climbs and stays up means storage is not keeping up with ingest:
+
+```text
+# Flush workers cannot keep up with ingest
+arc_buffer_deferred_buffers > 0 and rate(arc_ingest_flush_deferred_total[5m]) > 0
+
+# Saturated for a sustained period
+avg_over_time(arc_buffer_deferred_buffers[10m]) > 10
+```
+
+A deferred buffer is re-enqueued as soon as a flush worker frees a queue slot, so in a healthy system this gauge returns to zero within roughly one flush duration. If it stays high while `arc_buffer_queue_depth` is *below* `ingest.flush_queue_size`, flushes are failing rather than queueing — check `arc_buffer_flush_failures_total`.
+
+Deferred records are held in memory, and Arc does not bound that: `max_buffer_size` is a *per-measurement* trigger, so worst-case held memory is roughly `active_measurements x max_buffer_size x bytes_per_record`. Tuning it is yours — lowering `ingest.max_buffer_size` or `ingest.max_buffer_age_ms` makes flushes smaller and more frequent, at the cost of more Parquet files for compaction to merge. Watch `arc_buffer_records_buffered` alongside the process's resident memory, and note that the records gauge is not a memory figure: bytes per record vary by more than 100x between a narrow numeric schema and a wide one with strings.
+
 ### WAL
 
 All six WAL metrics are wired. This is the best-instrumented subsystem in Arc.
