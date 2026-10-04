@@ -265,12 +265,18 @@ Arc automatically recovers from WAL files on startup:
 - Parallel recovery across workers
 - Corrupted entries are skipped (logged)
 
-### Replay is at-least-once
+### Replay skips entries that already reached Parquet
 
-Recovery replays every entry in the WAL files it finds — including entries whose batches had already been flushed to Parquet before the crash. Nothing acknowledged is lost, but already-durable records are re-ingested:
+Since **v26.09.3**, recovery replays only entries whose batch had not yet been written to Parquet.
 
-- **Tagged measurements**: the duplicates are exact copies and are removed the next time compaction merges the partition (dedup keys on tags + time). Queries can read high between the recovery and that compaction pass.
-- **Measurements without tags**: compaction deliberately does not dedup tagless data (two tagless rows with one timestamp can be two legitimate events), so crash-recovery duplicates there currently persist. [arc#948](https://github.com/Basekick-Labs/arc/issues/948) tracks flush-watermark checkpointing, which will replay only genuinely unflushed entries.
+Every WAL entry carries a tracked identity, and a checkpoint recording flushed identities is appended to the WAL — and durably synced — only *after* the Parquet write for that batch succeeds. Recovery gathers those checkpoints across all WAL files, including recently rotated ones and the active file, and skips every entry they cover. Measured on a hard `kill -9` against a tagless measurement with 310 acknowledged records of which 300 had flushed: recovery replays 10 entries and the post-restart row count is exactly 310.
+
+The ordering is deliberate and load-bearing: a checkpoint is written only after the flush is confirmed, never before, because advancing it early would convert duplicate rows into lost rows. One window remains — a crash in the gap between the Parquet write completing and the checkpoint becoming durable replays that batch. So replay is still *at-least-once* in the strict sense, but the window is now a single in-flight batch rather than a whole WAL file.
+
+**Before v26.09.3** recovery replayed every entry it found, including already-durable ones:
+
+- **Tagged measurements**: duplicates were exact copies and were removed the next time compaction merged the partition (dedup keys on tags + time), so queries read high between recovery and that pass.
+- **Measurements without tags**: compaction deliberately does not dedup tagless data (two tagless rows with one timestamp can be two legitimate events), so those duplicates **persisted permanently**. If you run tagless ingest with the WAL enabled and have restarted after a hard crash on an earlier version, historical over-counts from that replay are still in your data; they are not repaired retroactively.
 
 The replay window is bounded by rotation (`max_size_mb`, `max_age_seconds`). Graceful shutdown is unaffected: it flushes buffers and purges the WAL cleanly, so replay only comes into play after a hard crash (power loss, OOM kill, `kill -9`).
 
