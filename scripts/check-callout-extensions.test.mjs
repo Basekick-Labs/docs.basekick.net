@@ -55,3 +55,31 @@ test('escaped and unmatched backticks do not hide real JSX', () => {
   assert.equal(hasCalloutJsx(markdown), true);
   assert.equal(hasCalloutJsx(slash + '<Callout type="info">'), false);
 });
+
+test('handles CRLF and ignores backticks inside fenced code', () => {
+  const tick = String.fromCharCode(96);
+  const fence = tick.repeat(3);
+  const markdown = [
+    'An unmatched ' + tick + ' is literal.',
+    fence + 'text',
+    'A code sample contains ' + tick + ' too.',
+    fence,
+    '<Callout type="info">',
+  ].join('\r\n');
+
+  assert.equal(hasCalloutJsx(markdown), true);
+});
+
+test('ignores Callout-looking text inside raw-text HTML elements', () => {
+  const markdown = [
+    '<script>const example = "<Callout type=info>";</script>',
+    '<textarea><Callout type="info"></textarea>',
+    '<Callout type="info">',
+  ].join('\n');
+
+  assert.equal(hasCalloutJsx(markdown), true);
+  assert.equal(
+    hasCalloutJsx('<script>const example = "<Callout type=info>";</script>'),
+    false,
+  );
+});

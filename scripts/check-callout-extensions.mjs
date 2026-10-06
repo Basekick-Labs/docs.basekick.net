@@ -1,4 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { fromMarkdown } from 'mdast-util-from-markdown';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,124 +7,17 @@ const root = path.resolve('content/docs');
 const violations = [];
 
 export function hasCalloutJsx(source) {
-  let fence;
-  let insideHtmlComment = false;
-  let inlineCodeTicks = 0;
-  const visibleLines = [];
-
-  const lines = source.split(/\r?\n/);
-  let sourceOffset = 0;
-  for (const line of lines) {
-    const lineOffset = sourceOffset;
-    sourceOffset += line.length + 1;
-
-    if (fence || (!insideHtmlComment && inlineCodeTicks === 0)) {
-      const marker = line.match(/^ {0,3}(\x60{3,}|~{3,})(.*)$/);
-      if (!fence && marker) {
-        fence = { character: marker[1][0], length: marker[1].length };
-        visibleLines.push('');
-        continue;
-      }
-      const closing = fence && line.match(/^ {0,3}(\x60{3,}|~{3,})\s*$/);
-      if (
-        fence &&
-        closing &&
-        closing[1][0] === fence.character &&
-        closing[1].length >= fence.length
-      ) {
-        fence = undefined;
-      }
-      if (fence || closing) {
-        visibleLines.push('');
-        continue;
-      }
+  const pending = [fromMarkdown(source)];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node.type === 'html') {
+      const visibleHtml = node.value
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<(script|style|textarea|title|xmp|iframe|noembed|noframes)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+        .replace(/<plaintext\b[^>]*>[\s\S]*$/i, '');
+      if (/<Callout(?:\s|\/?>)/.test(visibleHtml)) return true;
     }
-    if (fence) {
-      visibleLines.push('');
-      continue;
-    }
-
-    let visible = '';
-    for (let index = 0; index < line.length; ) {
-      if (insideHtmlComment) {
-        const end = line.indexOf('-->', index);
-        if (end === -1) {
-          break;
-        }
-        index = end + 3;
-        insideHtmlComment = false;
-        continue;
-      }
-
-      if (inlineCodeTicks > 0) {
-        if (line[index] === '\x60') {
-          let end = index + 1;
-          while (line[end] === '\x60') end++;
-          if (end - index === inlineCodeTicks) inlineCodeTicks = 0;
-          index = end;
-        } else {
-          index++;
-        }
-        continue;
-      }
-
-      if (line.startsWith('<!--', index)) {
-        if (!isEscaped(line, index)) {
-          insideHtmlComment = true;
-          index += 4;
-          continue;
-        }
-      }
-
-      if (line[index] === '\x60') {
-        let end = index + 1;
-        while (line[end] === '\x60') end++;
-        const ticks = end - index;
-        if (isEscaped(line, index) || !hasMatchingBacktick(source, lineOffset + index, ticks)) {
-          visible += line.slice(index, end);
-          index = end;
-          continue;
-        }
-        inlineCodeTicks = ticks;
-        index = end;
-        continue;
-      }
-
-      if (line.startsWith('<Callout', index) && isEscaped(line, index)) {
-        visible += ' ';
-        index++;
-        continue;
-      }
-
-      visible += line[index];
-      index++;
-    }
-
-    visibleLines.push(visible);
-  }
-
-  return /<Callout(?:\s|\/?>)/.test(visibleLines.join('\n'));
-}
-
-function isEscaped(source, index) {
-  let slashes = 0;
-  for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor--) {
-    slashes++;
-  }
-  return slashes % 2 === 1;
-}
-
-function hasMatchingBacktick(source, start, length) {
-  for (let cursor = start + length; cursor < source.length; ) {
-    if (source[cursor] !== '\x60') {
-      cursor++;
-      continue;
-    }
-
-    let end = cursor + 1;
-    while (source[end] === '\x60') end++;
-    if (end - cursor === length && !isEscaped(source, cursor)) return true;
-    cursor = end;
+    if (node.children) pending.push(...node.children);
   }
   return false;
 }
