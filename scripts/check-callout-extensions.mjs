@@ -16,10 +16,31 @@ export function hasCalloutJsx(source) {
         .replace(/<(script|style|textarea|title|xmp|iframe|noembed|noframes)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
         .replace(/<plaintext\b[^>]*>[\s\S]*$/i, '');
       if (/<Callout(?:\s|\/?>)/.test(visibleHtml)) return true;
+    } else if (node.type === 'text' && node.position) {
+      const start = node.position.start.offset;
+      const end = node.position.end.offset;
+      const rawText = source.slice(start, end);
+      const opening = /<Callout(?=\s|\/?>)/g;
+      let match;
+      while ((match = opening.exec(rawText))) {
+        const absoluteOffset = start + match.index;
+        if (isEscaped(source, absoluteOffset)) continue;
+
+        if (rawText.slice(match.index).includes('>')) return true;
+        if (/^\r?\n[ \t]*>(?:\r?\n|$)/.test(source.slice(end))) return true;
+      }
     }
     if (node.children) pending.push(...node.children);
   }
   return false;
+}
+
+function isEscaped(source, index) {
+  let slashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor--) {
+    slashes++;
+  }
+  return slashes % 2 === 1;
 }
 
 async function visit(directory) {

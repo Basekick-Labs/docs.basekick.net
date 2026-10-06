@@ -42,6 +42,18 @@ test('detects markup after a comment and a fenced example', () => {
   assert.equal(hasCalloutJsx(markdown), true);
 });
 
+test('detects a Callout whose closing angle bracket is on its own line', () => {
+  const markdown = [
+    '<Callout',
+    '  type="info"',
+    '>',
+    'Content',
+    '</Callout>',
+  ].join('\n');
+
+  assert.equal(hasCalloutJsx(markdown), true);
+});
+
 test('escaped and unmatched backticks do not hide real JSX', () => {
   const tick = String.fromCharCode(96);
   const slash = String.fromCharCode(92);
@@ -68,6 +80,7 @@ test('handles CRLF and ignores backticks inside fenced code', () => {
   ].join('\r\n');
 
   assert.equal(hasCalloutJsx(markdown), true);
+  assert.equal(hasCalloutJsx([fence, '<Callout type="info">', fence].join('\r\n')), false);
 });
 
 test('ignores Callout-looking text inside raw-text HTML elements', () => {
