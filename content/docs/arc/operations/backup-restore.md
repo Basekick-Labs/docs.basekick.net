@@ -159,6 +159,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 | `restore_data` | bool | `true` | Restore parquet data files |
 | `restore_metadata` | bool | `true` | Restore SQLite database (auth, audit, MQTT) |
 | `restore_config` | bool | `false` | Restore `arc.toml` configuration |
+| `mode` | string | `merge` | `merge` adds the backup's files to what is there; `replace` (clusters only, 27.01.1+) first removes the current manifest entries of the databases the backup holds, then writes and registers the backup's files. See [Clusters](#clusters). |
 | `confirm` | bool | *(required)* | Must be `true` to proceed |
 
 ### Selective restore examples
@@ -244,6 +245,83 @@ A write into data storage that fails (a full or read-only volume) aborts the
 restore immediately rather than being skipped. Treat `failed` as final and read
 the counts; re-running against the same backup reproduces the same gap until
 the backup is repaired.
+
+## Clusters
+
+Since 27.01.1 (#1083) backup and restore are cluster-aware. Everything in this
+section applies only when `cluster.enabled` is set; a standalone node behaves as
+described above, plus the sidecar file.
+
+**Where it runs.** Backups and restores run on the primary writer. Any other
+role (a standby writer, a reader, the compactor) answers `503` with a message
+telling you to route the request to the primary writer; the check is made on
+every request, so a failover between two calls changes which node answers.
+
+**What a backup contains.** The backup walks the node's local storage and
+compares it with the cluster manifest, after waiting for this node's copy of the
+manifest to catch up with the Raft leader:
+
+- A manifest entry this node does not hold yet (typically right after a
+  failover) is counted as `manifest_only_files`, sampled in
+  `manifest_only_sample`, re-checked once at the end of the run, and marks the
+  backup INCOMPLETE.
+- A local Parquet file the manifest does not list is **not** backed up and is
+  counted as `unregistered_skipped` (`unregistered_sample`). The cluster does
+  not consider such a file data: a compaction input awaiting removal, a
+  dropped registration, or a file from before the cluster existed.
+- A file copied during the run that the manifest dropped before the end of the
+  run is removed from the backup again and counted as
+  `left_manifest_during_run`.
+- A backup started while the manifest is empty but the disk holds data files
+  fails rather than backing up nothing.
+
+A sidecar file `<backup_id>/manifest-files.json` lists every data file in the
+backup with its SHA-256, size, database, measurement, partition time and
+created-at. A cluster restore needs it; a backup taken before 27.01.1 cannot be
+restored on a cluster.
+
+One window remains: compaction registers its output and deletes its inputs in
+two separate Raft steps about a second apart. A backup whose listing lands in
+that window, on a primary that has already pulled the output, carries both. See
+#1087.
+
+**What a restore does.** Every restored data file is registered in the cluster
+manifest from the sidecar, in batches, so the other nodes pull it; a file that
+already exists at a different checksum makes every peer re-pull it. A restore
+of many files can hold the readers' catch-up gate (`cluster.query_gate_on_catchup`)
+red until they converge. The size and checksum of each file are verified
+against the sidecar before anything is overwritten; mismatches are counted as
+`sidecar_mismatches` and the live copy is left alone. If registration fails
+part-way (a lost Raft quorum), the restore stops and reports the files that
+were written but not registered; run the restore again. Until then those files
+are orphan storage: an enabled reconciliation sweep removes them after its
+grace window, and nothing else does.
+
+**Modes.** `merge` (the default) adds the backup's files to what the cluster
+has, which also brings back any file deleted since the backup was taken.
+`replace` removes the current manifest entries of every database the backup
+holds (the delete workers unlink the files on each node), then writes and
+registers the backup's files. `replace` is refused for an INCOMPLETE backup and
+when a large share of the node's files were skipped as unregistered. Pause
+compaction, or stop the compactor, for the duration of a `replace`: a
+compaction job finishing mid-restore can remove the files you just restored
+(#1087). On shared-storage clusters the primary deletes the replaced objects
+itself.
+
+**What a cluster restore refuses.** `restore_metadata` defaults to `false` on a
+cluster and an explicit `true` is rejected with `400`: the SQLite holds
+Raft-replicated tokens and per-node tier metadata, and restoring one node's
+copy would diverge it from the cluster. `restore_config` is rejected for the
+same reason: `arc.toml` carries the node identity, role and seeds.
+
+**Tiering.** Restored data files are recorded in the node's tier metadata, so
+they are routed to by queries without waiting for the next tier scan.
+
+**Operational notes.** A primary demoted during a long backup or restore
+finishes its run; do not start another on the new primary until it has
+finished. `replace` leaves files the manifest does not list untouched.
+`cluster.role = "standalone"` inside a non-shared-storage cluster is not a
+primary writer and gets `503`, as the delete API and retention do.
 
 ## Deleting a backup
 
