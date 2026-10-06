@@ -51,7 +51,7 @@ Front matter requires both `title` and `description`:
 ```yaml
 ---
 title: "Run Arc in Docker"
-description: "Pull the image, mount a data volume, set the admin token, and verify ingestion with a line-protocol write."
+description: "Run Arc in Docker: pull the image, mount a persistent data volume, configure the admin token, and send a line-protocol write to confirm the server accepts data."
 ---
 ```
 

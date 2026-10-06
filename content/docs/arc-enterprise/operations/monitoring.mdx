@@ -1,6 +1,6 @@
 ---
 title: "Monitoring & Ops Playbook"
-description: "Cluster, replication, tiering, governance and audit signals for Arc Enterprise, on top of the OSS metrics. Per-role expectations, failover signals, and the operational endpoints for inspecting and killing queries."
+description: "Operational metrics for Arc Enterprise clusters: replication lag, tiering, governance, audit, per-role expectations, failover signals, and endpoints for inspecting or killing queries."
 ---
 
 Arc Enterprise exposes everything in the [OSS monitoring playbook](/arc/operations/monitoring/) plus the cluster, replication, governance and query-management signals documented here.
@@ -37,7 +37,7 @@ Alert on both gauges for readers as well as writers, and size reader storage aga
 
 ## Cluster state
 
-```
+```text
 arc_cluster_manifest_rejected_paths_total  # counter: manifest entries refused
 arc_cluster_auth_rejected_total            # counter: auth FSM commands refused
 arc_cluster_rbac_rejected_total            # counter: RBAC FSM commands refused
@@ -67,7 +67,7 @@ max(arc_cluster_auth_apply_create_total) - min(arc_cluster_auth_apply_create_tot
 
 ## Replication
 
-```
+```text
 arc_replication_lag_entries{peer="<reader>"}   # gauge: writer entries not yet acknowledged by that reader (v26.09.3+)
 arc_replication_lag_seconds{peer="<reader>"}   # gauge: age of the oldest of those entries since the writer appended it (v26.09.3+)
 arc_replication_entries_dropped_total          # counter: sender-side drops
@@ -111,7 +111,7 @@ Check catch-up progress at `GET /api/v1/cluster`.
 
 ## Query governance
 
-```
+```text
 arc_governance_rate_limited_total     # counter: queries rejected by rate limit
 arc_governance_quota_exhausted_total  # counter: queries rejected by quota
 arc_governance_queries_capped_total   # counter: results truncated at the row cap
@@ -130,7 +130,7 @@ rate(arc_governance_quota_exhausted_total[5m]) > 0
 
 Requires an Enterprise license with the `query_management` feature and `query_management.enabled = true`.
 
-```
+```text
 arc_query_mgmt_active_queries   # gauge: queries currently running
 arc_query_mgmt_cancelled_total  # counter: queries killed via the API
 arc_query_mgmt_history_size     # gauge: entries in the completed-query ring
