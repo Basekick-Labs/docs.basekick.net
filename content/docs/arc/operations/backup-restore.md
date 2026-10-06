@@ -25,8 +25,8 @@ local_path = "./data/backups"   # default: ./data/backups
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/backup` | Trigger a full backup (async) |
-| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them |
+| `POST` | `/api/v1/backup` | Trigger a backup (async): the whole instance, or the databases named in `databases` (27.01.1+) |
+| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them, and `scope` for a database-scoped backup |
 | `GET` | `/api/v1/backup/status` | Progress of active operation |
 | `GET` | `/api/v1/backup/:id` | Get backup manifest |
 | `DELETE` | `/api/v1/backup/:id` | Delete a backup |
@@ -48,6 +48,61 @@ curl -X POST "http://localhost:8000/api/v1/backup" \
 ```
 
 The backup runs asynchronously in the background. Poll the status endpoint to monitor progress.
+
+A backup is a copy of the files on disk at the moment each is read. Rows still
+in the ingest buffers are not in it: "point in time" means the last flush.
+
+### Scoping a backup to databases
+
+Since 27.01.1 the request body takes `databases`:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/backup" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"databases": ["audit"]}'
+```
+
+```json
+{
+  "message": "Backup started",
+  "status": "running",
+  "databases": ["audit"]
+}
+```
+
+A scoped backup copies the named databases and nothing else: their data files,
+their schema anchors under `_schema/` and their compaction state under
+`_compaction_state/`. The manifest records the list as `scope`; the backup list
+and the status endpoint show it. `backup_type` stays `full`. An empty or absent
+list is the whole-instance backup described above.
+
+- `include_metadata` and `include_config` default to `false` for a scoped
+  backup. An explicit `include_metadata: true` is refused with `400`: the SQLite
+  database holds every database's tier rows, the tokens, the continuous queries
+  and the audit log, so it cannot ride along with one database; take an
+  unscoped backup for it. `include_config: true` is allowed.
+- Each name must be a database this node knows: its hot prefix has a file, or
+  `_schema/<db>/` has an anchor, or the tier metadata has rows for it. The last
+  rule accepts a fully cold database (an audit database with a long retention,
+  say); its backup completes with zero data files, because the cold tier is not
+  copied yet. An unknown name, an invalid one (`..`, a separator, an empty
+  string), a duplicate, or more than 256 names answers `400` naming the value.
+- The body must be JSON (`Content-Type: application/json`). A form-encoded or
+  plain-text body answers `400`; an empty body means the defaults.
+- The databases' Iceberg namespace directories (`<prefix>_<db>.db/`) are not
+  copied. They are counted on the manifest as `iceberg_namespace_files_excluded`
+  and `iceberg_namespaces_excluded`: the Iceberg catalog is instance-wide and
+  travels with the metadata a scoped backup refuses, so those files would
+  restore tables no catalog can resolve.
+- The scope is the storage-root segment. Edge-sync spoke data lives under
+  `<spoke>/<db>/…`, so `["prod"]` does not include `spoke1/prod`, and
+  `["spoke1"]` takes the whole spoke with its anchors and compaction state. A
+  spoke namespace below the root segment cannot be named.
+
+Restoring a scoped backup restores only those databases, in either mode. On a
+cluster node a restore of a scoped backup that does not name a `mode` runs in
+`replace` (see [Restore options](#restore-options)).
 
 ### Polling progress
 
@@ -111,7 +166,7 @@ operation starts, and the `arc_backup_skipped_files` gauge carries the count
 
 ```text
 {backup_id}/
-  manifest.json              # metadata: databases, measurements, file counts, sizes
+  manifest.json              # metadata: databases, measurements, file counts, sizes; scope (27.01.1+) when the backup was scoped
   data/                      # parquet files preserving partition layout
   data/_schema/              # field schema anchors (v26.09.2+), copied with the data
   data/_compaction_state/    # compaction recovery manifests (v26.09.2+), copied before the data
@@ -159,7 +214,7 @@ curl -X POST "http://localhost:8000/api/v1/backup/restore" \
 | `restore_data` | bool | `true` | Restore parquet data files |
 | `restore_metadata` | bool | `true` | Restore SQLite database (auth, audit, MQTT) |
 | `restore_config` | bool | `false` | Restore `arc.toml` configuration |
-| `mode` | string | `merge` | `merge` adds the backup's files to what is there; `replace` (clusters only, 27.01.1+) first removes the current manifest entries of the databases the backup holds, then writes and registers the backup's files. See [Clusters](#clusters). |
+| `mode` | string | `merge`; `replace` for a scoped backup on a cluster node | `merge` adds the backup's files to what is there; `replace` (clusters only, 27.01.1+) first removes the current manifest entries of the databases the backup holds, then writes and registers the backup's files. When the request names no mode and the backup is scoped to databases, a cluster node runs `replace` (the mode a per-database backup is for: an additive restore of an audit database brings back everything retention removed since) and the 202 echoes the effective mode; an explicit `merge` is honoured, and a standalone node is always additive. For a scoped backup the files `replace` removes are selected by the storage path's first segment. `replace` is refused (`400`) when the scoped backup holds no data files for one of its databases (fully cold, or dropped and re-created since): it would only remove the current files; use `merge`, or take the backup again once the database has hot files. See [Clusters](#clusters). |
 | `confirm` | bool | *(required)* | Must be `true` to proceed |
 
 ### Selective restore examples
@@ -366,7 +421,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 - **Pre-restore safety** -- existing SQLite and config files are copied with `.before-restore` suffix before overwriting.
 - **Destructive restore protection** -- restore requires explicit `confirm: true` in the request body.
 - **Incomplete restores fail** -- a restore that could not restore every data file ends `failed`, with `skipped_files` and `missing_files` on the status endpoint; the files that could be restored stay in place.
-- **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), Iceberg table metadata when Iceberg export is enabled, and `arc.toml` config.
+- **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), Iceberg table metadata when Iceberg export is enabled, and `arc.toml` config. A backup scoped with `databases` holds only those databases' data files, schema anchors and compaction state (27.01.1+).
 - **Iceberg warehouse outside the storage root** -- its metadata is restored into this node's configured `iceberg.warehouse` whenever `restore_data` or `restore_metadata` is set. The Iceberg catalog stores absolute paths, so the target node's `iceberg.warehouse` must be the same path the backup was taken from (a symlink to it works); a node with no such warehouse skips those files and reports them as `iceberg_warehouse_files_skipped` on the status endpoint. Restart promptly after a restore that includes Iceberg: the catalog snapshot is applied on the next start, and a reconciler still running on the old catalog can expire metadata the restore just wrote.
 - **Clusters** -- Iceberg export runs on one node; a backup taken on any other node carries no Iceberg catalog or warehouse.
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
@@ -375,6 +430,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 
 | Status | Description |
 |--------|-------------|
+| `400` | Invalid request: a body that is not JSON, an unknown, invalid or duplicate name in `databases`, `include_metadata: true` on a scoped backup, an invalid restore `mode`, or `replace` on a scoped backup that holds no data files for one of its databases |
 | `401` | Authentication required |
 | `403` | Admin role required |
 | `404` | Backup not found |
