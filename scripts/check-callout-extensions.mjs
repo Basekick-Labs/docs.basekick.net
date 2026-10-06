@@ -1,5 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { fromMarkdown } from 'mdast-util-from-markdown';
+import { mdxFromMarkdown } from 'mdast-util-mdx';
+import { mdxjs } from 'micromark-extension-mdxjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,8 +28,14 @@ export function hasCalloutJsx(source) {
         const absoluteOffset = start + match.index;
         if (isEscaped(source, absoluteOffset)) continue;
 
-        if (rawText.slice(match.index).includes('>')) return true;
-        if (/^\r?\n[ \t]*>(?:\r?\n|$)/.test(source.slice(end))) return true;
+        for (let closing = rawText.indexOf('>', match.index); closing !== -1; closing = rawText.indexOf('>', closing + 1)) {
+          if (isCalloutMdxTag(rawText.slice(match.index, closing + 1))) return true;
+        }
+
+        const standaloneCloser = source.slice(end).match(/^\r?\n[ \t]*>/);
+        if (standaloneCloser && isCalloutMdxTag(`${rawText.slice(match.index)}${standaloneCloser[0]}`)) {
+          return true;
+        }
       }
     }
     if (node.children) pending.push(...node.children);
@@ -41,6 +49,35 @@ function isEscaped(source, index) {
     slashes++;
   }
   return slashes % 2 === 1;
+}
+
+function isCalloutMdxTag(openingTag) {
+  const content = openingTag.trimEnd();
+  const source = /\/\s*>$/.test(content) ? content : `${content}\n</Callout>`;
+  let tree;
+
+  try {
+    tree = fromMarkdown(source, {
+      extensions: [mdxjs()],
+      mdastExtensions: [mdxFromMarkdown()],
+    });
+  } catch {
+    return false;
+  }
+
+  const pending = [tree];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (
+      (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') &&
+      node.name === 'Callout'
+    ) {
+      return true;
+    }
+    if (node.children) pending.push(...node.children);
+  }
+
+  return false;
 }
 
 async function visit(directory) {
