@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "check:callouts": "node scripts/check-callout-extensions.mjs",
-    "prebuild": "npm run check:callouts",
+    "test:callouts": "node --test scripts/check-callout-extensions.test.mjs",
+    "prebuild": "npm run test:callouts && npm run check:callouts",
     "build": "next build",
     "start": "npx serve out",
     "typecheck": "next typegen && tsc --noEmit"

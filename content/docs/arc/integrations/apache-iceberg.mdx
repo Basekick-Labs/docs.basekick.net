@@ -191,7 +191,7 @@ If you need reproducible reads of historical state, snapshot the query results r
 
 ## Backup & restore
 
-Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact. A warehouse outside the storage root is backed up too, under `iceberg/` in the backup, and restored into the node's configured `iceberg.warehouse`. Both the storage root and the warehouse are recorded by absolute path in the Iceberg metadata, so restore to the same paths; see [Backup & restore](/docs/arc/operations/backup-restore) for the details and the cluster caveat.
+Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact. A warehouse outside the storage root is backed up too, under `iceberg/` in the backup, and restored into the node's configured `iceberg.warehouse`. Both the storage root and the warehouse are recorded by absolute path in the Iceberg metadata, so restore to the same paths; see [Backup & restore](/arc/operations/backup-restore/) for the details and the cluster caveat.
 
 ## FAQ
 
