@@ -282,8 +282,8 @@ restored on a cluster.
 
 One window remains: compaction registers its output and deletes its inputs in
 two separate Raft steps about a second apart. A backup whose listing lands in
-that window, on a primary that has already pulled the output, carries both. See
-#1087.
+that window, on a primary that has already pulled the output, carries both. The
+compaction pause that restores take (below) does not cover backups.
 
 **What a restore does.** Every restored data file is registered in the cluster
 manifest from the sidecar, in batches, so the other nodes pull it; a file that
@@ -302,11 +302,38 @@ has, which also brings back any file deleted since the backup was taken.
 `replace` removes the current manifest entries of every database the backup
 holds (the delete workers unlink the files on each node), then writes and
 registers the backup's files. `replace` is refused for an INCOMPLETE backup and
-when a large share of the node's files were skipped as unregistered. Pause
-compaction, or stop the compactor, for the duration of a `replace`: a
-compaction job finishing mid-restore can remove the files you just restored
-(#1087). On shared-storage clusters the primary deletes the replaced objects
-itself.
+when a large share of the node's files were skipped as unregistered. On
+shared-storage clusters the primary deletes the replaced objects itself.
+
+**Compaction pause.** Every cluster restore, `merge` and `replace`, pauses
+compaction cluster-wide for its duration (#1087): compaction commits its output
+and the removal of its inputs in two Raft steps, and a job finishing mid-restore
+could remove files the restore had just registered. The restoring primary
+proposes the pause through Raft; every node stops starting compaction batches,
+lets the batch it is running finish, applies the manifest commits it still has
+pending, and acknowledges. The restore starts once every node in the cluster
+node table has acknowledged and fails after 10 minutes naming the nodes that
+did not: a long compaction batch may still be running there, the node holds a
+pending commit its completion watcher is not applying (a node that lost the
+compactor lease with one pending; move the lease back or restart it), or the
+node is not on 27.01.1. **Every node must run 27.01.1 for a cluster restore.**
+A node the restoring node has marked unhealthy or dead is not waited for,
+except the compactor lease holder and, while no lease is assigned, every node
+whose role can compact; a node in the cluster node table the restoring node has
+never heard from (right after it restarted, or a node whose leave never reached
+the leader) is waited for until an operator removes it from the cluster.
+
+The pause expires six minutes after the requester's last refresh (it refreshes
+every 30 seconds), so a restore whose process dies releases compaction on its
+own; during those minutes a restore from another node is refused as `already
+paused by <node>`. If the pause stops being the restore's own while it runs,
+the restore ends `failed` and says so: take a fresh backup and restore again.
+Restore progress carries `compaction_pause` (`waiting`, `paused`, `released`,
+`lost`); `GET /api/v1/cluster` carries a `compaction_pause` object with the
+requesting node, the reason, the expiry, `acks` and `pending_acks`;
+`POST /api/v1/compaction/trigger` answers `409` while a pause is in force, and
+a scheduled compaction tick inside one is skipped. Backups do not pause
+compaction, and there is no operator endpoint to pause it by hand.
 
 **What a cluster restore refuses.** `restore_metadata` defaults to `false` on a
 cluster and an explicit `true` is rejected with `400`: the SQLite holds
