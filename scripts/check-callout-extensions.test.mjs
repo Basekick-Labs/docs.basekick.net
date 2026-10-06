@@ -82,4 +82,9 @@ test('ignores Callout-looking text inside raw-text HTML elements', () => {
     hasCalloutJsx('<script>const example = "<Callout type=info>";</script>'),
     false,
   );
+  assert.equal(
+    hasCalloutJsx('<script>const example = "<Callout type=info>";'),
+    false,
+  );
+  assert.equal(hasCalloutJsx('<textarea><Callout type="info">'), false);
 });

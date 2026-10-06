@@ -13,7 +13,7 @@ export function hasCalloutJsx(source) {
     if (node.type === 'html') {
       const visibleHtml = node.value
         .replace(/<!--[\s\S]*?-->/g, '')
-        .replace(/<(script|style|textarea|title|xmp|iframe|noembed|noframes)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+        .replace(/<(script|style|textarea|title|xmp|iframe|noembed|noframes)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
         .replace(/<plaintext\b[^>]*>[\s\S]*$/i, '');
       if (/<Callout(?:\s|\/?>)/.test(visibleHtml)) return true;
     }
