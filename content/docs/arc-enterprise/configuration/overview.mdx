@@ -35,6 +35,20 @@ file_path = "/etc/arc/license.json"   # or ARC_LICENSE_FILE_PATH
 
 The file is verified from disk against Arc's pinned public key — no network calls of any kind. `file_path` wins over `key`; a rejected file means OSS mode (never a silent fallback to online licensing). Keep the file readable only by the Arc user (`0600`).
 
+## Scheduled edge sync (planned for 27.01.1)
+
+Network spokes configured with `edge_sync.spoke.enabled = true` also start a
+scheduler when a valid paid license is present. Every paid tier qualifies.
+`edge_sync.spoke.sync_interval` defaults to `5m`, and
+`edge_sync.spoke.sync_retry_interval` defaults to `30s`. Both must be at
+least one second; retry must be shorter than the normal interval. The
+corresponding environment variables are `ARC_EDGE_SYNC_SPOKE_SYNC_INTERVAL`
+and `ARC_EDGE_SYNC_SPOKE_SYNC_RETRY_INTERVAL`.
+
+See the [edge-sync guide](/arc/advanced/edge-sync/#scheduled-network-sync-planned-for-27011)
+for hub URL, identities, environment-only credentials, retry backoff, and
+metrics. Manual network sync and bundle export remain available in OSS.
+
 ## Configuration files
 
 ### Primary: arc.toml

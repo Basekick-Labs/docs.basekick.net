@@ -22,6 +22,19 @@ Every tier unlocks the full feature set. Tiers differ in capacity and in [suppor
 Until September 2026 the tiers were called Starter, Professional, and Enterprise. Arc log lines and the license server still report those internal names (`starter` is Tier I, `professional` is Tier II, `enterprise` is Tier III). Limits and prices did not change.
 </Callout>
 
+## Scheduled edge sync (planned for 27.01.1)
+
+The planned 27.01.1 release adds automatic network edge-sync replication to
+all paid tiers, including grace periods, alongside CQ and retention
+scheduling. Its entitlement is named `edge_sync_scheduler`. The license is
+required on the spoke running scheduled passes; manual sync and air-gap
+bundle export remain available without a license.
+
+Arc checks license validity at startup and on each scheduling tick. Existing
+valid licenses qualify without requiring this new string in their signed
+feature list. See [scheduled network sync](/arc/advanced/edge-sync/#scheduled-network-sync-planned-for-27011)
+for setup and behavior when a running node loses its license or writer role.
+
 ## Buying online
 
 Tier I and Tier II are sold directly at [basekick.net/enterprise/buy](https://basekick.net/enterprise/buy). Checkout runs on Stripe.

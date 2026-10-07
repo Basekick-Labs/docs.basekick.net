@@ -1,20 +1,23 @@
 ---
-title: "Automated Scheduling"
-description: "Run Arc Enterprise continuous queries and retention policies on cron schedules instead of manual API calls, and how the scheduler behaves across cluster nodes."
+title: "Automated scheduling"
+description: "Configure paid scheduling for Arc continuous queries and retention policies, plus planned 27.01.1 edge-sync replication, with license checks, cluster eligibility, and monitoring."
 ---
 
-Automatically execute continuous queries and retention policies on configurable schedules. Eliminate manual data lifecycle management and build efficient data pipelines.
+Run continuous queries and retention policies on configurable schedules. Built-in edge-sync replication scheduling is merged for the planned 27.01.1 release.
 
 ## Overview
 
 Arc OSS provides [continuous queries](/arc/data-lifecycle/continuous-queries/) and [retention policies](/arc/data-lifecycle/retention-policies/) with manual API-triggered execution. Arc Enterprise adds automatic scheduling — define your schedules once, and Arc handles execution automatically.
 
-**Two schedulers:**
+Scheduling requires a valid paid license in every tier, including grace periods. Manual edge sync and air-gap bundle export remain available in OSS.
 
-| Scheduler | Purpose | Default Schedule |
+**Schedulers:**
+
+| Scheduler | Purpose | Default schedule |
 |-----------|---------|-----------------|
-| **CQ Scheduler** | Runs continuous queries at their configured intervals | Per-CQ interval |
-| **Retention Scheduler** | Enforces retention policies on a cron schedule | Daily at 3am (`0 3 * * *`) |
+| **CQ scheduler** | Runs continuous queries at their configured intervals | Per-CQ interval |
+| **Retention scheduler** | Enforces retention policies on a cron schedule | Daily at 3am (`0 3 * * *`) |
+| **Edge-sync scheduler (planned 27.01.1)** | Replicates network spoke files to a hub | 5m after a complete pass; initial failure retry 30s |
 
 ## CQ scheduler
 
@@ -78,6 +81,25 @@ The schedule uses standard 5-field cron syntax: `minute hour day-of-month month 
 | `0 2 * * 0` | Weekly on Sunday at 2:00 AM |
 | `30 1 1 * *` | Monthly on the 1st at 1:30 AM |
 </Callout>
+
+## Edge-sync scheduler (planned for 27.01.1)
+
+A configured network spoke starts automatic replication when Arc starts with
+a valid paid license. `edge_sync.spoke.sync_interval` defaults to `5m`, and
+`edge_sync.spoke.sync_retry_interval` starts failure retries at `30s`, with
+exponential backoff capped at the normal interval. Both durations must be at
+least one second; retry must be shorter than the normal interval.
+
+The spoke checks licensing and primary-writer eligibility on every tick and
+cancels an active scheduled pass when eligibility is lost. Scheduled and
+manual passes cannot overlap; a busy manual request returns HTTP 409.
+Bundle export remains manual. A hub does not need a paid license simply to
+receive a licensed spoke's scheduled transfers.
+
+Use the [edge-sync configuration and monitoring reference](/arc/advanced/edge-sync/#scheduled-network-sync-planned-for-27011)
+for setup, environment overrides, retry behavior, and metrics. Edge sync uses
+these spoke-specific intervals; it is not configured through retention's
+cron setting or the CQ job API.
 
 ## Data lifecycle pipeline
 
