@@ -112,6 +112,7 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path). Defaults alongside the data. Outside the storage root, Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
+| `iceberg.orphan_sweep_enabled` | `ARC_ICEBERG_ORPHAN_SWEEP_ENABLED` | `true` | Delete manifest files that no retained metadata version references any more. This is the one thing the exporter deletes that nothing regenerates, so it has an off switch; set `false` and the manifests of expired snapshots are kept forever and copied into every backup. Arc logs a warning at startup when it is off. |
 
 ## Schema mapping
 
@@ -154,6 +155,7 @@ The conflict lives in the data, not in Iceberg, so fix it at the source: keep a 
 - **Eventual consistency.** The Iceberg view reflects the last reconcile pass, so it lags live ingest by up to `reconcile_interval`. This is expected for a lakehouse export.
 - **On-disk portability.** Iceberg metadata references files by absolute path. Tables read fine on the same host; moving a local table to a different path/host requires re-pointing (object-store warehouses avoid this).
 - **Catalog discovery.** Catalog-aware access works today via the SQLite catalog (PyIceberg) or by pointing engines at the table directory (DuckDB, Spark). Broad multi-engine *catalog* discovery (Trino, Glue) would use a REST/JDBC catalog in front of the warehouse — a deployment choice beyond v1.
+- **Metadata is bounded, not constant.** Each reconcile pass that removes a file writes new manifests and leaves the superseded ones behind, so the metadata directory grows with the removal history rather than with the data. Two mechanisms bound it, both automatic: the orphan sweep (above) deletes manifests no retained metadata version references, and a pass that finds a table at 12 or more data manifests merges them into one. Expect on the order of `retain_snapshots` commits' worth of `.avro` in a steady state. A table whose file set has stopped changing is skipped by the reconciler, so it keeps whatever manifest count it last had until something writes to it again.
 - **Clustered deployments.** Exactly one node must run the reconciler. Under the compactor failover lease this is guaranteed; in a static-role cluster, enable Iceberg export where a single compaction-capable node runs.
 
 ## Backup & restore
