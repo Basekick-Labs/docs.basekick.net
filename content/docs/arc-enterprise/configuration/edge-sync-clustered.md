@@ -1,5 +1,5 @@
 ---
-title: "Edge Sync with a Clustered Hub"
+title: "Edge sync with a clustered hub"
 description: "What changes when an edge sync hub is an Arc Enterprise cluster: which node accepts the import, how Raft forwards the manifest command, and pinning a stable import endpoint."
 ---
 
@@ -77,9 +77,21 @@ If a batch fails — a quorum loss, say — the import **aborts** rather than co
 
 Imports are serialized per node by a mutex. A second concurrent import returns `409` with `"reason": "import in progress"` rather than queuing behind the first — an import can legitimately run for hours, and a request hanging that long is indistinguishable from a dead hub.
 
+## Scheduling from a clustered spoke (planned for 27.01.1)
+
+Spoke scheduling is separate from hub routing. The planned 27.01.1 scheduler
+requires a valid paid license on the spoke and checks `IsPrimaryWriter()` on
+every tick. Demotion cancels its active scheduled pass on the next tick;
+a later tick can start a pass when eligibility returns. It uses the eligible
+node's local ledger and does not replicate that ledger.
+
+See [scheduled network sync](/arc/advanced/edge-sync/#scheduled-network-sync-planned-for-27011)
+for configuration and monitoring. Earlier releases require manual triggers
+or an external timer; manual sync remains available without a license.
+
 ## Failover
 
-Nothing in edge sync pins to a particular writer, so a writer failover needs no spoke-side change:
+For a failover on the **hub**, the spoke can keep the same URL if it points at a load balancer:
 
 - **Network** — if the spoke's `hub_url` points at a load balancer, the next pass simply lands on a healthy node. If it points at a specific node that goes down, the pass fails and retries on the next trigger; the ledger keeps its state, so nothing is lost or double-sent.
 - **Air gap** — if your designated import node is down, import on another node. You lose dedup and history *for that bundle*, per the table above; the data itself is correct.
@@ -90,4 +102,3 @@ Stated plainly so it is not a surprise:
 
 - **The received-files index and dedup ledger are node-local.** Replicating them would make any node a valid import target and give fleet-wide dedup. It is a candidate for a later release, not a defect — the current behaviour is safe, just node-scoped.
 - **There is no automatic reconciliation between the manifest and storage.** Orphaned manifest entries are logged, not self-healed.
-- **The scheduled sync agent is not in this release.** Passes are triggered manually; a cron job or a link-up hook on the spoke is the current answer.

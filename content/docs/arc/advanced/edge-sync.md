@@ -1,10 +1,10 @@
 ---
-title: "Edge Sync"
+title: "Edge sync"
 description: "Shipping Parquet files from an edge Arc spoke to a central hub over a network link or a signed air-gapped bundle, with resumable transfers and idempotent delivery."
 ---
 
 <Callout type="info" title="Available in v26.09.1+">
-Both sides ship in Arc **v26.09.1**, over two transports: a **network** link (spoke pushes to hub) and an **air gap** (a signed bundle carried on removable media, with a receipt on the return leg). Passes are **manual** in this release — you decide when one runs. The scheduled agent that runs them automatically is Enterprise and lands in a later release. See the limitations below.
+Network sync and signed air-gap bundles are available from **v26.09.1**. Manual sync and bundle export remain available without a license. Built-in network scheduling is merged for the **planned v27.01.1 release** and requires a valid paid license; see [Scheduled network sync](#scheduled-network-sync-planned-for-27011).
 </Callout>
 
 Arc runs at the edge: a single binary with local storage in a vehicle, a factory cell, a mine site, or a forward deployment. **Edge sync** ships the Parquet files it produces to a central Arc — the *hub* — so data collected somewhere with intermittent connectivity ends up somewhere you can query it.
@@ -192,7 +192,7 @@ If you run a hub on object storage over intermittent links, lower [`compaction.m
 
 These apply to the network path described above. The air-gap transport has its own, at the end of this page.
 
-- **Passes are manual.** A pass runs when you trigger one, via `POST /api/v1/spoke-sync/run` or a scheduler of your own (cron, a systemd timer, a link-up hook). The built-in scheduled agent is Enterprise and not in this release.
+- **Released versions before 27.01.1 use manual passes.** Trigger `POST /api/v1/spoke-sync/run` directly or through an external timer. Built-in network scheduling is planned for 27.01.1 and requires a valid paid license. Manual triggering remains available in OSS.
 - **Uploads are buffered, not streamed.** A transfer is bounded by `max_file_bytes` and held in memory for its duration.
 - **Abandoned partial uploads are not swept automatically.** The mechanism exists but is not yet scheduled, so a spoke that abandons transfers leaves staging files behind.
 - **Deleting a synced file from hub storage is reconciled lazily.** Reconcile confirms that files its index claims are still in storage, and forgets the ones that are gone, so a spoke re-sends them on the next pass. Note that a retention policy whose database matches a spoke's namespace **will** delete that spoke's files — the namespace is the spoke ID, and retention operates on whatever database name it is given.
@@ -259,6 +259,74 @@ curl -X POST https://edge.local:8000/api/v1/spoke-sync/run \
 A pass recovers transfers interrupted by a crash, discovers new files, reconciles the backlog in one round-trip, then streams what the hub lacks — **newest first**, so a contact window that closes mid-backlog has already delivered the freshest telemetry. It **pages until the backlog drains**: one pass on a spoke returning from a long outage moves everything, not just the first `batch_size` files.
 
 Files are hashed once at discovery and the ledger is on disk, so a spoke restarted mid-backlog neither re-hashes nor re-sends what already landed. **Nothing is deleted from the spoke** — sync is a copy, and local retention stays yours to configure.
+
+### Scheduled network sync (planned for 27.01.1)
+
+Built-in scheduling is merged for the planned **27.01.1** release. It follows
+the same entitlement as CQ and retention scheduling: any valid paid license,
+including its grace period. All four tiers qualify — Tier I / Starter,
+Tier II / Professional, Tier III / Enterprise, and Unlimited. The license is
+required on the **spoke** running the scheduler; licensing the hub alone does
+not enable it. See [Licensing](/arc-enterprise/licensing/).
+
+On a build containing this feature, configuring a network spoke and starting
+Arc with a valid paid license also starts its scheduler. Add these keys to
+the existing `[edge_sync.spoke]` section; keep its hub URL, identities, and
+credentials configured as above:
+
+```toml
+# Under the existing [edge_sync.spoke] section:
+sync_interval = "5m"
+sync_retry_interval = "30s"
+```
+
+Or override the intervals through the environment:
+
+```bash
+export ARC_EDGE_SYNC_SPOKE_SYNC_INTERVAL="5m"
+export ARC_EDGE_SYNC_SPOKE_SYNC_RETRY_INTERVAL="30s"
+```
+
+Both durations must be at least one second, and the retry interval must be
+shorter than the normal interval. The first pass starts after `sync_interval`;
+subsequent complete passes wait that interval after completion. Failures,
+partial transfers, and conflicts retry from `sync_retry_interval`, doubling
+up to `sync_interval`. A complete pass resets the backoff. Terminal failed or
+conflicted ledger entries still require the [remediation described below](#fixing-stuck-entries).
+
+The scheduler rechecks license validity and primary-writer eligibility on
+every tick. If either is lost, the next tick cancels an active scheduled pass.
+A running scheduler resumes when eligibility returns. A node started without
+a valid license keeps manual sync; configure a valid license and restart to
+enable scheduling. Scheduled work is cancelled and joined during shutdown
+before the ledger closes.
+
+Manual and scheduled passes share an overlap guard: a busy manual request
+returns **409 Conflict**, and an overlapping scheduled attempt is skipped.
+A failed delivery does not release the compaction defer gate. Air-gap bundle
+export remains manual, including on paid deployments; a bundle-only spoke
+never starts the network scheduler.
+
+#### Monitoring scheduled sync
+
+On a node whose scheduler started, `/metrics` exposes:
+
+| Prometheus metric | Meaning |
+|---|---|
+| `arc_edgesync_spoke_scheduler_enabled` | `1` when the scheduler has been started; this is not a hub-health or current-license-validity check |
+| `arc_edgesync_spoke_last_success_timestamp_seconds` | Last complete scheduled pass with validated hub contact; `0` before the first such pass |
+| `arc_edgesync_spoke_pass_failures_total` | Failed or incomplete scheduled passes |
+
+The JSON `/api/v1/metrics` snapshot uses `edge_sync_spoke_scheduler_enabled`,
+`edge_sync_spoke_last_success_timestamp_seconds`, and
+`edge_sync_spoke_pass_failures_total`. These metrics are absent if scheduling
+never started, including unlicensed and bundle-only nodes.
+
+An empty backlog makes no hub request and does not advance last success.
+Partial transfers and conflicts cannot report success. Overlap skips,
+license or role cancellations, and shutdown do not increment the failure
+counter. Combine these metrics with `/api/v1/spoke-sync/status` and the ledger
+to distinguish an idle spoke from a backlog that needs attention.
 
 ### When a tracked file vanishes before delivery
 
@@ -357,7 +425,7 @@ curl -X POST https://edge.local:8000/api/v1/spoke-sync/export \
 }
 ```
 
-Optional `"limit": N` caps one bundle below `max_files`. A spoke with nothing new returns `{"exported": false, "reason": "nothing to export"}` — not an error, so a scheduled export does not look broken when the backlog is drained.
+Optional `"limit": N` caps one bundle below `max_files`. A spoke with nothing new returns `{"exported": false, "reason": "nothing to export"}` — not an error. An external export timer can treat this as an empty backlog; built-in bundle export remains manual.
 
 ### What a bundle looks like
 
