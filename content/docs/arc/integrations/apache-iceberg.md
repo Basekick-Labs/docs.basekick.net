@@ -26,8 +26,8 @@ Arc's Iceberg export is a background **reconciler** that registers Arc's **exist
 
 1. Arc ingests as usual, writing Parquet under `{database}/{measurement}/{Y}/{M}/{D}/{H}/`.
 2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set.
-3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**. A file that the row-level delete API rewrote in place (same path, fewer rows) is re-registered in that same commit, so its record count and size in the Iceberg manifest follow the rewrite.
-4. Old snapshots are expired on a retention policy so metadata stays bounded.
+3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**. Since 27.01.1 the row-level delete API publishes a rewritten file under a fresh path rather than replacing the original in place, so a partial delete reaches the table as a normal add-and-remove.
+4. Old snapshots are expired on a retention policy so metadata stays bounded. A pass that removes any file expires **all** older snapshots, because they reference files Arc has deleted — see [Time travel](#time-travel) below.
 
 Because the reconciler is driven by what's actually on storage (not a transient event stream), it is **self-healing**: a missed or failed pass simply converges on the next tick. Measurements whose file set hasn't changed since the last pass are skipped entirely, so steady state is cheap.
 
@@ -108,7 +108,7 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 |---|---|---|---|
 | `iceberg.enabled` | `ARC_ICEBERG_ENABLED` | `false` | Enable the export reconciler. |
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
-| `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. |
+| `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path). Defaults alongside the data. Outside the storage root, Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
@@ -147,6 +147,37 @@ column "value" type mismatch: Iceberg table has long, new Parquet files have dou
 The Iceberg table is left untouched and stays readable at its last good state, and your other measurements keep exporting normally — one bad measurement never blocks the rest. Arc retries on every reconcile pass, so once the underlying type conflict is resolved the measurement recovers on its own without a restart.
 
 The conflict lives in the data, not in Iceberg, so fix it at the source: keep a measurement's column type stable, or write the new type under a different column or measurement name.
+
+## Time travel
+
+**Arc does not support Iceberg time travel across compaction, retention or a partial DELETE.** Reading the current snapshot is fully supported; reading an older one is only sound while nothing has removed a file since.
+
+The reason is a genuine conflict rather than an omission. Iceberg copy-on-write keeps a superseded data file alive until the snapshots that reference it expire. Arc cannot: it reads a partition with a glob over every Parquet file in it, so a superseded file left in place would be counted twice by every ordinary query. Arc therefore deletes the file, and the snapshots naming it stop being readable.
+
+So that a reader gets a meaningful error rather than one that looks like data loss, a reconcile pass that removes any file now expires every older snapshot. Time travel to one returns:
+
+```
+Invalid Configuration Error: Could not find snapshot with id 873009943563408273
+```
+
+which is the ordinary result of any Iceberg retention policy, instead of:
+
+```
+IO Error: Cannot open file ".../cpu_20261008_155058_567682000.parquet": No such file or directory
+```
+
+which is indistinguishable from the object store having lost an object. No readable history is lost by this: a removed file is referenced by every snapshot from the one that added it onward, so each of those had already stopped working.
+
+What this means in practice: compaction runs hourly by default, so on an actively-ingesting measurement expect history to be one snapshot deep most of the time. A measurement that only ever gains files keeps `retain_snapshots` of genuinely readable history, because nothing has been removed.
+
+Two edges worth knowing:
+
+- The expiry applies to `version-hint.text`, which is how directory-based readers resolve the table. Arc also keeps `retain_snapshots + 1` older `v<N>.metadata.json` copies for readers that pin a version, and those still list the pre-expiry snapshots — a consumer reading one directly still gets the `IO Error` until the copy is pruned, roughly `retain_snapshots` passes later.
+- On a deployment upgrading into this behaviour, a table's stale history is cleaned by its next pass that removes something. A table whose file set has gone quiet is skipped by the reconciler, so it keeps the old snapshot list until it changes again.
+
+A pass that expires history this way logs at `warn` with the snapshot counts before and after.
+
+If you need reproducible reads of historical state, snapshot the query results rather than the table, or use Arc's backup and restore.
 
 ## Limitations (v1)
 
