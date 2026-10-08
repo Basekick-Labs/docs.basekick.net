@@ -50,7 +50,14 @@ migration_schedule = "0 2 * * *"     # Cron: run at 2am daily
 migration_max_concurrent = 4          # Parallel file transfers
 migration_batch_size = 100            # Files per migration batch
 default_hot_max_age_days = 30         # Data older than this moves to cold
+scan_timeout = "2h"                   # Budget for one tier scan
 ```
+
+`scan_timeout` bounds **one** tier scan on every path that runs one: the scan at startup, `POST /api/v1/tiering/scan`, and the pre-migration scan inside a migration cycle or `POST /api/v1/tiering/migrate`. Before v27.01.1 the first two were capped at 30 minutes with no way to change it, while a cycle gave its scan the cycle's own 2 hours ([arc#1154](https://github.com/Basekick-Labs/arc/issues/1154)).
+
+Inside a cycle the scan runs on a budget derived from the cycle's, so it gets whichever of the two is shorter and migration keeps the remainder. At the default the two are equal and the derivation changes nothing; setting `scan_timeout` above 2 hours is harmless because the cycle still bounds the scan.
+
+Setting it **below** the time a full scan takes is harmful rather than conservative. Hot-row retirement runs only after the whole walk, so a scan that always truncates never retires a row for a file that has left hot storage — and a measurement whose remaining rows are all cold drops that node's local files from reads. Size it from how long a full scan takes on your storage root, which scales with the number of objects under it rather than their size. Zero, negative and malformed durations are refused at startup.
 
 ### Cold tier backend
 
@@ -269,6 +276,64 @@ curl -X POST http://localhost:8000/api/v1/tiering/scan \
 ```
 
 The scan brings the node's tier metadata in line with storage. Every migration cycle runs the same pass first, and since 26.09.3 every node runs it once at startup too, in the background, so files that arrived while the node was down — or were already on disk when upgrading — have rows as soon as the node is up; the log line `Startup tier scan completed` carries the same counts. It lists the hot tier and accounts for every hot file (`files_registered`; files whose row already says cold count as `files_skipped`), writing a row only where one is missing or out of date (`hot_rows_written`, zero on a node whose rows already match its disk), and it retires the rows of hot files that are no longer in hot storage (`hot_retired`) — what compaction leaves behind once it has consumed a measurement's raw files — after a five-minute grace period and a check that the file really is gone, so a file flushed or pulled while the scan runs is never retired. Cold rows are never touched. Without that retirement, a measurement whose files had all moved to cold kept an empty hot tier in every read, and a query without a time range on it returned no rows. In a cluster the scan also records the files other nodes moved to cold as `cold_synced`, and reports `"cold_sync_failed": true` when the cold tier could not be listed; see [Clusters and shared storage](#clusters-and-shared-storage).
+
+#### When a scan runs out of its budget
+
+A scan bounded by `scan_timeout` can stop part way, and from v27.01.1 it says so rather than looking like a clean pass ([arc#1154](https://github.com/Basekick-Labs/arc/issues/1154)). The rows it wrote before stopping are real; what it has **not** done is retire any stale hot row, because retirement runs only after the whole walk.
+
+`POST /api/v1/tiering/scan` answers `503 Service Unavailable` with the counts it reached:
+
+```json
+{
+  "error": "The tier scan ran out of its budget and stopped part way",
+  "message": "The rows below were written, but the scan is incomplete and no stale hot rows were retired. Raise tiered_storage.scan_timeout above the time a full scan takes on this node.",
+  "result": {
+    "files_scanned": 25974,
+    "files_registered": 25974,
+    "files_skipped": 0,
+    "errors": 0,
+    "cold_synced": 0,
+    "hot_retired": 0,
+    "hot_rows_written": 25974,
+    "truncated": true
+  }
+}
+```
+
+Before v27.01.1 the same case returned `500` with `context deadline exceeded` and no counts at all. A scan cancelled because the node is shutting down also answers `503`, with its own message — that one is not a budget problem and raising `scan_timeout` will not help it.
+
+The **startup** scan has no response to carry any of this, so `GET /api/v1/tiering/status` reports the last scan this node ran:
+
+```json
+{
+  "last_scan": {
+    "files_scanned": 15738,
+    "files_registered": 15738,
+    "files_skipped": 0,
+    "errors": 0,
+    "cold_synced": 0,
+    "hot_retired": 0,
+    "hot_rows_written": 15738,
+    "truncated": true
+  },
+  "last_scan_at": "2026-10-08T20:40:33.880463Z"
+}
+```
+
+`"truncated": true` there means this node's tier rows are incomplete and no stale hot row was retired, which costs it partition pruning until a scan completes. Read it rather than calling the scan endpoint to find out, because calling that endpoint starts a scan.
+
+#### Only one scan at a time
+
+A second `POST /api/v1/tiering/scan` while one is running is refused with `409 Conflict` rather than starting a parallel scan:
+
+```json
+{
+  "error": "A tier scan is already running on this node",
+  "message": "Wait for it to finish and read its result from GET /api/v1/tiering/status, which reports the last scan."
+}
+```
+
+The endpoint is synchronous and a scan over a large storage root can take a while, and Arc does not learn that a client disconnected — so without this an operator who gave up on a slow scan and retried would have started another full one over the same storage root, against the same metadata database, each invalidating the tier cache the query path reads. A scan inside a migration cycle is deliberately **not** refused: the cycle must scan before it migrates, or it would migrate from stale rows.
 
 ### Get migration statistics
 
