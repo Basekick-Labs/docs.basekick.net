@@ -167,7 +167,7 @@ ARC_BACKUP_TARGETS_AUDIT_DATABASES=audit,compliance
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/v1/backup` | Trigger a backup (async): the whole instance, or the databases named in `databases` (27.01.1+) |
-| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them, `scope` for a database-scoped backup, `cold_files_excluded` when tiered storage had migrated files out of hot storage, and `targets`/`partial_view`/`unreachable_targets` for a backup split across destinations |
+| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them, `scope` for a database-scoped backup, `cold_files` and `cold_files_excluded` when tiered storage is in play, and `targets`/`partial_view`/`unreachable_targets` for a backup split across destinations |
 | `GET` | `/api/v1/backup/status` | Progress of active operation |
 | `GET` | `/api/v1/backup/:id` | Get backup manifest; adds a `targets` array with each destination's own counts when the backup was split across more than one |
 | `DELETE` | `/api/v1/backup/:id` | Delete a backup |
@@ -555,63 +555,100 @@ curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c
 
 Deletion is refused with `409 Conflict` while a backup or restore is running -- deleting the backup a restore is reading would tear files out from under it. Retry once the operation finishes.
 
-## Tiered storage: what a backup leaves out
+## Tiered storage: the cold tier in a backup
 
-A backup copies **hot** storage. With
-[tiered storage](/docs/arc-enterprise/data-lifecycle/tiered-storage) on, whatever has been
-migrated to the cold tier is not in the backup -- and from 27.01.1 the manifest
-says how much:
+A backup **carries the cold tier** (27.01.1+). With
+[tiered storage](/docs/arc-enterprise/data-lifecycle/tiered-storage) on and a cold
+backend this node can read, the backup copies migrated objects alongside hot
+files, and a restore puts each file back on the tier it came from. Earlier
+releases copied hot storage only.
+
+Cold files are counted in `total_files`, `total_size_bytes` and the
+per-database inventory like any other data. Two extra fields say how much of it
+came from cold:
 
 ```json
 {
   "backup_id": "backup-20261007-141500",
   "total_files": 1400,
-  "cold_files_excluded": 412,
-  "cold_files_excluded_databases": { "audit": 400, "metrics": 12 }
+  "cold_files": 412,
+  "cold_size_bytes": 8830452192
 }
 ```
 
-`cold_files_excluded_databases` breaks the total down per database, because a
-single number does not tell you which database has data the backup is missing.
-The figure also appears in the backup listing, per target in `GET
-/api/v1/backup/:id` (so you can see which destination holds the gap if you
-route databases to different targets), and in a warning the restore logs:
+The per-file tier lives in the backup's `manifest-files.json` sidecar, which is
+what a restore reads; `cold_files` is the aggregate for an operator.
 
-```
-WARN The backup being restored did not carry these cold-tier files: a backup
-     copies hot storage only ... backup_cold_files_excluded=412
-```
+### What a backup reports about the cold tier
 
-Three things to know:
+| Field | Meaning |
+|---|---|
+| `cold_files`, `cold_size_bytes` | files read from the cold tier, and their total size |
+| `cold_files_excluded` | tier rows whose data this backup does **not** carry, with `cold_files_excluded_databases` as the per-database breakdown |
+| `cold_objects_unrecorded` | cold objects the listing returned that this node holds no tier row for. They **are** in the backup -- the listing is the authority on what exists -- and the count is a report about the node's metadata, not about the backup |
+| `cold_dedup_skipped` | paths found in both listings, where the cold copy was taken and the hot one dropped. One path, one copy, one sidecar row |
+| `cold_rows_stale_but_hot` | rows that say cold, have no cold object, and whose file the backup carried from hot storage anyway. Not a gap -- the data is in the backup -- but a metadata disagreement worth seeing |
 
-- **It blocks nothing.** In particular a replace-mode restore of a partly-cold
-  backup still succeeds. Replace refuses to run from a backup that is
-  *incomplete*, but a cold-tier object is not something the backup failed to
-  get -- it is something no backup carries yet, and replace cannot delete it
-  either, because replace deletes through the cluster file manifest and a
-  migrated file has already left it.
-- **It is the reporting node's view.** The count comes from that node's tier
-  metadata. On a cluster where one node migrates and the others learn about it
-  through the cold-tier metadata sync, a node whose sync has not run yet
-  reports a lower number -- so take the backup on the primary writer for the
-  full figure.
-- **The cold tier itself is not backed up yet.** Until it is,
-  `cold_files_excluded` is how you size what a restore from this backup would
-  not bring back. The cold objects are untouched and still readable where they
-  are.
+`cold_files_excluded` means the same thing in both configurations, which is
+why it reads differently depending on yours:
 
-The field is absent in four cases, which the JSON cannot tell apart: tiering is
-off, nothing has been migrated, the count could not be taken (the backup still
-completes and a warning names the failure), and **this node has no
+- **with a readable cold tier**, the backup carries the cold objects, so the
+  only rows it cannot carry are those whose object is **missing from the cold
+  store** -- data that is genuinely gone;
+- **with no cold tier on this node**, every cold row qualifies, which is what
+  the field meant when it was introduced.
+
+It blocks nothing, and joins no refusal: a replace-mode restore of a
+partly-cold backup still succeeds.
+
+<Callout type="warn" title="A backup only ever sees this node">
+Every cold figure comes from the node taking the backup -- its tier metadata
+and its cold listing. On a cluster where one node migrates and the others learn
+about it through the cold-tier metadata sync, a node whose sync has not run
+reports fewer cold files, without an error. Take the backup on the primary
+writer.
+</Callout>
+
+The cold fields are absent in four cases, which the JSON cannot tell apart:
+tiering is off, nothing has been migrated, the figure could not be taken (the
+backup still completes and a warning names the failure), and **this node has no
 tiered-storage licence**.
 
 <Callout type="warn" title="An absent field is not proof nothing was migrated">
 Tiered storage is licence-gated at startup, so a node without the licence
-reports no `cold_files_excluded` at all -- even though its cold objects and
-tier metadata are still there and its migrations have stopped. That is exactly
-the deployment where the marker would help most. A licence that lapses while
+reports no cold fields at all -- even though its cold objects and tier metadata
+are still there and its migrations have stopped. A licence that lapses while
 Arc is running keeps reporting; the next restart goes quiet.
 </Callout>
+
+## Restoring a backup that holds cold files
+
+A restore puts each file back on the tier the sidecar recorded, and writes the
+tier row that makes it queryable -- no manual tiering scan is needed. What
+happens to a cold-tier file depends on the node you restore onto:
+
+| Field on `/status` | Meaning |
+|---|---|
+| `cold_files_restored_to_cold` | put back in this node's cold tier with its tier row recorded |
+| `cold_files_restored_to_hot` | the backup read these from cold and this node has **no** cold tier (or has one configured but disabled), so they landed in hot storage and their rows were moved to hot. The data is here and queryable -- it is simply all hot now |
+| `cold_restore_quarantine_skipped` | the bytes were written, but the path's tier row is quarantined and was left alone. Those files are not queryable until an operator clears the quarantine |
+| `cold_rows_not_recorded` | the bytes reached the cold store but the tier row could not be written. Same unqueryable outcome, different cause |
+| `backup_cold_files_excluded` | mirrors the restored backup's own `cold_files_excluded`, so you can tell data the backup never held from data the restore lost |
+
+<Callout type="warn" title="Restore on the primary writer when the backup holds cold files">
+A restored cold file is stamped as migrated now, deliberately, so that any
+stale hot copy at the same key falls inside the orphan-reconciliation window
+and gets cleaned up. That cleanup is **role gated** -- it runs on the primary
+writer -- while a restore is not, so a restore performed on a follower writes
+rows whose cleanup never runs on that node, and those rows live in that node's
+own metadata.
+</Callout>
+
+If `cold_rows_not_recorded` is non-zero, the files it counts are in the cold
+store and unreadable until a row exists. On a cluster with shared storage or
+replication the cold-tier metadata sync writes those rows on its next cycle. On
+a standalone node, or a cluster without either, **nothing writes them later** --
+re-run the restore.
 
 ## Key behaviors
 
@@ -623,7 +660,7 @@ Arc is running keeps reporting; the next restart goes quiet.
 - **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), Iceberg table metadata when Iceberg export is enabled, and `arc.toml` config. A backup scoped with `databases` holds only those databases' data files, schema anchors and compaction state (27.01.1+).
 - **Iceberg warehouse outside the storage root** -- its metadata is restored into this node's configured `iceberg.warehouse` whenever `restore_data` or `restore_metadata` is set. The Iceberg catalog stores absolute paths, so the target node's `iceberg.warehouse` must be the same path the backup was taken from (a symlink to it works); a node with no such warehouse skips those files and reports them as `iceberg_warehouse_files_skipped` on the status endpoint. Restart promptly after a restore that includes Iceberg: the catalog snapshot is applied on the next start, and a reconciler still running on the old catalog can expire metadata the restore just wrote.
 - **Clusters** -- Iceberg export runs on one node; a backup taken on any other node carries no Iceberg catalog or warehouse.
-- **Cold-tier files are not backed up** -- a backup copies hot storage; `cold_files_excluded` on the manifest counts what tiered storage had migrated out of it (27.01.1+). See [Tiered storage: what a backup leaves out](#tiered-storage-what-a-backup-leaves-out).
+- **The cold tier is backed up** (27.01.1+) -- a backup carries migrated objects alongside hot files and a restore puts each one back on the tier it came from, with the tier row that makes it queryable. `cold_files` counts what came from cold; `cold_files_excluded` counts tier rows whose data the backup could not carry. See [Tiered storage: the cold tier in a backup](#tiered-storage-the-cold-tier-in-a-backup).
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
 
 ## Error responses
