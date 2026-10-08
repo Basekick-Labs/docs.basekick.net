@@ -19,6 +19,147 @@ All backup and restore endpoints require admin authentication.
 [backup]
 enabled = true                  # default: true
 local_path = "./data/backups"   # default: ./data/backups
+# operation_timeout = "2h"      # 27.01.1+; how long one backup or restore may run
+```
+
+<Callout type="warn" title="Breaking on upgrade to 27.01.1">
+Arc now refuses to start when the backup destination overlaps primary storage
+or the tiered-storage cold tier. With no target configured the destination is
+`local_path`, so a deployment whose `local_path` sits inside
+`storage.local_path` -- or whose `storage.local_path` is a parent of it, such
+as `./data` -- boots today and will not boot after the upgrade. An empty
+`local_path` with no target is refused too, where it used to boot with the
+backup API quietly skipped. The defaults above are disjoint and are
+unaffected.
+</Callout>
+
+## Destinations
+
+By default a backup is written to the local directory in `local_path`. From
+27.01.1 a **target** makes the destination configurable, and it may be remote.
+
+```toml
+[backup]
+enabled = true
+default_target = "main"         # local_path above is then ignored entirely
+
+[backup.targets.main]
+type = "local"                  # local, s3, minio, azure or azblob
+local_path = "/srv/arc-backups"
+```
+
+With `default_target` set, `local_path` is not used and the directory is not
+even created. An S3 target instead:
+
+```toml
+[backup.targets.main]
+type = "s3"
+s3_bucket = "acme-arc-backups"
+s3_prefix = "arc/backups"
+s3_region = "us-east-1"
+s3_endpoint = ""                # set for MinIO/SeaweedFS
+s3_use_ssl = true
+s3_path_style = false           # required for MinIO
+# prefer the environment for credentials:
+#   ARC_BACKUP_TARGETS_MAIN_S3_ACCESS_KEY
+#   ARC_BACKUP_TARGETS_MAIN_S3_SECRET_KEY
+```
+
+Azure Blob Storage takes `azure_container` and `azure_prefix` with
+`type = "azure"`.
+
+### A different target per database
+
+A target that carries `databases` receives those databases; everything else
+goes to `default_target`. One compliance database can therefore land in its own
+bucket while the rest of the instance goes somewhere cheaper.
+
+```toml
+[backup]
+default_target = "main"
+
+[backup.targets.main]           # the DEFAULT: everything unrouted goes here
+type = "local"
+local_path = "/srv/arc-backups"
+
+[backup.targets.audit]          # a ROUTED target: it carries `databases`
+type = "s3"
+databases = ["audit", "compliance"]
+s3_bucket = "acme-arc-audit-backups"
+s3_prefix = "arc/backups"
+s3_region = "us-east-1"
+```
+
+The names are storage-root segments, exactly as a [scoped
+backup](#scoping-a-backup-to-databases) names them, so an edge-sync spoke is
+named as the **spoke**: `["prod"]` does not mean `spoke1/prod`. Only the comma
+separates names -- a database name may contain a space, so
+`databases = "my db"` is one name and `databases = ["a", "b"]` is two.
+
+A database goes to exactly one target; naming it on two is refused at startup.
+Naming databases on `default_target` is allowed and does nothing, since
+everything unrouted goes there already.
+
+What a routed backup looks like on the wire:
+
+- one manifest and one file sidecar **per target**, each describing its own
+  slice and each naming the whole run, plus an index at
+  `<backup_id>/index.json` on the default target naming every target the run
+  touched;
+- the listing returns **one entry per backup id**, with `targets` naming every
+  destination holding a slice of it. A target that will not answer is named in
+  `unreachable_targets`, `partial_view` says the counts are summed over fewer
+  legs than `targets` names, and the rest of the listing still answers;
+- `GET /api/v1/backup/:id` adds a `targets` array with each leg's own counts;
+- a delete sweeps every target, and can report partial success;
+- a restore reads **every** target of the run and refuses before writing
+  anything if one of them is not configured, will not answer, or holds no
+  manifest for the id. Restoring only the reachable part would report success
+  over a set it did not restore.
+
+Instance-wide state always goes to `default_target` whatever the routing says,
+because it belongs to no one database: the SQLite database, the Iceberg SQL
+catalog and table metadata, and `arc.toml`. A database's own field schema
+anchors and compaction recovery state do travel with its data to its target.
+
+### Rules Arc enforces at startup
+
+- **A destination may not overlap primary storage, the cold tier, or another
+  backup target.** A destination inside the storage root is inventoried by the
+  next backup, so each backup copies the previous one in full; two targets that
+  contain one another are one listing, so deleting one backup id would reach
+  both. The same applies to a prefix that is a parent of, or sits under,
+  another, and every spelling of one endpoint counts as one store -- leaving
+  `s3_endpoint` empty for AWS on one side and writing out
+  `s3.us-east-1.amazonaws.com` on the other does not make them two places. One
+  bucket with **disjoint prefixes** is fine and is the intended shape.
+- **Target names are letters, digits and underscore only, and are lowercased.**
+  The rule that matters is the hyphen: it cannot appear in an environment
+  variable name, so a hyphenated target could be set in the file and never
+  afterwards overridden from the environment -- which is how a credential stays
+  in a config file for good. `audit-bucket` is refused; `audit_bucket` is not.
+- **A target nothing is routed to is inert**, and a warning at startup names
+  it. Not a refusal, because adding the target block and its `databases` in
+  separate commits is ordinary.
+- **With any remote target configured, `include_config` defaults to `false`**
+  for every backup -- not only when the *default* target is remote, because
+  `arc.toml` carries every target's credentials. A request may ask for it
+  explicitly and is warned, naming every remote target whose keys the backup
+  then carries.
+
+### From the environment alone
+
+With nothing in the file, a target takes one extra variable, because a name
+cannot be discovered from a map that does not exist:
+
+```bash
+ARC_BACKUP_TARGET_NAMES=main,audit
+ARC_BACKUP_DEFAULT_TARGET=main
+ARC_BACKUP_TARGETS_MAIN_TYPE=s3
+ARC_BACKUP_TARGETS_MAIN_S3_BUCKET=acme-arc-backups
+ARC_BACKUP_TARGETS_AUDIT_TYPE=s3
+ARC_BACKUP_TARGETS_AUDIT_S3_BUCKET=acme-arc-audit-backups
+ARC_BACKUP_TARGETS_AUDIT_DATABASES=audit,compliance
 ```
 
 ## API endpoints
@@ -26,9 +167,9 @@ local_path = "./data/backups"   # default: ./data/backups
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/v1/backup` | Trigger a backup (async): the whole instance, or the databases named in `databases` (27.01.1+) |
-| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them, and `scope` for a database-scoped backup |
+| `GET` | `/api/v1/backup` | List all available backups; an entry carries `skipped_files`, `skipped_metadata_files` and `unaddressable_files` when the backup's manifest has them, `scope` for a database-scoped backup, `cold_files_excluded` when tiered storage had migrated files out of hot storage, and `targets`/`partial_view`/`unreachable_targets` for a backup split across destinations |
 | `GET` | `/api/v1/backup/status` | Progress of active operation |
-| `GET` | `/api/v1/backup/:id` | Get backup manifest |
+| `GET` | `/api/v1/backup/:id` | Get backup manifest; adds a `targets` array with each destination's own counts when the backup was split across more than one |
 | `DELETE` | `/api/v1/backup/:id` | Delete a backup |
 | `POST` | `/api/v1/backup/restore` | Restore from a backup (async) |
 
@@ -414,6 +555,64 @@ curl -X DELETE "http://localhost:8000/api/v1/backup/backup-20260211-143022-a1b2c
 
 Deletion is refused with `409 Conflict` while a backup or restore is running -- deleting the backup a restore is reading would tear files out from under it. Retry once the operation finishes.
 
+## Tiered storage: what a backup leaves out
+
+A backup copies **hot** storage. With
+[tiered storage](/docs/arc-enterprise/data-lifecycle/tiered-storage) on, whatever has been
+migrated to the cold tier is not in the backup -- and from 27.01.1 the manifest
+says how much:
+
+```json
+{
+  "backup_id": "backup-20261007-141500",
+  "total_files": 1400,
+  "cold_files_excluded": 412,
+  "cold_files_excluded_databases": { "audit": 400, "metrics": 12 }
+}
+```
+
+`cold_files_excluded_databases` breaks the total down per database, because a
+single number does not tell you which database has data the backup is missing.
+The figure also appears in the backup listing, per target in `GET
+/api/v1/backup/:id` (so you can see which destination holds the gap if you
+route databases to different targets), and in a warning the restore logs:
+
+```
+WARN The backup being restored did not carry these cold-tier files: a backup
+     copies hot storage only ... backup_cold_files_excluded=412
+```
+
+Three things to know:
+
+- **It blocks nothing.** In particular a replace-mode restore of a partly-cold
+  backup still succeeds. Replace refuses to run from a backup that is
+  *incomplete*, but a cold-tier object is not something the backup failed to
+  get -- it is something no backup carries yet, and replace cannot delete it
+  either, because replace deletes through the cluster file manifest and a
+  migrated file has already left it.
+- **It is the reporting node's view.** The count comes from that node's tier
+  metadata. On a cluster where one node migrates and the others learn about it
+  through the cold-tier metadata sync, a node whose sync has not run yet
+  reports a lower number -- so take the backup on the primary writer for the
+  full figure.
+- **The cold tier itself is not backed up yet.** Until it is,
+  `cold_files_excluded` is how you size what a restore from this backup would
+  not bring back. The cold objects are untouched and still readable where they
+  are.
+
+The field is absent in four cases, which the JSON cannot tell apart: tiering is
+off, nothing has been migrated, the count could not be taken (the backup still
+completes and a warning names the failure), and **this node has no
+tiered-storage licence**.
+
+<Callout type="warn" title="An absent field is not proof nothing was migrated">
+Tiered storage is licence-gated at startup, so a node without the licence
+reports no `cold_files_excluded` at all -- even though its cold objects and
+tier metadata are still there and its migrations have stopped. That is exactly
+the deployment where the marker would help most. A licence that lapses while
+Arc is running keeps reporting; the next restart goes quiet.
+</Callout>
+
 ## Key behaviors
 
 - **Async operations** -- backup and restore run in background goroutines with a 2-hour timeout. Clients poll `/status` for progress.
@@ -424,6 +623,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 - **What gets backed up** -- parquet data files, SQLite database (with WAL checkpoint for consistency), Iceberg table metadata when Iceberg export is enabled, and `arc.toml` config. A backup scoped with `databases` holds only those databases' data files, schema anchors and compaction state (27.01.1+).
 - **Iceberg warehouse outside the storage root** -- its metadata is restored into this node's configured `iceberg.warehouse` whenever `restore_data` or `restore_metadata` is set. The Iceberg catalog stores absolute paths, so the target node's `iceberg.warehouse` must be the same path the backup was taken from (a symlink to it works); a node with no such warehouse skips those files and reports them as `iceberg_warehouse_files_skipped` on the status endpoint. Restart promptly after a restore that includes Iceberg: the catalog snapshot is applied on the next start, and a reconciler still running on the old catalog can expire metadata the restore just wrote.
 - **Clusters** -- Iceberg export runs on one node; a backup taken on any other node carries no Iceberg catalog or warehouse.
+- **Cold-tier files are not backed up** -- a backup copies hot storage; `cold_files_excluded` on the manifest counts what tiered storage had migrated out of it (27.01.1+). See [Tiered storage: what a backup leaves out](#tiered-storage-what-a-backup-leaves-out).
 - **All storage backends** -- works with local filesystem, S3, and Azure Blob Storage.
 
 ## Error responses
