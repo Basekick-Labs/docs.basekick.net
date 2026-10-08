@@ -182,6 +182,8 @@ max_concurrent = 2    # Run 2 compactions in parallel (default)
 # max_concurrent = 1    # Sequential (lower resource usage)
 ```
 
+This knob also divides the per-subprocess memory and thread budgets below, so raising it does not multiply Arc's total compaction resource use — it splits it further. That is deliberate: a raised `max_concurrent` gets you more jobs in flight, not more CPU and RAM.
+
 #### Memory limit and threads (per subprocess)
 
 <Callout type="info" title="Available in v26.09.1+">
@@ -209,7 +211,13 @@ Env vars: `ARC_COMPACTION_MEMORY_LIMIT`, `ARC_COMPACTION_THREADS`.
   Worth knowing what that bounds: it caps the **subprocesses'** combined budget at roughly one share, but the main process still takes the engine's own 80% of the whole cgroup, so the worst-case total is around 133% of the container at the default concurrency. These are mostly spill thresholds rather than reservations, so that is tolerable — but if you are tight on memory, set `database.memory_limit` explicitly and size it with compaction in mind.
 
   One sharp edge at small sizes: below roughly 85 MB the engine stops spilling and raises an out-of-memory error instead. A 256 MiB container at the default `max_concurrent = 2` derives about 68 MiB, which is inside that range. Compaction treats the failure as recoverable and halves its batch with a warning rather than crashing, so it is visible in the log — but such a container will make no compaction progress. Raise the container's memory or lower `max_concurrent`.
-- `threads` defaults to half the CPUs Arc may actually use (minimum 1), so the default two concurrent jobs together use about one process's worth of cores, leaving headroom for ingest and queries. "May actually use" means the container's CPU quota where there is one and the machine's core count where there is not — before v26.09.3 it was always the host's core count, so a 2-CPU pod on a 64-core node gave every job 32 threads ([arc#1030](https://github.com/Basekick-Labs/arc/issues/1030)). An explicit value is untouched.
+- `threads` defaults to the CPUs Arc may actually use divided by `max(2, max_concurrent)`, minimum 1. "May actually use" means the container's CPU quota where there is one and the machine's core count where there is not — before v26.09.3 it was always the host's core count, so a 2-CPU pod on a 64-core node gave every job 32 threads ([arc#1030](https://github.com/Basekick-Labs/arc/issues/1030)). The derivation reads one number and does not distinguish a quota from a cpuset or an explicitly set `GOMAXPROCS`.
+
+  **The divisor tracks `max_concurrent` only from v27.01.1.** Before that it was always 2, which hardcoded the default concurrency: raising `max_concurrent` gave you that many subprocesses each still claiming half the cores, so `max_concurrent = 4` on 16 CPUs ran four jobs at 8 threads each ([arc#1037](https://github.com/Basekick-Labs/arc/issues/1037)). At the default `max_concurrent = 2` the value is unchanged — the divisor is still 2 — so upgrading costs nothing unless you had raised concurrency, in which case each subprocess gets proportionally fewer threads. The floor of 2 means lowering `max_concurrent` to 1 does **not** give a single job all the cores; that headroom is left for ingest and queries.
+
+  An explicit value is not rewritten by the automatic default. It is not exempt from the licence cap, though — see below.
+
+- **Licence cap (v27.01.1+, core-limited licences only).** Whatever `threads` ends up as — automatic or explicit, since the automatic value is resolved first — is lowered to the smaller of the licensed core count and the CPUs Arc may use ([arc#1036](https://github.com/Basekick-Labs/arc/issues/1036)). The cap is per subprocess: it does not divide the licensed cores across the main process and all subprocesses, so the aggregate can still exceed the licence. A licence with no core limit changes nothing.
 
 Accepted `memory_limit` forms are absolute sizes with a unit: `"8GB"`, `"512MB"`, `"0.5GB"`. Percent and unit-less forms are rejected at startup (DuckDB's `SET memory_limit` does not support them), as are other invalid values. The effective values appear in the startup log (`subprocess_memory_limit`, `subprocess_threads`).
 
@@ -478,7 +486,10 @@ Set up alerts for:
 [compaction]
 hourly_min_files = 100   # Wait for more files
 max_concurrent = 4       # More parallelism
+threads = 8              # Optional: hold the per-job thread count (see below)
 ```
+
+From v27.01.1 the automatic `threads` value divides by `max_concurrent`, so raising concurrency alone gives you more jobs in flight at fewer threads each rather than more total compaction CPU. Set `threads` explicitly if you want both.
 
 **Low volume** (&lt;100K records/sec):
 ```toml
@@ -577,6 +588,13 @@ Partitions where only *some* files lack `time` are not skipped: they compact nor
    [compaction]
    max_concurrent = 4
    ```
+
+   On v27.01.1+ this splits the automatic per-subprocess thread and memory
+   budgets four ways instead of two, so it raises how many partitions progress
+   at once without raising total CPU. If compaction is CPU-bound rather than
+   queued behind concurrency, set `threads` explicitly as well, and confirm the
+   startup log shows the values you expect (`subprocess_threads`,
+   `subprocess_memory_limit`).
 
 3. **Reduce files at source:**
    ```toml
