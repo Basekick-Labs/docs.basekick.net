@@ -226,6 +226,18 @@ Thread count and memory budget interact, and the default trades one for the othe
 
 When a job exceeds its memory limit, DuckDB spills to a `duckdb-spill/` directory inside the job's temp directory (under `compaction.temp_directory`) — size that volume for your largest partitions. Spill files are removed by normal job cleanup and by the crash sweeps on startup.
 
+#### Temporary directory
+
+`compaction.temp_directory` (default `./data/compaction`) is the scratch space for one job: whatever DuckDB spills, plus the compacted output before it is published. Two things about where you point it, and both of them matter on a local backend.
+
+**Put it on the same filesystem as `storage.local_path`, and the output is moved rather than copied.** From v27.01.1 Arc renames the finished file into the storage root instead of streaming it through a copy, so publishing an output costs a rename rather than a full read plus a full write of it ([arc#969](https://github.com/Basekick-Labs/arc/issues/969)). The defaults (`./data/arc` and `./data/compaction`) are siblings, so this applies without any configuration. On a **different** filesystem the rename is impossible and Arc copies exactly as it did before, logging one warning per job that names both paths — if you see that line and want the saving, co-locate the two paths.
+
+On S3 and Azure nothing changes: publishing an output is a network transfer either way.
+
+**Do not put it inside `storage.local_path`.** Everything under the storage root is treated as storage, so the job directory is listed as a database by `SHOW DATABASES`, and a backup of the instance sweeps it — a half-written compaction output can end up in a backup. A sibling directory on the same filesystem gives you the move without this. Ordinary queries are unaffected either way, because they glob `<database>/<measurement>/**/*.parquet` and a job directory at another top level does not match.
+
+**Sizing.** Whatever DuckDB spills, plus the whole output. Inputs are **not** staged here on a local backend — from v27.01.1 compaction reads them from their own paths rather than copying them in first. On a different filesystem from the storage root, the storage root additionally needs room for a second copy of the output while it is being published, and a volume too tight for that does not fail cleanly: the adaptive splitter halves the batch and reports success, leaving several partly compacted files where one belonged.
+
 On a dedicated compactor node these can be raised well above the defaults, since compaction is not competing with ingest or queries for RAM and cores on that host.
 
 #### Files per batch
