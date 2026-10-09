@@ -349,19 +349,32 @@ curl http://localhost:8000/api/v1/compaction/status \
 
 ```json
 {
-  "enabled": true,
-  "running": false,
-  "last_run": "2025-10-08T14:05:00Z",
-  "next_run": "2025-10-08T15:05:00Z",
-  "stats": {
-    "total_jobs": 42,
-    "successful_jobs": 40,
-    "failed_jobs": 2,
-    "total_files_compacted": 12580,
-    "total_bytes_saved": 8589934592
+  "manager": {
+    "active_jobs": 2,
+    "total_completed": 1894,
+    "total_failed": 3
+  },
+  "schedulers": {
+    "hourly": {
+      "enabled": true,
+      "running": true,
+      "schedule": "5 * * * *",
+      "next_run": "2027-01-14T15:05:00Z"
+    },
+    "daily": {
+      "enabled": false,
+      "running": false,
+      "schedule": "0 3 * * *"
+    }
   }
 }
 ```
+
+The three manager counters are **attempts**, not batches or partitions.
+`next_run` appears only while that scheduler is running; in cluster mode each
+scheduler also carries `role_gated` and `gate_role`, which is how a node that
+is not compacting because of its role is told apart from one whose schedule
+has not fired.
 
 ### Get detailed statistics
 
@@ -369,6 +382,42 @@ curl http://localhost:8000/api/v1/compaction/status \
 curl http://localhost:8000/api/v1/compaction/stats \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
+
+**Response:**
+
+```json
+{
+  "total_jobs_completed": 1894,
+  "total_jobs_failed": 3,
+  "total_jobs_interrupted": 0,
+  "total_files_compacted": 12580,
+  "total_bytes_saved": 8589934592,
+  "total_bytes_saved_mb": 8192,
+  "total_manifests_recover": 0,
+  "active_jobs": 2,
+  "cycle_running": true,
+  "current_cycle_id": 42,
+  "paused": false,
+  "exclude_databases": [],
+  "last_cycle": {
+    "cycle_id": 41,
+    "status": "completed",
+    "discovered_batches": 86,
+    "started_batches": 86,
+    "succeeded_batches": 84,
+    "failed_batches": 2,
+    "interrupted_batches": 0,
+    "unstarted_batches": 0,
+    "discovery_errors": 0
+  },
+  "recent_jobs": []
+}
+```
+
+`last_cycle` is a single global record — the most recently finished cycle on
+this node. It is not a substitute for `/cycles/{id}`: if two cycles ran, the
+one you triggered may not be the one described here. Resolve the `cycle_id`
+the trigger returned instead.
 
 ### List eligible partitions
 
@@ -381,25 +430,29 @@ curl http://localhost:8000/api/v1/compaction/candidates \
 
 ```json
 {
+  "count": 2,
   "candidates": [
     {
-      "partition": "default/cpu/2025/10/08/14",
+      "database": "default",
+      "measurement": "cpu",
+      "partition_path": "default/cpu/2027/01/14/14",
       "file_count": 150,
-      "total_size_mb": 7500,
-      "age_hours": 2.5,
-      "eligible": true
+      "tier": "hourly"
     },
     {
-      "partition": "default/mem/2025/10/08/14",
+      "database": "default",
+      "measurement": "mem",
+      "partition_path": "default/mem/2027/01/14/14",
       "file_count": 120,
-      "total_size_mb": 6000,
-      "age_hours": 2.5,
-      "eligible": true
+      "tier": "hourly"
     }
-  ],
-  "total_candidates": 2
+  ]
 }
 ```
+
+Only partitions that already pass the age and `min_files` thresholds are
+listed, so every entry is eligible by construction — there is no per-entry
+eligibility flag, and no size or age field.
 
 ### Manually trigger compaction
 
@@ -421,19 +474,167 @@ curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=prod&meas
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### View active jobs
+> **Available in `main`; ships in v27.01.1.**
+> Per-cycle lookup (`/cycles`, `/cycles/{id}`), the `cycle_id` job filter, a
+> working `limit` on `/history`, and a real `active_jobs` count are merged in
+> `main` but are **not in a released binary yet**. The first release carrying
+> them is **v27.01.1**. On v26.09.x the `/cycles` routes return `404`,
+> `/history?limit=` is capped at 10 records, and `active_jobs` is `null` on
+> `/status` and always `0` on `/jobs`.
+
+### View work in flight
 
 ```bash
 curl http://localhost:8000/api/v1/compaction/jobs \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
+```json
+{ "active_jobs": 2, "unit": "attempts", "jobs": [] }
+```
+
+`active_jobs` counts **attempts**, the same unit as the history records and as
+`total_completed` on `/status`. One batch can account for several attempts in
+sequence, because a batch too large to compact in one pass is split and retried
+at smaller sizes. The `jobs` array is always empty: Arc tracks how many
+attempts are running, not which ones.
+
+### Resolve a cycle you triggered
+
+A trigger hands back a `cycle_id`. Ask what that cycle did:
+
+```bash
+curl http://localhost:8000/api/v1/compaction/cycles/42 \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "cycle_id": 42,
+  "status": "completed",
+  "source": "api",
+  "databases": ["prod"],
+  "measurement": "cpu",
+  "tiers": ["hourly"],
+  "started_at": "2027-01-14T14:05:00Z",
+  "finished_at": "2027-01-14T14:07:12Z",
+  "duration_seconds": 132,
+  "discovered_batches": 86,
+  "started_batches": 86,
+  "succeeded_batches": 84,
+  "failed_batches": 2,
+  "interrupted_batches": 0,
+  "unstarted_batches": 0,
+  "discovery_errors": 0,
+  "failed_partitions": {
+    "prod/cpu/2027/01/13/22": 1,
+    "prod/cpu/2027/01/13/23": 1
+  },
+  "failed_partition_count": 2
+}
+```
+
+**`failed_partitions` is the retry list, not a sample.** It is keyed by
+partition path and deduplicated, so one entry covers a partition however many
+batches it was split into, and `sum(failed_partitions)` equals `failed_batches`
+unless `failed_partitions_truncated` is present. That flag means more distinct
+partitions failed than the cycle record retains (200), so the list is
+incomplete — never read a capped list as the full answer.
+
+`status` is `running`, `completed`, `failed`, or `interrupted`. A cycle that
+has been claimed but has not yet written its record answers `claimed`, which is
+what you get if you resolve an id in the same millisecond you triggered it.
+
+`source` says who started it: `api` for a manual trigger, `scheduler` for a
+cron tick, `unspecified` otherwise.
+
+A `404` means this node retains no record of that id — and that is **not** the
+same as "the cycle did nothing". Cycle ids restart at 1 when the process
+restarts, and cycles run on whichever node holds the compactor lease, so the
+response names the retained window (`oldest_retained`, `newest_retained`) to
+tell a trimmed id apart from one that was never here.
+
+### List recent cycles
+
+```bash
+curl "http://localhost:8000/api/v1/compaction/cycles?limit=20" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "cycles": [ { "cycle_id": 42, "status": "completed" } ],
+  "retained": 137,
+  "oldest_retained": 1,
+  "newest_retained": 42,
+  "running_cycle_id": 42
+}
+```
+
+`limit` defaults to 10 and is capped at the 500 retained cycles.
+`running_cycle_id` is present only while a cycle is running. The list omits the
+`failed_partitions` map — 500 cycles of up to 200 partitions each would be
+megabytes in one response — but keeps `failed_partition_count` and the
+truncation flag, so you can spot the cycle you care about and fetch its full
+map from `/cycles/{id}`.
+
 ### View job history
 
 ```bash
-curl http://localhost:8000/api/v1/compaction/history \
+curl "http://localhost:8000/api/v1/compaction/history?limit=50" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
+
+Narrow it to one cycle:
+
+```bash
+curl "http://localhost:8000/api/v1/compaction/history?cycle_id=42" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "total_jobs": 1894,
+  "recent_jobs": [
+    {
+      "database": "prod",
+      "measurement": "cpu",
+      "partition_path": "prod/cpu/2027/01/13/22",
+      "success": false,
+      "cycle_id": 42,
+      "attempt_depth": 0
+    }
+  ],
+  "matched": 4,
+  "page_size": 4,
+  "retained": 100,
+  "capacity": 100,
+  "truncated": false,
+  "unit": "attempts",
+  "cycle_id": 42,
+  "cycle_status": "completed",
+  "cycle_failed_batches": 2,
+  "cycle_started_batches": 86
+}
+```
+
+`limit` defaults to 10 and is capped at the 100 retained records. Before
+v27.01.1 it was ignored and you always got 10.
+
+Each record is one **attempt**. `attempt_depth` is how deep in the adaptive
+splitter the attempt sat: depth 0 is the batch as dispatched, and deeper
+attempts are the halves it was split into. So a single failing batch can leave
+several records with the same `partition_path`.
+
+**Do not read depth-0 failures as the batch failures.** A batch that fails at
+depth 0 and is then rescued by splitting counts as *succeeded* and contributes
+no failed partition, yet still leaves a depth-0 record with `success: false`.
+The cycle record is the ground truth, which is why the `cycle_*` fields are
+echoed here when you filter by `cycle_id`.
+
+`truncated` is true when the ring cannot prove it is showing you everything
+that matched. `cycle_retained: false` means the cycle itself has aged out of
+the far longer cycle history, so an empty page says nothing about what failed.
 
 ## Performance impact
 
@@ -637,17 +838,39 @@ sqlite3 ./data/arc.db "DELETE FROM compaction_locks WHERE expires_at < datetime(
 
 ### GET /api/v1/compaction/status
 
-Get current compaction status.
+Get current compaction status. The manager block counts **attempts** — one
+compaction subprocess invocation — not batches or partitions.
 
 **Response:**
 ```json
 {
-  "enabled": true,
-  "running": false,
-  "last_run": "2025-10-08T14:05:00Z",
-  "next_run": "2025-10-08T15:05:00Z"
+  "manager": {
+    "active_jobs": 2,
+    "total_completed": 1894,
+    "total_failed": 3
+  },
+  "schedulers": {
+    "hourly": {
+      "enabled": true,
+      "running": true,
+      "schedule": "5 * * * *",
+      "next_run": "2027-01-14T15:05:00Z"
+    },
+    "daily": {
+      "enabled": false,
+      "running": false,
+      "schedule": "0 3 * * *"
+    }
+  }
 }
 ```
+
+`next_run` appears only while a scheduler is running. In cluster mode each
+scheduler also carries `role_gated` and `gate_role`, which is how you see that
+a node is not compacting because of its role rather than its schedule.
+
+`active_jobs` is the number of attempts in flight. It reports `null` before
+v27.01.1, because nothing produced the value.
 
 ### GET /api/v1/compaction/stats
 
@@ -661,8 +884,18 @@ List partitions eligible for compaction.
 
 Manually trigger a compaction cycle. Query parameters: `tier`
 (comma-separated, defaults to every enabled tier), `database`, and
-`measurement` (v26.09.2+, requires `database`). Returns `409` while a cycle
-is already running.
+`measurement` (v26.09.2+, requires `database`).
+
+The returned `cycle_id` is the id the cycle actually claimed, so you can resolve
+it on `/cycles/{id}`. Before v27.01.1 it was computed as "current id plus one"
+before the claim existed, and under concurrent triggers it could name another
+caller's cycle.
+
+Returns `409` while a cycle is already running, with the running `cycle_id` and
+`is_running` in the body, and `409` when compaction is paused cluster-wide. In
+cluster mode a node that does not hold the compaction lease returns `503` with
+`role`, `can_compact`, and `lease_holder`, naming the node to send the trigger
+to.
 
 **Response:**
 ```json
@@ -678,11 +911,34 @@ is already running.
 
 ### GET /api/v1/compaction/jobs
 
-View active compaction jobs.
+Attempts currently in flight. Returns `active_jobs`, `unit: "attempts"`, and an
+always-empty `jobs` array — only the count is tracked, not the identity of each
+attempt. Reports `0` unconditionally before v27.01.1.
 
 ### GET /api/v1/compaction/history
 
-View compaction job history.
+Compaction job history, one record per **attempt**. Query parameters: `limit`
+(default 10, capped at the 100 retained records; ignored before v27.01.1) and
+`cycle_id`, which filters to one cycle and echoes that cycle's authoritative
+counters alongside the page. Records carry `cycle_id` and `attempt_depth`.
+
+### GET /api/v1/compaction/cycles
+
+The retained cycle history, newest first. Query parameter: `limit` (default 10,
+capped at the 500 retained cycles). Returns `retained`, the
+`oldest_retained`/`newest_retained` window, and `running_cycle_id` while a
+cycle is running. The `failed_partitions` map is omitted here; fetch it per
+cycle.
+
+### GET /api/v1/compaction/cycles/&#123;id&#125;
+
+One cycle by the `cycle_id` a trigger returned: status, source, scope, timings,
+per-batch counters, and `failed_partitions` — a deduplicated map of partition
+path to failed-batch count, which is the list of partitions to retry.
+
+A `404` names the retained window rather than claiming the cycle never ran:
+ids restart at 1 on process restart, and cycles run on the node holding the
+compactor lease.
 
 ## Summary
 
