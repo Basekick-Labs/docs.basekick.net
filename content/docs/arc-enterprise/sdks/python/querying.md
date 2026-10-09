@@ -73,13 +73,21 @@ also contain these fields when a stream fails after returning some rows:
 |---|---|---|
 | `truncated` | `bool` (optional) | Present as `true` when the result is incomplete. |
 | `truncation_reason` | `str` (optional) | Explains why streaming stopped. |
+| `rows_capped` | `bool` (optional) | Present as `true` when a governance row cap stopped the result. Enterprise only. |
+| `row_cap` | `int` (optional) | The cap that was reached, paired with `rows_capped`. |
 
-The Python SDK's `QueryResult` does not expose these fields yet (tracked in
-arc #726). Receiving a `QueryResult`, or a `row_count` that matches
+The Python SDK's `QueryResponse` exposes none of these fields yet (tracked in
+arc #726). Receiving a `QueryResponse`, or a `row_count` that matches
 expectations, does not prove that the query completed. Applications that need
-strict completeness should read the raw JSON response and check `truncated`,
-or query through the Arrow IPC endpoint, where an incomplete stream fails to
-decode.
+strict completeness should read the raw JSON response and check both
+`truncated` and `rows_capped`, or query through the Arrow IPC endpoint, where
+an incomplete stream fails to decode and a capped one arrives with the
+`Arc-Rows-Capped` trailer set.
+
+The two are not interchangeable: `truncated` means the result failed part way
+and must be discarded, while `rows_capped` means it is valid but stopped at a
+policy limit. Treating a capped result as a failure is as wrong as treating it
+as complete.
 
 
 ### When to use
