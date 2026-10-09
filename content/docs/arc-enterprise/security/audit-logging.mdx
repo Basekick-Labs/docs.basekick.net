@@ -23,8 +23,25 @@ Arc Enterprise audit logging provides:
 | **RBAC** | `rbac.org.created`, `rbac.team.updated`, `rbac.role.deleted`, etc. | Organization, team, role, and membership changes |
 | **Data Operations** | `data.query`, `data.write`, `data.import`, `data.delete` | Data read/write operations |
 | **Database Management** | `database.created`, `database.deleted` | Database lifecycle events |
-| **Infrastructure** | `mqtt.*`, `compaction.triggered`, `tiering.*` | System and background operations |
-| **API** | `api.POST`, `api.PUT`, `api.DELETE` | Catch-all for other API operations |
+| **Infrastructure** | `mqtt.*`, `compaction.*`, `tiering.*` | System and background operations |
+| **API** | `api.post`, `api.put`, `api.delete` | Catch-all for other API operations |
+
+Action names are lowercase, because they are built from the HTTP method with
+`strings.ToLower` — `api.post`, not `api.POST`. A log query using the
+uppercase form matches nothing.
+
+From v27.01.1 the compaction prefix follows its neighbours instead of
+reporting every request as a trigger. `POST /api/v1/compaction/trigger` keeps
+the action `compaction.triggered`; the read routes carry `compaction.get`, and
+`compaction.head` for the HEAD requests Arc registers alongside every GET. A
+`POST` to a read route, which Arc answers with 405, is `compaction.post`.
+Before that release all of them were recorded as `compaction.triggered`, so
+anyone counting that action for alerting was over-counting and the number will
+drop after upgrading.
+
+HEAD requests are audited even with `include_reads = false`, which suppresses
+`GET` only. A monitoring probe that polls with HEAD therefore writes one row
+per poll at the default setting.
 
 ## Configuration
 
