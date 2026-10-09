@@ -330,6 +330,8 @@ Execute SQL queries with JSON response.
 |---|---|
 | `truncated` | Optional. Present as `true` when streaming fails after the response has started; absent on a complete response. |
 | `truncation_reason` | Optional. The sanitized failure reason, accompanying `truncated: true`. |
+| `rows_capped` | Optional. Present as `true` when the result stopped at a governance row cap. The body is complete and valid up to that cap. |
+| `row_cap` | Optional. The cap that was reached, accompanying `rows_capped: true`. |
 | `row_count` | Rows actually returned, not a guarantee that the full result was delivered. |
 
 A streamed JSON response can begin successfully and still fail after some rows
@@ -338,12 +340,29 @@ response. If it is `true`, treat the query as failed rather than displaying
 the partial rows as a complete result. An HTTP 200 response alone does not
 establish that streaming completed successfully.
 
+`truncated` and `rows_capped` mean nearly opposite things and have to be
+checked separately. `truncated` says the body is short because the stream
+**failed**, so its rows must not be trusted. `rows_capped` says the body is
+short because **policy** said so: it is a complete, valid result up to the
+cap, and a success to be labelled rather than an error. A client that checks
+only `truncated` silently under-reports a capped result.
+
+The cap comes from per-token query governance (`governance.default_max_rows_per_query`,
+default `0` meaning unlimited). It requires the `query_governance` licence
+feature and an authenticated token, so a deployment without both never sets
+these two fields.
+
 The `POST /api/v1/query/msgpack` endpoint uses a different completion
 contract: the `truncated` and `truncation_reason` fields are JSON-only. It
 materializes the full result before committing response headers, so a DuckDB
 failure becomes a proper 5xx rather than a marked partial body. A failure
 while writing the MessagePack body can still produce a partial response
 without an in-band truncation marker.
+
+The row cap is **not** JSON-only: the MessagePack envelope carries
+`rows_capped` and `row_cap` as a pair, exactly as the JSON response does. So
+this endpoint has no failure marker but does have a cap marker, and a client
+reading it still has to check for one.
 
 
 ### POST /api/v1/query/arrow
@@ -367,6 +386,14 @@ the incomplete stream instead of accepting fewer rows as a complete result.
 Treat either a decoding failure or a non-empty truncation trailer as a query
 failure. Trailers are available after the response body has been consumed;
 they are not ordinary initial response headers.
+
+**Capped streams:** a non-empty `Arc-Rows-Capped` trailer means the stream
+stopped at a governance row cap, and its value is the cap. This is the
+opposite of `Arc-Stream-Truncated`: the Arrow stream is complete, decodes
+cleanly, and simply holds fewer rows than the query matched. Read both — one
+reports a failure, the other a labelled success. Every registered trailer is
+emitted on every response, carrying an empty value when it was never set, so
+the contract for both is "non-empty means set".
 
 
 **Response header:** `X-Arc-Query-ID` when query management is enabled (v26.09.2+ on this endpoint; the JSON endpoint has always returned it). It is the id `GET /api/v1/queries/:id` and `DELETE /api/v1/queries/:id` take.
