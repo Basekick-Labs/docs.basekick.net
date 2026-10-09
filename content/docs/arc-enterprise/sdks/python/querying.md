@@ -11,7 +11,7 @@ The SDK provides multiple query methods, each returning data in a different form
 
 | Method | Returns | Best For | Performance |
 |--------|---------|----------|-------------|
-| `query()` | `QueryResult` object | Simple queries, inspection | Good |
+| `query()` | `QueryResponse` object | Simple queries, inspection | Good |
 | `query_pandas()` | pandas DataFrame | Data science, notebooks | Good |
 | `query_polars()` | polars DataFrame | Large datasets, performance | Better |
 | `query_arrow()` | PyArrow Table | Zero-copy, interop | Best |
@@ -35,7 +35,7 @@ Arc runs a full analytical SQL engine, so you have access to:
 
 ## Basic query (JSON)
 
-The simplest way to query data. Returns a `QueryResult` object with columns and data.
+The simplest way to query data. Returns a `QueryResponse` object with columns and data.
 
 ```python
 from arc_client import ArcClient
@@ -52,13 +52,18 @@ with ArcClient(host="localhost", token="your-token") as client:
         print(row)
 ```
 
-### QueryResult object
+### QueryResponse object
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `success` | `bool` | Whether the query executed successfully |
 | `columns` | `list[str]` | Column names |
 | `data` | `list[list]` | Rows as nested lists |
-| `row_count` | `int` | Number of rows returned |
+| `row_count` | `int` | Rows returned — not a guarantee the full result was delivered |
+| `execution_time_ms` | `float` | Server-side execution time |
+| `timestamp` | `str \| None` | Server timestamp for the query |
+| `error` | `str \| None` | Error message when the query failed |
+| `types` | `list[str]` | Arrow type name per column, parallel to `columns`. Populated only by `query_msgpack()`; the JSON path leaves it empty |
 
 ### When to use
 
