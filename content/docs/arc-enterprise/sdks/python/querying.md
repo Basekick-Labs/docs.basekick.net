@@ -65,6 +65,23 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `error` | `str \| None` | Error message when the query failed |
 | `types` | `list[str]` | Arrow type name per column, parallel to `columns`. Populated only by `query_msgpack()`; the JSON path leaves it empty |
 
+
+**Server-side truncation signals:** The underlying JSON API response may
+also contain these fields when a stream fails after returning some rows:
+
+| JSON response field | Type | Meaning |
+|---|---|---|
+| `truncated` | `bool` (optional) | Present as `true` when the result is incomplete. |
+| `truncation_reason` | `str` (optional) | Explains why streaming stopped. |
+
+The Python SDK's `QueryResult` does not expose these fields yet (tracked in
+arc #726). Receiving a `QueryResult`, or a `row_count` that matches
+expectations, does not prove that the query completed. Applications that need
+strict completeness should read the raw JSON response and check `truncated`,
+or query through the Arrow IPC endpoint, where an incomplete stream fails to
+decode.
+
+
 ### When to use
 
 ✅ **Use `query()` when:**
