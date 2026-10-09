@@ -56,7 +56,7 @@ Start with these. Each one is verified to move in response to the condition it d
 
 ### Ingest throughput and errors
 
-```
+```text
 arc_ingest_records_total      # counter: records accepted
 arc_ingest_bytes_total        # counter: bytes accepted
 arc_ingest_batches_total      # counter: write requests turned into batches
@@ -105,7 +105,7 @@ Before v26.09.2 the Arrow endpoint never moved `arc_slow_queries_total`, and mov
 
 ### Storage
 
-```
+```text
 arc_storage_writes_total       # counter
 arc_storage_write_bytes_total  # counter
 arc_storage_reads_total        # counter
@@ -121,7 +121,7 @@ rate(arc_storage_errors_total[5m]) > 0
 
 Two gauges describe the most recent backup rather than live traffic:
 
-```
+```text
 arc_backup_skipped_files          # gauge — files the last backup inventoried but could not store
 arc_storage_unaddressable_files   # gauge — files the last backup could not list at all
 ```
@@ -152,7 +152,7 @@ One consequence is worth knowing: if a flush's own context expires *while* the b
 
 This is where ingest backpressure shows up: records Arc has accepted but not yet written to storage.
 
-```
+```text
 arc_buffer_records_buffered       # gauge: records accepted, not yet written
 arc_buffer_queue_depth            # gauge: flush tasks waiting for a worker
 arc_buffer_flushes_total          # counter: completed flushes
@@ -178,7 +178,7 @@ These metrics were exported but never populated before v26.09.2, reading a perma
 
 ### Flush-queue backpressure
 
-```
+```text
 arc_ingest_flush_deferred_total    # counter: flushes deferred because the queue was full
 arc_buffer_deferred_buffers        # gauge: buffers currently holding deferred records
 ```
@@ -209,7 +209,7 @@ Deferred records are held in memory, and Arc does not bound that: `max_buffer_si
 
 All six WAL metrics are wired. This is the best-instrumented subsystem in Arc.
 
-```
+```text
 arc_wal_records_preserved_total   # records that fell back to WAL instead of flushing
 arc_wal_dropped_entries_total     # WAL buffer full — data loss risk
 arc_wal_failed_writes_total       # WAL write I/O failures
@@ -263,7 +263,7 @@ Sustained compaction failure degrades query performance as small files accumulat
 
 ### Memory and runtime
 
-```
+```text
 arc_memory_alloc_bytes
 arc_memory_heap_alloc_bytes
 arc_memory_sys_bytes
@@ -281,7 +281,7 @@ Always set `database.memory_limit` (or `ARC_DATABASE_MEMORY_LIMIT`) to match the
 
 ### DuckDB connection pool
 
-```
+```text
 arc_db_connections_max
 arc_db_connections_open
 arc_db_connections_in_use
@@ -363,7 +363,7 @@ Every rule below uses a metric verified to move. Thresholds are starting points 
 
 When audit logging is enabled (`audit_log.enabled`), three counters cover it:
 
-```
+```text
 arc_audit_events_total          # counter: events committed to the audit table
 arc_audit_write_errors_total    # counter: events that failed to persist
 arc_audit_events_dropped_total  # counter: events discarded before queueing

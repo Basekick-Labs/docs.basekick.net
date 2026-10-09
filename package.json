@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "check:callouts": "node scripts/check-callout-extensions.mjs",
+    "test:callouts": "node --test scripts/check-callout-extensions.test.mjs",
+    "prebuild": "npm run test:callouts && npm run check:callouts",
     "build": "next build",
     "start": "npx serve out",
     "typecheck": "next typegen && tsc --noEmit"
@@ -25,6 +28,9 @@
     "@types/node": "^26.3.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-mdx": "3.0.0",
+    "micromark-extension-mdxjs": "3.0.0",
     "postcss": "^8.5.26",
     "serve": "^14.2.6",
     "tailwindcss": "^4.3.3",

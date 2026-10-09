@@ -92,7 +92,7 @@ Failures and drops outside the catch-up window do **not** keep the gate red. The
 
 **Self-heal**: catch-up failures and drops both clear without a process restart, in two ways. When a later pull succeeds for a previously-affected path (a reactive FSM callback re-enqueueing after the underlying issue resolves, or a subsequent catch-up scan), the corresponding scoped counter decrements and the gate re-opens automatically. And when the entry is removed from the cluster manifest, whether by retention, compaction, the reconciliation sweep, or an operator, the reader forgets it: a recorded failure or drop is cleared, a pull still queued or in flight for it is dropped from the catch-up batch, and the gate re-opens at once (since 26.09.2, [#759](https://github.com/Basekick-Labs/arc/issues/759)). That second path is the remedy for an entry no peer can serve, for example a file that was lost on every node, which no later pull will ever fix: the reconciliation sweep on the origin writer (`reconciliation.enabled`, or `POST /api/v1/reconciliation/trigger?dry_run=false&act=true`) removes such entries. A key no backend can address has no automated remover yet (retention cannot read it and the sweep only reports it); that class waits on the operator delete endpoint tracked in [#794](https://github.com/Basekick-Labs/arc/issues/794). The puller tracks affected paths in dedicated sets so it can attribute either event back to the original failure or drop. Pulls abandoned because their entry left the manifest are counted in `skipped_gone`, in the 503 body and in `replication_catchup_status` on `/api/v1/cluster`.
 
-Both `catchup_failed` and `catchup_dropped` are surfaced in the 503 body so operators see exactly what happened. The `/api/v1/cluster/status` endpoint also exposes the cumulative `failed` / `dropped` / `pulled` / `skipped_dup` keys with their original whole-puller-lifetime semantics (preserved for dashboards landed before #392), alongside the new `catchup_*` keys for gate-relevant numbers. So dashboards can distinguish "the catch-up batch had a hiccup" (catchup_failed > 0) from "the puller has been having steady-state problems for hours" (failed >> catchup_failed).
+Both `catchup_failed` and `catchup_dropped` are surfaced in the 503 body so operators see exactly what happened. The `/api/v1/cluster` endpoint also exposes the cumulative `failed` / `dropped` / `pulled` / `skipped_dup` keys with their original whole-puller-lifetime semantics (preserved for dashboards landed before #392), alongside the new `catchup_*` keys for gate-relevant numbers. So dashboards can distinguish "the catch-up batch had a hiccup" (catchup_failed > 0) from "the puller has been having steady-state problems for hours" (failed >> catchup_failed).
 
 <Callout type="warn" title="Combining with `replication_catchup_enabled=false`">
 If you set `cluster.replication_catchup_enabled=false` (the emergency off-switch for pathologically large manifests), the catch-up walker never runs and the gate would never clear. Arc detects this combination at startup, logs a `WARN`, and **auto-disables the gate** so the node isn't permanently 503'd. Operators see a clear log line and can fix the configuration at their leisure. Don't enable the gate if you've also disabled the walker.
@@ -449,10 +449,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 7. **Monitor cluster health** — Use the `/api/v1/cluster/health` endpoint with your monitoring system (Prometheus, Grafana) to detect issues early.
 
-<!-- TODO(diagram): writer failover timeline — healthy writer missing heartbeats, the
+{/* TODO(diagram): writer failover timeline — healthy writer missing heartbeats, the
      compactor/reader detecting it past failover_timeout_seconds, Raft electing the new
      writer, and the cooldown window. The prose describes an ordered sequence of states
-     that the existing static topology diagrams cannot show. -->
+     that the existing static topology diagrams cannot show. */}
 
 ## Next steps
 
