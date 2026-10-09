@@ -574,6 +574,16 @@ curl "http://localhost:8000/api/v1/compaction/cycles?limit=20" \
 ```
 
 `limit` defaults to 10 and is capped at the 500 retained cycles.
+
+**What 500 cycles buys you in time depends entirely on your schedule, and it
+is worth working out before you rely on this history.** The record is in
+memory only — it does not survive a restart — and a cycle is consumed whether
+or not it finds anything to compact. At the default schedules (hourly plus
+daily) that is 25 ids a day, so 500 cycles is roughly **20 days**. At
+`hourly_schedule = "*/5 * * * *"` it is 289 a day, so the same 500 cycles is
+about **41 hours** — an idle node burns through the window just as fast as a
+busy one. If you need a cycle to still be resolvable tomorrow, check that
+arithmetic against your own cron.
 `running_cycle_id` is present only while a cycle is running. The list omits the
 `failed_partitions` map — 500 cycles of up to 200 partitions each would be
 megabytes in one response — but keeps `failed_partition_count` and the
@@ -635,7 +645,11 @@ The cycle record is the ground truth, which is why the `cycle_*` fields are
 echoed here when you filter by `cycle_id`.
 
 `truncated` is true when the ring cannot prove it is showing you everything
-that matched. `cycle_retained: false` means the cycle itself has aged out of
+that matched. `may_have_evicted_earlier_attempts` is the hedged half of it:
+the ring is full and the filtered cycle's earliest attempts may already have
+been overwritten. It is present only when that is possible — attempts of one
+cycle are contiguous in the ring, so a retained cycle older than the one you
+asked about proves nothing of yours was evicted, and the flag is then absent. `cycle_retained: false` means the cycle itself has aged out of
 the far longer cycle history, so an empty page says nothing about what failed.
 
 ## Performance impact
