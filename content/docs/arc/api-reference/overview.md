@@ -615,19 +615,39 @@ Invalidate token cache (admin only).
 
 ## Compaction
 
+> **Available in `main`; ships in v27.01.1.**
+> Per-cycle lookup (`/cycles`, `/cycles/{id}`), the `cycle_id` job filter, a
+> working `limit` on `/history`, and a real `active_jobs` count are merged in
+> `main` but are **not in a released binary yet**. The first release carrying
+> them is **v27.01.1**. On v26.09.x the `/cycles` routes return `404`,
+> `/history?limit=` is capped at 10 records, and `active_jobs` is `null` on
+> `/status` and always `0` on `/jobs`.
+
 ### GET /api/v1/compaction/status
 
-Current compaction status.
+Current compaction status. The manager block counts **attempts** (one
+compaction subprocess invocation), not batches.
 
 **Response:**
 ```json
 {
-  "enabled": true,
-  "running": false,
-  "last_run": "2024-12-02T10:00:00Z",
-  "next_run": "2024-12-02T11:00:00Z"
+  "manager": {
+    "active_jobs": 2,
+    "total_completed": 1894,
+    "total_failed": 3
+  },
+  "schedulers": {
+    "hourly": {
+      "enabled": true,
+      "running": true,
+      "schedule": "5 * * * *",
+      "next_run": "2027-01-14T15:05:00Z"
+    }
+  }
 }
 ```
+
+`active_jobs` is `null` before v27.01.1.
 
 ### GET /api/v1/compaction/stats
 
@@ -651,11 +671,25 @@ curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=default&m
 
 ### GET /api/v1/compaction/jobs
 
-List active compaction jobs.
+Attempts in flight: `active_jobs`, `unit: "attempts"`, and an always-empty
+`jobs` array. Returns `0` unconditionally before v27.01.1.
 
 ### GET /api/v1/compaction/history
 
-Compaction job history.
+Job history, one record per **attempt**. Query parameters: `limit` (default 10,
+capped at 100; ignored before v27.01.1) and `cycle_id` to filter to one cycle.
+Records carry `cycle_id` and `attempt_depth`, the adaptive-splitter level.
+
+### GET /api/v1/compaction/cycles
+
+Retained cycle history, newest first. `limit` defaults to 10, capped at 500.
+Carries `running_cycle_id` while a cycle runs.
+
+### GET /api/v1/compaction/cycles/&#123;id&#125;
+
+One cycle by id, including `failed_partitions` — a deduplicated map of
+partition path to failed-batch count, which is the retry list. A `404` names
+the retained window rather than claiming the cycle never ran.
 
 ---
 
