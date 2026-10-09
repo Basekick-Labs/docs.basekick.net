@@ -615,13 +615,14 @@ Invalidate token cache (admin only).
 
 ## Compaction
 
-> **Available in `main`; ships in v27.01.1.**
-> Per-cycle lookup (`/cycles`, `/cycles/{id}`), the `cycle_id` job filter, a
-> working `limit` on `/history`, and a real `active_jobs` count are merged in
-> `main` but are **not in a released binary yet**. The first release carrying
-> them is **v27.01.1**. On v26.09.x the `/cycles` routes return `404`,
-> `/history?limit=` is capped at 10 records, and `active_jobs` is `null` on
-> `/status` and always `0` on `/jobs`.
+<Callout type="info" title="Available in main; ships in v27.01.1">
+Per-cycle lookup (`/cycles`, `/cycles/{id}`), the `cycle_id` job filter, a
+working `limit` on `/history`, and a real `active_jobs` count are merged in
+`main` but are **not in a released binary yet**. The first release carrying
+them is **v27.01.1**. On v26.09.x the `/cycles` routes return `404`,
+`/history?limit=` is capped at 10 records, and `active_jobs` is `null` on
+`/status` and always `0` on `/jobs`.
+</Callout>
 
 ### GET /api/v1/compaction/status
 
