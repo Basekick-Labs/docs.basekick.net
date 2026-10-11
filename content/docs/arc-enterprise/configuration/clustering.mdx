@@ -341,6 +341,40 @@ A network failure that blocks only the Raft port, and not the cluster heartbeat
 port, fences the primary while failover still considers it healthy. Writes stop
 until Raft connectivity returns.
 
+#### WAL coverage (experimental, v27.01.1+)
+
+`cluster.wal_coverage = true` (environment `ARC_CLUSTER_WAL_COVERAGE`) is the
+first step toward letting a standby writer take over rows that a failed primary
+acknowledged but had not flushed. It is off by default. It applies to a Pattern 1
+writer with the WAL enabled and is ignored elsewhere, with a warning in the log.
+
+With it on:
+
+- Every ingest batch gets a coverage id: unique per writer process and
+  measurement, assigned in commit order. The id is written into the batch's WAL
+  entry and, with every file the batch is flushed into, into the registration
+  journal.
+- WAL entries stay until their files are registered in the cluster manifest,
+  not just until they are flushed. During a manifest outage (lost Raft quorum,
+  for example) the WAL grows with the unregistered data. This hold applies to
+  the running process. After a restart, recovery deletes WAL files by the usual
+  rule.
+- A write the buffer refuses (schema churn, shutdown, a cancelled request)
+  leaves nothing in the WAL.
+
+| Metric | Meaning |
+|---|---|
+| `arc_wal_registered_floor_lag` | Batches committed but not yet in a registered file. Returns to 0 once every flushed file is registered; a lost batch stays in it until the process restarts. |
+| `arc_wal_coverage_lost_total` | Batches whose file settled without being registered (gone or rewritten first), or whose flush failed with no complete WAL copy. Alert on any increase. |
+
+<Callout type="warn" title="Rolling back with WAL coverage on">
+WAL entries written with `cluster.wal_coverage` on use a format that releases
+before v27.01.1 cannot read. On a rollback, an older release quarantines them
+and loses any rows not yet flushed. Before rolling a node back, either turn the
+setting off and restart once, or stop the node cleanly so it flushes and purges
+its WAL. The registration journal stays readable by older releases.
+</Callout>
+
 <Callout type="idea" title="Choosing between the patterns">
 - **Cloud-native deployments** (EKS/GKE/AKS, anywhere managed S3 is available) → **Pattern 2 multi-writer**. Simpler operationally, scales writes horizontally, the LB does failover.
 - **Bare metal, on-prem, edge** without easy access to S3-compatible storage → **Pattern 1 with writer failover**. One writer takes ingest at a time, so throughput has a single-node ceiling; HA comes from promoting a standby writer.
