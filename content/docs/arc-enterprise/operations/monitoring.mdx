@@ -24,15 +24,17 @@ A cluster runs three roles, and a metric that is healthy on one is a problem on 
 
 Ingest arriving at a reader, or queries served by a compactor, usually means a load balancer is routing to the wrong pool. The compactor cannot serve queries locally and forwards them.
 
-<Callout type="warning" title="A reader's ingest buffer is not idle">
-`arc_buffer_records_buffered` on a reader is **not** expected to be near zero when WAL replication is enabled. A reader applies replicated entries into its own ingest buffer so that queries served locally see recent data, which means it carries the writer's write volume through its own buffer, flush queue and storage backend.
+<Callout type="warning" title="A reader's ingest buffer is not idle (up to v26.09.3)">
+Applies up to v26.09.3 only. From v27.01.1 readers no longer receive the WAL replication stream, so a reader's ingest buffer is idle and `arc_buffer_records_buffered` reads near zero ([arc#888](https://github.com/Basekick-Labs/arc/issues/888)).
 
-Two consequences when alerting:
+Up to v26.09.3, `arc_buffer_records_buffered` on a reader is **not** expected to be near zero when WAL replication is enabled. A reader applies replicated entries into its own ingest buffer, which means it carries the writer's write volume through its own buffer, flush queue and storage backend.
 
-- A reader whose storage is slower than the writer's accumulates a backlog of its own, visible on `arc_buffer_records_buffered` and `arc_buffer_deferred_buffers`, even though the reader is accepting no client writes.
-- The reader has no way to push back. Client writes are forwarded to a writer rather than admitted locally, and replicated entries are applied unconditionally — rejecting one would stall the replication stream. So a reader that cannot keep up grows its backlog rather than shedding load.
+On those versions, two consequences when alerting:
 
-Alert on both gauges for readers as well as writers, and size reader storage against the writer's sustained ingest rate rather than against its own query load.
+- A reader whose storage was slower than the writer's accumulated a backlog of its own, visible on `arc_buffer_records_buffered` and `arc_buffer_deferred_buffers`, even though the reader accepted no client writes.
+- The reader had no way to push back. Client writes were forwarded to a writer rather than admitted locally, and replicated entries were applied unconditionally. So a reader that could not keep up grew its backlog rather than shedding load.
+
+On those versions, alert on both gauges for readers as well as writers, and size reader storage against the writer's sustained ingest rate rather than against its own query load.
 </Callout>
 
 ## Cluster state
@@ -66,6 +68,10 @@ max(arc_cluster_auth_apply_create_total) - min(arc_cluster_auth_apply_create_tot
 </Callout>
 
 ## Replication
+
+<Callout type="warning" title="No lag series from v27.01.1">
+From v27.01.1 writers no longer start the WAL replication stream, because the readers and compactors it reached wrote every replicated row a second time ([arc#888](https://github.com/Basekick-Labs/arc/issues/888)). No reader connects, so the two lag gauges have no series and the drop counter stays at `0` (their HELP and TYPE lines are still exported): the rules below never fire. They describe the stream only. Rows still reach every node through peer file replication. The section below applies to v26.09.3 and earlier.
+</Callout>
 
 ```text
 arc_replication_lag_entries{peer="<reader>"}   # gauge: writer entries not yet acknowledged by that reader (v26.09.3+)
