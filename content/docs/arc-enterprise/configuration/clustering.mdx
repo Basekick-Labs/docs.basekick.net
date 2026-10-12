@@ -356,9 +356,12 @@ With it on:
   journal.
 - WAL entries stay until their files are registered in the cluster manifest,
   not just until they are flushed. During a manifest outage (lost Raft quorum,
-  for example) the WAL grows with the unregistered data. This hold applies to
-  the running process. After a restart, recovery deletes WAL files by the usual
-  rule.
+  for example) the WAL grows with the unregistered data. The hold survives
+  restarts. WAL recovery keeps a file whose batches still wait to register, and
+  every file after it, until the registrations land. A clean shutdown keeps
+  them instead of purging the WAL. If the cluster does not come up at all, the
+  node keeps them until a later start registers them and logs an Error. Files
+  registered with coverage stay held even after the setting is turned off.
 - A write the buffer refuses (schema churn, shutdown, a cancelled request)
   leaves nothing in the WAL.
 
@@ -366,6 +369,7 @@ With it on:
 |---|---|
 | `arc_wal_registered_floor_lag` | Batches committed but not yet in a registered file. Returns to 0 once every flushed file is registered; a lost batch stays in it until the process restarts. |
 | `arc_wal_coverage_lost_total` | Batches whose file settled without being registered (gone or rewritten first), or whose flush failed with no complete WAL copy. Alert on any increase. |
+| `arc_wal_held_files` | WAL files kept because batches in them wait for their files to register. Later files are kept too, so watch `arc_wal_dir_bytes` and `arc_cluster_file_registration_oldest_pending_seconds` while it is above 0. A Warn repeats every 10 minutes while files are held. |
 
 ##### Standby writers keep a copy
 
