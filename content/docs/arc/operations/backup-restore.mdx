@@ -670,6 +670,7 @@ re-run the restore.
 | `400` | Invalid request: a body that is not JSON, an unknown, invalid or duplicate name in `databases`, `include_metadata: true` on a scoped backup, an invalid restore `mode`, or `replace` on a scoped backup that holds no data files for one of its databases |
 | `401` | Authentication required |
 | `403` | Admin role required |
-| `404` | Backup not found |
+| `404` | Backup not found: the backup target answered that the backup's manifest does not exist |
 | `409` | Another operation is already running (returned by backup, restore, and delete) |
 | `500` | Backup or restore execution error |
+| `503` | A backup target could not be read: it is unreachable, refused the request, or its bucket or container does not exist. The body names it in `target`; retry, or check the destination configuration. No restore is started. Also returned by a cluster node that is not the primary writer |
