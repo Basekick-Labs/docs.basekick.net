@@ -54,10 +54,10 @@ POST /api/v1/retention
 **Parameters**:
 - `name` (string, required): Unique policy identifier
 - `database` (string, required): Target database name
-- `measurement` (string, optional): Target measurement (null for database-wide)
-- `retention_days` (integer, required): Number of days to retain data
-- `buffer_days` (integer, required): Safety margin in days
-- `is_active` (boolean, required): Enable/disable the policy
+- `measurement` (string, optional): Target measurement. Omit it, or send `null` or `""`, for a database-wide policy (stored and returned as `null`).
+- `retention_days` (integer, required): Number of days to retain data; greater than 0 and greater than `buffer_days`
+- `buffer_days` (integer, optional, default `0`): Safety margin in days, added to `retention_days`; may not be negative
+- `is_active` (boolean, optional, default `false`): Whether the policy runs. Send `true` to enable it. The default stays `false` so that a client that leaves it out never creates a policy that starts deleting.
 
 ### List policies
 
@@ -71,16 +71,18 @@ GET /api/v1/retention
 ```json
 [
   {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": 1,
     "name": "delete_old_metrics",
     "database": "telegraf",
     "measurement": "cpu",
     "retention_days": 90,
     "buffer_days": 7,
     "is_active": true,
+    "last_execution_time": "2024-01-20T02:00:00Z",
+    "last_execution_status": "completed",
+    "last_deleted_count": 1500,
     "created_at": "2024-01-15T10:30:00Z",
-    "last_executed_at": "2024-01-20T02:00:00Z",
-    "last_deleted_count": 1500
+    "updated_at": "2024-01-15T10:30:00Z"
   }
 ]
 ```
@@ -101,7 +103,15 @@ Update an existing retention policy:
 PUT /api/v1/retention/{policy_id}
 ```
 
-**Request Body**: Same as create policy
+**Request Body**: any subset of the create fields. A field you leave out keeps its stored value; a field you send is checked with the create rules and written. To pause a policy:
+
+```json
+{ "is_active": false }
+```
+
+To make a measurement-pinned policy database-wide, send `"measurement": null`. Leaving `measurement` out keeps the pin. `null` for any other field, or a body with no fields, is refused with `400`.
+
+`retention_days` must stay greater than `buffer_days`. If you send only one of them, it is checked against the stored value of the other.
 
 ### Delete policy
 
@@ -296,7 +306,7 @@ policies = requests.get(
 
 for policy in policies.json():
     print(f"Policy: {policy['name']}")
-    print(f"  Last executed: {policy['last_executed_at']}")
+    print(f"  Last executed: {policy['last_execution_time']}")
     print(f"  Last deleted: {policy['last_deleted_count']} rows")
 
     # Get execution history
