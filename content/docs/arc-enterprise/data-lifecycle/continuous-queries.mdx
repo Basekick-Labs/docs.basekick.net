@@ -130,7 +130,6 @@ For this to work, Arc must know which output columns are the grouping dimensions
 - **A query with `GROUP BY <dimension>`** (e.g. `GROUP BY host`) must list those dimensions in `tag_columns` (e.g. `"tag_columns": ["host"]`). Arc writes them as Parquet tag metadata and dedups on `(tags, time)`.
 - **A query with no grouping** (one row per window, e.g. `SELECT AVG(x) …`) needs no `tag_columns` — Arc detects it produces one row per timestamp and dedups on time automatically.
 - **If you group but forget to declare `tag_columns`**, Arc detects the multiple-rows-per-timestamp output and does **not** dedup it (to avoid deleting distinct series). The query still runs and its rows are correct, but duplicate windows will accumulate; a warning is logged asking you to add `tag_columns`.
-- **If `tag_columns` lists only some of the grouping columns** (e.g. `["host"]` for `GROUP BY host, region`), dedup on `(host, time)` would delete every region's row but one. Arc checks each run's output first: when two rows share the declared tags and time but differ elsewhere, the run writes nothing and is recorded as **failed** with an error naming `tag_columns`. The window is not marked processed, so it runs again once `tag_columns` lists every grouping column. Rows identical in every column are allowed, since dropping one of them loses nothing.
 
 `tag_columns` may not include `time` (time is always part of the dedup key). Names must be plain identifiers (letters, digits, `_`, `-`). Output-row timestamps are stamped with the window's start time; a query that does not select a `time` column now gets the correct window timestamp instead of the ingestion wall-clock.
 
@@ -196,7 +195,6 @@ PUT /api/v1/continuous_queries/{query_id}
 
 Send `null` to clear `description`, `tag_columns`, `retention_days` or `delete_source_after_days`. Leaving one of them out does **not** clear it. `null` for any other field, or a body with no fields, is refused with `400`.
 
-If you change `query`, check `tag_columns` in the same request: leaving it out keeps the stored list, and a run whose output those tags no longer identify fails (see [Idempotency and `tag_columns`](#idempotency-and-tag_columns)).
 
 ### Delete continuous query
 
@@ -250,7 +248,7 @@ POST /api/v1/continuous_queries/{query_id}/execute
 }
 ```
 
-A run refused because `tag_columns` do not identify one row per timestamp returns `422`; any other failed run returns `500`. Both are recorded in the execution history.
+A failed run returns `500` and is recorded in the execution history.
 
 ### View execution history
 
