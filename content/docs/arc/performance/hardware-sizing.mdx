@@ -1,100 +1,39 @@
 ---
 title: "Hardware Sizing"
-description: "Measured starting points for native Arc OSS deployments, with MessagePack and line protocol ingestion, query workloads, and WAL enabled or disabled."
+description: "Starting hardware sizes for Arc OSS ingestion, queries, and combined workloads, with WAL enabled or disabled."
 ---
 
-Choose a starting instance size from the workload you expect, then validate it
-with your own schema, queries, retention period, and storage. Ingestion-only
-capacity and the capacity available while queries run are different measurements.
-
-**Scope:** ingestion measurements run for ten minutes with replayed, batched
-data. Query-only measurements use 20 million unique rows. Combined measurements
-grow from 20 million to approximately 81.5 million rows. These figures do not
-establish capacity for days of continuous ingestion or billions of retained rows.
-
-This guide covers a native, single-node Arc OSS deployment using an EBS-backed
-local filesystem. The measurements use **Arc 26.09.3**, Ubuntu 24.04, and AWS EC2
-instances in us-east-1. The campaign starts on Spot. After reclamations, servers
-are replaced with the same instance types on-demand, preserving completed
-cases and rerunning interrupted work. The run
-date is **October 12, 2026**. Interrupted runs are excluded from capacity figures.
-
-<Callout type="info" title="Use these as starting points">
-These are measurements of the stated workload, with row reconciliation and
-error checks. Validate your own schema, queries, retention, and longer operating
-periods before adopting a sustained capacity target.
-</Callout>
+Choose a starting size based on your write rate, query demand, and retention
+period. These guidelines cover **native, single-node Arc OSS 26.09.3** with
+SSD-backed storage, measured on AWS EC2 in us-east-1 on **October 12, 2026**.
 
 ## Starting sizes
 
-The following are **derived starting targets**, rounded down from half of the
-validated WAL-enabled ingestion rates and half of the repeated query-only QPS.
-They reserve workload headroom but have not been independently qualified as
-continuous production rates. The columns describe separate ingestion-only and
-query-only workloads; use the combined results when both will run together.
+Use these targets to begin your evaluation with WAL enabled. They reserve
+approximately 50% headroom below measured rates. The write and query columns
+describe separate workloads; use the combined table when both run together.
 
-{/* begin:starting-table */}
-
-| Instance | vCPU | RAM | MessagePack points/sec | Line protocol points/sec | Query-only QPS |
+| Instance or equivalent | vCPU | RAM | MessagePack points/sec | Line protocol points/sec | Query-only QPS |
 | --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | 4 | 16 GiB | 1.30M | 170.0k | 1.6 |
-| m7i.2xlarge | 8 | 32 GiB | 1.30M | 340.0k | 3.1 |
-| m7i.4xlarge | 16 | 64 GiB | 1.30M | 690.0k | 6.1 |
+| m7i.xlarge | 4 | 16 GiB | 1.30M | 170k | 1.6 |
+| m7i.2xlarge | 8 | 32 GiB | 1.30M | 340k | 3.1 |
+| m7i.4xlarge | 16 | 64 GiB | 1.30M | 690k | 6.1 |
 
-{/* end:starting-table */}
+<Callout type="info" title="Validate your workload">
+These are ballpark starting targets based on short benchmarks. Your schema,
+queries, and retained data volume determine the capacity you can sustain.
+</Callout>
 
-AWS vCPU counts are logical CPU threads. These instance types use two threads
-per physical core.
+AWS vCPUs are logical CPU threads; these instances have two threads per physical
+core. Use SSD storage and leave CPU, memory, and disk headroom for compaction.
 
-Each server uses a 200 GiB gp3 volume provisioned for 6,000 IOPS and 500 MiB/s.
-The EC2 instance's EBS throughput limits also apply. The load generator runs on
-a separate on-demand host after Spot interruptions disrupted early generator
-runs. Arc runs through systemd from the released native package.
+## Ingestion and WAL
 
-The package's ingestion buffer settings are 5,000,000 points and a 100 ms
-maximum buffer age. Parquet ingestion and normal background compaction remain
-enabled. These settings affect flush size, file count, memory, and query cost;
-changing them creates a different sizing workload.
+MessagePack supports higher batched ingestion rates than line protocol in these
+measurements. Each point is one row containing a timestamp, a host tag, and
+three numeric fields.
 
-The 4-, 8-, and 16-vCPU instance EBS baseline bandwidths are approximately
-156, 313, and 625 MB/s respectively. The smaller instances can burst above
-their baselines. A short test can therefore exceed the bandwidth available for
-continuous operation. Size storage for the sustained volume and instance
-limits, including simultaneous WAL and Parquet writes.
-
-## What a write means
-
-A point is one row with a timestamp, a host tag, and three numeric fields:
-`value`, `cpu_idle`, and `cpu_user`. Columnar MessagePack and line protocol write
-the same `cpu` measurement with the same schema and values, using 5,000-point
-batches without HTTP payload compression. Field values are independently
-generated in the range 0–100 and rounded to four decimal places. Persisted
-Parquet uses the release's default Zstd compression.
-
-The tables report **points per second**. For this dataset, multiply that rate by
-three to obtain numeric field values per second. State the number of fields when
-comparing these results with a benchmark expressed in field writes.
-
-The main workload has 10,000 distinct hosts in one measurement. The sensitivity
-test has 100,000 hosts. Here, a host series means a measurement and host pair;
-including each field separately gives 30,000 and 300,000 field series.
-
-Sustained ingestion replays 256 pre-generated batches to keep client data
-generation out of the throughput measurement. Arc appends these rows, including
-repeated timestamps and values. Treat the results as batched synthetic workload
-measurements and validate a representative production stream before committing
-to a capacity target.
-
-## WAL enabled and disabled
-
-These are achieved rates from fully reconciled ten-minute ingestion runs, with
-zero HTTP errors, WAL drops or write failures, and flush failures. The same
-selected MessagePack offered rate on several sizes is a result of the coarse
-rate-selection steps; it does not demonstrate an identical hardware ceiling.
-
-{/* begin:wal-table */}
-
-| Instance | WAL | MessagePack points/sec | Line protocol points/sec |
+| Instance | WAL | Measured MessagePack points/sec | Measured line protocol points/sec |
 | --- | --- | --- | --- |
 | m7i.xlarge | Enabled | 2.79M | 349.7k |
 | m7i.xlarge | Disabled | 3.99M | 699.2k |
@@ -103,274 +42,101 @@ rate-selection steps; it does not demonstrate an identical hardware ceiling.
 | m7i.4xlarge | Enabled | 2.80M | 1.40M |
 | m7i.4xlarge | Disabled | 5.59M | 1.40M |
 
-{/* end:wal-table */}
+These are measured operating points, not maximum capacities. Matching rates
+across instance sizes do not imply identical hardware limits.
 
-WAL-disabled capacity applies to workloads that can tolerate losing buffered
-writes after an abrupt failure. Use the WAL-enabled figures when sizing a
-deployment that relies on the ingestion WAL. The enabled case uses the released
-WAL implementation, including its batching; this campaign does not measure a
-per-request disk-sync barrier.
+Keep WAL enabled when you rely on recovery of buffered writes. Disable it only
+when losing buffered writes after an abrupt failure is acceptable. For a
+WAL-disabled starting target, reserve the same 50% headroom below its measured
+ingestion rate. See [Write-Ahead Log](/arc/advanced/wal/) for configuration and
+recovery behavior.
 
-For a WAL-disabled ingestion-only starting target, apply the same 50% headroom
-rule to its measured rate. A comparison of different offered rates shows the
-validated operating points; it does not isolate the overhead of WAL itself.
-The report also includes WAL-on/off MessagePack runs at the same offered rate
-to examine resource overhead separately.
+## Query capacity
 
-For configuration and recovery behavior, see [Write-Ahead Log](/arc/advanced/wal/).
+Query demand often determines how much CPU you need. The following measured
+rates cover an aggregation query mix over 20 million rows, with WAL enabled.
+QPS means queries per second; p95 is the latency within which 95% of requests
+complete, reported for the slowest query type.
 
-## Query workloads
+| Instance | QPS, 10k hosts | QPS, 100k hosts | p95, 10k hosts |
+| --- | --- | --- | --- |
+| m7i.xlarge | 3.31 | 2.67 | 1.12s |
+| m7i.2xlarge | 6.28 | 4.29 | 0.59s |
+| m7i.4xlarge | 12.39 | 8.85 | 0.63s |
 
-Query-only tests start with exactly 20 million unique points spread over 24
-hours. They use an equal mix of three SQL queries:
-
-| Query | Time range | Work performed |
-| --- | --- | --- |
-| Minute aggregates | 1 hour | Average two fields and find the maximum of a third, grouped by minute |
-| Fleet aggregates | 24 hours | Group by host, compute averages, maxima, and counts, and return the top 100 hosts |
-| Host aggregates | 24 hours | Compute counts, averages, minima, and maxima for one host |
-
-All query cases use the SQL endpoint with JSON requests and responses.
-Reported latency includes the HTTP request and reading the complete response.
-Arc's SQL and file metadata caches, and the operating-system caches, use their
-normal warm behavior. Every request executes a query against stored data.
-
-QPS applies to this query mix and retained data volume. A dashboard with bounded
-time windows and small result sets has different resource requirements from
-large scans, exports, joins, or aggregations over a longer retention period.
-
-Each query-only candidate runs for 30 seconds after a five-second warmup, with
-three repeats. The table selects the highest median QPS among candidates for
-which all three repeats have no errors and each query type's p95 is at most
-two seconds. It reports the worst p95 across those repeats, rather than merging
-the latency distributions.
-
-The WAL cases are seeded separately and can have different Parquet file layouts.
-Small differences in read-only QPS are not an isolated measurement of WAL
-overhead; no ingestion is running in this table.
-
-{/* begin:query-table */}
-
-| Instance | WAL | Concurrent clients | Median QPS | QPS range, 3 repeats | Worst query-type p95 |
-| --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | 2 | 3.31 | 3.27–3.33 | 1.12s |
-| m7i.xlarge | off | 2 | 3.29 | 3.28–3.29 | 1.12s |
-| m7i.2xlarge | on | 2 | 6.28 | 6.14–6.32 | 0.59s |
-| m7i.2xlarge | off | 4 | 6.35 | 6.34–6.37 | 1.40s |
-| m7i.4xlarge | on | 4 | 12.39 | 12.38–12.41 | 0.63s |
-| m7i.4xlarge | off | 4 | 12.01 | 11.97–12.03 | 0.64s |
-
-{/* end:query-table */}
+More distinct hosts, larger scans, and more concurrent queries increase CPU
+and memory demand. Validate the queries your application actually runs,
+especially as retention grows.
 
 ## Ingestion and queries together
 
-Each combined run restores the same 20-million-point starting snapshot for its
-WAL and cardinality case. It then ingests additional points while the query mix
-runs. The report records the ending data volume, achieved write rate, achieved
-QPS, and latency by minute.
+For an evaluation ingesting approximately **100,000 MessagePack points/sec**,
+the following combinations achieved their requested write and query rates.
+The dataset grew to 81.5 million rows during each run.
 
-The offered write rate is the same for both protocols: 100,000 points/sec,
-capped at half the slower protocol's validated sustained rate. Offered query
-load is 25% of that hardware and cardinality case's query-only QPS. This tests
-a defined evaluation scenario; it does not establish maximum combined capacity.
-
-A separate MessagePack evaluation run starts at 10% of query-only QPS while
-keeping the same write target and data growth, for both WAL settings. If the
-requested query rate is not achieved, the campaign halves it and repeats the
-ten-minute run. The starting guidance uses achieved rates and reports the
-observed query latency with them.
-
-Both combined tables report the **worst p95 among the three query types over
-the full run**. Meeting an offered QPS target does not establish a latency
-service level. Compare these latencies with your application's requirement;
-the retained volume grows throughout the run, so later minutes can be slower.
-
-{/* begin:combined-table */}
-
-### Lower query demand, MessagePack
-
-| Instance | WAL | Write points/sec | Achieved QPS | Worst query-type p95 | Final rows |
-| --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | 99.9k | 0.33 | 2.30s | 81.5M |
-| m7i.xlarge | off | 99.9k | 0.33 | 2.33s | 81.5M |
-| m7i.2xlarge | on | 99.9k | 0.62 | 1.20s | 81.5M |
-| m7i.2xlarge | off | 99.9k | 0.63 | 1.19s | 81.5M |
-| m7i.4xlarge | on | 99.9k | 1.23 | 0.79s | 81.5M |
-| m7i.4xlarge | off | 99.9k | 1.19 | 0.78s | 81.5M |
-
-### Higher query demand, both protocols
-
-All rows below offered 100,000 write points/sec, with approximately 81.5M ending rows.
-
-| Instance | WAL | Protocol | Offered / achieved QPS | Worst query-type p95 | Query target sustained? |
-| --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | MessagePack | 0.83 / 0.74 | 8.78s | No |
-| m7i.xlarge | on | Line protocol | 0.83 / 0.69 | 9.77s | No |
-| m7i.xlarge | off | MessagePack | 0.82 / 0.74 | 8.39s | No |
-| m7i.xlarge | off | Line protocol | 0.82 / 0.71 | 10.18s | No |
-| m7i.2xlarge | on | MessagePack | 1.57 / 1.42 | 4.36s | No |
-| m7i.2xlarge | on | Line protocol | 1.57 / 1.38 | 4.70s | No |
-| m7i.2xlarge | off | MessagePack | 1.59 / 1.45 | 4.28s | No |
-| m7i.2xlarge | off | Line protocol | 1.59 / 1.42 | 4.55s | No |
-| m7i.4xlarge | on | MessagePack | 3.10 / 2.84 | 2.14s | No |
-| m7i.4xlarge | on | Line protocol | 3.10 / 2.78 | 2.18s | No |
-| m7i.4xlarge | off | MessagePack | 3.00 / 2.77 | 2.22s | No |
-| m7i.4xlarge | off | Line protocol | 3.00 / 2.51 | 2.56s | No |
-
-{/* end:combined-table */}
-
-Main combined tests run for ten minutes for both protocols. The 100,000-host
-MessagePack case runs for three minutes as a cardinality sensitivity check.
-Those shorter tests provide a different level of evidence from the main runs.
-For cardinality comparisons under concurrent writes, compare the first three
-minutes of the 10,000-host run with the three-minute 100,000-host run so their
-retained row counts are comparable.
-
-{/* begin:cardinality-table */}
-
-| Instance | WAL | 10k-host query-only QPS | 100k-host query-only QPS | Change |
+| Instance | WAL | Write points/sec | Query QPS | Query p95 |
 | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | 3.31 | 2.67 | -19% |
-| m7i.xlarge | off | 3.29 | 2.41 | -27% |
-| m7i.2xlarge | on | 6.28 | 4.29 | -32% |
-| m7i.2xlarge | off | 6.35 | 4.73 | -26% |
-| m7i.4xlarge | on | 12.39 | 8.85 | -29% |
-| m7i.4xlarge | off | 12.01 | 7.25 | -40% |
+| m7i.xlarge | Enabled | 99.9k | 0.33 | 2.30s |
+| m7i.xlarge | Disabled | 99.9k | 0.33 | 2.33s |
+| m7i.2xlarge | Enabled | 99.9k | 0.62 | 1.20s |
+| m7i.2xlarge | Disabled | 99.9k | 0.63 | 1.19s |
+| m7i.4xlarge | Enabled | 99.9k | 1.23 | 0.79s |
+| m7i.4xlarge | Disabled | 99.9k | 1.19 | 0.78s |
 
-### Three-minute combined sensitivity, 100k hosts
-
-These MessagePack cases grow from 20M to approximately 39.5M rows. The offered query rate differs by hardware and cardinality; these are observed scenarios, not an isolated cardinality-overhead measurement.
-
-| Instance | WAL | Write points/sec | Offered / achieved QPS | Worst query-type p95 | Query target sustained? |
-| --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | 99.8k | 0.67 / 0.65 | 2.03s | Yes |
-| m7i.xlarge | off | 99.8k | 0.60 / 0.58 | 1.57s | Yes |
-| m7i.2xlarge | on | 99.8k | 1.14 / 1.12 | 0.92s | Yes |
-| m7i.2xlarge | off | 99.8k | 1.18 / 1.16 | 0.84s | Yes |
-| m7i.4xlarge | on | 99.8k | 2.21 / 2.20 | 0.52s | Yes |
-| m7i.4xlarge | off | 99.8k | 1.81 / 1.80 | 0.67s | Yes |
-
-{/* end:cardinality-table */}
-
-## Resource observations
-
-The following MessagePack comparison uses the **same 2.8M offered points/sec**
-for WAL enabled and disabled, each for ten minutes. It reports sampled native
-process RSS and host CPU/I/O behavior, including DuckDB and Arrow allocations.
-CPU busy excludes I/O wait. RSS is sampled approximately every five seconds,
-so brief peaks can occur between samples. The raw report also preserves disk
-intervals; those short samples do not establish sustained storage bandwidth.
-Paired runs use the same instance type but can run on replacement hosts; their
-purchase history and burst-credit state are not a controlled variable.
-
-{/* begin:resource-table */}
-
-| Instance | WAL | Achieved points/sec | Median CPU busy | Median I/O wait | Peak sampled Arc RSS |
-| --- | --- | --- | --- | --- | --- |
-| m7i.xlarge | on | 2.79M | 47% | 14.9% | 2.01 GiB |
-| m7i.xlarge | off | 2.80M | 43% | 0.4% | 0.41 GiB |
-| m7i.2xlarge | on | 2.80M | 24% | 8.8% | 0.85 GiB |
-| m7i.2xlarge | off | 2.80M | 22% | 0.7% | 0.26 GiB |
-| m7i.4xlarge | on | 2.80M | 11% | 4.6% | 0.94 GiB |
-| m7i.4xlarge | off | 2.80M | 11% | 0.3% | 1.57 GiB |
-
-The 16-vCPU line-protocol runs also use the same 1.40M offered points/sec. Median CPU busy is 43% with WAL enabled and 26% with WAL disabled; median I/O wait is 4.8% and 0.2% respectively. Both achieve the write target and reconcile every acknowledged point.
-
-{/* end:resource-table */}
-
-In the higher-query-demand combined runs, the 4- and 8-vCPU servers approach
-full CPU utilization while retaining substantial available RAM and low disk
-wait. For this growing dataset, lowering query demand addresses the measured
-constraint. That observation does not establish RAM requirements for a larger
-retained dataset, different queries, or sustained compaction.
-Scheduled compaction can overlap individual runs, and separately seeded cases
-can have different file layouts. Do not attribute every small difference in
-latency or achieved QPS solely to the ingestion format or WAL setting.
+Choose a size that meets your application's latency requirement as well as its
+write rate. Higher query demand slowed responses and could not be sustained
+while ingestion continued. Leave additional CPU headroom for queries
+and for growth in retained data.
 
 ## Storage and retention
 
-Estimate retained data from the **unique historical seed's** measured storage
-size. Sustained ingestion replays pre-generated batches to reduce generator
-overhead, so its compression ratio is unsuitable for estimating production
-retention storage.
-
-The seed estimate measures the initial persisted local data directory before manual
-compaction. Use it as a sample-based storage estimate, rather than a guarantee
-of compression after every retention or compaction policy.
-
-{/* begin:storage-table */}
-
-| Hosts | Unique points | Persisted bytes/point | Total local data size |
-| --- | --- | --- | --- |
-| 10,000 | 20M | ~26.2 | ~499 MiB |
-| 100,000 | 20M | ~27.6 | ~526 MiB |
-
-{/* end:storage-table */}
+Estimate storage from your write rate, retention period, and measured bytes per
+point:
 
 ```text
-points per day = points per second × 86,400
-retained data bytes = points per day × retention days × measured bytes per point
+retained data bytes = points/sec × 86,400 × retention days × bytes/point
 ```
 
-Add space for the WAL, compaction output and spill, operational metadata, and
-free disk headroom. Compression depends on field count and types, string
-cardinality, values, ordering, and compaction. Measure bytes per point using a
-sample that represents your own data.
+For the measured three-field schema, a rounded **28 bytes per point** gives
+these examples:
 
-Using a rounded **28 bytes per point** for this schema, 10,000 points/sec with
-30 days of retention needs about **676 GiB** for stored data alone. At 100,000
-points/sec that becomes about **6.6 TiB**. The 200 GiB test volume is a benchmark
-configuration, not a recommendation for those retention workloads.
+| Write rate | Retention | Stored data |
+| --- | --- | --- |
+| 10,000 points/sec | 30 days | ~676 GiB |
+| 100,000 points/sec | 30 days | ~6.6 TiB |
 
-## When to use a larger server
+Add space for WAL, compaction output, temporary spill, and free disk headroom.
+Measure bytes per point with your own data: field count, types, values, and
+cardinality affect compression.
 
-Increase CPU capacity when the query mix consumes the headroom needed by
-ingestion, or when query latency exceeds your application's target. The number
-of rows and columns scanned, aggregation groups, and concurrent queries matter
-as much as the number of requests.
+The benchmark used gp3 provisioned for **6,000 IOPS and 500 MiB/s**. Check the
+instance's sustained storage limits as well as the volume's. The tested
+4-, 8-, and 16-vCPU instances have EBS baseline bandwidths of approximately
+156, 313, and 625 MB/s; smaller instances can burst above their baselines.
+Size for sustained throughput, including simultaneous WAL and data writes.
 
-Increase RAM when native process memory grows toward the machine's available
-memory, or queries and compaction need larger working sets. Track native Arc RSS
-and operating-system memory availability alongside Go heap metrics: DuckDB and
-Arrow allocations are part of the process's memory requirement.
+## When to increase resources
 
-Increase storage throughput when flushes fall behind, buffer queues grow,
-reconciliation takes longer, or disk wait rises. Provision against the lower of
-the volume and instance limits, and leave headroom for compaction. A faster CPU
-does not resolve a storage throughput limit.
+- **CPU:** increase it when queries consume ingestion headroom or exceed your
+  latency target. Narrow query time ranges where possible.
+- **RAM:** increase it when process memory approaches available RAM or queries
+  and compaction need larger working sets. Monitor native Arc process memory,
+  including DuckDB and Arrow allocations.
+- **Storage throughput:** increase it when flushes fall behind, buffers grow,
+  or disk wait rises. Check both volume and instance limits.
+- **Storage capacity:** increase it as retention grows, allowing space for
+  compaction and operational headroom.
 
-## Reproducing the measurements
+See [Monitoring](/arc/operations/monitoring/) and
+[File compaction](/arc/advanced/compaction/) for operational guidance.
 
-Use the [native sizing harness](https://github.com/Basekick-Labs/arc-benchmarks/tree/d8aaf8ccd69008467505e3745004a95106558b1a/sizing_bench)
-and the [October 12 results and raw evidence](https://github.com/Basekick-Labs/arc-benchmarks/tree/d8aaf8ccd69008467505e3745004a95106558b1a/sizing_bench/results/oss-26.09.3-20261012).
-These links pin the source and measurements to the recorded campaign commit.
-The archive includes rejected overload and interrupted cases separately from
-qualified results, with checksums and instructions to regenerate the analysis.
+## Enterprise
 
-The campaign increases offered ingestion rates, validates the boundary, repeats
-acceptable rates, and runs ten-minute ingestion tests with headroom. A usable
-WAL-enabled run has zero WAL drops and write failures. Every ingestion test
-reconciles acknowledged points with a SQL row count after flushing completes.
-Rate selection uses coarse steps and a halving fallback when confirmation
-fails; selected rates are validated operating points, not precise maxima.
-Each historical seed triggers compaction and waits ten seconds before the
-snapshot. Normal scheduled compaction remains enabled. These short tests do
-not qualify steady-state retention, compaction, or restart recovery.
+These guidelines cover one OSS node. Enterprise sizing will cover cluster
+topology, replication, and storage separately.
 
-The raw report preserves the native package checksum, configuration, schema,
-query SQL, worker and batch settings, latencies, memory, CPU, disk metrics, and
-invalid overload cases. Derived starting targets are presented separately
-from measured operating points.
+## Benchmark details
 
-## Enterprise sizing
-
-Enterprise cluster sizing requires measurements of the selected topology,
-replication, storage mode, and licensed resources. This OSS campaign measures a
-single node. Enterprise results will be added after a separate cluster campaign.
-
-## Related
-
-- [Performance benchmarks](/arc/performance/benchmarks/)
-- [Monitoring](/arc/operations/monitoring/)
-- [File compaction](/arc/advanced/compaction/)
-- [Storage file format](/arc/configuration/storage-file-format/)
+Ingestion and combined measurements run for ten minutes using batched synthetic
+data. Full workload definitions, configuration, limitations, and raw results are
+available in the [benchmark report](https://github.com/Basekick-Labs/arc-benchmarks/blob/5544955338eeb9f0684eba77c3da22ac5da4acdb/sizing_bench/METHODOLOGY.md).
