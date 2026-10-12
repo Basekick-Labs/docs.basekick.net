@@ -367,6 +367,39 @@ With it on:
 | `arc_wal_registered_floor_lag` | Batches committed but not yet in a registered file. Returns to 0 once every flushed file is registered; a lost batch stays in it until the process restarts. |
 | `arc_wal_coverage_lost_total` | Batches whose file settled without being registered (gone or rewritten first), or whose flush failed with no complete WAL copy. Alert on any increase. |
 
+##### Standby writers keep a copy
+
+With `cluster.wal_coverage` on, the designated primary also streams every
+committed batch to the standby writers over the cluster port. Each standby keeps
+the batches on disk under `<wal.directory>/received/` and never applies them. A
+standby discards a batch once two things hold: the batch is in a registered
+file, and the standby holds every current file of that measurement itself. This
+copy is what a later release uses to let a standby take over rows a failed
+primary acknowledged but never flushed. Nothing reads it yet.
+
+The stream needs `cluster.shared_secret`. Batches are authenticated but are not
+encrypted unless `cluster.tls_enabled` is set. Every writer in the cluster must
+run v27.01.1 or later before you turn the setting on.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `cluster.standby_store_max_bytes` | 1 GiB | Caps a standby's copy. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. |
+| `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up. Past it, that standby misses batches; the other standbys do not. |
+
+| Metric | Where | Meaning |
+|---|---|---|
+| `arc_origin_stream_sessions` | primary | Standby writers being streamed to. |
+| `arc_origin_stream_dropped_total` | primary | Batches a slow standby missed. |
+| `arc_standby_stream_connected` | standby | 1 while receiving from the primary. |
+| `arc_standby_store_bytes` | standby | Size of the copy. |
+| `arc_standby_store_incomplete_keys` | standby | Measurements missing batches above their registered floor. |
+| `arc_standby_store_blocked_keys` | standby | Measurements whose trim waits on files not yet on this standby. A file the puller cannot fetch keeps that measurement here. |
+| `arc_standby_store_lost_records` | standby | Batches the primary reported lost. The standby keeps them: they may be the only copy. |
+| `arc_standby_store_dropped_total`, `arc_standby_store_evicted_bytes_total` | standby | Batches not kept at the cap, and bytes evicted to stay under it. |
+
+The `received/` directory shares the WAL volume but is not counted in
+`arc_wal_dir_bytes`.
+
 <Callout type="warn" title="Rolling back with WAL coverage on">
 WAL entries written with `cluster.wal_coverage` on use a format that releases
 before v27.01.1 cannot read. On a rollback, an older release quarantines them
