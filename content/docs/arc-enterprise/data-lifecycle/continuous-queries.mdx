@@ -102,24 +102,24 @@ POST /api/v1/continuous_queries
   "database": "telegraf",
   "source_measurement": "cpu",
   "destination_measurement": "cpu_hourly",
-  "query": "SELECT time_bucket('1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM telegraf.cpu GROUP BY time_bucket('1 hour', time), host",
-  "tag_columns": ["host"],
+  "query": "SELECT time_bucket(INTERVAL '1 hour', time) AS time, host, AVG(usage_idle) AS avg_usage_idle, AVG(usage_user) AS avg_usage_user, COUNT(*) AS sample_count FROM telegraf.cpu WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, host",
   "interval": "1h",
-  "retention_policy": "90d",
+  "tag_columns": ["host"],
   "is_active": true
 }
 ```
 
 **Parameters**:
 - `name` (string, required): Unique query identifier
-- `database` (string, required): Target database name
+- `database` (string, required): Database the query reads from and writes to
 - `source_measurement` (string, required): Source measurement to aggregate
 - `destination_measurement` (string, required): Where to store results
-- `query` (string, required): SQL aggregation query
+- `query` (string, required): SQL aggregation query. It must contain the `{start_time}` and `{end_time}` placeholders, which Arc replaces with the window's quoted RFC 3339 timestamps on each run.
+- `interval` (string, required): How often the query runs (`1m`, `5m`, `1h`, `1d`, etc.)
 - `tag_columns` (array of strings, optional): The **grouping dimension** columns in the query's output (e.g. `["host"]` for `GROUP BY host`). See [Idempotency and `tag_columns`](#idempotency-and-tag_columns) below — set this for any `GROUP BY` query so re-runs don't produce duplicate rows.
-- `interval` (string, required): Time bucket interval (`1m`, `5m`, `1h`, `1d`, etc.)
-- `retention_policy` (string, optional): Retention for aggregated data (e.g., `90d`, `365d`)
-- `is_active` (boolean, required): Enable/disable the query
+- `description` (string, optional): Free-text description
+- `retention_days`, `delete_source_after_days` (integer, optional): Stored with the definition and returned by the API, but not acted on: Arc does not expire the destination or delete the source because of them. Use a [retention policy](#multi-tier-strategy) for that.
+- `is_active` (boolean, optional, default `true`): Whether the query runs. Create one paused with `false`.
 
 #### Idempotency and `tag_columns`
 
@@ -149,16 +149,24 @@ GET /api/v1/continuous_queries
 ```json
 [
   {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": 1,
     "name": "cpu_hourly_avg",
+    "description": null,
     "database": "telegraf",
     "source_measurement": "cpu",
     "destination_measurement": "cpu_hourly",
+    "query": "SELECT time_bucket(INTERVAL '1 hour', time) AS time, host, … WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, host",
     "interval": "1h",
-    "retention_policy": "90d",
+    "tag_columns": ["host"],
+    "retention_days": null,
+    "delete_source_after_days": null,
     "is_active": true,
+    "last_execution_time": "2024-01-20T02:00:00Z",
+    "last_execution_status": "completed",
+    "last_processed_time": "2024-01-20T02:00:00Z",
+    "last_records_written": 24,
     "created_at": "2024-01-15T10:30:00Z",
-    "last_executed_at": "2024-01-20T02:00:00Z"
+    "updated_at": "2024-01-15T10:30:00Z"
   }
 ]
 ```
@@ -179,7 +187,14 @@ Update an existing continuous query:
 PUT /api/v1/continuous_queries/{query_id}
 ```
 
-**Request Body**: Same as create query
+**Request Body**: any subset of the create fields. A field you leave out keeps its stored value; a field you send is checked with the create rules and written. To pause a continuous query:
+
+```json
+{ "is_active": false }
+```
+
+Send `null` to clear `description`, `tag_columns`, `retention_days` or `delete_source_after_days`. Leaving one of them out does **not** clear it. `null` for any other field, or a body with no fields, is refused with `400`.
+
 
 ### Delete continuous query
 
@@ -218,17 +233,22 @@ POST /api/v1/continuous_queries/{query_id}/execute
 **Response**:
 ```json
 {
-  "query_id": "550e8400-e29b-41d4-a716-446655440000",
-  "rows_processed": 1000000,
-  "rows_written": 720,
-  "execution_time_ms": 2500,
-  "time_range": {
-    "start": "2024-01-01T00:00:00Z",
-    "end": "2024-01-31T23:59:59Z"
-  },
-  "dry_run": false
+  "query_id": 1,
+  "query_name": "cpu_hourly_avg",
+  "execution_id": "cq-exec-3f2a9c1e",
+  "status": "completed",
+  "start_time": "2024-01-01T00:00:00Z",
+  "end_time": "2024-01-31T23:59:59Z",
+  "records_read": null,
+  "records_written": 720,
+  "execution_time_seconds": 2.5,
+  "destination_measurement": "cpu_hourly",
+  "dry_run": false,
+  "executed_at": "2024-02-01T09:00:00Z"
 }
 ```
+
+A failed run returns `500` and is recorded in the execution history.
 
 ### View execution history
 
@@ -240,18 +260,24 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 
 **Response**:
 ```json
-[
-  {
-    "execution_id": "abc123",
-    "executed_at": "2024-01-20T02:00:00Z",
-    "start_time": "2024-01-19T00:00:00Z",
-    "end_time": "2024-01-20T00:00:00Z",
-    "rows_processed": 86400,
-    "rows_written": 24,
-    "execution_time_ms": 1200,
-    "status": "success"
-  }
-]
+{
+  "query_id": 1,
+  "executions": [
+    {
+      "id": 42,
+      "query_id": 1,
+      "execution_id": "cq-sched-3f2a9c1e",
+      "execution_time": "2024-01-20T02:00:00Z",
+      "status": "completed",
+      "start_time": "2024-01-20T01:00:00Z",
+      "end_time": "2024-01-20T02:00:00Z",
+      "records_read": null,
+      "records_written": 24,
+      "execution_duration_seconds": 1.2,
+      "error_message": null
+    }
+  ]
+}
 ```
 
 ## Query syntax
@@ -345,10 +371,10 @@ response = requests.post(
                 MAX(usage_user) AS max_usage_user,
                 COUNT(*) AS sample_count
             FROM telegraf.cpu
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY date_trunc('hour', epoch_us(time)), host
         """,
         "interval": "1h",
-        "retention_policy": "365d",
         "is_active": True
     }
 )
@@ -370,8 +396,7 @@ result = requests.post(
     }
 )
 
-print(f"Processed {result.json()['rows_processed']} rows")
-print(f"Generated {result.json()['rows_written']} aggregated rows")
+print(f"Generated {result.json()['records_written']} aggregated rows")
 ```
 
 ### Example 2: daily request summary
@@ -401,11 +426,11 @@ response = requests.post(
                 AVG(response_time_ms) AS avg_response_time,
                 MAX(response_time_ms) AS max_response_time,
                 PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) AS p95_response_time
-            FROM api_requests
+            FROM logs.api_requests
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY date_trunc('day', epoch_us(time)), endpoint, status_code
         """,
         "interval": "1d",
-        "retention_policy": "730d",  # 2 years
         "is_active": True
     }
 )
@@ -439,7 +464,8 @@ response = requests.post(
                 MIN(temperature) AS min_temperature,
                 MAX(temperature) AS max_temperature,
                 COUNT(*) AS sample_count
-            FROM temperature
+            FROM iot.temperature
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY
                 date_trunc('hour', epoch_us(time)) +
                 INTERVAL '5 minutes' * floor(extract(minute from epoch_us(time)) / 5),
@@ -447,7 +473,6 @@ response = requests.post(
                 location
         """,
         "interval": "5m",
-        "retention_policy": "90d",
         "is_active": True
     }
 )
@@ -482,11 +507,10 @@ dry_run = requests.post(
     }
 )
 
-print(f"Would process {dry_run.json()['rows_processed']} rows")
-print(f"Would generate {dry_run.json()['rows_written']} aggregated rows")
+print("Would run:", dry_run.json()['executed_query'])
 
 # If satisfied, execute for real
-if dry_run.json()['rows_written'] > 0:
+if dry_run.ok:
     result = requests.post(
         f"http://localhost:8000/api/v1/continuous_queries/{query_id}/execute",
         headers={"Authorization": f"Bearer {ARC_TOKEN}"},
@@ -528,7 +552,6 @@ Combine different granularities for optimal storage:
 requests.post("/api/v1/continuous_queries", json={
     "name": "cpu_hourly",
     "interval": "1h",
-    "retention_policy": "90d"
 })
 
 # Tier 3: Daily aggregates for 2 years
@@ -537,7 +560,6 @@ requests.post("/api/v1/continuous_queries", json={
     "source_measurement": "cpu_hourly",  # Aggregate the hourly data
     "destination_measurement": "cpu_daily",
     "interval": "1d",
-    "retention_policy": "730d"
 })
 
 # Use retention policy to delete raw data after 7 days
@@ -621,11 +643,11 @@ Track continuous query execution times:
 ```python
 result = execute_query(...)
 
-print(f"Execution time: {result['execution_time_ms']}ms")
-print(f"Throughput: {result['rows_processed'] / (result['execution_time_ms'] / 1000):.0f} rows/sec")
+print(f"Execution time: {result['execution_time_seconds']:.1f}s")
+print(f"Rows written: {result['records_written']}")
 
 # Alert if execution takes too long
-if result['execution_time_ms'] > 60000:  # 1 minute
+if result['execution_time_seconds'] > 60:  # 1 minute
     print("Warning: Slow execution!")
 ```
 
@@ -650,7 +672,7 @@ Match intervals to data characteristics:
 
 ### No rows written
 
-**Problem**: Execution returns `rows_written: 0`.
+**Problem**: Execution returns `records_written: 0`.
 
 **Solutions**:
 - Verify source measurement contains data in the specified time range
