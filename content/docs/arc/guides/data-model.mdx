@@ -123,16 +123,16 @@ Arc converts `ns` to microseconds by integer division. Sub-microsecond precision
 
 ## Deduplication
 
-Arc ingests append-only and de-duplicates during compaction. A duplicate is a row with the same **dedup key** and the same timestamp.
+Arc ingests append-only and de-duplicates during compaction. A duplicate is a row **identical in every column** to another: the same time, tags and field values. Compaction keeps one copy of it. Rows that share their tags and time but differ in any field are different data and are all kept — re-sending a point with a new value adds a row, it does not replace the old one.
 
-The dedup key comes from column names recorded in the Parquet footer as `arc:tags`, and the key is `(tag columns…, time)`, keeping one row per key.
+Compaction looks for duplicates using the tag column names recorded in the Parquet footer as `arc:tags`: only rows that share `(tag columns…, time)` are compared in full. Files without that metadata are not checked at all.
 
 **Only some write paths set that metadata:**
 
-| Write path | Dedup key written? |
+| Write path | Tag metadata written? |
 |---|---|
 | Line protocol | Yes — the tag columns |
-| Continuous queries | Yes — the GROUP BY dimensions |
+| Continuous queries | Yes — the declared `tag_columns`, or a continuous-query marker when there are none |
 | MessagePack | **No** |
 | MQTT | **No** (decodes MessagePack/JSON) |
 | WAL replay | **No** |
