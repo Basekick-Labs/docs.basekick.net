@@ -145,6 +145,12 @@ A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients c
 - **Sampled log line**: while the gate is active, Arc emits at most one `WARN` log per second with the gate counter and request path. Avoids flooding under sustained catch-up while still surfacing the degraded state.
 - **Live status**: the `/api/v1/cluster` endpoint exposes `replication_catchup_status` with the same fields shown in the 503 body, so dashboards can show catch-up progress without waiting for a query to fail.
 - **Tier metadata**: `tier_registered` counts pulled files handed to this node's [tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/#clusters-and-shared-storage) metadata (since 26.09.3). With tiering on it tracks `pulled`; without tiering it stays at zero. `pulled` climbing while `tier_registered` stays flat on a tiering node means replicated files are not reaching tier metadata, which costs that node partition pruning until its next tier scan.
+- **Same-size rewrites** (since 27.01.1, [#798](https://github.com/Basekick-Labs/arc/issues/798)): a file whose manifest content changes at the same size, or that is deleted and registered again at the same path, is refreshed rather than accepted by its size. Three counters in `replication_catchup_status` (and in the 503 body) track this across every forced refresh:
+  - `forced_refresh`: forced refreshes that downloaded the file.
+  - `refresh_verified`: refreshes that found the local copy already was the listed version, by hashing it, and downloaded nothing.
+  - `refresh_pending`: forced refreshes that failed or were dropped and wait for their path's next arrival. It is kept in memory only, so a restart clears it without retrying ([#1182](https://github.com/Basekick-Labs/arc/issues/1182)). A value that stays above zero means some local copies may still be the previous version.
+
+  A reader that keeps a local copy because its path was registered again logs `Local delete skipped: the manifest lists the path again; refreshing the local copy unless it already is the listed version`. The same line at `WARN` means the refresh could not be queued: the pull queue was full, in which case it is retried on the path's next arrival or the periodic reconciliation, or the node was shutting down.
 
 ### Syncing with the leader before the walk
 
