@@ -207,16 +207,18 @@ Deferred records are held in memory, and Arc does not bound that: `max_buffer_si
 
 ### WAL
 
-All six WAL metrics are wired. This is the best-instrumented subsystem in Arc.
-
 ```text
-arc_wal_records_preserved_total   # records that fell back to WAL instead of flushing
-arc_wal_dropped_entries_total     # WAL buffer full — data loss risk
-arc_wal_failed_writes_total       # WAL write I/O failures
-arc_wal_oversized_payloads_total  # payload exceeded WAL limits
-arc_wal_recovery_total            # recovery runs
-arc_wal_recovery_records_total    # records replayed
+arc_wal_records_preserved_total            # records that fell back to WAL instead of flushing
+arc_wal_dropped_entries_total              # WAL buffer full — data loss risk
+arc_wal_failed_writes_total                # WAL write I/O failures
+arc_wal_oversized_payloads_total           # payload exceeded WAL limits
+arc_wal_recovery_total                     # recovery runs
+arc_wal_recovery_records_total             # records replayed
+arc_wal_quarantined_files_total            # WAL files renamed to *.wal.failed after repeated replay failures
+arc_wal_quarantine_released_entries_total  # unflushed entries the node stopped waiting for because their file was quarantined (v27.01.1+)
 ```
+
+A rising `arc_wal_quarantined_files_total` means some WAL entries could not be replayed: they are only in the `*.wal.failed` files. See [Files that keep failing are quarantined](/arc/advanced/wal/#files-that-keep-failing-are-quarantined).
 
 ```text
 # Data is being dropped before it reaches the WAL

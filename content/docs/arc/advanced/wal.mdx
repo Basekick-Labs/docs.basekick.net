@@ -256,14 +256,21 @@ Arc automatically recovers from WAL files on startup:
 **Process:**
 1. Find all `*.wal` files in `WAL_DIR`
 2. Read and validate each entry (checksum verification)
-3. Replay records into buffer system
-4. Archive recovered WAL as `*.wal.recovered`
+3. Replay the entries that were not yet flushed into the buffers
+4. Once the replayed rows are flushed, delete the recovered WAL file
 5. Continue normal operations
 
 **Recovery time:**
 - ~5 seconds per 100MB WAL file
-- Parallel recovery across workers
-- Corrupted entries are skipped (logged)
+- An entry that fails its checksum or cannot be replayed is logged, and its file is kept for the next pass (see below)
+
+### Files that keep failing are quarantined
+
+A WAL file that holds an entry recovery cannot replay is kept and retried on the next pass. After three failed passes it is renamed to `*.wal.failed` (quarantined), so the files after it can be recovered. Arc never deletes a quarantined file: it holds the entries that could not be replayed, and it can hold flush checkpoints that other WAL files depend on. Keep it until you have dealt with it. Do not simply rename it back to `.wal`: recovery would replay every entry in it, including entries already in Parquet whose flush checkpoint has since been deleted, and duplicate those rows. Check which of its rows are missing from storage first.
+
+An intact entry whose flush checkpoint shows it is already in Parquet is skipped without being decoded, so it never fails its file (since v27.01.1). Before v27.01.1, a columnar MessagePack write with a numeric measurement (`"m": 5`, stored as `measurement_5`) failed its WAL file this way, even after it was flushed.
+
+Recovery also runs while the node is up, after a flush fails. When it quarantines a file the node itself wrote, the node stops waiting for that file's unflushed entries, so it can keep deleting WAL files whose data is flushed (since v27.01.1; before, WAL files piled up until a restart).
 
 ### Replay skips entries that already reached Parquet
 
