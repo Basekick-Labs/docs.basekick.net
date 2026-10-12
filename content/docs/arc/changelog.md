@@ -25,7 +25,9 @@ Query results bypass `database/sql` row-by-row scanning entirely using DuckDB's 
 
 #### Automatic compaction deduplication
 
-Compaction now automatically deduplicates rows with identical tag values and timestamps (last-write-wins). Tag columns are auto-detected from Parquet metadata — zero configuration required.
+Compaction now automatically deduplicates rows with identical tag values and timestamps. Tag columns are auto-detected from Parquet metadata — zero configuration required.
+
+> **Superseded in 2027.01.1.** This entry originally said "last-write-wins". That was never true: compaction kept one row per tag values and timestamp, and which row survived was arbitrary, in practice the oldest. From 2027.01.1 compaction removes only rows identical in every column, so rows that differ in any field are all kept. See [Deduplication](/arc/guides/data-model/#deduplication).
 
 #### WAL dropped entries metric
 
