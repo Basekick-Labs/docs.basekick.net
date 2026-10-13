@@ -29,6 +29,43 @@ Arc implements retention through physical file deletion:
 
 **Cutoff Calculation**: `cutoff_date = today - retention_days - buffer_days`
 
+### Tiered storage
+
+With [tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/), a policy
+applies to the cold tier as well as to local files. After each measurement's hot
+files, retention checks the cold files whose partition starts before the
+cutoff. Each one is read for its newest timestamp, deleted from cold storage if
+every row is older than the cutoff, and then removed from the tier metadata. A
+measurement whose data has all moved to cold storage is processed too.
+
+The execute response reports the cold tier on its own. `deleted_count` and
+`files_deleted` include these figures.
+
+| Field | Meaning |
+|---|---|
+| `cold_files_deleted` | Cold files deleted (in a dry run: that would be) |
+| `cold_rows_deleted` | Rows in those files |
+| `cold_files_skipped` | Cold files left in place |
+| `cold_skipped_reason` | Why they were left in place |
+
+A cold file is left in place and counted, never deleted blindly, when:
+- it cannot be read or deleted, for example while the cold store is unreachable;
+- tiering has quarantined it;
+- `tiered_storage.cold.enabled` is off on this node. Retention then handles
+  local files only, as without tiering.
+
+The run still completes, with status `completed_with_errors` and the reason in
+`error_message`. Retention never stops local deletions because of the cold
+tier.
+
+A tier row whose cold object is already gone is cleaned up. If the same file
+is still in local storage, the row is pointed back at it instead.
+
+Retention runs only on the primary writer. In a cluster, other nodes keep
+their tier rows for the deleted cold files until they become primary and run
+retention themselves. Queries are not affected: they read cold storage
+directly.
+
 ## API endpoints
 
 ### Create policy
@@ -148,16 +185,22 @@ POST /api/v1/retention/{policy_id}/execute
 **Response**:
 ```json
 {
-  "policy_id": "550e8400-e29b-41d4-a716-446655440000",
+  "policy_id": 1,
+  "policy_name": "cpu-30d",
+  "deleted_count": 125000,
+  "files_deleted": 2,
+  "execution_time_ms": 84,
+  "dry_run": true,
   "cutoff_date": "2023-10-22T00:00:00Z",
-  "files_to_delete": [
-    "/data/telegraf/cpu/2023-10-15.parquet",
-    "/data/telegraf/cpu/2023-10-20.parquet"
-  ],
-  "total_files": 2,
-  "dry_run": true
+  "affected_measurements": ["cpu"]
 }
 ```
+
+In a dry run, `deleted_count` (rows) and `files_deleted` are what a real run
+would delete. `skipped_files` and `skipped_reason` appear only when some files
+could not be processed.
+With tiered storage, the cold-tier fields described in
+[Tiered storage](#tiered-storage) appear too.
 
 ### View execution history
 
@@ -169,16 +212,25 @@ GET /api/v1/retention/{policy_id}/executions?limit=50
 
 **Response**:
 ```json
-[
-  {
-    "execution_id": "abc123",
-    "executed_at": "2024-01-20T02:00:00Z",
-    "deleted_count": 1500,
-    "execution_time_ms": 2500,
-    "status": "success"
-  }
-]
+{
+  "policy_id": 1,
+  "executions": [
+    {
+      "id": 7,
+      "policy_id": 1,
+      "execution_time": "2024-01-20T02:00:00Z",
+      "status": "completed",
+      "deleted_count": 1500,
+      "cutoff_date": "2023-12-21T02:00:00Z",
+      "execution_duration_ms": 2500,
+      "error_message": null
+    }
+  ]
+}
 ```
+
+`status` is `completed`, `completed_with_errors` when some files were left in
+place (`error_message` says why), or `failed`.
 
 ## Configuration parameters
 
@@ -257,7 +309,7 @@ dry_run = requests.post(
     json={"dry_run": True, "confirm": False}
 )
 
-print(f"Would delete {dry_run.json()['total_files']} files")
+print(f"Would delete {dry_run.json()['files_deleted']} files")
 
 # Execute for real
 if input("Proceed? (yes/no): ") == "yes":
@@ -266,7 +318,7 @@ if input("Proceed? (yes/no): ") == "yes":
         headers={"Authorization": f"Bearer {ARC_TOKEN}"},
         json={"dry_run": False, "confirm": True}
     )
-    print(f"Deleted {result.json()['total_files']} files")
+    print(f"Deleted {result.json()['files_deleted']} files")
 ```
 
 ### Example 2: database-wide retention
@@ -331,7 +383,7 @@ result = requests.post(
 )
 
 # Review what will be deleted
-print(f"Files to delete: {result.json()['files_to_delete']}")
+print(f"Would delete {result.json()['files_deleted']} files ({result.json()['deleted_count']} rows)")
 ```
 
 ### 2. Use buffer days
@@ -392,9 +444,11 @@ Create granular policies for different data types:
 
 ## Important limitations
 
-### Local storage only
+### Storage backends
 
-Currently, retention policies only work with local filesystem storage. Cloud storage backends (S3, MinIO, GCS) are not yet implemented.
+Retention runs against the configured storage backend: local disk, S3 or Azure
+Blob Storage. With tiered storage it also covers the cold tier; see
+[Tiered storage](#tiered-storage).
 
 ### File-level granularity
 
