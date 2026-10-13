@@ -37,13 +37,16 @@ List the measurement's Parquet files and count the rows matching the WHERE
 clause in each, with DuckDB.
 
 In a cluster with compaction commit on (every node runs Arc 2027.01.1 or
-later), only files the cluster manifest lists, or that this node is still
-registering, are scanned. A file in storage the manifest does not list, such as
-a compaction output not committed yet, is left alone. Before the first scan, the DELETE
-waits up to 30 seconds until every file the manifest lists for the measurement
-is on the node; a file still missing answers `503` listing it in
-`unreachable_files`, unless `allow_unreachable` is set. A dry run does not
-wait.
+later), the DELETE first catches up with the cluster manifest, then scans the
+files the manifest lists for the measurement, plus files this node is still
+registering. A file in storage the manifest does not list, such as a
+compaction output not committed yet, is left alone. A file the manifest lists
+that is not on the node yet (a compaction output on its way) is waited for, up
+to 30 seconds per scan; a file the manifest stops listing meanwhile is no
+longer waited for. A file still missing answers `503` listing it in
+`unreachable_files`, unless `allow_unreachable` is set, in which case the
+DELETE runs without it and still lists it. A dry run does not wait and lists
+the files it could not count.
 
 ### 3. Rewrite files
 
