@@ -470,12 +470,37 @@ exits.
 **Writes go to the primary only.** With takeover on, a standby writer refuses
 writes with a retryable `503`, checked on every write.
 
-**DELETEs wait for a takeover.** `POST /api/v1/delete` and
-`DELETE /api/v1/databases/{name}` answer `503` with `Retry-After: 30` while a
-claim of the measurement is unfinished, while the primary holds batches of a
-writer it no longer hears from that it may claim, or, for at most 10 minutes,
-while an old primary that came back publishes rows from its WAL. A DELETE
-applied first would be undone by the replay of rows acknowledged before it.
+**A DELETE stays deleted through a takeover.** With takeover on, a row DELETE
+(`POST /api/v1/delete`) or a database deletion (`DELETE /api/v1/databases/{name}`)
+is recorded in the cluster before it runs. Rows acknowledged before it that are
+not in a registered file yet (a standby's copy a takeover replays, an old
+primary's WAL, a writer's pending files) are rewritten without the rows it
+removes before they register, with the DELETE's own SQL; the cluster manifest
+refuses any such file that was not. Rows acknowledged after the DELETE's own
+flush are outside the record (a write concurrent with the DELETE may or may not
+be deleted).
+
+- Per-statement time functions in the WHERE clause (`now()`,
+  `current_timestamp`, `current_date`, `current_time`, `localtimestamp`,
+  `today()`) are fixed to the time the DELETE ran, in UTC, so a later replay
+  matches the same rows. Functions no replay can reproduce (`random()`,
+  `uuid()`, `gen_random_uuid()`, `nextval()`, `setseed()`) are refused with
+  `400`.
+- The DELETE rewrites the files the primary has, so it first waits, up to 30
+  seconds, for every file the manifest lists of the measurement to reach the
+  primary. A file that does not arrive answers `503` with `unreachable_files`.
+  Send `"allow_unreachable": true` to run it anyway: the response lists the
+  files it skipped, and their rows are not deleted.
+- Each writer acknowledges every DELETE with the batches it had accepted, and
+  refuses writes (retryable `503`) for the moment that takes (about 100 ms).
+- For a few seconds, a node other than the primary can still show deleted
+  rows in a file it has just written and not registered yet. The primary never
+  does once the DELETE has answered.
+- The cluster keeps up to 256 DELETEs until every writer process they name has
+  settled the batches before them. Past that, the oldest one that only retired
+  writer processes still hold is dropped, and those processes are removed
+  (their copies are parked if they come back); otherwise a DELETE answers
+  `503` until older ones settle.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -486,15 +511,17 @@ applied first would be undone by the replay of rows acknowledged before it.
 | Metric | Meaning |
 |---|---|
 | `arc_cluster_stream_claims_enabled`, `arc_cluster_stream_claims` | Whether takeover is on, and the claims the manifest holds. |
-| `arc_stream_takeover_oldest_claim_age_seconds` | How long the oldest unfinished claim has been open. A claim whose replay keeps failing (a full disk) is never given up on by itself, and DELETEs of its measurements wait: alert on it. |
+| `arc_stream_takeover_oldest_claim_age_seconds` | How long the oldest unfinished claim has been open. A claim whose replay keeps failing (a full disk) is never given up on by itself: alert on it. |
 | `arc_stream_takeover_departed_writers` | Writers that left gracefully and have not re-joined. |
 | `arc_stream_takeover_unpulled_files` | Files of the old primary the new primary does not hold yet; its claim finishes only once it holds them, or they are found on no node. |
 | `arc_wal_parked_files`, `arc_wal_parked_bytes` | Files a writer could not register because their batches were claimed or already registered. |
 
 **Operator API** (admin):
 
-- `GET /api/v1/cluster/stream-claims` lists writer processes, claims and
-  departed writers.
+- `GET /api/v1/cluster/stream-claims` lists writer processes, claims,
+  departed writers, and the DELETEs the cluster keeps (`delete_records`, with
+  the writer processes that have not reported their batches yet as
+  `unacknowledged`).
 - `POST /api/v1/cluster/stream-claims/{instance}/release` with
   `{"epoch": n}` releases an unfinished claim: any writer holding the batches
   may claim them again, its claimant included. The leader does this by itself
@@ -515,11 +542,8 @@ lists.
 
 - Rows the primary acknowledged but had not streamed to any standby yet when
   its volume was lost for good: the replication lag, usually milliseconds.
-- After a claim finishes, a DELETE of its measurements waits until every
-  writer the primary hears from has claimed what it holds or reported
-  holding nothing, for at most twice the grace plus 20 seconds. A writer the
-  primary did not hear from then, and that claims later, can replay rows a
-  DELETE in between removed.
+- A DELETE run with `allow_unreachable` leaves the rows of the files it
+  skipped.
 
 <Callout type="warn" title="Rolling back with WAL coverage on">
 WAL entries written with `cluster.wal_coverage` on use a format that releases

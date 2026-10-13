@@ -20,29 +20,36 @@ Arc's delete operations provide:
 
 ## How it works
 
-Arc uses a rewrite-based deletion approach:
+Arc deletes rows by rewriting the Parquet files that hold them:
 
-### 1. Find affected files
+### 1. Flush buffered rows
 
-Scan the measurement directory to identify Parquet files containing rows that match the WHERE clause.
+Rows written shortly before the DELETE may still be in the ingest buffer.
+Since v27.01.1 the DELETE first flushes that measurement's buffered rows and
+waits for them to reach files, so every row written before the request is
+deleted. While an earlier flush failure is outstanding (its rows wait for WAL
+recovery), the DELETE answers `503` with `Retry-After: 30` instead. A dry run
+does not flush.
 
-### 2. Rewrite files
+### 2. Find affected files
+
+List the measurement's Parquet files and count the rows matching the WHERE
+clause in each, with DuckDB.
+
+### 3. Rewrite files
 
 For each affected file:
-1. Load the file into an Arrow table
-2. Filter out matching rows: `SELECT * FROM table WHERE NOT (delete_clause)`
-3. Write filtered data to a temporary file
-4. Atomically replace the original file using `os.replace()`
+1. Write the rows that do not match, `SELECT * FROM read_parquet(file) WHERE NOT (<where>)`, to a new file
+   with a fresh name (`<name>_rewrite_<nanoseconds>.parquet`) in the same partition directory
+2. Publish the new file, then remove the old one (in a cluster, both in one manifest update)
 
-### 3. Cleanup
+A file whose rows all match is removed.
 
-- Files that become empty after filtering are deleted entirely
-- Files with remaining data are replaced with their rewritten versions
-- All operations use atomic file replacement to ensure data integrity
+### Crash safety
 
-### Atomic safety
-
-System crashes during deletion result in either the old file or the new file being present, never corruption or partial writes.
+The old file stays in place until its replacement is published, so a crash
+leaves either the old file or the new one, never a partial file. Two DELETEs
+rewrite one at a time.
 
 ## Configuration
 
@@ -62,9 +69,9 @@ max_rows_per_delete = 1000000
 ### Environment variables
 
 ```bash
-export DELETE_ENABLED=true
-export DELETE_CONFIRMATION_THRESHOLD=10000
-export DELETE_MAX_ROWS=1000000
+export ARC_DELETE_ENABLED=true
+export ARC_DELETE_CONFIRMATION_THRESHOLD=10000
+export ARC_DELETE_MAX_ROWS_PER_DELETE=1000000
 ```
 
 ### Configuration parameters
@@ -99,32 +106,34 @@ POST /api/v1/delete
 - `measurement` (string, required): Target measurement name
 - `where` (string, required): SQL WHERE clause for deletion
 - `dry_run` (boolean, optional): Test without deleting (default: `false`)
-- `confirm` (boolean, optional): Confirm large operations (default: `false`)
+- `confirm` (boolean, optional): Confirm the operation; required for anything but a dry run (default: `false`)
+- `allow_unreachable` (boolean, optional, clusters with stream takeover): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted (default: `false`)
 
 **Response**:
 ```json
 {
+  "success": true,
   "deleted_count": 15000,
   "affected_files": 3,
-  "rewritten_files": 2,
-  "deleted_files": 1,
+  "rewritten_files": 3,
   "execution_time_ms": 1250,
-  "files": [
-    {
-      "path": "/data/telegraf/cpu/2023-12-15.parquet",
-      "action": "rewritten",
-      "rows_before": 10000,
-      "rows_after": 5000
-    },
-    {
-      "path": "/data/telegraf/cpu/2023-12-20.parquet",
-      "action": "deleted",
-      "rows_before": 5000,
-      "rows_after": 0
-    }
+  "dry_run": false,
+  "files_processed": [
+    "cpu_20231215_100000_000000000.parquet",
+    "cpu_20231220_100000_000000000.parquet",
+    "cpu_20231221_100000_000000000.parquet"
   ]
 }
 ```
+
+- `files_processed` lists the names of the files rewritten or removed (on a
+  dry run, the files that would be).
+- `failed_files` (when present) lists files that could not be rewritten; the
+  response is then `207` with `success: false`, and the rows of those files are
+  not deleted.
+- `unreachable_files` (clusters with stream takeover) lists manifest files the
+  primary did not have: skipped with `allow_unreachable`, or the reason for a
+  `503` without it.
 
 ### Get configuration
 
@@ -184,12 +193,10 @@ Hard cap prevents extremely large operations that could exhaust resources:
 }
 ```
 
-### 4. Atomic file replacement
+### 4. Immutable rewrites
 
-Files are replaced atomically using `os.replace()`, ensuring:
-- No partial writes
-- No data corruption
-- Recovery from crashes (either old or new file exists)
+A rewrite is published under a new file name before the old file is removed:
+a crash leaves the old file or the new one, never a partial file.
 
 ## Usage examples
 
@@ -208,7 +215,8 @@ response = requests.post(
     json={
         "database": "telegraf",
         "measurement": "cpu",
-        "where": "time < '2024-01-01'"
+        "where": "time < '2024-01-01'",
+        "confirm": True
     }
 )
 
@@ -230,7 +238,8 @@ response = requests.post(
     json={
         "database": "telegraf",
         "measurement": "cpu",
-        "where": "host = 'server01' OR host = 'server02'"
+        "where": "host = 'server01' OR host = 'server02'",
+        "confirm": True
     }
 )
 ```
@@ -258,8 +267,8 @@ print(f"Would delete {dry_run.json()['deleted_count']} rows")
 print(f"Affected files: {dry_run.json()['affected_files']}")
 
 # Review the files that would be affected
-for file in dry_run.json()['files']:
-    print(f"  {file['path']}: {file['rows_before']} -> {file['rows_after']} rows")
+for name in dry_run.json()['files_processed']:
+    print(f"  {name}")
 
 # If satisfied, execute for real
 if input("Proceed? (yes/no): ") == "yes":
@@ -270,7 +279,8 @@ if input("Proceed? (yes/no): ") == "yes":
             "database": "telegraf",
             "measurement": "cpu",
             "where": "host = 'server01'",
-            "dry_run": False
+            "dry_run": False,
+            "confirm": True
         }
     )
     print(f"Deleted {result.json()['deleted_count']} rows")
@@ -314,7 +324,8 @@ response = requests.post(
             host IN ('server01', 'server02', 'server03')
             AND time BETWEEN '2023-01-01' AND '2023-06-30'
             AND usage_idle < 10
-        """
+        """,
+        "confirm": True
     }
 )
 ```
@@ -472,15 +483,16 @@ Large deletions are subject to `max_rows_per_delete` configuration:
 {"where": "time >= '2023-01-01' AND time < '2023-02-01'"}
 ```
 
-### File-level locking
+### One DELETE at a time
 
-During deletion, affected files are locked. Concurrent writes may be delayed.
+DELETEs rewrite one at a time; a second one waits for the first. Writes are not
+blocked.
 
 ## Troubleshooting
 
 ### Delete not enabled
 
-**Problem**: `DELETE_ENABLED=false` or not configured.
+**Problem**: `delete.enabled` is `false` (the default).
 
 **Solution**:
 ```toml
