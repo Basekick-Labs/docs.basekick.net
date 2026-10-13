@@ -309,7 +309,7 @@ A local-storage cluster with Raft always elects one primary writer, which runs r
 - **Automatic promotion**: a standby writer is promoted via Raft consensus (`CommandPromoteWriter` FSM apply)
 - **Cooldown protection**: prevents rapid failover flapping
 
-**Enable** by setting `cluster.failover_enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature. Standby writers do not receive the primary's WAL. Rows the primary accepted but had not yet flushed when it failed are on no other node; they come back when the failed node restarts and replays its own WAL. From v27.01.1 the files that replay writes are announced to the cluster like any other ([arc#1206](https://github.com/Basekick-Labs/arc/issues/1206)). A WAL stream that keeps the primary's unflushed rows on a standby writer is tracked in [arc#1207](https://github.com/Basekick-Labs/arc/issues/1207).
+**Enable** by setting `cluster.failover_enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature. By default, standby writers do not receive the primary's WAL. Rows the primary accepted but had not yet flushed when it failed are on no other node; they come back when the failed node restarts and replays its own WAL. From v27.01.1 the files that replay writes are announced to the cluster like any other ([arc#1206](https://github.com/Basekick-Labs/arc/issues/1206)). With [stream takeover](#stream-takeover-v27011) on, the new primary publishes those rows itself, from its copy of the primary's stream ([arc#1207](https://github.com/Basekick-Labs/arc/issues/1207)).
 
 When the primary writer fails:
 
@@ -384,8 +384,8 @@ committed batch to the standby writers over the cluster port. Each standby keeps
 the batches on disk under `<wal.directory>/received/` and never applies them. A
 standby discards a batch once two things hold: the batch is in a registered
 file, and the standby holds every current file of that measurement itself. This
-copy is what a later release uses to let a standby take over rows a failed
-primary acknowledged but never flushed. Nothing reads it yet.
+copy is what [stream takeover](#stream-takeover-v27011) publishes a failed
+primary's acknowledged rows from.
 
 The stream needs `cluster.shared_secret`. Batches are authenticated but are not
 encrypted unless `cluster.tls_enabled` is set. Every writer in the cluster must
@@ -410,6 +410,141 @@ run v27.01.1 or later before you turn the setting on.
 The `received/` directory shares the WAL volume but is not counted in
 `arc_wal_dir_bytes`.
 
+#### Stream takeover (v27.01.1+)
+
+Stream takeover lets the new primary publish the rows a failed primary
+acknowledged but never registered, exactly once
+([arc#1207](https://github.com/Basekick-Labs/arc/issues/1207)). It is off by
+default.
+
+**Requirements.** Set `cluster.stream_takeover = true` (environment
+`ARC_CLUSTER_STREAM_TAKEOVER`) on every node, readers included. Writers also
+need `cluster.wal_coverage = true` and an explicit `cluster.node_id`. Each node
+advertises support when it joins; the cluster turns takeover on by itself once
+every node does, and from then on refuses a node that joins without it. The
+switch is one-way.
+
+**What happens when the primary dies.**
+
+1. Failover designates another writer, which stops receiving the old
+   primary's stream.
+2. The new primary waits `cluster.stream_takeover_grace` (default `60s`, at
+   least `10s`) from the moment it last heard from the old primary. A primary
+   that restarts with its volumes within the grace, or that left gracefully
+   and comes back, publishes its own rows and nothing is taken over.
+3. It claims, in the cluster manifest, every batch of the old primary it holds
+   that is not in a registered file, replays them to Parquet and registers
+   them. The manifest refuses any row registered twice, so a batch the old
+   primary registered in part is completed, not duplicated.
+4. Before it finishes, the new primary makes sure it holds every file of the
+   old primary whose rows its standby copy holds. A file every node says it
+   does not have (or that no node could answer for during twice the grace)
+   is removed from the manifest, and its rows are published from the standby
+   copy too: without this, rows the old primary registered but nobody pulled
+   before its volume was lost would be gone. A node that later comes back
+   with a copy of such a file removes that copy. A file the standby copy
+   could not publish again is never removed.
+5. Once every claimed batch is in a registered file, the claim finishes. Any
+   other writer that holds batches of that process the new primary lacked
+   then claims those too (each writer once), as long as the old primary has
+   not come back with a new process and is not the designated primary.
+
+**When the old primary comes back with its volume.** Rows it acknowledged
+that no standby held (the replication lag), and rows the new primary could
+not publish, are still in its WAL. It reads them back and publishes them,
+once; its copies of rows the takeover already published are refused and
+removed. This holds even when the cluster had given that writer up (it was
+removed, or its departure expired): such processes are kept as `retired`,
+with what was registered of them (the last 256), so that a writer coming
+back late still publishes exactly the rows nobody registered.
+
+**A claimed writer exits with code 3.** If the old primary was only cut off,
+it refuses writes the moment it sees the claim, flushes, and exits with status
+`3` so the restart policy starts a new process. Its own copies of the claimed
+batches are parked under `<storage>/_refused/`, not registered. Run writers
+under a restart policy that restarts on a non-zero exit (systemd
+`Restart=on-failure`, Kubernetes, Docker `restart: on-failure` or
+`unless-stopped`). A writer that is also the Raft leader steps down as it
+exits.
+
+**Writes go to the primary only.** With takeover on, a standby writer refuses
+writes with a retryable `503`, checked on every write.
+
+**A DELETE stays deleted through a takeover.** With takeover on, a row DELETE
+(`POST /api/v1/delete`) or a database deletion (`DELETE /api/v1/databases/{name}`)
+is recorded in the cluster before it runs. Rows acknowledged before it that are
+not in a registered file yet (a standby's copy a takeover replays, an old
+primary's WAL, a writer's pending files) are rewritten without the rows it
+removes before they register, with the DELETE's own SQL; the cluster manifest
+refuses any such file that was not. Rows acknowledged after the DELETE's own
+flush are outside the record (a write concurrent with the DELETE may or may not
+be deleted).
+
+- Per-statement time functions in the WHERE clause (`now()`,
+  `current_timestamp`, `current_date`, `current_time`, `localtimestamp`,
+  `today()`) are fixed to the time the DELETE ran, in UTC, so a later replay
+  matches the same rows. Functions no replay can reproduce (`random()`,
+  `uuid()`, `gen_random_uuid()`, `nextval()`, `setseed()`) are refused with
+  `400`.
+- The DELETE rewrites the files the primary has, so it first waits, up to 30
+  seconds, for every file the manifest lists of the measurement to reach the
+  primary. A file that does not arrive answers `503` with `unreachable_files`.
+  Send `"allow_unreachable": true` to run it anyway: the response lists the
+  files it skipped, and their rows are not deleted.
+- Each writer acknowledges every DELETE with the batches it had accepted, and
+  refuses writes (retryable `503`) for the moment that takes (about 100 ms).
+- For a few seconds, a node other than the primary can still show deleted
+  rows in a file it has just written and not registered yet. The primary never
+  does once the DELETE has answered.
+- The cluster keeps up to 256 DELETEs until every writer process they name has
+  settled the batches before them. Past that, the oldest one that only retired
+  writer processes still hold is dropped, and those processes are removed
+  (their copies are parked if they come back); otherwise a DELETE answers
+  `503` until older ones settle.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `cluster.stream_takeover` | `false` | Opt this node in. Needed on every node. |
+| `cluster.stream_takeover_grace` | `60s` | How long a primary that stopped answering may take to come back before its batches are taken over. Also how long a claimant may be gone before the leader releases its unfinished claim. |
+| `cluster.stream_takeover_departed_ttl` | `24h` | How long a writer that left gracefully keeps its takeover state. After it, its processes may be taken over by any writer holding them. |
+
+| Metric | Meaning |
+|---|---|
+| `arc_cluster_stream_claims_enabled`, `arc_cluster_stream_claims` | Whether takeover is on, and the claims the manifest holds. |
+| `arc_stream_takeover_oldest_claim_age_seconds` | How long the oldest unfinished claim has been open. A claim whose replay keeps failing (a full disk) is never given up on by itself: alert on it. |
+| `arc_stream_takeover_departed_writers` | Writers that left gracefully and have not re-joined. |
+| `arc_stream_takeover_unpulled_files` | Files of the old primary the new primary does not hold yet; its claim finishes only once it holds them, or they are found on no node. |
+| `arc_wal_parked_files`, `arc_wal_parked_bytes` | Files a writer could not register because their batches were claimed or already registered. |
+
+**Operator API** (admin):
+
+- `GET /api/v1/cluster/stream-claims` lists writer processes, claims,
+  departed writers, and the DELETEs the cluster keeps (`delete_records`, with
+  the writer processes that have not reported their batches yet as
+  `unacknowledged`).
+- `POST /api/v1/cluster/stream-claims/{instance}/release` with
+  `{"epoch": n}` releases an unfinished claim: any writer holding the batches
+  may claim them again, its claimant included. The leader does this by itself
+  when a claimant has been gone for the grace.
+- The same call with `{"epoch": n, "abandon": true}` finishes the claim
+  instead. It cannot be undone. The batches it has not published are left to
+  their origin, which publishes them if it comes back with its volume; they
+  are lost when the origin is gone for good. The claimant drops its
+  copy and does not claim the process again (another writer still may, from
+  its own copy). The claim then reports every batch it held as unreplayable,
+  published or not. Use it only for a claim that cannot finish.
+
+Both `POST` forms run on the Raft leader (`409` elsewhere) and answer `404`
+for no such unfinished claim. `instance` is the 16-digit hex id the `GET`
+lists.
+
+**What takeover does not cover.**
+
+- Rows the primary acknowledged but had not streamed to any standby yet when
+  its volume was lost for good: the replication lag, usually milliseconds.
+- A DELETE run with `allow_unreachable` leaves the rows of the files it
+  skipped.
+
 <Callout type="warn" title="Rolling back with WAL coverage on">
 WAL entries written with `cluster.wal_coverage` on use a format that releases
 before v27.01.1 cannot read. On a rollback, an older release quarantines them
@@ -425,6 +560,34 @@ its WAL. The registration journal stays readable by older releases.
 Both patterns want **three writer-role nodes**. In shared storage all three take traffic; in local storage two of them stand by. Either way, three is what lets the cluster lose one node and still elect a leader.
 
 See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) for the full trade-off comparison.
+</Callout>
+
+### Compaction commit (v27.01.1+)
+
+Compaction commit makes a row DELETE and a compaction of the same files safe
+to run together. A DELETE's manifest update applies only while the file is
+still registered with the content the DELETE read. If a compaction replaced it,
+the DELETE scans again and deletes from the compaction's output (see
+[Delete operations](/arc-enterprise/data-lifecycle/delete-operations/)).
+
+There is no setting. The leader turns it on once every node in the cluster
+runs a release that supports it. `GET /api/v1/cluster` reports it:
+
+```json
+"compaction_commit": {"enabled": true, "staged": 0}
+```
+
+While it is off, the leader also lists the nodes keeping it off in
+`blocking_nodes`. Once it is on, it stays on, and a node running an earlier
+release cannot join.
+
+<Callout type="warn" title="Rolling a node back">
+Once compaction commit is on, do not restart a node on an earlier release with
+its existing data. The earlier release skips the new cluster log commands, so
+its view of the cluster manifest silently diverges from the other nodes. To run
+an earlier release on a node, remove the node from the cluster, wipe its data
+directory, and join it fresh. To roll back the whole cluster, restore a backup
+taken before the upgrade.
 </Callout>
 
 ### Membership after a restart
