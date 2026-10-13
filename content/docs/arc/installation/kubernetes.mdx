@@ -30,10 +30,10 @@ curl http://localhost:8000/health
 
 ```bash
 # Get the pod name
-kubectl get pods -l app=arc
+kubectl get pods -l app.kubernetes.io/name=arc
 
 # View logs to find admin token
-kubectl logs -l app=arc | grep -i "admin"
+kubectl logs -l app.kubernetes.io/name=arc | grep -i "admin"
 ```
 
 You should see:
@@ -42,7 +42,7 @@ You should see:
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=
 ======================================================================
 ```
 
@@ -50,8 +50,42 @@ You should see:
 Copy this token immediately - you won't see it again!
 </Callout>
 
+### Set the admin token yourself
+
+To skip the log lookup, give the chart the token to create on first run. Either
+let the chart create the Secret from a value:
+
+```yaml
+# values.yaml
+auth:
+  bootstrapToken:
+    value: "<at least 32 characters>"
+```
+
+or point it at a Secret you created, which must hold the key `bootstrap-token`:
+
+```bash
+kubectl create secret generic arc-admin-token \
+  --from-literal=bootstrap-token="$(openssl rand -base64 32)"
+```
+
+```yaml
+# values.yaml
+auth:
+  bootstrapToken:
+    existingSecret: arc-admin-token
+```
+
+The chart passes the token to Arc as `ARC_AUTH_BOOTSTRAP_TOKEN`. Arc uses it only
+on first run, when no token exists yet; after that it is ignored, so changing it
+on a later upgrade does not change the admin token. The chart refuses a `value`
+shorter than 32 characters. Arc would reject it and start with no admin token.
+
+Prefer `existingSecret` in production: a `value` is stored in the Helm release
+along with the rest of your values.
+
 <Callout type="info" title="Arc Enterprise cluster mode (v26.06.1+)">
-In a multi-pod Arc Enterprise cluster, **only one pod prints the banner** — the Raft leader that wins the bootstrap election. Other pods log `INFO Deferring initial token bootstrap until cluster Raft proposer is wired` during startup and then `INFO Cluster auth state replication enabled — token writes now propagate via Raft` once the leader is elected. The non-leader pods silently no-op the bootstrap (they get an "already exists" response from the leader's FSM) and converge on the leader's token via Raft. The `kubectl logs -l app=arc | grep -i "admin"` command above still works — it just returns the single banner from whichever pod won the election. See [Cluster auth replication](/arc/configuration/authentication/#cluster-auth-replication-enterprise) for the full semantics, including token-propagation behaviour and the divergence-detection error log.
+In a multi-pod Arc Enterprise cluster, **only one pod prints the banner** — the Raft leader that wins the bootstrap election. Other pods log `INFO Deferring initial token bootstrap until cluster Raft proposer is wired` during startup and then `INFO Cluster auth state replication enabled — token writes now propagate via Raft` once the leader is elected. The non-leader pods silently no-op the bootstrap (they get an "already exists" response from the leader's FSM) and converge on the leader's token via Raft. The same command with `-l app.kubernetes.io/name=arc-enterprise` still works — it just returns the single banner from whichever pod won the election. See [Cluster auth replication](/arc/configuration/authentication/#cluster-auth-replication-enterprise) for the full semantics, including token-propagation behaviour and the divergence-detection error log.
 </Callout>
 
 ## Installation methods
@@ -247,7 +281,7 @@ helm install arc ./arc -f values.yaml
 
 The OSS chart is a single Deployment. Arc's own settings (auth, WAL, log level,
 ingest buffers, etc.) are passed as environment variables through `arc.env[]`,
-not a structured `config:` block.
+or as a whole `arc.toml` through `arc.config` (below).
 
 <Tabs items={['Development', 'Production', 'High Durability']}>
   <Tab value="Development">
@@ -391,6 +425,40 @@ relying on a specific key.
   </Tab>
 </Tabs>
 
+### Supplying a whole arc.toml
+
+`arc.config` mounts an `arc.toml` from a ConfigMap at `/app/arc.toml`, in place
+of the one in the image:
+
+```yaml
+# values.yaml
+arc:
+  config:
+    enabled: true
+    contents: |
+      [log]
+      level = "info"
+      format = "json"
+```
+
+Or keep the file next to your values and load it with
+`--set-file arc.config.contents=arc.toml`.
+
+Environment variables override the file. The chart always sets
+`ARC_STORAGE_BACKEND`, `ARC_STORAGE_LOCAL_PATH`, `ARC_WAL_ENABLED` and
+`ARC_WAL_DIRECTORY`, so set those through `arc.storageBackend` and `arc.wal`, not
+in the file. Anything in `arc.env[]` also wins over the file.
+
+Changing `arc.config.contents` on `helm upgrade` restarts the pod, because a
+running pod never sees a change to a file mounted this way.
+
+<Callout type="warn" title="Chart from Arc 27.01.1">
+Earlier OSS charts did not include the ConfigMap template: with
+`arc.config.enabled: true` the pod stayed in `ContainerCreating` with
+`MountVolume.SetUp failed for volume "config"`. Upgrade the chart, or use
+`arc.env[]` instead. `auth.bootstrapToken` is also new in this chart.
+</Callout>
+
 ## Sizing the data volume when the WAL is on
 
 With an object-storage backend (`storageBackend: s3`), the pod's PersistentVolume
@@ -476,6 +544,19 @@ arc:
     # - name: ARC_STORAGE_S3_PATH_STYLE
     #   value: "false"
 
+  # Whole arc.toml, mounted at /app/arc.toml. Environment variables win
+  # over it. A change rolls the pod.
+  config:
+    enabled: false
+    contents: ""
+
+# Initial admin token, used on first run only. value: at least 32 characters.
+# existingSecret: a Secret with the key "bootstrap-token".
+auth:
+  bootstrapToken:
+    existingSecret: ""
+    value: ""
+
 # PVC used when storageBackend is local (mounted at /app/data/arc).
 persistence:
   enabled: true
@@ -523,23 +604,23 @@ multi-writer ingest, and peer replication see the
 
 ```bash
 # Follow logs
-kubectl logs -l app=arc -f
+kubectl logs -l app.kubernetes.io/name=arc -f
 
 # Last 100 lines
-kubectl logs -l app=arc --tail=100
+kubectl logs -l app.kubernetes.io/name=arc --tail=100
 
 # Logs from last hour
-kubectl logs -l app=arc --since=1h
+kubectl logs -l app.kubernetes.io/name=arc --since=1h
 ```
 
 ### Check status
 
 ```bash
 # Pod status
-kubectl get pods -l app=arc
+kubectl get pods -l app.kubernetes.io/name=arc
 
 # Describe pod
-kubectl describe pod -l app=arc
+kubectl describe pod -l app.kubernetes.io/name=arc
 
 # Check events
 kubectl get events --field-selector involvedObject.name=arc-0
@@ -552,7 +633,7 @@ kubectl get events --field-selector involvedObject.name=arc-0
 kubectl rollout restart deployment arc
 
 # Or delete pod (will be recreated)
-kubectl delete pod -l app=arc
+kubectl delete pod -l app.kubernetes.io/name=arc
 ```
 
 ### Port forward
@@ -564,7 +645,7 @@ kubectl port-forward svc/arc 8000:8000
 ### Access shell
 
 ```bash
-kubectl exec -it $(kubectl get pod -l app=arc -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
+kubectl exec -it $(kubectl get pod -l app.kubernetes.io/name=arc -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
 ```
 
 ## Upgrade
@@ -585,7 +666,7 @@ helm upgrade arc ./arc -f values-prod.yaml
 helm uninstall arc
 
 # Delete PVCs (optional - removes all data!)
-kubectl delete pvc -l app=arc
+kubectl delete pvc -l app.kubernetes.io/name=arc
 
 # Delete namespace (if dedicated)
 kubectl delete namespace arc
@@ -647,7 +728,7 @@ a cluster writer.
 
 ```bash
 # Check pod status
-kubectl describe pod -l app=arc
+kubectl describe pod -l app.kubernetes.io/name=arc
 
 # Check events
 kubectl get events --sort-by='.lastTimestamp'
@@ -662,13 +743,13 @@ kubectl get events --sort-by='.lastTimestamp'
 
 ```bash
 # Check PVC status
-kubectl get pvc -l app=arc
+kubectl get pvc -l app.kubernetes.io/name=arc
 
 # Check PV
 kubectl get pv
 
 # Describe PVC for errors
-kubectl describe pvc -l app=arc
+kubectl describe pvc -l app.kubernetes.io/name=arc
 ```
 
 ### Connection issues
@@ -685,7 +766,7 @@ kubectl run curl --image=curlimages/curl -it --rm -- curl http://arc:8000/health
 
 ```bash
 # Check resource usage
-kubectl top pod -l app=arc
+kubectl top pod -l app.kubernetes.io/name=arc
 
 # Increase limits in values.yaml
 resources:

@@ -73,7 +73,7 @@ docker logs arc 2>&1 | grep -i "admin"
   <Tab value="Kubernetes">
 
 ```bash
-kubectl logs -l app=arc | grep -i "admin"
+kubectl logs -l app.kubernetes.io/name=arc | grep -i "admin"
 ```
 
   </Tab>
