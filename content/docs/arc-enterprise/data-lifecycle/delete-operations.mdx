@@ -39,7 +39,11 @@ clause in each, with DuckDB.
 In a cluster with compaction commit on (every node runs Arc 2027.01.1 or
 later), only files the cluster manifest lists, or that this node is still
 registering, are scanned. A file in storage the manifest does not list, such as
-a compaction output not committed yet, is left alone.
+a compaction output not committed yet, is left alone. Before the first scan, the DELETE
+waits up to 30 seconds until every file the manifest lists for the measurement
+is on the node; a file still missing answers `503` listing it in
+`unreachable_files`, unless `allow_unreachable` is set. A dry run does not
+wait.
 
 ### 3. Rewrite files
 
@@ -122,7 +126,7 @@ POST /api/v1/delete
 - `where` (string, required): SQL WHERE clause for deletion
 - `dry_run` (boolean, optional): Test without deleting (default: `false`)
 - `confirm` (boolean, optional): Confirm the operation; required for anything but a dry run (default: `false`)
-- `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted. Applies with stream takeover, and to the scan after a compaction replaced a file (default: `false`)
+- `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted. Applies with stream takeover or compaction commit, to the first scan and to the scan after a compaction replaced a file (default: `false`)
 
 **Response**:
 ```json
