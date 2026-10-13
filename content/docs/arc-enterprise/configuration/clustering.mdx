@@ -585,17 +585,46 @@ On local storage, a compaction is staged before it commits:
 While the compactor is the only node keeping a local copy of the data up, a
 staged job waits and is dropped after 10 minutes (longer for a large output).
 A staged output takes space on each node that holds it until the commit.
-Object storage (S3, Azure) still compacts as before.
+
+On object storage (S3, Azure), a compaction is staged too:
+
+1. The compactor uploads its output under `_compaction_staged/` in the bucket,
+   recording its checksum on the object, and leaves its inputs alone.
+2. It commits at once (every node reads the same bucket): the cluster
+   registers the output and unregisters the inputs, only if every input is
+   still registered exactly as the compactor read it.
+3. A finisher copies the staged object to the output's path inside the store
+   (S3 CopyObject or a multipart copy above 5 GiB; Azure Put Blob From URL or
+   blocks from URL above 5000 MiB), deletes the input objects and ends the job.
+   If Azure refuses the server-side copy (some Entra or managed-identity
+   setups), the finisher copies the bytes through the node.
+
+The compactor runs the finisher at once; if it is gone, the leader takes the
+job over after 5 minutes. Until the copy, reads see the inputs' rows; a DELETE
+on that measurement waits for the output (up to 30 seconds per scan) and
+otherwise answers `503`. If the output leaves the manifest before the
+finisher runs, a DELETE, retention, a database deletion, tiering or a restore
+removed its rows with it, and the inputs are deleted too; any other removal
+registers the inputs again. If that is not possible either (an input object is
+gone), the job is listed in `compaction_commit.wedged_jobs` and waits for an
+operator: check the data, then end it with
+`POST /api/v1/cluster/compaction-jobs/{job}/abort` (admin). A restore's
+compaction pause waits for committed jobs to finish first. The leader removes
+staged objects no job owns after 6 hours; on S3, keep a lifecycle rule that
+aborts incomplete multipart uploads.
 
 There is no setting. The leader turns it on once every node in the cluster
 runs a release that supports it. `GET /api/v1/cluster` reports it:
 
 ```json
-"compaction_commit": {"enabled": true, "staged": 0}
+"compaction_commit": {"enabled": true, "staged": 0, "finalizing": 0}
 ```
 
-While it is off, the leader also lists the nodes keeping it off in
-`blocking_nodes`. Once it is on, it stays on, and a node running an earlier
+`finalizing` counts committed object-store jobs not yet finished, and
+`wedged_jobs` lists those waiting for an operator. The metrics
+`arc_compaction_finished_total`, `arc_compaction_wedged_total` and
+`arc_compaction_copy_fallback_total` count them over time. While it is off,
+the leader also lists the nodes keeping it off in `blocking_nodes`. Once it is on, it stays on, and a node running an earlier
 release cannot join.
 
 <Callout type="warn" title="Rolling a node back">

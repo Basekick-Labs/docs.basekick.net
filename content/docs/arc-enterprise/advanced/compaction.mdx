@@ -106,6 +106,14 @@ first makes the cluster drop the job, and the partition is compacted again on a
 later cycle. Losing the compactor at any step loses no rows. See
 [Compaction commit](/arc-enterprise/configuration/clustering/#compaction-commit-v27011).
 
+### In a cluster with object storage
+
+With compaction commit on, the compactor uploads the output under
+`_compaction_staged/` in the bucket and keeps the old files. The cluster
+registers the output and unregisters the old files in one step, under the same
+check as above. A finisher then copies the output into place inside the store
+and deletes the old files. Until the copy lands, queries read the old files.
+
 ### Partition structure
 
 Data is organized by hour:
