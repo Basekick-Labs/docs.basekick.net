@@ -153,7 +153,9 @@ One consequence is worth knowing: if a flush's own context expires *while* the b
 This is where ingest backpressure shows up: records Arc has accepted but not yet written to storage.
 
 ```text
-arc_buffer_records_buffered       # gauge: records accepted, not yet written
+arc_buffer_records_buffered       # gauge: records in a buffer, not handed to a flush yet
+arc_buffer_records_queued         # gauge: records in flush tasks waiting for a worker
+arc_buffer_records_inflight       # gauge: records being written to storage
 arc_buffer_queue_depth            # gauge: flush tasks waiting for a worker
 arc_buffer_flushes_total          # counter: completed flushes
 arc_buffer_records_written_total  # counter: records written by flushes
@@ -167,10 +169,18 @@ arc_buffer_flush_failures_total   # counter: flushes that did not reach storage
 increase(arc_buffer_flush_failures_total[5m]) > 0
 
 # Backlog is growing: records are arriving faster than they flush
-arc_buffer_records_buffered > 500000
+arc_buffer_records_buffered + arc_buffer_records_queued + arc_buffer_records_inflight > 500000
 ```
 
-`arc_buffer_records_buffered` is sampled once per second rather than published on flush, so it reflects the live backlog rather than the post-flush state. A steadily climbing value means storage writes are not keeping up with ingest; a sawtooth that returns to near zero is normal.
+The three record gauges split what ingest holds in memory by stage, and their sum is the total. Alert on the sum: a record handed to a flush leaves `arc_buffer_records_buffered`, so under backpressure, when the flush queue is full, that gauge alone can read near zero while millions of records wait in the queue.
+
+- A climbing `arc_buffer_records_queued` with a flat `arc_buffer_records_buffered` means storage is the bottleneck: flushes are produced faster than they are written.
+- `arc_buffer_records_buffered` also grows when a full buffer finds the queue full and stays where it is; `arc_buffer_deferred_buffers` counts those buffers.
+- `arc_buffer_records_inflight` also counts synchronous flushes: an explicit flush, the flush before a DELETE, and shutdown.
+
+`arc_buffer_records_buffered` is sampled once per second; the queued and in-flight gauges change as tasks move. A sawtooth that returns to near zero is normal.
+
+`arc_buffer_records_queued` and `arc_buffer_records_inflight` were added in v27.01.1. On an earlier version, `arc_buffer_queue_depth` counts queued flush *tasks*, not records.
 
 <Callout type="info" title="Available since v26.09.2">
 These metrics were exported but never populated before v26.09.2, reading a permanent `0`. On an earlier version, infer flush pressure from ingest rate versus `rate(arc_storage_writes_total[5m])` and from flush failures instead.
