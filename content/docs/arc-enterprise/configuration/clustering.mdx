@@ -436,13 +436,14 @@ switch is one-way.
    that is not in a registered file, replays them to Parquet and registers
    them. The manifest refuses any row registered twice, so a batch the old
    primary registered in part is completed, not duplicated.
-4. Before it finishes, the new primary makes sure it holds every file the old
-   primary registered. A file no other node has (asked directly, or that no
-   node could answer for during twice the grace) is removed from the
-   manifest, and its rows are published from the standby copy too: without
-   this, rows the old primary registered but nobody pulled before its volume
-   was lost would be gone. A node that later comes back with a copy of such a
-   file removes that copy.
+4. Before it finishes, the new primary makes sure it holds every file of the
+   old primary whose rows its standby copy holds. A file every node says it
+   does not have (or that no node could answer for during twice the grace)
+   is removed from the manifest, and its rows are published from the standby
+   copy too: without this, rows the old primary registered but nobody pulled
+   before its volume was lost would be gone. A node that later comes back
+   with a copy of such a file removes that copy. A file the standby copy
+   could not publish again is never removed.
 5. Once every claimed batch is in a registered file, the claim finishes. Any
    other writer that holds batches of that process the new primary lacked
    then claims those too (each writer once), as long as the old primary has
