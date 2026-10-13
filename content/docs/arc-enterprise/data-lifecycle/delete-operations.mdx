@@ -36,6 +36,11 @@ does not flush.
 List the measurement's Parquet files and count the rows matching the WHERE
 clause in each, with DuckDB.
 
+In a cluster with compaction commit on (every node runs Arc 2027.01.1 or
+later), only files the cluster manifest lists, or that this node is still
+registering, are scanned. A file in storage the manifest does not list, such as
+a compaction output not committed yet, is left alone.
+
 ### 3. Rewrite files
 
 For each affected file:
@@ -50,6 +55,16 @@ A file whose rows all match is removed.
 The old file stays in place until its replacement is published, so a crash
 leaves either the old file or the new one, never a partial file. Two DELETEs
 rewrite one at a time.
+
+### Compaction during a DELETE
+
+In a cluster with compaction commit on, a DELETE publishes its rewrite of a
+file only while the file is still registered with the content it read. If a
+compaction replaced the file while the DELETE ran, the DELETE waits until the
+compaction's output reaches the node (up to 30 seconds), scans again and
+deletes from the output. After three rounds of files changing under it, it
+answers `503` with `success: false`: the rows of the files listed in
+`files_processed` are deleted; retry to finish.
 
 ## Configuration
 
@@ -107,7 +122,7 @@ POST /api/v1/delete
 - `where` (string, required): SQL WHERE clause for deletion
 - `dry_run` (boolean, optional): Test without deleting (default: `false`)
 - `confirm` (boolean, optional): Confirm the operation; required for anything but a dry run (default: `false`)
-- `allow_unreachable` (boolean, optional, clusters with stream takeover): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted (default: `false`)
+- `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted. Applies with stream takeover, and to the scan after a compaction replaced a file (default: `false`)
 
 **Response**:
 ```json
@@ -131,9 +146,8 @@ POST /api/v1/delete
 - `failed_files` (when present) lists files that could not be rewritten; the
   response is then `207` with `success: false`, and the rows of those files are
   not deleted.
-- `unreachable_files` (clusters with stream takeover) lists manifest files the
-  primary did not have: skipped with `allow_unreachable`, or the reason for a
-  `503` without it.
+- `unreachable_files` (clusters) lists manifest files the primary did not
+  have: skipped with `allow_unreachable`, or the reason for a `503` without it.
 
 ### Get configuration
 

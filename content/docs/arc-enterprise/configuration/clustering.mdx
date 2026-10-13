@@ -562,6 +562,34 @@ Both patterns want **three writer-role nodes**. In shared storage all three take
 See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) for the full trade-off comparison.
 </Callout>
 
+### Compaction commit (v27.01.1+)
+
+Compaction commit makes a row DELETE and a compaction of the same files safe
+to run together. A DELETE's manifest update applies only while the file is
+still registered with the content the DELETE read. If a compaction replaced it,
+the DELETE scans again and deletes from the compaction's output (see
+[Delete operations](/arc-enterprise/data-lifecycle/delete-operations/)).
+
+There is no setting. The leader turns it on once every node in the cluster
+runs a release that supports it. `GET /api/v1/cluster` reports it:
+
+```json
+"compaction_commit": {"enabled": true, "staged": 0}
+```
+
+While it is off, the leader also lists the nodes keeping it off in
+`blocking_nodes`. Once it is on, it stays on, and a node running an earlier
+release cannot join.
+
+<Callout type="warn" title="Rolling a node back">
+Once compaction commit is on, do not restart a node on an earlier release with
+its existing data. The earlier release skips the new cluster log commands, so
+its view of the cluster manifest silently diverges from the other nodes. To run
+an earlier release on a node, remove the node from the cluster, wipe its data
+directory, and join it fresh. To roll back the whole cluster, restore a backup
+taken before the upgrade.
+</Callout>
+
 ### Membership after a restart
 
 Every node keeps two views of the cluster: the Raft-committed node table, written by the authenticated join and restored with each Raft snapshot, and an in-memory registry that the health checker, the heartbeat fan-out, the node listings and the file puller read. On a restart the node table comes back with the snapshot; the registry is rebuilt from it as the snapshot is restored and from any node-added entries replayed after it, so a restarted leader authorises forwarded writes from its followers, heartbeats them and lists them without any of them re-joining (since 26.09.2, [#807](https://github.com/Basekick-Labs/arc/issues/807)). A follower whose `cluster.seeds` is empty, or whose discovery ran after Raft already knew the leader, therefore no longer needs a re-join either: the leader answers its forwarded writes from the node table, and the follower resolves the leader's address from its own copy of it.
