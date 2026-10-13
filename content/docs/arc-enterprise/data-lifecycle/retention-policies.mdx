@@ -59,7 +59,8 @@ The run still completes, with status `completed_with_errors` and the reason in
 tier.
 
 A tier row whose cold object is already gone is cleaned up. If the same file
-is still in local storage, the row is pointed back at it instead.
+is still in local storage, the row is pointed back at it instead. A dry run
+reports the cold files it would delete, but not these row cleanups.
 
 Retention runs only on the primary writer. In a cluster, other nodes keep
 their tier rows for the deleted cold files until they become primary and run
