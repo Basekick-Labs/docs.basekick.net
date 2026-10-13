@@ -565,10 +565,27 @@ See [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/) fo
 ### Compaction commit (v27.01.1+)
 
 Compaction commit makes a row DELETE and a compaction of the same files safe
-to run together. A DELETE's manifest update applies only while the file is
+to run together, and on local storage keeps a compaction's rows on at least
+two nodes at every step. A DELETE's manifest update applies only while the file is
 still registered with the content the DELETE read. If a compaction replaced it,
 the DELETE scans again and deletes from the compaction's output (see
 [Delete operations](/arc-enterprise/data-lifecycle/delete-operations/)).
+
+On local storage, a compaction is staged before it commits:
+
+1. The compactor writes its output under `_compaction_staged/` in its storage,
+   where no query reads it, and leaves its inputs alone.
+2. Every other node that keeps a local copy of the data pulls the staged
+   output and reports holding it.
+3. Once another node holds it, the cluster registers the output and deletes
+   the inputs in one step, only if every input is still registered exactly as
+   the compactor read it. Otherwise the job is dropped (its inputs are
+   untouched) and compacted again later.
+
+While the compactor is the only node keeping a local copy of the data up, a
+staged job waits and is dropped after 10 minutes (longer for a large output).
+A staged output takes space on each node that holds it until the commit.
+Object storage (S3, Azure) still compacts as before.
 
 There is no setting. The leader turns it on once every node in the cluster
 runs a release that supports it. `GET /api/v1/cluster` reports it:
