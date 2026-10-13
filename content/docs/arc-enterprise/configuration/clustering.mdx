@@ -436,10 +436,26 @@ switch is one-way.
    that is not in a registered file, replays them to Parquet and registers
    them. The manifest refuses any row registered twice, so a batch the old
    primary registered in part is completed, not duplicated.
-4. Once every claimed batch is in a registered file, the claim finishes. Any
+4. Before it finishes, the new primary makes sure it holds every file the old
+   primary registered. A file no other node has (asked directly, or that no
+   node could answer for during twice the grace) is removed from the
+   manifest, and its rows are published from the standby copy too: without
+   this, rows the old primary registered but nobody pulled before its volume
+   was lost would be gone. A node that later comes back with a copy of such a
+   file removes that copy.
+5. Once every claimed batch is in a registered file, the claim finishes. Any
    other writer that holds batches of that process the new primary lacked
    then claims those too (each writer once), as long as the old primary has
    not come back with a new process and is not the designated primary.
+
+**When the old primary comes back with its volume.** Rows it acknowledged
+that no standby held (the replication lag), and rows the new primary could
+not publish, are still in its WAL. It reads them back and publishes them,
+once; its copies of rows the takeover already published are refused and
+removed. This holds even when the cluster had given that writer up (it was
+removed, or its departure expired): such processes are kept as `retired`,
+with what was registered of them (the last 256), so that a writer coming
+back late still publishes exactly the rows nobody registered.
 
 **A claimed writer exits with code 3.** If the old primary was only cut off,
 it refuses writes the moment it sees the claim, flushes, and exits with status
@@ -455,9 +471,10 @@ writes with a retryable `503`, checked on every write.
 
 **DELETEs wait for a takeover.** `POST /api/v1/delete` and
 `DELETE /api/v1/databases/{name}` answer `503` with `Retry-After: 30` while a
-claim of the measurement is unfinished, or while the primary holds batches of
-a writer it no longer hears from that it may claim. A DELETE applied first
-would be undone by the replay of rows acknowledged before it.
+claim of the measurement is unfinished, while the primary holds batches of a
+writer it no longer hears from that it may claim, or, for at most 10 minutes,
+while an old primary that came back publishes rows from its WAL. A DELETE
+applied first would be undone by the replay of rows acknowledged before it.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -470,6 +487,7 @@ would be undone by the replay of rows acknowledged before it.
 | `arc_cluster_stream_claims_enabled`, `arc_cluster_stream_claims` | Whether takeover is on, and the claims the manifest holds. |
 | `arc_stream_takeover_oldest_claim_age_seconds` | How long the oldest unfinished claim has been open. A claim whose replay keeps failing (a full disk) is never given up on by itself, and DELETEs of its measurements wait: alert on it. |
 | `arc_stream_takeover_departed_writers` | Writers that left gracefully and have not re-joined. |
+| `arc_stream_takeover_unpulled_files` | Files of the old primary the new primary does not hold yet; its claim finishes only once it holds them, or they are found on no node. |
 | `arc_wal_parked_files`, `arc_wal_parked_bytes` | Files a writer could not register because their batches were claimed or already registered. |
 
 **Operator API** (admin):
@@ -482,7 +500,8 @@ would be undone by the replay of rows acknowledged before it.
   when a claimant has been gone for the grace.
 - The same call with `{"epoch": n, "abandon": true}` finishes the claim
   instead. It cannot be undone. The batches it has not published are left to
-  their origin, and are lost when the origin is gone; the claimant drops its
+  their origin, which publishes them if it comes back with its volume; they
+  are lost when the origin is gone for good. The claimant drops its
   copy and does not claim the process again (another writer still may, from
   its own copy). The claim then reports every batch it held as unreplayable,
   published or not. Use it only for a claim that cannot finish.
@@ -494,9 +513,7 @@ lists.
 **What takeover does not cover.**
 
 - Rows the primary acknowledged but had not streamed to any standby yet when
-  its volume was lost: the replication lag, usually milliseconds.
-- Rows of a parked file that mixes claimed batches with batches nobody else
-  holds. They stay parked until a later release re-publishes them.
+  its volume was lost for good: the replication lag, usually milliseconds.
 - After a claim finishes, a DELETE of its measurements waits until every
   writer the primary hears from has claimed what it holds or reported
   holding nothing, for at most twice the grace plus 20 seconds. A writer the
