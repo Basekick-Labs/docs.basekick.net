@@ -292,6 +292,34 @@ High-performance MessagePack binary writes (recommended).
 
 **Response:** `204 No Content`
 
+**Tag columns (optional):** `tag_keys` names the columns that are tags:
+
+```json
+{
+  "m": "cpu",
+  "columns": {
+    "time": [1697472000000, 1697472001000],
+    "host": ["server01", "server02"],
+    "value": [45.2, 67.8]
+  },
+  "tag_keys": ["host"]
+}
+```
+
+Arc records the tag names in each file it writes. Compaction uses them to
+find and remove duplicate rows: a row is removed only when another row is
+identical in every column, such as a batch a client sent twice. Without
+`tag_keys`, the files carry no tag names, and compaction removes duplicates
+only if another file in the same partition has them.
+
+Arc leaves out a name that is empty, is `time`, contains a comma, starts
+with `_`, repeats an earlier name, or is not a column of the data. Names
+must match a column exactly, including case. The write still succeeds, and
+the server logs a warning naming what it left out, at most once per second.
+A name with characters other than letters, digits, `_` and `-`, such as
+`service.name`, is kept. Compaction then does not remove duplicates from
+batches of files that include it.
+
 **Null values:** Columns may contain nulls, including a column whose values are
 *all* null in a given batch. Arc keeps such a column and stores every value as
 NULL, so it is queryable and returns NULLs rather than failing to resolve:
