@@ -44,7 +44,30 @@ Keep WAL disabled if you:
 | **WAL + fdatasync** | Slightly reduced | Near-zero |
 | **WAL + fsync** | Slightly reduced | Zero |
 
-**Tradeoff**: ~20% throughput reduction for near-zero data loss (fdatasync mode)
+**Tradeoff**: some throughput for near-zero data loss. The cost is in enabling
+the WAL at all, not in the sync mode.
+
+### How syncs work
+
+Arc does not sync on every write. A background writer appends entries to the
+WAL file, and a separate sync runs beside it: one is requested once
+`sync_bytes` of written data is unsynced (default 1 MiB), and every 100 ms
+while anything is unsynced. Each sync covers everything written before it
+started, and the writer keeps appending while it runs, so WAL throughput
+follows the disk's bandwidth rather than its round-trip latency (since
+27.01.1, [#1246](https://github.com/Basekick-Labs/arc/issues/1246)).
+
+Before 27.01.1 the writer waited for each sync itself, which capped WAL-on
+ingest at roughly 170 MB/s of WAL on AWS gp3 storage (about 3.5M MessagePack
+points per second), whatever the CPU count. If the WAL cannot keep up, its
+queue fills and entries are dropped while the write is still acknowledged:
+watch `arc_wal_dropped_entries_total`.
+
+A buffer flush writes a checkpoint to the WAL, and that checkpoint is always
+synced before the flush completes, in every sync mode, `async` included. A
+sync that fails is counted in `arc_wal_failed_syncs_total`; the checkpoints in
+that WAL file then fail too, and Arc moves to a new WAL file, because a later
+sync of the same file could succeed over data the disk already reported lost.
 
 ## Architecture
 
@@ -122,6 +145,7 @@ sync_mode = "fdatasync"    # Recommended for production
 directory = "./data/wal"
 max_size_mb = 500          # Rotate at 500MB
 max_age_seconds = 3600     # Rotate after 1 hour
+sync_bytes = 1048576       # Request a sync once this many bytes are unsynced (default 1 MiB)
 ```
 
 Or via environment variables:
@@ -132,6 +156,7 @@ ARC_WAL_DIRECTORY=./data/wal
 ARC_WAL_SYNC_MODE=fdatasync
 ARC_WAL_MAX_SIZE_MB=500
 ARC_WAL_MAX_AGE_SECONDS=3600
+ARC_WAL_SYNC_BYTES=1048576
 ```
 
 ### Sync modes
@@ -148,7 +173,7 @@ sync_mode = "fdatasync"
 **How it works:**
 - Syncs data to disk (file contents)
 - Skips metadata sync (file size, modified time)
-- 50% faster than `fsync`, nearly same durability
+- A little less work than `fsync` (no timestamp metadata), same data durability
 
 **Guarantees:**
 - Data is on physical disk
@@ -182,7 +207,7 @@ sync_mode = "async"
 
 **How it works:**
 - Writes to OS buffer cache
-- No explicit sync (OS flushes periodically)
+- No explicit sync of data (OS flushes periodically); flush checkpoints are still synced
 - Very fast, but small risk window
 
 **Use when:**
@@ -417,11 +442,12 @@ $ du -sh ./data/wal
 
 **Solutions:**
 
-1. **Verify sync mode:**
-   ```toml
-   [wal]
-   sync_mode = "fdatasync"  # Should be fdatasync, not fsync
-   ```
+1. **Check whether the WAL keeps up.** A rising `arc_wal_dropped_entries_total`
+   means writes arrive faster than the WAL disk can take them: those writes
+   are acknowledged without a WAL copy. Before 27.01.1 this happened at about
+   170 MB/s of WAL on network-attached storage regardless of CPU (see
+   [How syncs work](#how-syncs-work)); upgrade, or move the WAL to faster
+   storage. Switching sync modes to chase throughput will not help.
 
 2. **Check disk I/O wait:**
    ```bash
