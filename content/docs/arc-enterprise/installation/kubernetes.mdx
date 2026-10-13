@@ -411,7 +411,8 @@ license:
 auth:
   bootstrapToken:
     existingSecret: ""   # Secret with key "bootstrap-token"
-    value: ""            # leave empty to let the Raft leader generate one
+    value: ""            # leave empty to let the Raft leader generate one;
+                         # 32+ characters, the chart refuses a shorter value
 ```
 
 ### Cluster
