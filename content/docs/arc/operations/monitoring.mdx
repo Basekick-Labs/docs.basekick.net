@@ -157,6 +157,10 @@ arc_buffer_records_buffered       # gauge: records in a buffer, not handed to a 
 arc_buffer_records_queued         # gauge: records in flush tasks waiting for a worker
 arc_buffer_records_inflight       # gauge: records being written to storage
 arc_buffer_queue_depth            # gauge: flush tasks waiting for a worker
+arc_buffer_bytes_buffered         # gauge: approximate bytes held across all three stages
+arc_buffer_oldest_unflushed_seconds # gauge: age of the oldest record not yet in storage
+arc_buffer_memory_limit_bytes     # gauge: memory limit Arc detected (container limit, else RAM)
+arc_buffer_memory_pressure        # gauge: 1 once buffered bytes reach half of that limit
 arc_buffer_flushes_total          # counter: completed flushes
 arc_buffer_records_written_total  # counter: records written by flushes
 arc_buffer_flush_failures_total   # counter: flushes that did not reach storage
@@ -181,6 +185,22 @@ The three record gauges split what ingest holds in memory by stage, and their su
 `arc_buffer_records_buffered` is sampled once per second; the queued and in-flight gauges change as tasks move. A sawtooth that returns to near zero is normal.
 
 `arc_buffer_records_queued` and `arc_buffer_records_inflight` were added in v27.01.1. On an earlier version, `arc_buffer_queue_depth` counts queued flush *tasks*, not records.
+
+#### Ingest memory
+
+Record counts cannot say how much memory ingest holds: bytes per record vary more than 100x between a narrow numeric workload and a wide one with strings. `arc_buffer_bytes_buffered` answers that directly, approximately, across buffers, the flush queue and writes in progress. MessagePack writes count their payload size; other writes estimate from their columns.
+
+```text
+# Ingest holds more than a third of the memory Arc may use
+arc_buffer_bytes_buffered > 0.33 * arc_buffer_memory_limit_bytes
+
+# Records wait too long to reach storage (what a crash loses without the WAL)
+arc_buffer_oldest_unflushed_seconds > 30
+```
+
+When buffered bytes reach half of `arc_buffer_memory_limit_bytes`, `arc_buffer_memory_pressure` reads `1` and Arc logs a warning naming the settings to lower: `ingest.max_buffer_size` and `ingest.max_buffer_age_ms`. Lowering either flushes sooner, at the cost of more, smaller Parquet files and more compaction work. The warning fires once per episode and re-arms when usage falls below 40%. Arc does not reject writes or cap buffered memory. See [Configuration](/arc/configuration/overview/) for the tuning trade-off.
+
+These gauges were added in v27.01.1.
 
 <Callout type="info" title="Available since v26.09.2">
 These metrics were exported but never populated before v26.09.2, reading a permanent `0`. On an earlier version, infer flush pressure from ingest rate versus `rate(arc_storage_writes_total[5m])` and from flush failures instead.
