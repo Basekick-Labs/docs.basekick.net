@@ -2,6 +2,7 @@
   "title": "Performance",
   "pages": [
     "[Overview](/arc/performance/)",
-    "benchmarks"
+    "benchmarks",
+    "hardware-sizing"
   ]
 }

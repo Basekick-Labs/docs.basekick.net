@@ -1,0 +1,156 @@
+---
+title: "Hardware Sizing"
+description: "Starting hardware sizes for Arc OSS ingestion, queries, and combined workloads, with WAL enabled or disabled."
+---
+
+Choose a starting size based on your write rate, query demand, and retention
+period. These guidelines cover **native, single-node Arc OSS** with
+SSD-backed storage, measured on AWS EC2 in us-east-1 on **October 13–14, 2026**.
+The reference build uses [main commit 116a318f](https://github.com/Basekick-Labs/arc/commit/116a318f936c50a6a6dae7ec8132b6617aae2500).
+
+## Starting sizes
+
+Use these targets to begin your evaluation with WAL enabled. They reserve
+approximately 50% headroom below measured rates. The write and query columns
+describe separate workloads; use the combined table when both run together.
+
+| Instance or equivalent | vCPU | RAM | MessagePack points/sec | Line protocol points/sec | Query-only QPS |
+| --- | --- | --- | --- | --- | --- |
+| m7i.xlarge | 4 | 16 GiB | 2.00M | 280.0k | 1.4 |
+| m7i.2xlarge | 8 | 32 GiB | 4.20M | 500.0k | 2.7 |
+| m7i.4xlarge | 16 | 64 GiB | 4.00M | 950.0k | 5.4 |
+
+<Callout type="info" title="Validate your workload">
+These are ballpark starting targets based on short benchmarks. Your schema,
+queries, and retained data volume determine the capacity you can sustain.
+</Callout>
+
+AWS vCPUs are logical CPU threads; these instances have two threads per physical
+core. Use SSD storage provisioned for 6,000 IOPS and 500 MiB/s for these reference
+write targets. Leave CPU, memory, and disk headroom for compaction.
+
+## Ingestion and WAL
+
+MessagePack supports higher batched ingestion rates than line protocol in these
+measurements. Each point is one row containing a timestamp, a host tag, and
+three numeric fields.
+
+| Instance | WAL | Measured MessagePack points/sec | Measured line protocol points/sec |
+| --- | --- | --- | --- |
+| m7i.xlarge | Enabled, shared disk | 4.02M | 561.4k |
+| m7i.xlarge | Enabled, separate disk | 4.44M | 561.3k |
+| m7i.xlarge | Disabled | 4.92M | 895.7k |
+| m7i.2xlarge | Enabled, shared disk | 8.43M | 1.01M |
+| m7i.2xlarge | Enabled, separate disk | 8.01M | 1.01M |
+| m7i.2xlarge | Disabled | 9.78M | 1.57M |
+| m7i.4xlarge | Enabled, shared disk | 8.15M | 1.90M |
+| m7i.4xlarge | Enabled, separate disk | 10.06M | 1.90M |
+| m7i.4xlarge | Disabled | 18.22M | 3.00M |
+
+These are measured operating points, not maximum capacities. Storage and
+network limits also apply when choosing a CPU size. Higher-rate shared-disk runs on the
+16-vCPU server reached the volume's throughput limit while CPU had spare
+capacity; adding CPU alone does not remove that storage limit.
+
+A separate WAL volume can reduce contention with data writes. The separate-disk
+measurements use the same 6,000 IOPS and 500 MiB/s per volume; both volumes
+still share the instance's total EBS bandwidth. These placement measurements
+cover ingestion only.
+
+Keep WAL enabled when you rely on recovery of buffered writes. Disable it only
+when losing buffered writes after an abrupt failure is acceptable. For a
+WAL-disabled starting target, reserve the same 50% headroom below its measured
+ingestion rate. See [Write-Ahead Log](/arc/advanced/wal/) for configuration and
+recovery behavior.
+
+## Query capacity
+
+Query demand often determines how much CPU you need. The following measured
+rates cover an aggregation query mix over 20 million rows, with WAL enabled.
+QPS means queries per second; p95 is the latency within which 95% of requests
+complete, reported for the slowest query type.
+
+| Instance | QPS, 10k hosts | QPS, 100k hosts | p95, 10k hosts |
+| --- | --- | --- | --- |
+| m7i.xlarge | 2.90 | 2.32 | 1.28s |
+| m7i.2xlarge | 5.49 | 3.89 | 1.52s |
+| m7i.4xlarge | 10.94 | 7.79 | 0.71s |
+
+More distinct hosts, larger scans, and more concurrent queries increase CPU
+and memory demand. Validate the queries your application actually runs,
+especially as retention grows.
+
+## Ingestion and queries together
+
+For an evaluation ingesting approximately **100,000 MessagePack points/sec**,
+the following combinations achieved their requested write and query rates.
+The dataset grew to 81.5 million rows during each run.
+
+| Instance | WAL | Write points/sec | Query QPS | Query p95 |
+| --- | --- | --- | --- | --- |
+| m7i.xlarge | Enabled | 100.0k | 0.29 | 2.56s |
+| m7i.xlarge | Disabled | 100.0k | 0.29 | 2.55s |
+| m7i.2xlarge | Enabled | 100.0k | 0.55 | 1.38s |
+| m7i.2xlarge | Disabled | 100.0k | 0.54 | 1.37s |
+| m7i.4xlarge | Enabled | 100.0k | 1.09 | 0.72s |
+| m7i.4xlarge | Disabled | 100.0k | 1.09 | 0.72s |
+
+Choose a size that meets your application's latency requirement as well as its
+write rate. Higher query demand slowed responses and could not be sustained
+while ingestion continued. Leave additional CPU headroom for queries
+and for growth in retained data.
+
+## Storage and retention
+
+Estimate storage from your write rate, retention period, and measured bytes per
+point:
+
+```text
+retained data bytes = points/sec × 86,400 × retention days × bytes/point
+```
+
+For the measured three-field schema, a rounded **28 bytes per point** gives
+these examples:
+
+| Write rate | Retention | Stored data |
+| --- | --- | --- |
+| 10,000 points/sec | 30 days | ~676 GiB |
+| 100,000 points/sec | 30 days | ~6.6 TiB |
+
+Add space for WAL, compaction output, temporary spill, and free disk headroom.
+Measure bytes per point with your own data: field count, types, values, and
+cardinality affect compression.
+
+The benchmark used gp3 provisioned for **6,000 IOPS and 500 MiB/s**. Check the
+instance's sustained storage limits as well as the volume's. The tested
+4-, 8-, and 16-vCPU instances have EBS baseline bandwidths of approximately
+156, 313, and 625 MB/s; smaller instances can burst above their baselines.
+Size for sustained throughput, including simultaneous WAL and data writes.
+Network baseline bandwidth is approximately 1.56, 3.13, and 6.25 Gbps for
+these sizes; short runs can benefit from burst capacity.
+
+## When to increase resources
+
+- **CPU:** increase it when queries consume ingestion headroom or exceed your
+  latency target. Narrow query time ranges where possible.
+- **RAM:** increase it when process memory approaches available RAM or queries
+  and compaction need larger working sets. Monitor native Arc process memory,
+  including DuckDB and Arrow allocations.
+- **Storage throughput:** increase it when flushes fall behind, buffers grow,
+  or disk wait rises. Check both volume and instance limits.
+- **Storage capacity:** increase it as retention grows, allowing space for
+  compaction and operational headroom.
+
+See [Monitoring](/arc/operations/monitoring/) and
+[File compaction](/arc/advanced/compaction/) for operational guidance.
+
+## Enterprise
+
+These guidelines cover one OSS node. Enterprise sizing will cover cluster
+topology, replication, and storage separately.
+
+## Benchmark details
+
+Ingestion and combined measurements run for ten minutes using batched synthetic
+data. Full workload definitions, configuration, limitations, and raw results are
+available in the [benchmark report](https://github.com/Basekick-Labs/arc-benchmarks/blob/eaf7f4869a737358ba9f1a2aa2795cd0c4594ca4/sizing_bench/results/oss-main-116a318f-20261013/README.md).
