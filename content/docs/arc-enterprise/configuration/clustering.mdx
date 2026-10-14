@@ -465,7 +465,7 @@ run v27.01.1 or later before you turn the setting on.
 | `arc_standby_stream_connected` | standby | 1 while receiving from the primary. |
 | `arc_standby_store_bytes` | standby | Size of the copy. |
 | `arc_standby_store_incomplete_keys` | standby | Measurements missing batches above their registered floor. |
-| `arc_standby_store_blocked_keys` | standby | Measurements with batches whose trim waits on a file holding their rows that is not yet on this standby. A file the puller cannot fetch keeps those batches here. |
+| `arc_standby_store_blocked_keys` | standby | Measurements with registered batches this standby may not trim yet: a file holding their rows is not here (a file the puller cannot fetch keeps those batches), this node's manifest is behind the primary's, a claim is open, or the primary is not heard from. |
 | `arc_standby_store_lost_records` | standby | Batches the primary reported lost. The standby keeps them: they may be the only copy. |
 | `arc_standby_store_dropped_total`, `arc_standby_store_evicted_bytes_total` | standby | Batches not kept (at the cap or below the free-space reserve), and bytes evicted to stay under it. Alert on `increase(arc_standby_store_dropped_total[5m]) > 0`: a takeover cannot publish those batches. |
 | `arc_standby_store_capped`, `arc_standby_store_low_space`, `arc_standby_store_max_bytes` | standby | 1 while the store refuses batches at its cap; 1 while its volume is below the free-space reserve; the effective cap (v27.01.1+). |
@@ -474,8 +474,8 @@ The copy is trimmed every 5 seconds, and at once when it passes half its cap
 ([arc#1266](https://github.com/Basekick-Labs/arc/issues/1266)). It holds each
 batch until the batch is in a registered file and that file is on the standby,
 so size the cap for the ingest rate times the replication lag. On a QA cluster
-at about a million rows a second the copy stayed under 450 MB, including
-right after a standby restart. A batch goes once the files holding its rows
+at about 1.2 million rows a second the copy stayed under 900 MB with a 1 GiB
+cap, including right after a standby restart. A batch goes once the files holding its rows
 (by their coverage) are on the standby; an unpulled file of other batches, or
 an unpulled compaction output, does not hold it back. With stream takeover off,
 nothing claims from the copy, and a batch goes once it is registered. The
