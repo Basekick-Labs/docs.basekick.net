@@ -455,7 +455,7 @@ run v27.01.1 or later before you turn the setting on.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `cluster.standby_store_max_bytes` | `0` (a quarter of the WAL volume, at least 1 GiB) | Caps a standby's copy; negative means no cap. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. On a volume that does not enforce its size (k3s `local-path`, `hostPath`, Docker named volumes) the volume is the host's disk; set the cap explicitly there. |
+| `cluster.standby_store_max_bytes` | `0` (a quarter of the WAL volume, at least 1 GiB, at most 32 GiB) | Caps a standby's copy; negative means no cap. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. On a volume that does not enforce its size (k3s `local-path`, `hostPath`, Docker named volumes) the volume is the host's disk; set the cap explicitly there. |
 | `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up. Past it, that standby misses batches; the other standbys do not. |
 
 | Metric | Where | Meaning |
@@ -474,10 +474,16 @@ The copy is trimmed every 5 seconds, and at once when it passes half its cap
 ([arc#1266](https://github.com/Basekick-Labs/arc/issues/1266)). It holds each
 batch until the batch is in a registered file and that file is on the standby,
 so size the cap for the ingest rate times the replication lag. On a QA cluster
-at about a million rows a second the copy stayed under 160 MB. The store keeps
-no new batches while its volume has less than 10 % (at least 2 GiB) free, and
-resumes 1 GiB above that, so the WAL and the Parquet files on the same volume
-come first.
+at about a million rows a second the copy stayed under 160 MB while the
+standbys' pulls kept up. When a standby's pulls fall behind (right after a
+restart, or with many files in the current hour), a measurement's batches are
+trimmed only once every current file of it is on the standby, so the copy can
+still fill: watch `arc_standby_store_blocked_keys`. The automatic cap stops at
+32 GiB because a full store is read whole at startup; set a larger one
+explicitly. The store keeps no new batches while its volume has less than 10 %
+(at least 2 GiB) free, and resumes 1 GiB above that, so the WAL and the
+Parquet files on the same volume come first. On a volume of 2 GiB or less the
+store keeps nothing; Arc warns about this at startup.
 
 The `received/` directory shares the WAL volume but is not counted in
 `arc_wal_dir_bytes`.
