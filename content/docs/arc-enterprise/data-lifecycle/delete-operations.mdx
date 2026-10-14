@@ -37,13 +37,27 @@ List the measurement's Parquet files and count the rows matching the WHERE
 clause in each, with DuckDB.
 
 In a cluster with compaction commit on (every node runs Arc 2027.01.1 or
-later), only files the cluster manifest lists, or that this node is still
-registering, are scanned. A file in storage the manifest does not list, such as
-a compaction output not committed yet, is left alone. Before the first scan, the DELETE
-waits up to 30 seconds until every file the manifest lists for the measurement
-is on the node; a file still missing answers `503` listing it in
-`unreachable_files`, unless `allow_unreachable` is set. A dry run does not
-wait.
+later), the DELETE first catches up with the cluster manifest, then scans the
+files the manifest lists for the measurement, plus files this node is still
+registering. A file in storage the manifest does not list, such as a
+compaction output not committed yet, is left alone. A file the manifest lists
+that is not on the node yet (a compaction output on its way) is waited for, up
+to 30 seconds per scan; a file the manifest stops listing meanwhile is no
+longer waited for. A file still missing answers `503` listing it in
+`unreachable_files`, unless `allow_unreachable` is set, in which case the
+DELETE runs without it and still lists it. A dry run does not wait and lists
+the files it could not count.
+
+On a shared bucket (S3, Azure), a DELETE scans what queries read:
+
+- A listed file whose object is gone is skipped. The exception is a compaction
+  output its finisher is still copying into place, which the DELETE waits for.
+- An object of the measurement the manifest does not list (such as a
+  compaction output left by a release before 2027.01) is scanned too: its
+  rewrite is registered, or it is removed when every row matches. With stream
+  claims on, such an object is left alone.
+- The input objects of a committed compaction that has not finished are
+  skipped: its output holds their rows.
 
 ### 3. Rewrite files
 

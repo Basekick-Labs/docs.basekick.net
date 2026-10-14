@@ -93,6 +93,27 @@ Compaction time: 5 seconds
 10. Repeat for next partition
 ```
 
+### In a cluster with local storage
+
+When compaction commit is on (every node runs Arc 2027.01.1 or later), steps 7
+and 8 change. The compactor writes the output under `_compaction_staged/`,
+where no query reads it, and keeps the old files. It deletes nothing itself.
+Every other node that keeps a local copy of the data pulls the staged output.
+Once one of them holds it, the cluster registers the output and deletes the old
+files in one step, but only if each old file is still registered exactly as the
+compactor read it. A row DELETE, retention or tiering that changed one of them
+first makes the cluster drop the job, and the partition is compacted again on a
+later cycle. Losing the compactor at any step loses no rows. See
+[Compaction commit](/arc-enterprise/configuration/clustering/#compaction-commit-v27011).
+
+### In a cluster with object storage
+
+With compaction commit on, the compactor uploads the output under
+`_compaction_staged/` in the bucket and keeps the old files. The cluster
+registers the output and unregisters the old files in one step, under the same
+check as above. A finisher then copies the output into place inside the store
+and deletes the old files. Until the copy lands, queries read the old files.
+
 ### Partition structure
 
 Data is organized by hour:
