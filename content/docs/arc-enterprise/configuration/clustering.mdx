@@ -298,6 +298,39 @@ When a writer crashes:
 4. In-flight buffer on the crashed writer (records that arrived in memory but had not yet been flushed to S3) is lost. Records that completed the S3 PUT before the crash are durable.
 5. On writer restart, the local WAL replays any un-flushed entries into the new Arrow buffer before `/ready` flips back to 200 and the load balancer resumes routing.
 
+#### Orphan reconciliation (v27.01.1+)
+
+The orphan reconciler (`reconciliation.enabled`, off by default) runs on the
+active compactor. It deletes objects in the bucket that the cluster manifest
+does not list and that are older than `reconciliation.grace_window_seconds`
+(default 24 hours, minimum 1 hour; a smaller value is raised to 1 hour with a
+warning).
+
+A writer uploads each flushed file before it registers it in the manifest. A
+writer that cannot reach the cluster leader keeps its files pending until it
+can, and the reconciler must not delete them. Each run:
+
+- **Syncs with the leader first.** Without a reachable leader, the run stops
+  before deleting anything. The run reports `abort_reason`
+  `manifest_not_synced`, or `leader_barrier_unsupported` when the leader runs
+  an older release.
+- **Asks every writer which files it has pending.** If a writer does not
+  answer, nothing is deleted from storage in that run: it reports
+  `storage_sweep_held` and `storage_sweep_held_reason`, naming the writer, and
+  the gauge `arc_reconciliation_storage_sweep_held` reads `1`. A writer that is
+  down, or one that was taken out of service without being removed from the
+  cluster, holds the storage sweep until it is back or removed.
+- **Skips files a writer published as pending.** Each writer writes its pending
+  files to `_registration_pending/` in the bucket when it stops and while a
+  file stays pending for more than a minute, and deletes the list once
+  everything is registered. A writer that stops with pending files it could
+  not publish does not leave the cluster, so it keeps holding the sweep.
+- **Skips compaction outputs** that the manifest repair will register.
+
+The run counts these skips in `skipped_pending_remote` and
+`skipped_adoptable`. During a rolling upgrade the storage sweep stays held
+until every writer runs v27.01.1.
+
 ### Pattern 1 — local storage with peer replication
 
 When each node has its own local storage, one writer at a time takes ingest, because the data is not shared: a second active writer would hold rows no other node can see. Arc elects that writer and promotes a replacement when it fails.
