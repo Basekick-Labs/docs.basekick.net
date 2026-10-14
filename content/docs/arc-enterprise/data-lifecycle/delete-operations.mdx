@@ -48,6 +48,17 @@ longer waited for. A file still missing answers `503` listing it in
 DELETE runs without it and still lists it. A dry run does not wait and lists
 the files it could not count.
 
+On a shared bucket (S3, Azure), a DELETE scans what queries read:
+
+- A listed file whose object is gone is skipped. The exception is a compaction
+  output its finisher is still copying into place, which the DELETE waits for.
+- A compaction output the manifest does not list (left by a release before
+  2027.01) is registered, then scanned.
+- Any other object of the measurement the manifest does not list is rewritten
+  or removed in storage only.
+- The input objects of a committed compaction that has not finished are
+  skipped: its output holds their rows.
+
 ### 3. Rewrite files
 
 For each affected file:
