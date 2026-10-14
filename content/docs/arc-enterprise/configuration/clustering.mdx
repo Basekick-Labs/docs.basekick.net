@@ -46,6 +46,8 @@ replication_enabled = true      # Peer file replication between nodes
 query_gate_on_catchup = false   # See "Query gating during replication catch-up" below
 replication_catchup_enabled = true            # Walk the manifest on startup and pull what is missing
 replication_catchup_barrier_timeout_ms = 30000 # Bound on the pre-walk sync with the leader (see below)
+stale_local_sweep = true                      # Remove local copies of files deleted while this node missed it (v27.01.1+)
+stale_local_sweep_max_fraction = 0.5          # Refuse a sweep pass that would remove more than this share of the node's files
 ```
 
 ### Environment variables
@@ -63,6 +65,8 @@ ARC_CLUSTER_REPLICATION_ENABLED=true
 ARC_CLUSTER_REPLICATION_CATCHUP_ENABLED=true
 ARC_CLUSTER_REPLICATION_CATCHUP_BARRIER_TIMEOUT_MS=30000
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
+ARC_CLUSTER_STALE_LOCAL_SWEEP=true
+ARC_CLUSTER_STALE_LOCAL_SWEEP_MAX_FRACTION=0.5
 ```
 
 ## Query gating during replication catch-up
@@ -661,6 +665,61 @@ an earlier release on a node, remove the node from the cluster, wipe its data
 directory, and join it fresh. To roll back the whole cluster, restore a backup
 taken before the upgrade.
 </Callout>
+
+### Copies a node missed deleting (v27.01.1+)
+
+On local storage, each node removes its own copy of a file when the cluster
+manifest drops it (a DELETE, retention, compaction, tiering). A node misses
+that removal when it is down while the file is deleted and rejoins from the
+leader's snapshot, or when it crashes with the removal still queued. Before
+v27.01.1 such a copy stayed on that node's disk, and its queries kept returning
+the deleted rows (or duplicates of compacted ones) until the opt-in orphan
+sweep removed it ([arc#1071](https://github.com/Basekick-Labs/arc/issues/1071)).
+
+Each node now records the local files it has seen registered, in
+`seen-local.log` in `cluster.raft_data_dir`. Every 5 minutes it syncs with the
+leader and removes a recorded file the manifest no longer lists, when all of
+these hold:
+
+- the node's manifest has applied past the file's registration;
+- the file has been unlisted for at least 10 minutes, over two passes that
+  ran (a pass skipped for a compaction pause or a failed sync starts the wait
+  again);
+- it is not waiting to register on this node, not held by an edge-sync
+  delivery, not part of a compaction in progress, and not in the cold tier on
+  this node (a tier record that cannot be read counts as cold);
+- it is still the same file the node recorded (size, modification time and
+  inode). The copy is moved under `_stale_local/` in the storage directory
+  and checked again there before it is deleted, so a file written to the path
+  meanwhile is put back.
+
+A file the node never saw registered is never removed by this sweep: files a
+writer has flushed but not registered yet, a restore in progress, and files
+left over from before the upgrade (those remain for the reconciler's orphan
+sweep, `reconciliation.enabled`).
+
+A pass that would remove more than `cluster.stale_local_sweep_max_fraction` of
+the node's tracked files (default `0.5`), and at least 1000, removes nothing:
+a manifest rolled back by an unsafe Raft recovery looks like that, and the
+copies are then the recovery material. The node logs an error and
+`arc_stale_local_blocked` reads `1`. If the deletes are real (a long outage
+with heavy retention), raise the setting and restart the node. The setting
+must be a number above 0; above 1 the sweep never refuses a pass.
+
+The sweep runs on local storage with `cluster.replication_enabled` and
+`cluster.replication_catchup_enabled`; `cluster.stale_local_sweep = false`
+turns it off. It costs about 150–200 bytes of memory per local file, and a
+journal of up to 1.5 times that on the Raft volume. If the journal cannot be
+opened or written (a full Raft volume), the node stops tracking and removing
+until it restarts. `GET /api/v1/cluster` reports the last pass under
+`stale_local` (`last_run`, `tracked`, `unlinked`, `waiting`, `blocked`,
+`error`). Metrics: `arc_stale_local_unlinked_total`,
+`arc_stale_local_tracked`, `arc_stale_local_blocked`,
+`arc_stale_local_tracking_failed`.
+
+The same record catches a path the cluster registered again with other
+content while the node was away: the node's replication walk has the copy it
+recorded re-checked against the manifest, and pulled again if it differs.
 
 ### Membership after a restart
 
