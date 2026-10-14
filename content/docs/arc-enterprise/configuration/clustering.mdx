@@ -48,6 +48,7 @@ replication_catchup_enabled = true            # Walk the manifest on startup and
 replication_catchup_barrier_timeout_ms = 30000 # Bound on the pre-walk sync with the leader (see below)
 stale_local_sweep = true                      # Remove local copies of files deleted while this node missed it (v27.01.1+)
 stale_local_sweep_max_fraction = 0.5          # Refuse a sweep pass that would remove more than this share of the node's files
+raft_pre_vote = true                          # Raft pre-vote (v27.01.1+); see "Raft pre-vote" below before an upgrade
 ```
 
 ### Environment variables
@@ -67,7 +68,25 @@ ARC_CLUSTER_REPLICATION_CATCHUP_BARRIER_TIMEOUT_MS=30000
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
 ARC_CLUSTER_STALE_LOCAL_SWEEP=true
 ARC_CLUSTER_STALE_LOCAL_SWEEP_MAX_FRACTION=0.5
+ARC_CLUSTER_RAFT_PRE_VOTE=true
 ```
+
+### Raft pre-vote (v27.01.1+)
+
+From v27.01.1 a node runs the Raft pre-vote round before it starts an election
+([arc#1272](https://github.com/Basekick-Labs/arc/issues/1272)). A writer that
+cannot hear the leader, for example a restarted pod whose new address the
+leader cannot resolve yet, no longer raises its term on every election timeout.
+Before, when the leader reached it again, the higher term made a healthy leader
+step down.
+
+Releases before v27.01.1 do not answer pre-vote. While a cluster runs both, a
+leader that dies can leave one old and one upgraded survivor with no leader
+until the restarted node rejoins on v27.01.1 (only when the upgraded survivor
+has the more recent log). Upgrade writers one at a time and wait for each to
+rejoin. To rule the window out, set `cluster.raft_pre_vote = false` on every
+node for the upgrade and remove it, with one more rolling restart, once all
+nodes run v27.01.1.
 
 ## Query gating during replication catch-up
 
@@ -311,14 +330,19 @@ A local-storage cluster with Raft always elects one primary writer, which runs r
 - **Recovery time**: less than 30 seconds
 - **Health-based detection**: continuous health monitoring with configurable thresholds
 - **Automatic promotion**: a standby writer is promoted via Raft consensus (`CommandPromoteWriter` FSM apply)
-- **Cooldown protection**: prevents rapid failover flapping
+- **Cooldown protection**: after a completed failover, the next one waits
+  `cluster.failover_cooldown` (60 s). A failed attempt does not start it: the
+  next health check tries again (v27.01.1+)
 
 **Enable** by setting `cluster.failover_enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature. By default, standby writers do not receive the primary's WAL. Rows the primary accepted but had not yet flushed when it failed are on no other node; they come back when the failed node restarts and replays its own WAL. From v27.01.1 the files that replay writes are announced to the cluster like any other ([arc#1206](https://github.com/Basekick-Labs/arc/issues/1206)). With [stream takeover](#stream-takeover-v27011) on, the new primary publishes those rows itself, from its copy of the primary's stream ([arc#1207](https://github.com/Basekick-Labs/arc/issues/1207)).
 
 When the primary writer fails:
 
-1. Health checks detect the failure.
-2. The Raft leader selects a healthy standby writer.
+1. Health checks detect the failure. The Raft leader judges the writer the
+   cluster designates as primary, so a leader that joined after the last
+   promotion decides the same way ([arc#1267](https://github.com/Basekick-Labs/arc/issues/1267)).
+2. The Raft leader selects a healthy standby writer, lowest node id first. A
+   writer the cluster state refuses to promote is skipped for a minute.
 3. The selected node is promoted via `CommandPromoteWriter` Raft apply.
 4. Write traffic re-routes to the new primary (clients reconnect, or the load balancer picks up its `/ready/write` 200).
 
@@ -341,7 +365,19 @@ when it may not be the primary ([arc#1207](https://github.com/Basekick-Labs/arc/
 Nothing is written before the refusal, the WAL included, so a retry is safe.
 `/ready/write` reports not-ready meanwhile. `arc_cluster_ingest_fenced` is 1
 while a writer has lost contact (a standby refusing writes is normal and does
-not set it). `arc_cluster_ingest_fenced_writes_total` counts refusals.
+not set it). `arc_cluster_ingest_fenced_writes_total` counts refusals by
+`reason`: `contact` (lost contact), `standby` (another writer is the primary),
+`claimed`, `announcing`, `not_designated` and `delete_ack` (stream takeover),
+and `other`. Sum by reason for the total. A refusal is counted per attempt: an
+MQTT message retried while refused counts once per retry.
+
+A refused write is answered with `503`, `Retry-After: 5` and
+`X-Arc-Ingest-Fenced: 1`. It is not counted in `arc_ingest_errors_total` and is
+not logged per request. Each node logs `Writes refused on this node
+(retryable)` at WARN at most once per reason every 30 seconds, with the number
+of refusals since the previous line (`suppressed`). A reader or compactor that
+forwarded the write logs it the same way, with reason `forwarded`
+([arc#1268](https://github.com/Basekick-Labs/arc/issues/1268)).
 
 MQTT subscriptions on a writer that refuses writes are suspended without
 unsubscribing. With `clean_session=false` the broker queues QoS 1 and 2
@@ -738,23 +774,51 @@ curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/cluster
 ```
 
-**Response:**
+**Response** (abridged; from a Pattern 1 cluster on v27.01.1):
 
 ```json
 {
-  "success": true,
-  "data": {
-    "cluster_name": "production",
-    "node_count": 3,
-    "healthy_nodes": 3,
-    "roles": {
-      "writer": 1,
-      "reader": 2,
-      "compactor": 0
+  "cluster_name": "production",
+  "enabled": true,
+  "mode": "cluster",
+  "running": true,
+  "local_node_id": "writer-02",
+  "local_role": "writer",
+  "node_count": 5,
+  "healthy_count": 5,
+  "writers": 3,
+  "readers": 1,
+  "compactors": 1,
+  "primary_writer_id": "writer-01",
+  "writer_failover": {
+    "consecutive_fails": 0,
+    "cooldown_period": "1m0s",
+    "failover_in_progress": false,
+    "last_failover_at": "2026-10-14T17:49:58Z",
+    "primary_id": "writer-01",
+    "running": true
+  },
+  "nodes": [
+    {
+      "id": "writer-01",
+      "role": "writer",
+      "state": "healthy",
+      "writer_state": "primary",
+      "address": "10.0.1.10:9100",
+      "api_address": ":8000",
+      "version": "27.01.1",
+      "is_active_compactor": false
     }
-  }
+  ]
 }
 ```
+
+- `primary_writer_id` is the writer the cluster designates as primary (v27.01.1+).
+- `writer_failover` is this node's failover manager. Only the Raft leader acts
+  on failures, so read it there. After a failed attempt it also reports
+  `failed_attempts`, `last_failure_reason` and `last_failure_at`.
+- `nodes[].writer_state` is this node's view: `primary` for the designated
+  writer, empty for the others.
 
 ### List cluster nodes
 
