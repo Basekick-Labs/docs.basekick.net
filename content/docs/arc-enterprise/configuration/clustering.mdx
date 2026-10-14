@@ -631,22 +631,27 @@ On a shared bucket, releases before 2027.01 did not record compaction in the
 cluster manifest. Compaction outputs stayed unregistered, and the inputs they
 replaced stayed listed. Queries were not affected, because they read the
 bucket. After the upgrade, the leader repairs the manifest 2 minutes after it
-becomes leader, then every hour. A repair is skipped while a compaction pause
-is in force or stream claims are on. Each repair:
+becomes leader, then every hour. A repair waits while a compaction pause is in
+force. On any cluster it moves entries that older releases registered with a
+compaction tier (`hourly`, `daily`) to `hot`. On a shared bucket with stream
+claims off, it also:
 
 - drops entries whose object is gone;
 - registers compaction outputs (`*_compacted.parquet` in an hour directory,
   `*_daily.parquet` in a day directory) the manifest does not list, once they
-  are an hour old. Each output is read for its checksum, at most 1000 objects
-  or 10 GiB per run, so on a large bucket the first repairs take several runs.
+  are an hour old and unless tiering records them as cold. Each output is read
+  for its checksum, at most 1000 objects or 10 GiB per run, so on a large
+  bucket the first repairs take several runs.
 
 Other objects the manifest does not list are left to the reconciler. Until
 the repair has run, a DELETE still removes every matching row a query reads:
 it skips a listed file whose object is gone, and it rewrites an object the
-manifest does not list. On the leader, `compaction_commit.manifest_repair` in
-`GET /api/v1/cluster` shows the last run. The metrics
-`arc_manifest_repair_dropped_total` and `arc_manifest_repair_adopted_total`
-count the entries dropped and the outputs registered.
+manifest does not list, registering the rewrite. On the leader,
+`compaction_commit.manifest_repair` in `GET /api/v1/cluster` shows the last
+run. The metrics `arc_manifest_repair_dropped_total` and
+`arc_manifest_repair_adopted_total` count the entries dropped and the outputs
+registered; the gauge `arc_manifest_repair_pending` counts outputs left for a
+later run.
 
 <Callout type="warn" title="Rolling a node back">
 Once compaction commit is on, do not restart a node on an earlier release with
