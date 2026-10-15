@@ -103,6 +103,42 @@ Result: Three separate sorted files
 → data/mydb/cpu/2024/12/15/16/ghi789.parquet (1 record)
 ```
 
+### Backfills: write endpoints vs import endpoints
+
+Files always land in the hour the data describes, whichever endpoint wrote
+them. What differs is how many files each hour gets.
+
+**Write endpoints** (`/api/v1/write/msgpack`, `/api/v1/write/line-protocol`,
+`/write`, `/api/v2/write`) put rows in the ingest buffer as they arrive. The
+buffer flushes a measurement when it reaches `ingest.max_buffer_size` rows or
+`ingest.max_buffer_age_ms`, and each flush writes one file per hour it holds.
+Live data covers an hour or two per flush, so this costs little. A backfill of
+history in random order covers every hour in every flush: each flush writes a
+small file into each hour, and [compaction](/arc/advanced/compaction/) merges
+them later (hourly, then daily). Ingestion stays as fast as possible; the
+merging is left to compaction. Write endpoints never regroup rows.
+
+**Import endpoints** (`/api/v1/import/lp`, `csv`, `parquet`, v27.01.1+) hold an
+import's parsed rows, grouped by hour, up to half the import's memory
+allowance, then write one batch per measurement and hour. An unsorted file then
+makes about one file per hour (per window of that size) instead of one per
+hour per flush, and hourly compaction has little or nothing to do for it. The
+cost is time spent grouping at import.
+
+Measured on one host, a 4M-row file shuffled over a year (8,760 hours):
+
+| | Files | Import time |
+|---|---|---|
+| Line protocol, before grouping | 455,420 | 27.6 s |
+| Line protocol, grouped (and parsed straight to typed columns) | 8,760 | 16.5 s |
+| CSV, before / grouped | 350,398 / 8,760 | 8.6 s / 11.2 s |
+| Parquet, before / grouped | 350,397 / 8,760 | 5.6 s / 7.4 s |
+
+**For a large backfill of history**, use an import endpoint, or send the data
+to a write endpoint sorted by time: sorted data covers few hours per flush and
+makes few files either way. Deployments with `ingest.decimal_columns` set
+write line-protocol imports without grouping.
+
 ### Partition structure
 
 Data is organized hierarchically by time:
