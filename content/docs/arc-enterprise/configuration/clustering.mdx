@@ -377,7 +377,9 @@ a backstop for a writer that never answers: the forward is not cancelled when
 the client gives up, and until then the forwarding node holds the upload. A
 `504` on an import means the backstop ran out or the connection to the writer
 broke after the upload was sent; the import may have finished. An upload over
-the 500 MB import limit is refused with `413` before it is forwarded.
+the 500 MB import limit is refused with `413` before it is forwarded. A writer imports one file at a time,
+so a forwarded import can wait for another to finish; that wait counts against
+the backstop too.
 
 MQTT and continuous queries on a standby still refuse with `503`.
 
