@@ -456,12 +456,12 @@ run v27.01.1 or later before you turn the setting on.
 | Setting | Default | Meaning |
 |---|---|---|
 | `cluster.standby_store_max_bytes` | `0` (a quarter of the WAL volume, at least 1 GiB, at most 32 GiB) | Caps a standby's copy; negative means no cap. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. On a volume that does not enforce its size (k3s `local-path`, `hostPath`, Docker named volumes) the volume is the host's disk; set the cap explicitly there. |
-| `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up. Past it, that standby misses batches; the other standbys do not. |
+| `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up (about 1.8 s of stream at a million rows a second). Past it, that standby misses batches; the other standbys do not. Raising it costs primary memory, once per standby. |
 
 | Metric | Where | Meaning |
 |---|---|---|
 | `arc_origin_stream_sessions` | primary | Standby writers being streamed to. |
-| `arc_origin_stream_dropped_total` | primary | Batches a slow standby missed. |
+| `arc_origin_stream_dropped_total` | primary | Batches a slow standby missed. Until their files are registered they are on the primary only: a primary lost with its volume in that window loses those acknowledged rows. Alert on `increase(arc_origin_stream_dropped_total[5m]) > 0` (v27.01.1 keeps up at about 1.2M rows/s on a 4-core QA node). |
 | `arc_standby_stream_connected` | standby | 1 while receiving from the primary. |
 | `arc_standby_store_bytes` | standby | Size of the copy. |
 | `arc_standby_store_incomplete_keys` | standby | Measurements missing batches above their registered floor. |
