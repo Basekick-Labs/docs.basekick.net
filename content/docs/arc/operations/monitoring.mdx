@@ -220,7 +220,9 @@ Deferred records are held in memory, and Arc does not bound that: `max_buffer_si
 ```text
 arc_wal_records_preserved_total            # records that fell back to WAL instead of flushing
 arc_wal_dropped_entries_total              # WAL buffer full — data loss risk
-arc_wal_failed_writes_total                # WAL write I/O failures
+arc_wal_failed_writes_total                # WAL entries that could not be written
+arc_wal_disk_full_writes_total             # ... of which the disk was full (v27.01.1+)
+arc_wal_recovered_writes_total             # WAL writes that failed, then succeeded on a new file (v27.01.1+)
 arc_wal_oversized_payloads_total           # payload exceeded WAL limits
 arc_wal_recovery_total                     # recovery runs
 arc_wal_recovery_records_total             # records replayed
