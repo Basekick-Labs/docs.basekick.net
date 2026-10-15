@@ -30,3 +30,31 @@ rows without an explicit timestamp in the file stay duplicated.
 | `503` with `Retry-After` and `X-Arc-Ingest-Fenced` | No writer could be reached, or the writer may not take writes right now. Nothing was written. Retry. |
 | `504` | The import was sent to the writer but no answer came back (the connection broke, or `cluster.import_forward_timeout_ms` ran out). It may have been written. |
 | `508` | The request was already forwarded once (a routing loop). |
+
+## Memory and large files
+
+An import reads the uploaded file in place in the request and processes it in
+chunks: about 4 MB of line protocol, or 100,000 CSV or Parquet rows (fewer for
+wide files). Each chunk is written before the next is read, and the import
+waits for the flushes to keep up, so it needs little memory beyond the upload
+itself (v27.01.1+). Before, a 164 MB line protocol file took over 3 GB.
+
+- **Validation first.** The whole file is read once before anything is
+  written, so a bad file (bad time value, invalid measurement name, missing
+  permission, a CSV parse error, mixed types in a line protocol field) is
+  refused with nothing written. CSV column types are decided by the whole
+  column, as before.
+- **One import writes at a time** on a node. Imports sent together are
+  validated together and written one after the other. Every request body is
+  held in memory while it waits, so send large imports one at a time.
+- **Failures part-way.** If an import stops after part of it was written (the
+  node is fenced, flushes are not keeping up, or a later part of the file
+  cannot be read), it answers `500` with `rows_written`. Running the whole
+  file again writes those rows again.
+- **Sort large files by time.** Each chunk's flush writes one file per hour it
+  touches. A file sorted by time makes about as many files as before; an
+  unsorted file spanning many hours makes many small files until compaction
+  merges them.
+- **No `Content-Encoding`.** A request with a `Content-Encoding` header is
+  refused with `415`. To send a compressed line protocol file, gzip the file
+  itself.
