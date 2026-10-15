@@ -108,7 +108,7 @@ Data flows through Arc's high-performance columnar ingest pipeline (ArrowBuffer 
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database, invalid precision, or no file uploaded; a column that mixes strings or booleans with numbers (a field, or a field and a tag of the same name); a line longer than 64 MB |
+| `400` | Missing database, invalid precision, or no file uploaded; a column that mixes strings or booleans with numbers (a field, or a field and a tag of the same name); a line longer than 64 MB; a tag or field named `time`, `_measurement` or `_database` |
 | `403` | Insufficient write permissions for one or more measurements |
 | `413` | File exceeds 500 MB size limit (after decompression) |
 | `415` | The request has a `Content-Encoding` header (gzip the file itself instead) |

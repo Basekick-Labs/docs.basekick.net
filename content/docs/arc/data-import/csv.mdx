@@ -87,7 +87,7 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database/measurement/file; empty file or no data rows; `time_column` not found; empty, blank, or duplicate column names; a `time_column` rename that collides with an existing `time` column; an unparseable value in the time column; or a request body cut short |
+| `400` | Missing database/measurement/file; empty file or no data rows; `time_column` not found; empty, blank, or duplicate column names; a `time_column` rename that collides with an existing `time` column; an unparseable value in the time column; a column named `_measurement` or `_database`; or a request body cut short |
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
 | `415` | The request has a `Content-Encoding` header (compress nothing at the HTTP level) |
