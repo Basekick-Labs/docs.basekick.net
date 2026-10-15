@@ -111,4 +111,5 @@ Data flows through Arc's high-performance columnar ingest pipeline (ArrowBuffer 
 | `400` | Missing database, invalid precision, or no file uploaded |
 | `403` | Insufficient write permissions for one or more measurements |
 | `413` | File exceeds 500 MB size limit |
-| `500` | Import execution error |
+| `500` | Import execution error. When the flush failed after every row was accepted, the rows may still be stored: check before running the file again. When it stopped after some measurements were written, the body lists them in `written_measurements` and names `stopped_at_measurement`; running the whole file again writes those rows again. |
+| `503` | Refused before anything was written (for example the node is fenced, or the WAL volume is low). Retry after `Retry-After`. |

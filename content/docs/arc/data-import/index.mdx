@@ -10,3 +10,23 @@ Bulk import is for loading data you already have. For continuous writes, use the
   <Card title="Parquet" href="/arc/data-import/parquet/" description="Load existing Parquet files, preserving column types." />
   <Card title="Line Protocol" href="/arc/data-import/line-protocol/" description="Load .lp or .txt files, plain or gzip-compressed." />
 </Cards>
+
+## Imports in a cluster
+
+An import can be sent to any node. A reader, a compactor or a standby writer
+forwards it to a writer, once, and returns the writer's answer (v27.01.1+). A
+large import runs as long as it would on the writer directly, up to
+`cluster.import_forward_timeout_ms` (default 1 hour). Set your client's timeout
+for the whole import; for `arcli`, raise `--timeout` (default 60 s) for large
+files.
+
+A client timeout or a `504` does **not** stop the import on the writer. Check
+the row count before you run the same file again: a second run writes its rows
+again. Compaction collapses rows that are exactly equal, timestamp included, so
+rows without an explicit timestamp in the file stay duplicated.
+
+| Status | Meaning |
+|--------|---------|
+| `503` with `Retry-After` and `X-Arc-Ingest-Fenced` | No writer could be reached, or the writer may not take writes right now. Nothing was written. Retry. |
+| `504` | The import was sent to the writer but no answer came back (the connection broke, or `cluster.import_forward_timeout_ms` ran out). It may have been written. |
+| `508` | The request was already forwarded once (a routing loop). |
