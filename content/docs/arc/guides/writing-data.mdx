@@ -276,7 +276,15 @@ func main() {
 
 Arc also supports the InfluxDB 1.x `/write` and InfluxDB 2.x `/api/v2/write` endpoints for compatible clients. See the [write API reference](/arc/api-reference/overview/#write-data) for their parameters.
 
-`time` is the timestamp, not a tag or field key. A point with a tag or field named `time` is dropped and the other points in the request are written; the response is then `400` with `partial write: N points dropped` (v27.01.1+, as InfluxDB does; arc#1297). Before, a `time` field silently replaced the point's timestamp.
+### Partial writes
+
+A line-protocol request is written point by point: a point that cannot be stored is dropped, the other points in the request are written, and the response is `400` with `partial write: N points dropped: ...`, naming each measurement, column and reason (v27.01.1+, as InfluxDB does). A point is dropped when:
+
+- **It has a tag or field named `time`.** `time` is the timestamp, not a tag or field key (arc#1297). Before, a `time` field silently replaced the point's timestamp.
+- **A value does not fit its column's type.** A column takes the type of its first value in the request. A later string in a float column, a number in a tag column, or an unsigned value above the int64 range, `NaN` or `Inf` in an integer column drops that point; an integer in a float column is widened, and a float in an integer column is truncated. Before, such a value failed the whole measurement's write with a `500` (arc#1299).
+- **Two of its keys land in one column.** A field named like one of the point's tags is stored as `<name>_value`, so a point with a tag `host`, a field `host` and a field `host_value` gives one column two values.
+
+Arc logs each request's drops at Error level (`Line protocol points dropped (partial write)`), one line per measurement, column and reason (up to 10 per request).
 
 ## Telegraf
 
