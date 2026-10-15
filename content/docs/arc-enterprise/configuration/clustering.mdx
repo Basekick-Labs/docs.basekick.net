@@ -269,6 +269,7 @@ When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Ente
 - **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Traefik, nginx, HAProxy, and cloud ALBs all support this out of the box)
 - **No "promotion" step**: all writers are equivalent for ingestion; nothing in the cluster has to elect a new "primary"
 - **Singleton background tasks** (retention, continuous queries, deletes, tiered-storage migration) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
+- **DELETEs flush every node first** (since 27.01.1): a row DELETE or a database deletion asks every other node to flush its buffered rows of the scope and waits for those files to register, so rows any writer acknowledged before it are deleted. A node that cannot answer makes it `503` unless `allow_unreachable` is set, and a crashed node counts until it returns or is removed: set `cluster.node_id` on every node. See [Delete operations](/arc-enterprise/data-lifecycle/delete-operations/).
 
 **Enable** by setting `cluster.shared_storage_mode = true` (env: `ARC_CLUSTER_SHARED_STORAGE_MODE`). The Helm chart sets this automatically when `storage.mode=shared`. Requires an Enterprise license that includes the `shared_storage_multi_writer` feature.
 
