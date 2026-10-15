@@ -171,7 +171,10 @@ A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients c
 - **Same-size rewrites** (since 27.01.1, [#798](https://github.com/Basekick-Labs/arc/issues/798)): a file whose manifest content changes at the same size, or that is deleted and registered again at the same path, is refreshed rather than accepted by its size. Three counters in `replication_catchup_status` (and in the 503 body) track this across every forced refresh:
   - `forced_refresh`: forced refreshes that downloaded the file.
   - `refresh_verified`: refreshes that found the local copy already was the listed version, by hashing it, and downloaded nothing.
-  - `refresh_pending`: forced refreshes that failed or were dropped and wait for their path's next arrival. It is kept in memory only, so a restart clears it without retrying ([#1182](https://github.com/Basekick-Labs/arc/issues/1182)). A value that stays above zero means some local copies may still be the previous version.
+  - `refresh_pending`: forced refreshes that failed or were dropped and wait for their path's next arrival. It is kept in memory only; since 27.01.1 a restart no longer loses the retry, because the next manifest walk finds the copy stale by what the node recorded it holds ([#1182](https://github.com/Basekick-Labs/arc/issues/1182), below). A value that stays above zero means some local copies may still be the previous version.
+  - `listed_unvouched`: manifest-walk entries whose local copy the node could not vouch for and refreshed (hashed first when its content was unknown).
+  - `verify_unreadable`: hashes of such copies that could not be read (a hash stalled for 30 s); the next walk retries them.
+  - `no_peer_exhausted`: pulls that found no candidate peer in any attempt. Since 27.01.1 they count as failed, so the startup gate no longer goes green over a file the node never fetched.
 
   A reader that keeps a local copy because its path was registered again logs `Local delete skipped: the manifest lists the path again; refreshing the local copy unless it already is the listed version`. The same line at `WARN` means the refresh could not be queued: the pull queue was full, in which case it is retried on the path's next arrival or the periodic reconciliation, or the node was shutting down.
 
@@ -778,18 +781,45 @@ must be a number above 0; above 1 the sweep never refuses a pass.
 
 The sweep runs on local storage with `cluster.replication_enabled` and
 `cluster.replication_catchup_enabled`; `cluster.stale_local_sweep = false`
-turns it off. It costs about 150–200 bytes of memory per local file, and a
+turns the removals off, and the status then reads `removals_off: true`. The
+tracking keeps running, because the manifest walks judge local copies by it
+(below). It costs about 150–200 bytes of memory per local file, and a
 journal of up to 1.5 times that on the Raft volume. If the journal cannot be
 opened or written (a full Raft volume), the node stops tracking and removing
 until it restarts. `GET /api/v1/cluster` reports the last pass under
 `stale_local` (`last_run`, `tracked`, `unlinked`, `waiting`, `blocked`,
-`error`). Metrics: `arc_stale_local_unlinked_total`,
+`removals_off`, `error`). Metrics: `arc_stale_local_unlinked_total`,
 `arc_stale_local_tracked`, `arc_stale_local_blocked`,
 `arc_stale_local_tracking_failed`.
 
-The same record catches a path the cluster registered again with other
-content while the node was away: the node's replication walk has the copy it
-recorded re-checked against the manifest, and pulled again if it differs.
+### What a local copy holds
+
+Since 27.01.1 ([#1182](https://github.com/Basekick-Labs/arc/issues/1182)) the
+same record also says what each local copy holds: the checksum the node
+pulled, hashed, or wrote itself (a flush, a compaction output). It stays while
+the file is the same one, so a registration of new content at the path does
+not change it. The startup catch-up and every periodic replication walk
+compare it with the manifest:
+
+- a copy that holds the listed checksum is trusted, as before;
+- a copy known to hold other bytes is pulled again;
+- a copy whose content the node does not know is hashed first, and pulled only
+  if it differs.
+
+This covers a content change whose refresh failed and was then lost to a
+restart, one the node learned of from a Raft snapshot (which fires no
+callback), and a file replaced on disk after the record was taken. These
+refreshes count in the startup batch, so with `cluster.query_gate_on_catchup`
+the gate stays red until each is settled, and a node that cannot refresh one
+reports it in `catchup_failed`. A copy is never removed by this: when no peer
+serves the listed bytes, the node keeps its copy and the next walk retries.
+
+A node upgraded from an earlier release has no record of its copies, so its
+first start hashes each local file once, on the pull workers, in the
+background; pulls of new files queue behind it. `GET /api/v1/cluster` reports
+`local_copy_trust`: `recorded`, or `size_only` when the record cannot be kept
+(the journal failed or is not open yet), in which case copies are judged by
+their size alone.
 
 ### Membership after a restart
 
