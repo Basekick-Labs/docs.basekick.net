@@ -33,6 +33,11 @@ At high ingest rates with a 5-second flush interval:
 → 17,280 files per day per measurement
 ```
 
+A backfill of history in random order through a write endpoint makes many
+more: each flush writes a small file into every hour it holds. Import
+endpoints group rows by hour before writing; see
+[backfills](/arc/advanced/data-time-partitioning/#backfills-write-endpoints-vs-import-endpoints).
+
 **Impact on Queries:**
 - **Slow queries** - The query engine must open/scan hundreds of files
 - **High costs** - More S3/MinIO API calls
