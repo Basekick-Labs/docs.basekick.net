@@ -48,6 +48,7 @@ replication_catchup_enabled = true            # Walk the manifest on startup and
 replication_catchup_barrier_timeout_ms = 30000 # Bound on the pre-walk sync with the leader (see below)
 stale_local_sweep = true                      # Remove local copies of files deleted while this node missed it (v27.01.1+)
 stale_local_sweep_max_fraction = 0.5          # Refuse a sweep pass that would remove more than this share of the node's files
+raft_pre_vote = true                          # Raft pre-vote (v27.01.1+); see "Raft pre-vote" below before an upgrade
 ```
 
 ### Environment variables
@@ -67,7 +68,25 @@ ARC_CLUSTER_REPLICATION_CATCHUP_BARRIER_TIMEOUT_MS=30000
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
 ARC_CLUSTER_STALE_LOCAL_SWEEP=true
 ARC_CLUSTER_STALE_LOCAL_SWEEP_MAX_FRACTION=0.5
+ARC_CLUSTER_RAFT_PRE_VOTE=true
 ```
+
+### Raft pre-vote (v27.01.1+)
+
+From v27.01.1 a node runs the Raft pre-vote round before it starts an election
+([arc#1272](https://github.com/Basekick-Labs/arc/issues/1272)). A writer that
+cannot hear the leader, for example a restarted pod whose new address the
+leader cannot resolve yet, no longer raises its term on every election timeout.
+Before, when the leader reached it again, the higher term made a healthy leader
+step down.
+
+Releases before v27.01.1 do not answer pre-vote. While a cluster runs both, a
+leader that dies can leave one old and one upgraded survivor with no leader
+until the restarted node rejoins on v27.01.1 (only when the upgraded survivor
+has the more recent log). Upgrade writers one at a time and wait for each to
+rejoin. To rule the window out, set `cluster.raft_pre_vote = false` on every
+node for the upgrade and remove it, with one more rolling restart, once all
+nodes run v27.01.1.
 
 ## Query gating during replication catch-up
 
@@ -152,7 +171,10 @@ A `Retry-After: 5` header is also set so HTTP-aware load balancers and clients c
 - **Same-size rewrites** (since 27.01.1, [#798](https://github.com/Basekick-Labs/arc/issues/798)): a file whose manifest content changes at the same size, or that is deleted and registered again at the same path, is refreshed rather than accepted by its size. Three counters in `replication_catchup_status` (and in the 503 body) track this across every forced refresh:
   - `forced_refresh`: forced refreshes that downloaded the file.
   - `refresh_verified`: refreshes that found the local copy already was the listed version, by hashing it, and downloaded nothing.
-  - `refresh_pending`: forced refreshes that failed or were dropped and wait for their path's next arrival. It is kept in memory only, so a restart clears it without retrying ([#1182](https://github.com/Basekick-Labs/arc/issues/1182)). A value that stays above zero means some local copies may still be the previous version.
+  - `refresh_pending`: forced refreshes that failed or were dropped and wait for their path's next arrival. It is kept in memory only; since 27.01.1 a restart no longer loses the retry, because the next manifest walk finds the copy stale by what the node recorded it holds ([#1182](https://github.com/Basekick-Labs/arc/issues/1182), below). A value that stays above zero means some local copies may still be the previous version.
+  - `listed_unvouched`: manifest-walk entries whose local copy the node could not vouch for and refreshed (hashed first when its content was unknown).
+  - `verify_unreadable`: hashes of such copies that could not be read (a hash stalled for 30 s); the next walk retries them.
+  - `no_peer_exhausted`: pulls that found no candidate peer in any attempt. Since 27.01.1 they count as failed, so the startup gate no longer goes green over a file the node never fetched.
 
   A reader that keeps a local copy because its path was registered again logs `Local delete skipped: the manifest lists the path again; refreshing the local copy unless it already is the listed version`. The same line at `WARN` means the refresh could not be queued: the pull queue was full, in which case it is retried on the path's next arrival or the periodic reconciliation, or the node was shutting down.
 
@@ -269,6 +291,7 @@ When all nodes share an object-storage backend (S3, Azure Blob, MinIO), Arc Ente
 - **Health-based detection**: load balancer polls each writer's `/ready` endpoint (Traefik, nginx, HAProxy, and cloud ALBs all support this out of the box)
 - **No "promotion" step**: all writers are equivalent for ingestion; nothing in the cluster has to elect a new "primary"
 - **Singleton background tasks** (retention, continuous queries, deletes, tiered-storage migration) run on whichever node holds the cluster Raft leadership at the time. Raft re-election on leader death is sub-second and the new leader's next scheduler tick picks up the work.
+- **DELETEs flush every node first** (since 27.01.1): a row DELETE or a database deletion asks every other node to flush its buffered rows of the scope and waits for those files to register, so rows any writer acknowledged before it are deleted. A node that cannot answer makes it `503` unless `allow_unreachable` is set, and a crashed node counts until it returns or is removed: set `cluster.node_id` on every node. See [Delete operations](/arc-enterprise/data-lifecycle/delete-operations/).
 
 **Enable** by setting `cluster.shared_storage_mode = true` (env: `ARC_CLUSTER_SHARED_STORAGE_MODE`). The Helm chart sets this automatically when `storage.mode=shared`. Requires an Enterprise license that includes the `shared_storage_multi_writer` feature.
 
@@ -298,6 +321,39 @@ When a writer crashes:
 4. In-flight buffer on the crashed writer (records that arrived in memory but had not yet been flushed to S3) is lost. Records that completed the S3 PUT before the crash are durable.
 5. On writer restart, the local WAL replays any un-flushed entries into the new Arrow buffer before `/ready` flips back to 200 and the load balancer resumes routing.
 
+#### Orphan reconciliation (v27.01.1+)
+
+The orphan reconciler (`reconciliation.enabled`, off by default) runs on the
+active compactor. It deletes objects in the bucket that the cluster manifest
+does not list and that are older than `reconciliation.grace_window_seconds`
+(default 24 hours, minimum 1 hour; a smaller value is raised to 1 hour with a
+warning).
+
+A writer uploads each flushed file before it registers it in the manifest. A
+writer that cannot reach the cluster leader keeps its files pending until it
+can, and the reconciler must not delete them. Each run:
+
+- **Syncs with the leader first.** Without a reachable leader, the run stops
+  before deleting anything. The run reports `abort_reason`
+  `manifest_not_synced`, or `leader_barrier_unsupported` when the leader runs
+  an older release.
+- **Asks every writer which files it has pending.** If a writer does not
+  answer, nothing is deleted from storage in that run: it reports
+  `storage_sweep_held` and `storage_sweep_held_reason`, naming the writer, and
+  the gauge `arc_reconciliation_storage_sweep_held` reads `1`. A writer that is
+  down, or one that was taken out of service without being removed from the
+  cluster, holds the storage sweep until it is back or removed.
+- **Skips files a writer published as pending.** Each writer writes its pending
+  files to `_registration_pending/` in the bucket when it stops and while a
+  file stays pending for more than a minute, and deletes the list once
+  everything is registered. A writer that stops with pending files it could
+  not publish does not leave the cluster, so it keeps holding the sweep.
+- **Skips compaction outputs** that the manifest repair will register.
+
+The run counts these skips in `skipped_pending_remote` and
+`skipped_adoptable`. During a rolling upgrade the storage sweep stays held
+until every writer runs v27.01.1.
+
 ### Pattern 1 — local storage with peer replication
 
 When each node has its own local storage, one writer at a time takes ingest, because the data is not shared: a second active writer would hold rows no other node can see. Arc elects that writer and promotes a replacement when it fails.
@@ -311,16 +367,56 @@ A local-storage cluster with Raft always elects one primary writer, which runs r
 - **Recovery time**: less than 30 seconds
 - **Health-based detection**: continuous health monitoring with configurable thresholds
 - **Automatic promotion**: a standby writer is promoted via Raft consensus (`CommandPromoteWriter` FSM apply)
-- **Cooldown protection**: prevents rapid failover flapping
+- **Cooldown protection**: after a completed failover, the next one waits
+  `cluster.failover_cooldown` (60 s). A failed attempt does not start it: the
+  next health check tries again (v27.01.1+)
 
 **Enable** by setting `cluster.failover_enabled = true` (env: `ARC_CLUSTER_FAILOVER_ENABLED`). Requires the `writer_failover` license feature. By default, standby writers do not receive the primary's WAL. Rows the primary accepted but had not yet flushed when it failed are on no other node; they come back when the failed node restarts and replays its own WAL. From v27.01.1 the files that replay writes are announced to the cluster like any other ([arc#1206](https://github.com/Basekick-Labs/arc/issues/1206)). With [stream takeover](#stream-takeover-v27011) on, the new primary publishes those rows itself, from its copy of the primary's stream ([arc#1207](https://github.com/Basekick-Labs/arc/issues/1207)).
 
 When the primary writer fails:
 
-1. Health checks detect the failure.
-2. The Raft leader selects a healthy standby writer.
+1. Health checks detect the failure. The Raft leader judges the writer the
+   cluster designates as primary, so a leader that joined after the last
+   promotion decides the same way ([arc#1267](https://github.com/Basekick-Labs/arc/issues/1267)).
+2. The Raft leader selects a healthy standby writer, lowest node id first. A
+   writer the cluster state refuses to promote is skipped for a minute.
 3. The selected node is promoted via `CommandPromoteWriter` Raft apply.
 4. Write traffic re-routes to the new primary (clients reconnect, or the load balancer picks up its `/ready/write` 200).
+
+**Sending writes to any writer (v27.01.1+).** A standby writer that receives a
+write forwards it to the primary when it can trust its view of the cluster: it
+is in steady contact with the Raft leader, no stream-takeover state holds it,
+and the primary is healthy. Otherwise it refuses with `503` as described below
+([arc#1270](https://github.com/Basekick-Labs/arc/issues/1270)). A forwarded
+write makes one hop at most, so a Service or load balancer that spreads writes
+over all writers works. Readers and compactors forward writes to the designated
+primary too.
+
+A forwarded write is sent once, never retried once sent:
+
+- `503` with `Retry-After` and `X-Arc-Ingest-Fenced`: the primary could not be
+  reached, and nothing was written. Retry.
+- `504`: the write was sent but no answer came back within
+  `cluster.write_forward_timeout_ms` (default `60000`). It may have been
+  written, so a retry may duplicate rows.
+
+`arc_cluster_writes_forwarded_total{result}` counts forwards by result: `ok`,
+`refused` (the primary's own 503), `error`, `unavailable`, `ambiguous`.
+
+**Imports (`/api/v1/import/*`, v27.01.1+).** A reader, a compactor or a standby
+writer forwards an import to a writer the same way: once, with the upload as
+received ([arc#1070](https://github.com/Basekick-Labs/arc/issues/1070)). Before,
+a reader or a compactor imported the file into its own buffer.
+`cluster.write_forward_timeout_ms` does not apply to an import, so a large one
+is not cut off while the writer is still importing it. It is bound by
+`cluster.import_forward_timeout_ms` (default `3600000`, 1 hour; `0` = no bound),
+a backstop for a writer that never answers: the forward is not cancelled when
+the client gives up, and until then the forwarding node holds the upload. A
+`504` on an import means the backstop ran out or the connection to the writer
+broke after the upload was sent; the import may have finished. An upload over
+the 500 MB import limit is refused with `413` before it is forwarded.
+
+MQTT and continuous queries on a standby still refuse with `503`.
 
 #### Which writers accept writes (v27.01.1+)
 
@@ -341,7 +437,19 @@ when it may not be the primary ([arc#1207](https://github.com/Basekick-Labs/arc/
 Nothing is written before the refusal, the WAL included, so a retry is safe.
 `/ready/write` reports not-ready meanwhile. `arc_cluster_ingest_fenced` is 1
 while a writer has lost contact (a standby refusing writes is normal and does
-not set it). `arc_cluster_ingest_fenced_writes_total` counts refusals.
+not set it). `arc_cluster_ingest_fenced_writes_total` counts refusals by
+`reason`: `contact` (lost contact), `standby` (another writer is the primary),
+`claimed`, `announcing`, `not_designated` and `delete_ack` (stream takeover),
+and `other`. Sum by reason for the total. A refusal is counted per attempt: an
+MQTT message retried while refused counts once per retry.
+
+A refused write is answered with `503`, `Retry-After: 5` and
+`X-Arc-Ingest-Fenced: 1`. It is not counted in `arc_ingest_errors_total` and is
+not logged per request. Each node logs `Writes refused on this node
+(retryable)` at WARN at most once per reason every 30 seconds, with the number
+of refusals since the previous line (`suppressed`). A reader or compactor that
+forwarded the write logs it the same way, with reason `forwarded`
+([arc#1268](https://github.com/Basekick-Labs/arc/issues/1268)).
 
 MQTT subscriptions on a writer that refuses writes are suspended without
 unsubscribing. With `clean_session=false` the broker queues QoS 1 and 2
@@ -397,19 +505,36 @@ run v27.01.1 or later before you turn the setting on.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `cluster.standby_store_max_bytes` | 1 GiB | Caps a standby's copy. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. |
-| `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up. Past it, that standby misses batches; the other standbys do not. |
+| `cluster.standby_store_max_bytes` | `0` (a quarter of the WAL volume, at least 1 GiB, at most 32 GiB) | Caps a standby's copy; negative means no cap. Past it, batches from a primary process that has since restarted are evicted first. If that is not enough, nothing new is kept, and the missed batches are recorded as gaps until trimming frees room. On a volume that does not enforce its size (k3s `local-path`, `hostPath`, Docker named volumes) the volume is the host's disk; set the cap explicitly there. |
+| `cluster.origin_stream_queue_bytes` | 64 MiB | Caps what the primary holds in memory for one standby that is not keeping up (about 1.8 s of stream at a million rows a second). Past it, that standby misses batches; the other standbys do not. Raising it costs primary memory, once per standby. |
 
 | Metric | Where | Meaning |
 |---|---|---|
 | `arc_origin_stream_sessions` | primary | Standby writers being streamed to. |
-| `arc_origin_stream_dropped_total` | primary | Batches a slow standby missed. |
+| `arc_origin_stream_dropped_total` | primary | Batches a slow standby missed. Until their files are registered they are on the primary only: a primary lost with its volume in that window loses those acknowledged rows. Alert on `increase(arc_origin_stream_dropped_total[5m]) > 0` (v27.01.1 keeps up at about 1.2M rows/s on a 4-core QA node). |
 | `arc_standby_stream_connected` | standby | 1 while receiving from the primary. |
 | `arc_standby_store_bytes` | standby | Size of the copy. |
 | `arc_standby_store_incomplete_keys` | standby | Measurements missing batches above their registered floor. |
-| `arc_standby_store_blocked_keys` | standby | Measurements whose trim waits on files not yet on this standby. A file the puller cannot fetch keeps that measurement here. |
+| `arc_standby_store_blocked_keys` | standby | Measurements with registered batches this standby may not trim yet: a file holding their rows is not here (a file the puller cannot fetch keeps those batches), this node's manifest is behind the primary's, a claim is open, or the primary is not heard from. Expect it to be nonzero for every measurement of a primary that just failed, until the takeover finishes. |
 | `arc_standby_store_lost_records` | standby | Batches the primary reported lost. The standby keeps them: they may be the only copy. |
-| `arc_standby_store_dropped_total`, `arc_standby_store_evicted_bytes_total` | standby | Batches not kept at the cap, and bytes evicted to stay under it. |
+| `arc_standby_store_dropped_total`, `arc_standby_store_evicted_bytes_total` | standby | Batches not kept (at the cap or below the free-space reserve), and bytes evicted to stay under it. Alert on `increase(arc_standby_store_dropped_total[5m]) > 0`: a takeover cannot publish those batches. |
+| `arc_standby_store_capped`, `arc_standby_store_low_space`, `arc_standby_store_max_bytes` | standby | 1 while the store refuses batches at its cap; 1 while its volume is below the free-space reserve; the effective cap (v27.01.1+). |
+
+The copy is trimmed every 5 seconds, and at once when it passes half its cap
+([arc#1266](https://github.com/Basekick-Labs/arc/issues/1266)). It holds each
+batch until the batch is in a registered file and that file is on the standby,
+so size the cap for the ingest rate times the replication lag. On a QA cluster
+at about 1.2 million rows a second the copy stayed under 900 MB with a 1 GiB
+cap, including right after a standby restart. A batch goes once the files holding its rows
+(by their coverage) are on the standby; an unpulled file of other batches, or
+an unpulled compaction output, does not hold it back. With stream takeover off,
+nothing claims from the copy, and a batch goes once it is registered. The
+automatic cap stops at
+32 GiB because a full store is read whole at startup; set a larger one
+explicitly. The store keeps no new batches while its volume has less than 10 %
+(at least 2 GiB) free, and resumes 1 GiB above that, so the WAL and the
+Parquet files on the same volume come first. On a volume of 2 GiB or less the
+store keeps nothing; Arc warns about this at startup.
 
 The `received/` directory shares the WAL volume but is not counted in
 `arc_wal_dir_bytes`.
@@ -442,7 +567,8 @@ switch is one-way.
    primary registered in part is completed, not duplicated.
 4. Before it finishes, the new primary makes sure it holds every file of the
    old primary whose rows its standby copy holds. A file every node says it
-   does not have (or that no node could answer for during twice the grace)
+   does not have (or that no node could answer for during twice the grace,
+   counted for every such file from the start of the claim, v27.01.1+)
    is removed from the manifest, and its rows are published from the standby
    copy too: without this, rows the old primary registered but nobody pulled
    before its volume was lost would be gone. A node that later comes back
@@ -708,18 +834,45 @@ must be a number above 0; above 1 the sweep never refuses a pass.
 
 The sweep runs on local storage with `cluster.replication_enabled` and
 `cluster.replication_catchup_enabled`; `cluster.stale_local_sweep = false`
-turns it off. It costs about 150–200 bytes of memory per local file, and a
+turns the removals off, and the status then reads `removals_off: true`. The
+tracking keeps running, because the manifest walks judge local copies by it
+(below). It costs about 150–200 bytes of memory per local file, and a
 journal of up to 1.5 times that on the Raft volume. If the journal cannot be
 opened or written (a full Raft volume), the node stops tracking and removing
 until it restarts. `GET /api/v1/cluster` reports the last pass under
 `stale_local` (`last_run`, `tracked`, `unlinked`, `waiting`, `blocked`,
-`error`). Metrics: `arc_stale_local_unlinked_total`,
+`removals_off`, `error`). Metrics: `arc_stale_local_unlinked_total`,
 `arc_stale_local_tracked`, `arc_stale_local_blocked`,
 `arc_stale_local_tracking_failed`.
 
-The same record catches a path the cluster registered again with other
-content while the node was away: the node's replication walk has the copy it
-recorded re-checked against the manifest, and pulled again if it differs.
+### What a local copy holds
+
+Since 27.01.1 ([#1182](https://github.com/Basekick-Labs/arc/issues/1182)) the
+same record also says what each local copy holds: the checksum the node
+pulled, hashed, or wrote itself (a flush, a compaction output). It stays while
+the file is the same one, so a registration of new content at the path does
+not change it. The startup catch-up and every periodic replication walk
+compare it with the manifest:
+
+- a copy that holds the listed checksum is trusted, as before;
+- a copy known to hold other bytes is pulled again;
+- a copy whose content the node does not know is hashed first, and pulled only
+  if it differs.
+
+This covers a content change whose refresh failed and was then lost to a
+restart, one the node learned of from a Raft snapshot (which fires no
+callback), and a file replaced on disk after the record was taken. These
+refreshes count in the startup batch, so with `cluster.query_gate_on_catchup`
+the gate stays red until each is settled, and a node that cannot refresh one
+reports it in `catchup_failed`. A copy is never removed by this: when no peer
+serves the listed bytes, the node keeps its copy and the next walk retries.
+
+A node upgraded from an earlier release has no record of its copies, so its
+first start hashes each local file once, on the pull workers, in the
+background; pulls of new files queue behind it. `GET /api/v1/cluster` reports
+`local_copy_trust`: `recorded`, or `size_only` when the record cannot be kept
+(the journal failed or is not open yet), in which case copies are judged by
+their size alone.
 
 ### Membership after a restart
 
@@ -738,23 +891,51 @@ curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/cluster
 ```
 
-**Response:**
+**Response** (abridged; from a Pattern 1 cluster on v27.01.1):
 
 ```json
 {
-  "success": true,
-  "data": {
-    "cluster_name": "production",
-    "node_count": 3,
-    "healthy_nodes": 3,
-    "roles": {
-      "writer": 1,
-      "reader": 2,
-      "compactor": 0
+  "cluster_name": "production",
+  "enabled": true,
+  "mode": "cluster",
+  "running": true,
+  "local_node_id": "writer-02",
+  "local_role": "writer",
+  "node_count": 5,
+  "healthy_count": 5,
+  "writers": 3,
+  "readers": 1,
+  "compactors": 1,
+  "primary_writer_id": "writer-01",
+  "writer_failover": {
+    "consecutive_fails": 0,
+    "cooldown_period": "1m0s",
+    "failover_in_progress": false,
+    "last_failover_at": "2026-10-14T17:49:58Z",
+    "primary_id": "writer-01",
+    "running": true
+  },
+  "nodes": [
+    {
+      "id": "writer-01",
+      "role": "writer",
+      "state": "healthy",
+      "writer_state": "primary",
+      "address": "10.0.1.10:9100",
+      "api_address": ":8000",
+      "version": "27.01.1",
+      "is_active_compactor": false
     }
-  }
+  ]
 }
 ```
+
+- `primary_writer_id` is the writer the cluster designates as primary (v27.01.1+).
+- `writer_failover` is this node's failover manager. Only the Raft leader acts
+  on failures, so read it there. After a failed attempt it also reports
+  `failed_attempts`, `last_failure_reason` and `last_failure_at`.
+- `nodes[].writer_state` is this node's view: `primary` for the designated
+  writer, empty for the others.
 
 ### List cluster nodes
 

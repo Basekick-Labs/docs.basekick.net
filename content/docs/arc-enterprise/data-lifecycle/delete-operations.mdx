@@ -28,8 +28,27 @@ Rows written shortly before the DELETE may still be in the ingest buffer.
 Since v27.01.1 the DELETE first flushes that measurement's buffered rows and
 waits for them to reach files, so every row written before the request is
 deleted. While an earlier flush failure is outstanding (its rows wait for WAL
-recovery), the DELETE answers `503` with `Retry-After: 30` instead. A dry run
+recovery), the DELETE answers `503` with `Retry-After: 30` instead. With the
+WAL off there is no recovery to wait for (a failed flush's rows are lost), and
+since v27.01.1 such a failure no longer refuses later DELETEs. A dry run
 does not flush.
+
+In shared storage (Pattern 2, `cluster.shared_storage_mode`) every writer
+takes writes, and the DELETE runs on the primary (the Raft leader). Since
+v27.01.1 the primary first asks every other node of the cluster (readers and
+compactors too: they can buffer rows from MQTT or an import) to flush its
+buffered rows of the measurement, then waits up to 30 seconds for the files
+they flushed to be in the cluster manifest. A node that does not answer
+within 40 seconds, or whose files do not register in time, is listed in
+`unflushed_nodes` and the DELETE answers `503`. With `allow_unreachable` it
+runs anyway, still lists them, and the rows those nodes hold are not deleted.
+
+A node that crashed is still a node of the cluster until it returns or is
+removed, so it blocks DELETEs in the meantime. Set `cluster.node_id` on every
+node, so a restart does not come back under a new id and leave the old one
+behind. In a cluster being upgraded to 27.01.1, a node still on an older
+release does not answer, so DELETEs answer `503` until every node is
+upgraded, unless `allow_unreachable` is set.
 
 ### 2. Find affected files
 
@@ -58,6 +77,13 @@ On a shared bucket (S3, Azure), a DELETE scans what queries read:
   claims on, such an object is left alone.
 - The input objects of a committed compaction that has not finished are
   skipped: its output holds their rows.
+- In shared storage, an object of the measurement the manifest does not list
+  that is under two minutes old is left as it is, and the DELETE answers
+  `503` (the rows of the other files are deleted). It is most likely another
+  writer's file on its way to the manifest: that writer registers a file it
+  flushed within 30 seconds without looking at it again, so rewriting it now
+  would leave the manifest listing an object that no longer exists. A retry
+  finds it registered.
 
 ### 3. Rewrite files
 
@@ -140,7 +166,7 @@ POST /api/v1/delete
 - `where` (string, required): SQL WHERE clause for deletion
 - `dry_run` (boolean, optional): Test without deleting (default: `false`)
 - `confirm` (boolean, optional): Confirm the operation; required for anything but a dry run (default: `false`)
-- `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet; their rows are not deleted. Applies with stream takeover or compaction commit, to the first scan and to the scan after a compaction replaced a file (default: `false`)
+- `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet, or, in shared storage, other nodes could not flush their buffered rows first; those rows are not deleted. Applies with stream takeover or compaction commit, to the first scan and to the scan after a compaction replaced a file, and in shared storage to the flush of the other nodes (default: `false`)
 
 **Response**:
 ```json
@@ -166,6 +192,19 @@ POST /api/v1/delete
   not deleted.
 - `unreachable_files` (clusters) lists manifest files the primary did not
   have: skipped with `allow_unreachable`, or the reason for a `503` without it.
+- `unflushed_nodes` (shared storage) lists the other nodes whose buffered rows
+  could not be flushed first, each with its health, the reason, and what to
+  do: left with `allow_unreachable`, or the reason for a `503` without it.
+
+  ```json
+  {
+    "success": false,
+    "unflushed_nodes": [
+      "node writer-0 (state dead): no answer: failed to read length: read tcp 10.42.0.166:54706->10.42.0.168:9100: i/o timeout; bring it back, remove it from the cluster if it is gone for good, or set allow_unreachable=true to leave the rows it holds"
+    ],
+    "error": "Delete rejected: 1 other node(s) could not flush their buffered rows of this scope first, so the delete would not see them; retry, or set allow_unreachable=true to leave the rows they hold"
+  }
+  ```
 
 ### Get configuration
 

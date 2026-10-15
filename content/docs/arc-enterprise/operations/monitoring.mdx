@@ -69,8 +69,8 @@ max(arc_cluster_auth_apply_create_total) - min(arc_cluster_auth_apply_create_tot
 
 ## Replication
 
-<Callout type="warning" title="No lag series from v27.01.1">
-From v27.01.1 writers no longer start the WAL replication stream, because the readers and compactors it reached wrote every replicated row a second time ([arc#888](https://github.com/Basekick-Labs/arc/issues/888)). No reader connects, so the two lag gauges have no series and the drop counter stays at `0` (their HELP and TYPE lines are still exported): the rules below never fire. They describe the stream only. Rows still reach every node through peer file replication. The section below applies to v26.09.3 and earlier.
+<Callout type="warning" title="Removed in v27.01.1">
+v27.01.1 removes the WAL replication stream, because the readers and compactors it reached wrote every replicated row a second time ([arc#888](https://github.com/Basekick-Labs/arc/issues/888), [arc#1181](https://github.com/Basekick-Labs/arc/issues/1181)). The three metrics below are no longer exported (nor `replication_entries_dropped_total` in the JSON metrics), and `cluster.replication_lag_limit`, `cluster.replication_buffer_size` and `cluster.replication_ack_interval` are ignored: remove alerts built on them. Rows still reach every node through peer file replication. The section below applies to v26.09.3 and earlier.
 </Callout>
 
 ```text

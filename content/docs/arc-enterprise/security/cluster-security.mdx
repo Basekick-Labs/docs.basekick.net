@@ -10,7 +10,7 @@ Secure inter-node communication in Arc Enterprise clusters with shared secret au
 Arc Enterprise clustering supports two complementary security layers:
 
 - **Shared secret authentication** — Prevents unauthorized nodes from joining the cluster using HMAC-SHA256 challenge-response
-- **TLS encryption** — Encrypts all inter-node traffic including coordinator messages, peer file replication, Raft consensus, and WAL replication on versions that run it
+- **TLS encryption** — Encrypts all inter-node traffic including coordinator messages, peer file replication, Raft consensus, and, up to v26.09.3, WAL replication
 
 Both features are opt-in and can be used independently or together. When disabled, cluster behavior is unchanged from previous versions.
 
@@ -71,7 +71,7 @@ When TLS is enabled, all inter-node TCP connections are encrypted. This covers:
 |-----------|-------------|
 | Coordinator listener | Accepts join requests, heartbeats, and leave notifications |
 | Coordinator dialer | Connects to seed nodes during cluster discovery |
-| WAL replication | Streams write-ahead log entries from writer to reader nodes (not started from v27.01.1, see [arc#888](https://github.com/Basekick-Labs/arc/issues/888)) |
+| WAL replication | Up to v26.09.3: streams write-ahead log entries from writer to reader nodes. Removed in v27.01.1 ([arc#888](https://github.com/Basekick-Labs/arc/issues/888), [arc#1181](https://github.com/Basekick-Labs/arc/issues/1181)); a writer refuses a reader of an older release that still dials it, and closes the connection |
 | Peer file replication | Fetches Parquet files from peer nodes (SHA-256 verified) so each node converges to the full dataset |
 | Raft consensus | Leader election and log replication between voters |
 
