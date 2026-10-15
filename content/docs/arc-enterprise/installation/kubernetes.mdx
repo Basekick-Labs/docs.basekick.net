@@ -508,6 +508,9 @@ writer:
   wal:
     enabled: true
     syncMode: fdatasync  # fdatasync | fsync | async
+    diskPressureEnabled: true  # v27.01.1+: 503 + Retry-After when the volume runs low
+    diskMinFreeMB: 0     # 0 = max(512, 2 x wal.max_size_mb), at most a fifth of the volume
+    maxDirectoryMB: 0    # WAL directory cap; 0 = none
   nodeSelector: {}
   tolerations: []
   affinity: {}

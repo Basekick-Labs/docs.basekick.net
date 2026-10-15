@@ -274,6 +274,48 @@ flushed WAL between checks. The periodic pass still runs as a backstop.
 Files whose data has not reached storage are kept: if storage is unreachable,
 the WAL grows until it is back, then shrinks within seconds.
 
+### When the WAL volume runs low (v27.01.1+)
+
+Arc refuses live writes before the WAL volume fills, instead of accepting writes
+it cannot log. It reads the free space on the WAL volume every second, and at
+once after a rotation or a failed write. Between readings it counts every byte
+admitted to the WAL, and each request reserves its size before anything is
+written.
+
+When free space falls below `wal.disk_min_free_mb`:
+
+- Writes are refused with **503 Service Unavailable**, `Retry-After: 5` and the
+  header `X-Arc-Ingest-Refused: wal_disk`.
+  - Nothing from a refused request is written, so retrying it is safe.
+  - A request is accepted or refused whole: a line-protocol write that spans
+    several measurements is never half written.
+- MQTT subscriptions disconnect, then reconnect when writes are accepted again.
+  Subscriptions with `clean_session=false` and QoS 1 or 2 find their messages
+  queued at the broker. Subscriptions with `clean_session=true` lose what is
+  published in the meantime.
+- A scheduled continuous query skips its run. The next run covers the window.
+- WAL replay, recovery and replication are never refused, so the WAL can always
+  drain. `/health` and `/ready` are unaffected.
+
+Writes are accepted again once free space is back above `disk_min_free_mb` plus
+two WAL files (`max_size_mb`), and no sooner than 5 s after they were refused.
+
+**Starting on a full volume.** Arc keeps a 64 MiB reserve file,
+`.arc-wal-reserve`, in the WAL directory. A node that starts with less than
+32 MiB free deletes it before anything else writes, logs an error and starts.
+It then refuses writes until there is room again. The reserve is created again
+once free space allows.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `wal.disk_pressure_enabled` | `true` | Turns the check and the reserve file on or off. |
+| `wal.disk_min_free_mb` | `0` | Free space below which writes are refused. `0` means max(512, 2 × `max_size_mb`). It is capped at a fifth of the volume, with a warning. |
+| `wal.max_directory_mb` | `0` | Cap on the WAL directory's size (`0` = none). Use it where free space does not show the real limit, such as a Kubernetes `emptyDir`. A cap below four WAL files is raised to that, with a warning. Quarantined `*.failed` files do not count toward it. |
+
+Each setting has an `ARC_WAL_*` environment variable, for example
+`ARC_WAL_DISK_MIN_FREE_MB`. The "WAL enabled" startup line logs the effective
+reserve, the level at which writes resume, and the cap.
+
 ### Recovery on startup
 
 Arc automatically recovers from WAL files on startup:
