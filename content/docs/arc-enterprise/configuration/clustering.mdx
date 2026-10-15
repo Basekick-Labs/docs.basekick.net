@@ -365,8 +365,21 @@ A forwarded write is sent once, never retried once sent:
 
 `arc_cluster_writes_forwarded_total{result}` counts forwards by result: `ok`,
 `refused` (the primary's own 503), `error`, `unavailable`, `ambiguous`.
-Import endpoints, MQTT and continuous queries on a standby still refuse with
-`503`.
+
+**Imports (`/api/v1/import/*`, v27.01.1+).** A reader, a compactor or a standby
+writer forwards an import to a writer the same way: once, with the upload as
+received ([arc#1070](https://github.com/Basekick-Labs/arc/issues/1070)). Before,
+a reader or a compactor imported the file into its own buffer.
+`cluster.write_forward_timeout_ms` does not apply to an import, so a large one
+is not cut off while the writer is still importing it. It is bound by
+`cluster.import_forward_timeout_ms` (default `3600000`, 1 hour; `0` = no bound),
+a backstop for a writer that never answers: the forward is not cancelled when
+the client gives up, and until then the forwarding node holds the upload. A
+`504` on an import means the backstop ran out or the connection to the writer
+broke after the upload was sent; the import may have finished. An upload over
+the 500 MB import limit is refused with `413` before it is forwarded.
+
+MQTT and continuous queries on a standby still refuse with `503`.
 
 #### Which writers accept writes (v27.01.1+)
 
