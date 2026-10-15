@@ -276,6 +276,8 @@ func main() {
 
 Arc also supports the InfluxDB 1.x `/write` and InfluxDB 2.x `/api/v2/write` endpoints for compatible clients. See the [write API reference](/arc/api-reference/overview/#write-data) for their parameters.
 
+`time` is the timestamp, not a tag or field key. A point with a tag or field named `time` is dropped and the other points in the request are written; the response is then `400` with `partial write: N points dropped` (v27.01.1+, as InfluxDB does; arc#1297). Before, a `time` field silently replaced the point's timestamp.
+
 ## Telegraf
 
 For system and service metrics, use Telegraf's native Arc output plugin. It batches metrics as MessagePack, supports compression, and can collect from hundreds of existing input plugins.
