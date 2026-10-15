@@ -775,6 +775,12 @@ This operation is destructive and cannot be undone. Requires:
 - `?confirm=true` query parameter
 </Callout>
 
+In shared storage (Pattern 2), rows other nodes have acknowledged and not
+flushed yet are flushed first, so they are deleted with the database (since
+27.01.1). A node that cannot flush answers `503` with `unflushed_nodes`; add
+`&allow_unreachable=true` to delete anyway and leave the rows those nodes
+hold. A database whose only rows are still in a buffer answers `404`.
+
 **Request:**
 ```bash
 curl -X DELETE -H "Authorization: Bearer $TOKEN" \
@@ -802,6 +808,22 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 ```json
 {
   "error": "Confirmation required. Add ?confirm=true to delete the database."
+}
+```
+
+*Another node could not flush its rows of the database (503, shared storage):*
+```json
+{
+  "error": "database deletion rejected: 1 other node(s) could not flush their buffered rows of this scope first, so the delete would not see them; retry, or set allow_unreachable=true to leave the rows they hold",
+  "unflushed_nodes": ["node writer-0 (state dead): no answer: ...; bring it back, remove it from the cluster if it is gone for good, or set allow_unreachable=true to leave the rows it holds"]
+}
+```
+
+*Another writer's file is not registered yet (503, shared storage):* checked
+before anything is deleted; retry after the `Retry-After` seconds.
+```json
+{
+  "error": "database deletion not run: 1 file(s) another writer flushed are not registered in the cluster manifest yet (first: old_data/cpu/2026/10/15/03/cpu_20261015_032631_795423882.parquet); retry shortly"
 }
 ```
 

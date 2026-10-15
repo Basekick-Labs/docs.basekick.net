@@ -468,13 +468,20 @@ ingest rate × worst-case flush lag**, with generous headroom. The default
 `persistence.size: 10Gi` is a development default: at a bulk-load rate of
 100 MB/s it fills in under two minutes.
 
-A full WAL volume is a bad failure: the writer can't create its startup WAL file
-on a full disk, so the pod cannot boot again until the volume is grown or
-cleaned by hand (tracked in
-[arc#676](https://github.com/Basekick-Labs/arc/issues/676)). For one-off bulk
-migrations, either size the volume for the burst or set `arc.wal.enabled: false`
-for the migration window and re-enable it afterwards — accepting that a crash
-during that window loses whatever is buffered.
+Before v27.01.1 a full WAL volume was a bad failure. Writes kept being
+accepted while their WAL entries could not be written, and the writer could not
+boot again on a full disk. Since v27.01.1 Arc refuses writes with a retryable
+503 once the volume runs low (`arc.wal.diskMinFreeMB`), and starts on a full
+volume by releasing a reserve file. See
+[When the WAL volume runs low](/arc/advanced/wal/#when-the-wal-volume-runs-low-v27011).
+Size the volume for your ingest rate anyway: while writes are refused, clients
+must retry.
+
+With `persistence.enabled: false` the data lives in an `emptyDir`, which
+reports the node's free space rather than its size limit. The chart then caps
+the WAL directory at 80% of `persistence.emptyDirSizeLimitMB`, or at 1024 MB
+when no limit is set. Local Parquet files, `arc.db` and temp files share that
+`emptyDir`, so leave room for them too.
 
 ## Helm values reference
 
@@ -525,6 +532,10 @@ arc:
   wal:
     enabled: true
     directory: /app/data/wal
+    # Refuse writes with 503 + Retry-After when the volume runs low (v27.01.1+).
+    diskPressureEnabled: true
+    diskMinFreeMB: 0        # 0 = max(512, 2 x wal.max_size_mb), at most a fifth of the volume
+    maxDirectoryMB: 0       # WAL directory cap; 0 = none (set automatically with persistence disabled)
 
   # Free-form env vars passed straight to the Arc container. Use ARC_STORAGE_*
   # for bucket/region/keys/endpoint, plus any other ARC_* settings.

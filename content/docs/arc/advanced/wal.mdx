@@ -259,6 +259,63 @@ max_age_seconds = 3600      # Rotate after 1 hour (even if file is small)
 
 ## Operations
 
+### When WAL files are deleted (v27.01.1+)
+
+A WAL file is deleted once every entry in it has reached Parquet in storage
+(and, in a cluster with WAL coverage, once its batches are registered). Arc
+checks this as soon as a file rotates or a flush completes, at most once per
+second, so the WAL directory holds roughly ingest rate × buffer age
+(`ingest.max_buffer_age_ms`, default 5 s) plus the file being written.
+
+Before v27.01.1 the check ran only every `wal.recovery_interval_seconds`
+(default 300 s), so a node ingesting 1M rows/s kept about 7 GB of already
+flushed WAL between checks. The periodic pass still runs as a backstop.
+
+Files whose data has not reached storage are kept: if storage is unreachable,
+the WAL grows until it is back, then shrinks within seconds.
+
+### When the WAL volume runs low (v27.01.1+)
+
+Arc refuses live writes before the WAL volume fills, instead of accepting writes
+it cannot log. It reads the free space on the WAL volume every second, and at
+once after a rotation or a failed write. Between readings it counts every byte
+admitted to the WAL, and each request reserves its size before anything is
+written.
+
+When free space falls below `wal.disk_min_free_mb`:
+
+- Writes are refused with **503 Service Unavailable**, `Retry-After: 5` and the
+  header `X-Arc-Ingest-Refused: wal_disk`.
+  - Nothing from a refused request is written, so retrying it is safe.
+  - A request is accepted or refused whole: a line-protocol write that spans
+    several measurements is never half written.
+- MQTT subscriptions disconnect, then reconnect when writes are accepted again.
+  Subscriptions with `clean_session=false` and QoS 1 or 2 find their messages
+  queued at the broker. Subscriptions with `clean_session=true` lose what is
+  published in the meantime.
+- A scheduled continuous query skips its run. The next run covers the window.
+- WAL replay, recovery and replication are never refused, so the WAL can always
+  drain. `/health` and `/ready` are unaffected.
+
+Writes are accepted again once free space is back above `disk_min_free_mb` plus
+two WAL files (`max_size_mb`), and no sooner than 5 s after they were refused.
+
+**Starting on a full volume.** Arc keeps a 64 MiB reserve file,
+`.arc-wal-reserve`, in the WAL directory. A node that starts with less than
+32 MiB free deletes it before anything else writes, logs an error and starts.
+It then refuses writes until there is room again. The reserve is created again
+once free space allows.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `wal.disk_pressure_enabled` | `true` | Turns the check and the reserve file on or off. |
+| `wal.disk_min_free_mb` | `0` | Free space below which writes are refused. `0` means max(512, 2 × `max_size_mb`). It is capped at a fifth of the volume, with a warning. |
+| `wal.max_directory_mb` | `0` | Cap on the WAL directory's size (`0` = none). Use it where free space does not show the real limit, such as a Kubernetes `emptyDir`. A cap below four WAL files is raised to that, with a warning. Quarantined `*.failed` files do not count toward it. |
+
+Each setting has an `ARC_WAL_*` environment variable, for example
+`ARC_WAL_DISK_MIN_FREE_MB`. The "WAL enabled" startup line logs the effective
+reserve, the level at which writes resume, and the cap.
+
 ### Recovery on startup
 
 Arc automatically recovers from WAL files on startup:
@@ -373,18 +430,6 @@ curl http://localhost:8000/api/wal/health \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
-### Cleanup old WAL files
-
-```bash
-# Cleanup files older than 24 hours (default)
-curl -X POST http://localhost:8000/api/wal/cleanup \
-  -H "Authorization: Bearer $ARC_TOKEN"
-
-# Custom age (in hours)
-curl -X POST "http://localhost:8000/api/wal/cleanup?max_age_hours=48" \
-  -H "Authorization: Bearer $ARC_TOKEN"
-```
-
 ## Troubleshooting
 
 ### WAL recovery taking too long
@@ -424,25 +469,30 @@ $ du -sh ./data/wal
 
 **Solutions:**
 
-1. **Manual cleanup:**
+1. **Check that flushes reach storage.** WAL files are only deleted once
+   their data is in storage. Look for flush or upload errors in the logs; when
+   storage is back, the directory shrinks within seconds.
+
+2. **Remove leftover recovered files.** Files ending in `.wal.recovered`
+   are kept after a recovery and can be deleted:
    ```bash
    rm -f ./data/wal/*.wal.recovered
    ```
 
-2. **Reduce retention:**
-   ```toml
-   [wal]
-   max_size_mb = 50          # Rotate sooner
-   max_age_seconds = 1800    # 30 minutes
-   ```
-
-3. **Add cron job for cleanup:**
-   ```bash
-   # Cleanup recovered WALs older than 24 hours
-   0 2 * * * find /path/to/data/wal -name "*.wal.recovered" -mtime +1 -delete
-   ```
+3. **Size the volume for outages.** While storage is unreachable the WAL
+   grows at your ingest rate. Leave room for the longest storage outage you
+   want to ride through.
 
 ### WAL write failures
+
+Since v27.01.1, when a WAL write fails, Arc cuts the partial entry off the
+end of the file before writing again, so later entries stay readable. On a
+full disk (`ENOSPC`, `EDQUOT`) it does not create a new WAL file for each
+failed write. A failed write that a retry on a new file recovers is counted
+in `arc_wal_recovered_writes_total`; an entry that could not be written is
+counted in `arc_wal_failed_writes_total` (and, when the disk was full, in
+`arc_wal_disk_full_writes_total`). Its rows reach storage only if their
+buffer's flush succeeds.
 
 **Symptoms:**
 ```text
