@@ -343,6 +343,32 @@ row. A null, string, or otherwise non-numeric `time` is **rejected** with
 `400 Bad Request` rather than stored, because a non-timestamp `time` column
 makes the affected partition un-compactable.
 
+**Row format:** one point per map, alone, in an array, or in
+`{"batch": [...]}`:
+
+```json
+[
+  {"m": "cpu", "t": 1697472000000, "tags": {"host": "server01"}, "fields": {"usage": 45.2}},
+  {"m": "cpu", "t": 1697472001000, "tags": {"host": "server02"}, "fields": {"usage": 67.8}}
+]
+```
+
+- `m` is the measurement, a string (an integer becomes `measurement_<n>`).
+- `t` is an integer epoch in seconds, milliseconds, microseconds or
+  nanoseconds, told apart by magnitude. Without `t`, the point gets the time
+  Arc received it.
+- `fields` is required; a `null` field value is a NULL.
+- `tags` values are strings.
+- `h` sets the `host` tag when sent. Without `h`, the point's own `host` tag
+  is kept (v27.01.1+; before, it was replaced by `unknown`), and a point with
+  neither gets `host` = `unknown`.
+
+A row-format request is written point by point (v27.01.1+): a point that
+cannot be stored is dropped, the others are written, and the response is
+`400` with `partial write: N points dropped: ...`. See
+[partial writes](/arc/guides/writing-data/#partial-writes) for when a point
+is dropped.
+
 ### GET /api/v1/write/msgpack/stats
 
 MessagePack ingestion statistics.
