@@ -30,8 +30,7 @@ Every measurement has a registered field schema: a zero-row Parquet file,
 the anchor, stored at `_schema/{database}/{measurement}.parquet` on the
 storage backend. Ingest folds the schema of every file it writes into the
 anchor, and the query path lists a local copy of the anchor first in every
-`read_parquet` it emits, including the parallel partition path, tiered
-queries and continuous queries.
+`read_parquet` it emits, including tiered queries and continuous queries.
 
 - A registered field absent from the selected files binds as a typed `NULL`
   column.
