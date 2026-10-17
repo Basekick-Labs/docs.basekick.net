@@ -49,7 +49,7 @@ The SQL Transform Cache is most beneficial for:
 
 ### Cache behavior
 
-- **Key**: SHA256 hash of the raw SQL string
+- **Key**: the raw SQL string, the `x-arc-database` header and the current hour
 - **TTL**: 60 seconds (matches partition cache)
 - **Max entries**: 10,000 queries
 - **Eviction**: Expired entries removed first, then oldest
@@ -153,12 +153,27 @@ Cache parameters are currently fixed but tuned for typical workloads:
 
 ## Cache invalidation
 
-Caches automatically expire based on TTL. Manual invalidation happens when:
+Caches expire based on TTL. All three are cleared at once, on the node that
+did the work and on every other reader and writer of a cluster (when
+`cluster.shared_secret` is set), after:
 
-- New data is ingested (invalidates partition/glob caches for affected measurements)
-- Compaction runs (file paths change)
+- compaction finishes (file paths change);
+- a DELETE removes or rewrites files, including one that stops part-way;
+- a retention run removes files, including one that aborts part-way (a dry
+  run removes nothing and clears nothing);
+- a database is deleted.
 
-The SQL Transform Cache is not invalidated by data changes since the transformation logic doesn't depend on data content.
+Ingest does not clear the caches. Instead, the current hour is never cached
+as missing: a query whose range reaches the current hour, run before that
+hour's first flush, is not cached, so the hour shows up as soon as it has
+files. The previous hour gets the same treatment for the first 5 minutes
+after the boundary, for rows stamped just before it that flush just after
+it. Every cached transform and partition list also belongs to the hour it
+was made in and is not used after the hour changes.
+
+Hours that have not started yet are cached as missing like any past hour, so
+rows stamped in the future can take up to about two and a half minutes to
+show up.
 
 ## Technical details
 
