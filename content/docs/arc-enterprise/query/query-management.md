@@ -12,13 +12,14 @@ Query management provides:
 - **Active query monitoring** — See all currently running queries with their duration, SQL, and resource usage
 - **Query history** — Review recently completed queries with execution details
 - **Query cancellation** — Cancel long-running or runaway queries on demand
-- **Diagnostic details** — View parallel execution status and partition counts per query
+- **Diagnostic details** — View each query's SQL, token, client and duration
+
+`is_parallel` is always `false` since v27.01.1, which no longer splits a query into one query per hour partition (that split returned one result per hour for aggregates; see the 27.01.1 release notes); `partition_count` is no longer reported. Both fields stay in the response for compatibility.
 
 Both query endpoints are tracked: `POST /api/v1/query` and `POST /api/v1/query/arrow` (the Arrow endpoint since v26.09.2). Every tracked query returns its id in the `X-Arc-Query-ID` response header, which is the id the endpoints below take.
 
 <!-- TODO(screenshot): the active-queries response rendered in a console, showing a
-     long-running query with its duration, partition count, and parallel-execution state
-     side by side with a short one - the fields are described individually but their
+     long-running query with its duration side by side with a short one - the fields are described individually but their
      relative scale is what an operator actually reads. -->
 
 ## Configuration
@@ -65,8 +66,7 @@ curl -H "Authorization: Bearer $TOKEN" \
       "remote_addr": "10.0.1.50:54321",
       "started_at": "2026-02-13T10:30:00Z",
       "duration_ms": 2500,
-      "is_parallel": true,
-      "partition_count": 4
+      "is_parallel": false
     },
     {
       "id": "q-def456",
@@ -76,8 +76,7 @@ curl -H "Authorization: Bearer $TOKEN" \
       "remote_addr": "10.0.1.51:54322",
       "started_at": "2026-02-13T10:30:01Z",
       "duration_ms": 1200,
-      "is_parallel": false,
-      "partition_count": 1
+      "is_parallel": false
     }
   ]
 }
@@ -106,8 +105,7 @@ curl -H "Authorization: Bearer $TOKEN" \
       "remote_addr": "10.0.1.52:54323",
       "started_at": "2026-02-13T10:29:00Z",
       "duration_ms": 850,
-      "is_parallel": true,
-      "partition_count": 3
+      "is_parallel": false
     }
   ]
 }
@@ -190,7 +188,6 @@ During performance incidents:
 
 3. **Combine with query governance** — Use governance policies to prevent runaway queries automatically, and query management for visibility and manual intervention.
 
-4. **Review parallel query patterns** — Queries with high partition counts span large time ranges. Consider adding time bounds to improve performance.
 
 ## Next steps
 
