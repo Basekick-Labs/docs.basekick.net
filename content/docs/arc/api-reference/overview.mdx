@@ -635,6 +635,15 @@ accordingly). curl, browsers, and HTTP libraries negotiate this
 automatically. Typical savings: JSON −68%, msgpack −38% on large results.
 Clients that omit the header get identical responses to previous versions.
 
+### Request compression
+
+Only the write endpoints accept a compressed request body: `/api/v1/write/msgpack`,
+`/api/v1/write/line-protocol`, `/write`, `/api/v2/write` and `/api/v1/write/tle`.
+They detect gzip and zstd from the body itself, so `Content-Encoding` is optional
+there. Since Arc 27.01.1, every other endpoint, queries included, answers `415`
+to a request with a `Content-Encoding` other than `identity`: send those requests
+uncompressed. (The response side is unchanged: see Response compression above.)
+
 ### POST /api/v1/query/estimate
 
 Estimate query cost before execution.
