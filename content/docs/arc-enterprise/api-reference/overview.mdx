@@ -426,6 +426,15 @@ the contract for both is "non-empty means set".
 
 **Response header:** `X-Arc-Query-ID` when query management is enabled (v26.09.2+ on this endpoint; the JSON endpoint has always returned it). It is the id `GET /api/v1/queries/:id` and `DELETE /api/v1/queries/:id` take.
 
+### Request compression
+
+Only the write endpoints accept a compressed request body: `/api/v1/write/msgpack`,
+`/api/v1/write/line-protocol`, `/write`, `/api/v2/write` and `/api/v1/write/tle`.
+They detect gzip and zstd from the body itself, so `Content-Encoding` is optional
+there. Since Arc 27.01.1, every other endpoint, queries included, answers `415`
+to a request with a `Content-Encoding` other than `identity`: send those requests
+uncompressed.
+
 ### POST /api/v1/query/estimate
 
 Estimate query cost before execution.
