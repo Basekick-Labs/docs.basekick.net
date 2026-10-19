@@ -608,9 +608,11 @@ they are not ordinary initial response headers.
 stopped at a governance row cap, and its value is the cap. This is the
 opposite of `Arc-Stream-Truncated`: the Arrow stream is complete, decodes
 cleanly, and simply holds fewer rows than the query matched. Read both — one
-reports a failure, the other a labelled success. Every registered trailer is
-emitted on every response, carrying an empty value when it was never set, so
-the contract for both is "non-empty means set".
+reports a failure, the other a labelled success. Both trailers are announced
+in the `Trailer` header of every Arrow response, but each is sent only when it
+has a value (since Arc 27.01.1; earlier releases sent an unset one empty), so
+the contract for both is "non-empty means set": read the value, not whether
+the trailer is present.
 
 
 **Response header:** `X-Arc-Query-ID` when query management is enabled (v26.09.2+ on this endpoint; the JSON endpoint has always returned it). It is the id `GET /api/v1/queries/:id` and `DELETE /api/v1/queries/:id` take.
