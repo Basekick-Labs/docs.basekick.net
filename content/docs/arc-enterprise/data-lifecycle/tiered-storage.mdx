@@ -220,6 +220,68 @@ curl -X DELETE http://localhost:8000/api/v1/tiering/policies/telemetry \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Status codes
+
+`PUT` and `DELETE` answer:
+
+| Status | When |
+|---|---|
+| `200` | Done. |
+| `400` | The policy is invalid, for example a database name longer than 256 bytes (in a cluster). |
+| `404` | `DELETE` of a database with no custom policy. |
+| `503` | A cluster cannot take the write right now: no leader, or the policies are being taken over. Retry. |
+| `500` | Anything else. |
+
+Before 27.01.1, `DELETE` answered `404` for any error.
+
+### Policies in a cluster
+
+Since 27.01.1 a cluster keeps its tiering policies in the cluster state, not in
+each node's own database ([arc#1324](https://github.com/Basekick-Labs/arc/issues/1324)).
+
+**Before 27.01.1.** A policy lived only on the node that received it, while
+only the primary writer migrates files to cold. So:
+
+- a policy set on any other node was stored and answered `200`, but never
+  applied;
+- after a failover, the new primary ignored every policy set on the old one.
+
+**From 27.01.1.**
+
+- **Set anywhere.** Set a policy on any node; it applies cluster-wide.
+- **Read anywhere.** Every node answers `GET` with the same policies.
+- **Survives a failover.** A new primary applies the same policies.
+- **Backups carry them.** Every node that runs tiering keeps its own
+  `tiering_policies` table equal to the cluster's policies, so a backup of
+  such a node carries the current ones.
+
+A standalone node is unchanged.
+
+**Taking over the existing policies.** Once every node runs 27.01.1, the
+cluster turns on cluster policies by itself (`cluster_policies.enabled` in
+`GET /api/v1/cluster`). It then takes over the policies each node already holds:
+
+- While it collects them, a tiering policy write answers `503` for up to a few
+  seconds. Retry it.
+- Every node must answer. The leader first checks it can reach every node. If
+  one is down it takes nothing over, the policies stay on each node as before,
+  and it tries again after 30 seconds, doubling the wait up to 10 minutes.
+- `cluster_policies.kinds.tiering` in `GET /api/v1/cluster` shows `seeded`,
+  `missing_nodes`, `last_error` and `failed_attempts`.
+- A node that is gone for good must be removed from the cluster before the
+  policies can be taken over.
+
+**How the nodes' policies are merged**, in the direction that moves less data:
+
+- A database `hot_only` on any node stays `hot_only`.
+- Otherwise it keeps the longest hot age any node applied to it: the policy's
+  `hot_max_age_days`, or that node's `default_hot_max_age_days` where the
+  policy left it unset.
+
+<Callout type="warn" title="No rolling back a single node">
+Once cluster policies are on, a node running an earlier release can no longer join. Roll back the whole cluster from a backup, never one node in place.
+</Callout>
+
 ## API reference
 
 All tiering endpoints require admin authentication.
