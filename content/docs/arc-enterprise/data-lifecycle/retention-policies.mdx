@@ -138,7 +138,8 @@ in `leader`. `POST` answers `202`: `cluster_policies.kinds.retention` in
 
 The node's policies are taken over only if it still holds exactly the ones the
 hash names. If they changed, nothing is taken over and `last_error` says so:
-look again and choose again.
+look again and choose again. Checking the hash takes a collect, so retention
+writes answer `503` for a few seconds either way.
 
 When the policies are taken over:
 
@@ -152,6 +153,11 @@ When the policies are taken over:
   again.
 - **Writes wait a few seconds.** While the leader reads the nodes' policies, a
   retention write answers `503`. Retry it.
+- **Restoring a backup.** In a cluster, restoring `arc.db` from a backup no
+  longer restores retention policies: the cluster's policies win, and the
+  backup's own rows go to the dormant tables. A full disaster recovery onto a
+  fresh Raft cluster takes the restored policies over again, with new IDs,
+  because every node then holds the same rows.
 - **A restarted node waits.** A node whose own table already holds the
   cluster's policies answers retention requests with `503`, and runs nothing,
   until it has caught up with the cluster after a restart (seconds).
