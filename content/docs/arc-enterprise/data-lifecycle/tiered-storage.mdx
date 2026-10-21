@@ -133,31 +133,58 @@ Arc reads the environment through viper's `AutomaticEnv`, which treats an empty 
 
 Override the global `default_hot_max_age_days` for specific databases, or exclude databases from tiering entirely.
 
-### Create policy
+### Set a policy
+
+`PUT /api/v1/tiering/policies/{database}` creates the policy or replaces it. The database comes from the path; the body carries the policy:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tiering/policies \
+curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "database": "telemetry",
-    "hot_max_age_days": 7
-  }'
+  -d '{"hot_max_age_days": 7}'
 ```
 
-### Create hot-only policy
+| Field | Type | Description |
+|-------|------|-------------|
+| `hot_only` | bool | Exclude the database from tiering. Omitted means `false`. |
+| `hot_max_age_days` | int | Days a file stays hot. Omitted means the global `default_hot_max_age_days`. |
 
-Exclude a database from tiering:
+<Callout type="warn" title="A PUT replaces the whole policy">
+A field left out of the body is reset, not kept. On a database pinned `hot_only`, `PUT` with only `{"hot_max_age_days": 14}` turns `hot_only` off, and the next migration cycle moves its older files to cold. Send every field you want to keep.
+</Callout>
+
+### Pin a database to the hot tier
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tiering/policies \
+curl -X PUT http://localhost:8000/api/v1/tiering/policies/realtime \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
+  -d '{"hot_only": true}'
+```
+
+`hot_only` stops future migrations only. Files of that database already in cold storage stay there, and queries keep reading them from cold. Since 27.01.1 the response says how many there are ([arc#1304](https://github.com/Basekick-Labs/arc/issues/1304)):
+
+```json
+{
+  "message": "Policy updated successfully",
+  "database": "realtime",
+  "policy": {
+    "id": 0,
     "database": "realtime",
-    "hot_only": true
-  }'
+    "hot_only": true,
+    "hot_max_age_days": null,
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "0001-01-01T00:00:00Z"
+  },
+  "cold_files": {
+    "recorded_before_update": 42,
+    "scope": "node_local_metadata",
+    "note": "hot_only affects future tiering only; it does not restore existing cold files."
+  }
+}
 ```
+
+`recorded_before_update` counts the cold files recorded in the tier metadata of the node that answered, before the change, leaving out quarantined files. It is not a cluster-wide total. If Arc cannot count them, the request fails with `500` and the policy is not changed. `cold_files` appears only when the request sets `hot_only: true`.
 
 ### List policies
 
@@ -166,23 +193,27 @@ curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/tiering/policies
 ```
 
-### Get policy
+### Get a policy
+
+Returns `404` when the database has no custom policy:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/tiering/policies/telemetry
 ```
 
-### Update policy
+### Get the effective policy
+
+The policy Arc applies, with global defaults filled in; `source` is `custom` or `global`:
 
 ```bash
-curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"hot_max_age_days": 14}'
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/tiering/policies/telemetry/effective
 ```
 
-### Delete policy
+### Delete a policy
+
+The database reverts to the global defaults:
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/tiering/policies/telemetry \
