@@ -67,6 +67,117 @@ their tier rows for the deleted cold files until they become primary and run
 retention themselves. Queries are not affected: they read cold storage
 directly.
 
+## Policies in a cluster
+
+Since 27.01.1 a cluster keeps its retention policies in the cluster state, not
+in each node's own database ([arc#1324](https://github.com/Basekick-Labs/arc/issues/1324)).
+
+**Before 27.01.1.** A policy lived only on the node that received it, while
+only the primary writer runs retention. So:
+
+- a policy created on any other node answered `201` but never ran;
+- after a failover, the new primary ran only its own policies. A policy that was
+  deleting data stopped, and one that had never run could start.
+
+**From 27.01.1.**
+
+- **Write anywhere.** Create, update or delete a policy on any node; it applies
+  cluster-wide.
+- **Read anywhere.** Every node answers `GET` with the same policies and IDs.
+- **Runs read the cluster's policy.** A run, scheduled or manual, reads the
+  policy as the cluster holds it when the run starts.
+- **Survives a failover.** A new primary runs the same policies.
+- **History stays per node.** The execution history and `last_execution_*`
+  stay on the node that ran the policy. After a failover, the new primary
+  shows none until it runs the policy.
+- **Backups carry them.** Every node that runs retention keeps its own
+  `retention_policies` table equal to the cluster's policies, so a backup of
+  that node carries the current ones.
+
+A standalone node is unchanged.
+
+### Taking over the existing policies
+
+Once every node runs 27.01.1, the cluster turns on cluster-wide retention by
+itself: `cluster_policies.retention_enabled` in `GET /api/v1/cluster`. Until then the leader lists the nodes still on an
+earlier release in `retention_blocking_nodes`.
+
+The leader then reads every node's own policies. It takes them over by itself
+only when:
+
+- every node answers;
+- no policy name has two different definitions on two nodes;
+- every active policy has already completed a run on some node since it was
+  last changed. Inactive policies are taken over as they are.
+
+A policy that never ran is never activated without an admin choosing it: it
+may have been created on a node that never runs retention.
+
+Otherwise each node keeps its own policies, and the primary goes on running
+its own, as before. `cluster_policies.kinds.retention.last_error` in
+`GET /api/v1/cluster` says why. The leader checks again every 30 seconds,
+doubling the wait up to 10 minutes. An admin can choose which node's policies
+to take over:
+
+```bash
+# On the Raft leader: every node's own policies, and a hash of each node's set
+curl -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
+  http://leader:8000/api/v1/cluster/policies
+
+# Take over one node's policies, naming the hash GET returned for it
+curl -X POST -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind": "retention", "node": "arc-writer-0", "hash": "<hash>"}' \
+  http://leader:8000/api/v1/cluster/policies/adopt
+```
+
+Both endpoints are admin-only and run on the Raft leader. Once
+`retention_enabled` is on, any other node answers `409` with the leader's ID
+in `leader`. `POST` answers `202`: `cluster_policies.kinds.retention` in
+`GET /api/v1/cluster` shows the outcome (`seeded`, or `last_error`).
+
+The node's policies are taken over only if it still holds exactly the ones the
+hash names. If they changed, nothing is taken over and `last_error` says so:
+look again and choose again.
+
+When the policies are taken over:
+
+- **IDs.** If they come from one node, and no other node ever issued those
+  IDs, they keep their IDs. Otherwise every policy gets a new ID above any ID a node
+  held, and the old IDs answer `404`. An old ID never names a different
+  policy.
+- **The other nodes' policies.** A policy the cluster did not take over is
+  moved, with its history, to `retention_policies_dormant` and
+  `retention_executions_dormant` in that node's database. It never runs
+  again.
+- **Writes wait a few seconds.** While the leader reads the nodes' policies, a
+  retention write answers `503`. Retry it.
+- **A restarted node waits.** A node whose own table already holds the
+  cluster's policies answers retention requests with `503`, and runs nothing,
+  until it has caught up with the cluster after a restart (seconds).
+
+A node where retention is disabled counts too: its database may still hold
+the policies of when retention ran there.
+
+A node that is gone for good must be removed from the cluster before the
+policies can be taken over.
+
+<Callout type="warn" title="No rolling back a single node">
+Once cluster-wide retention is on, a node running an earlier release can no longer join. Roll back the whole cluster from a backup, never one node in place.
+</Callout>
+
+### Status codes
+
+Create, update and delete answer:
+
+| Status | When |
+|---|---|
+| `201` / `200` | Done. |
+| `202` | Create only: the cluster took the policy, but this node has not applied it yet. List the policies to see it. |
+| `400` | The policy is invalid (including a name, database or measurement longer than 256 bytes), its name is taken, or `retention_days` is not greater than `buffer_days`. |
+| `404` | No such policy. |
+| `503` | The cluster cannot take the write right now (no leader, or the policies are being taken over). Retry. |
+
 ## API endpoints
 
 ### Create policy
