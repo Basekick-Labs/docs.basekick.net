@@ -85,6 +85,101 @@ around these semantics (e.g. reprocess on a delay, or do the final roll-up as a
 query-time aggregation).
 </Callout>
 
+## In a cluster
+
+Since 27.01.1 a cluster keeps its continuous queries, and each one's
+`last_processed_time`, in the cluster state, not in each node's own database
+([arc#1324](https://github.com/Basekick-Labs/arc/issues/1324)). Only the primary
+writer runs them, as before.
+
+**Before 27.01.1.** A continuous query lived only on the node that received it,
+and so did its `last_processed_time`. So:
+
+- a query created on any other node answered `201` but never ran;
+- after a failover, the new primary ran only its own queries, from its own
+  `last_processed_time`. If it had none, its first run covered only the last
+  hour and earlier data was never aggregated. If it had an old one, it
+  aggregated those windows again.
+
+**From 27.01.1.**
+
+- **Write anywhere.** Create, update or delete a continuous query on any node
+  where continuous queries are enabled; every node's scheduler follows it, so
+  the primary runs it whichever node received it. A create answers `202` in the
+  rare case the cluster took it but this node has not applied it yet: list the
+  queries to see it.
+- **Read anywhere.** Every node answers with the same queries, IDs and
+  `last_processed_time`.
+- **Continues across a failover.** After every run the primary flushes the
+  run's output to storage, then records the window's end in the cluster before
+  the next run of that query. A new primary continues from there, and a
+  recorded window's output is never only in the old primary's memory.
+- **History stays per node.** The execution history and `last_execution_*` stay
+  on the node that ran the query.
+- **Backups carry them.** Every node that runs continuous queries keeps its own
+  `continuous_queries` table equal to the cluster's queries; `last_processed_time`
+  there is refreshed at least once a minute.
+
+A standalone node is unchanged.
+
+<Callout type="info" title="If the primary dies mid-run">
+If the primary dies, or is demoted, after writing a run's output and before the
+cluster recorded the window's end, the new primary runs that window again, so
+that window's rows are written a second time. If the primary cannot reach the
+cluster to record a window's end, it skips that query's next runs until it can,
+so this never grows past one window.
+</Callout>
+
+`continuous_query.enabled` and the scheduler's licence are per node: a primary
+where they are off runs no continuous queries.
+
+### Taking over the existing queries
+
+Once every node runs 27.01.1, the cluster turns on cluster-wide continuous
+queries by itself: `cluster_policies.cq_enabled` in `GET /api/v1/cluster`.
+Until then the leader lists the nodes still on an earlier release in
+`cq_blocking_nodes`.
+
+The leader then reads every node's own continuous queries. It takes them over
+by itself only when:
+
+- every node answers;
+- no query name has two different definitions on two nodes (the definition
+  includes `is_active` and `description`: a query paused on one node only, or
+  described differently, counts as two);
+- every active query has completed a run on some node. Inactive queries are
+  taken over as they are.
+
+Each query takes the newest `last_processed_time` any node holds for the same
+definition.
+
+Otherwise each node keeps its own queries and the primary goes on running its
+own, as before; `cluster_policies.kinds.cq.last_error` says why. An admin
+chooses a node's queries on the Raft leader, as for
+[retention policies](/arc-enterprise/data-lifecycle/retention-policies/#taking-over-the-existing-policies):
+`GET /api/v1/cluster/policies?kind=cq` lists every node's queries with a hash,
+and `POST /api/v1/cluster/policies/adopt` with
+`{"kind": "cq", "node": "<id>", "hash": "<hash>"}` takes them over.
+
+When they are taken over:
+
+- **IDs.** Queries that all come from one node keep their IDs, as long as no
+  other node ever issued those IDs. Otherwise every query gets a new ID above
+  any ID a node held, and the old IDs answer `404`.
+- **The other nodes' queries.** A query the cluster did not take over moves,
+  with its history, to `continuous_queries_dormant` and
+  `continuous_query_executions_dormant` in that node's database. It never runs
+  again.
+- **Writes wait a few seconds.** While the leader reads the nodes' queries, a
+  continuous query write answers `503`; retry it.
+- **A restarted node waits.** A node whose own tables already hold the
+  cluster's queries answers with `503`, and runs nothing, until it has caught up
+  with the cluster after a restart.
+
+<Callout type="warn" title="No rolling back a single node">
+Once cluster-wide continuous queries are on, a node running an earlier release can no longer join. Roll back the whole cluster from a backup, never one node in place.
+</Callout>
+
 ## API endpoints
 
 ### Create continuous query
@@ -226,9 +321,27 @@ POST /api/v1/continuous_queries/{query_id}/execute
 ```
 
 **Parameters**:
-- `start_time` (string, required): Start timestamp (ISO 8601 format)
-- `end_time` (string, required): End timestamp (ISO 8601 format)
+- `start_time` (string, optional): Start timestamp (RFC 3339). Defaults to
+  `last_processed_time`, or one hour ago on a query's first run.
+- `end_time` (string, optional): End timestamp (RFC 3339). Defaults to now.
+  Since 27.01.1, an `end_time` more than a minute in the future is refused with
+  `400` (not for a dry run): the run's end becomes `last_processed_time`, and a
+  future one made every later run fail until the clock caught up.
 - `dry_run` (boolean, optional): Test without writing data (default: `false`)
+
+A run that is not a dry run moves `last_processed_time` to its `end_time`,
+backwards too when you pass an earlier one. In a cluster (see
+[In a cluster](#in-a-cluster)) the response carries `watermark_status`:
+
+| Value | Meaning |
+|---|---|
+| `set` | `last_processed_time` is now this run's `end_time`. |
+| `moved` | Another run, or another primary, moved it while this one ran; theirs is kept. |
+| `pending` | The cluster has not taken it yet; the next run settles it first. |
+
+A run answers `503` while the previous run's `last_processed_time` has not
+reached the cluster, or while this node cannot confirm it holds the latest
+one. Retry it.
 
 **Response**:
 ```json
