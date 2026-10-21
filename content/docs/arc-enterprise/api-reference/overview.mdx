@@ -1245,7 +1245,9 @@ See [RBAC](/arc-enterprise/security/rbac/) for detailed API documentation.
 | `POST` | `/api/v1/tiering/migrate` | Trigger migration |
 | `POST` | `/api/v1/tiering/scan` | Rescan tier metadata against storage |
 | `GET` | `/api/v1/tiering/stats` | Migration statistics |
-| `POST/GET/PUT/DELETE` | `/api/v1/tiering/policies` | Per-database policies |
+| `GET` | `/api/v1/tiering/policies` | List per-database policies |
+| `GET/PUT/DELETE` | `/api/v1/tiering/policies/{database}` | Get, set or delete a database's policy |
+| `GET` | `/api/v1/tiering/policies/{database}/effective` | Policy in effect, with global defaults |
 
 See [Tiered Storage](/arc-enterprise/data-lifecycle/tiered-storage/) for detailed API documentation.
 
