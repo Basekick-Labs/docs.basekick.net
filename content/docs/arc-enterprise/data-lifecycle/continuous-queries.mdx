@@ -110,9 +110,10 @@ and so did its `last_processed_time`. So:
   queries to see it.
 - **Read anywhere.** Every node answers with the same queries, IDs and
   `last_processed_time`.
-- **Continues across a failover.** After every run the primary records the
-  window's end in the cluster before the next run of that query. A new primary
-  continues from there.
+- **Continues across a failover.** After every run the primary flushes the
+  run's output to storage, then records the window's end in the cluster before
+  the next run of that query. A new primary continues from there, and a
+  recorded window's output is never only in the old primary's memory.
 - **History stays per node.** The execution history and `last_execution_*` stay
   on the node that ran the query.
 - **Backups carry them.** Every node that runs continuous queries keeps its own
