@@ -249,6 +249,10 @@ A rising `arc_wal_records_preserved_total` means flushes are failing or the flus
 arc_compaction_jobs_total
 arc_compaction_jobs_success_total
 arc_compaction_jobs_failed_total
+arc_compaction_jobs_interrupted_total
+arc_compaction_files_compacted_total
+arc_compaction_bytes_read_total
+arc_compaction_bytes_written_total
 arc_compaction_manifests_recovered_total
 arc_compaction_manifests_parked_unparseable_total
 arc_storage_invalid_path_quarantined_total
@@ -257,6 +261,24 @@ arc_storage_invalid_path_quarantined_total
 ```text
 rate(arc_compaction_jobs_failed_total[1h]) > 0
 ```
+
+The job counters count **attempts**, as `/api/v1/compaction/stats` does:
+
+- A batch that fails and is retried at half size counts twice, so one
+  partition that cannot be compacted can add several failures per cycle.
+- `arc_compaction_jobs_total` is succeeded + failed + interrupted.
+- An attempt cut short by a shutdown or a cancelled cycle is interrupted,
+  not failed.
+- A staged job (clusters with compaction commit) counts as succeeded once its
+  output is staged, before the cluster commits it.
+
+<Callout type="warn" title="Before v27.01.1 these counters always read 0">
+Before v27.01.1 the job counters were counted inside the compaction
+subprocess, whose metrics nothing scrapes, so `/metrics` showed `0` whatever
+compaction did ([#1343](https://github.com/Basekick-Labs/arc/issues/1343)).
+An alert on `arc_compaction_jobs_failed_total` never fired before v27.01.1,
+and it does now.
+</Callout>
 
 `arc_compaction_manifests_parked_unparseable_total` (v26.09.2+) should sit
 at zero. Growth means recovery parked a crash-recovery manifest whose body
@@ -275,8 +297,8 @@ not retried; find the Error log line naming the key and act on it.
 
 Sustained compaction failure degrades query performance as small files accumulate, and on Enterprise it silently blocks tiering — only `_daily.parquet` files migrate to cold storage.
 
-<Callout type="info" title="Compaction volume counters are JSON-only">
-`compaction_files_compacted`, `compaction_bytes_read` and `compaction_bytes_written` are populated but are **not** emitted to Prometheus. Read them from `GET /api/v1/metrics` instead.
+<Callout type="info" title="Compaction volume counters on Prometheus since v27.01.1">
+`arc_compaction_files_compacted_total`, `arc_compaction_bytes_read_total` and `arc_compaction_bytes_written_total` are emitted to Prometheus from v27.01.1. Before that they existed only in `GET /api/v1/metrics`, and read 0 there too.
 </Callout>
 
 ### Memory and runtime
