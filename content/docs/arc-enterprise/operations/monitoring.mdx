@@ -178,6 +178,8 @@ If daily compaction is disabled, or never reaches its file threshold for a low-v
 increase(arc_compaction_jobs_success_total[24h]) == 0
 ```
 
+Before v27.01.1 this counter always read 0, so the alert fired all the time; it only means something from v27.01.1 ([#1343](https://github.com/Basekick-Labs/arc/issues/1343)).
+
 Also confirm the cold tier appears in `/health` under `storage`, alongside `hot`.
 </Callout>
 
