@@ -476,6 +476,19 @@ Since 26.09.3 a node's tier rows follow its own disk, not only what it ingested.
 On 26.09.2 and earlier, a node recorded tier rows only for files it flushed itself. Files pulled from a peer had no row until the next scan, and a file another node migrated was not marked cold locally until the next cold sync — at the default `0 2 * * *` schedule up to a day. Because the query layer routes reads from those rows, a node not currently ingesting a measurement lost partition pruning for it (`GET /api/v1/tiering/files` showed far fewer files on it than on the ingesting node), and a measurement with a cold row and no hot row dropped that node's local files from reads entirely: a windowed `count(*)` over data on its disk returned `0` with `success: true`. `POST /api/v1/tiering/scan` on each affected node closes the gap until the next migration cycle reopens it; upgrading removes it.
 </Callout>
 
+## Deleting rows in cold storage
+
+A row DELETE (`POST /api/v1/delete`) deletes a cold file when every row in it
+matches the clause, and leaves a cold file where only some rows match,
+reporting it in the response (`207`, `cold_files`). It does not rewrite part
+of a cold file. See [Delete operations](/arc-enterprise/data-lifecycle/delete-operations/#files-in-cold-storage).
+
+A DELETE also checks cold storage for a copy of every daily file it rewrites,
+whatever the database's current policy, so a file with a copy left in cold
+storage (for example after a database was pinned to the hot tier) is left as
+it is until that copy is removed. While cold storage is unreachable, a DELETE
+that touches a daily file answers `503`; retry once it is back.
+
 ## Best practices
 
 1. **Start with 30-day hot retention** — This is a good default for most workloads. Monitor query patterns and adjust based on how often historical data is accessed.

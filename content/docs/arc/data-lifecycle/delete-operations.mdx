@@ -155,6 +155,9 @@ POST /api/v1/delete
   not deleted.
 - `unreachable_files` (clusters) lists manifest files the primary did not
   have: skipped with `allow_unreachable`, or the reason for a `503` without it.
+- With tiered storage (Arc Enterprise), a DELETE also deletes cold files
+  whose rows all match and reports the cold files it left; see
+  [Delete operations in Arc Enterprise](/arc-enterprise/data-lifecycle/delete-operations/#files-in-cold-storage).
 
 ### Get configuration
 
