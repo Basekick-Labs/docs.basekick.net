@@ -477,10 +477,20 @@ empty_range_anchor_scan = false           # EXPERIMENTAL: answer a proven-empty 
 # On a cluster whose nodes keep separate storage and receive each other's
 # files by replication, leave empty_range_anchor_scan off (see the guide).
 
-# File-level time pruning of the live hour (v26.09.2+, experimental, local backend)
-file_time_pruning = false
+# File-level time pruning of the live hour (v26.09.2+, on by default from v27.01.1, local backend)
+file_time_pruning = true
 file_time_pruning_margin_seconds = 300    # writer clock-skew allowance
 ```
+
+**File-level time pruning** is on by default from v27.01.1. A query whose time
+range starts in the current UTC hour skips that hour's files flushed before
+the range starts minus `file_time_pruning_margin_seconds`. It applies to local
+storage only. A row stamped more than the margin ahead of the clock of the node
+that flushed it, and still within the current hour, can be missing from such a
+query until the hour closes. `arc_ingest_future_stamped_rows_total` counts
+these rows on that node: a writer, or an edge spoke. Size the margin to the
+worst clock skew among your writers and spokes, or set
+`file_time_pruning = false` to turn it off.
 
 ### Retention policies
 
