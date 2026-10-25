@@ -275,8 +275,9 @@ azure_use_managed_identity = true
 
 <Callout type="info" title="Available since v27.01.1">
 Google Cloud Storage as primary storage is available starting Arc v27.01.1,
-on standalone nodes. A licensed cluster node refuses to start with it; a cold
-tier and backup targets on GCS come in a later release.
+on standalone nodes. A licensed cluster node refuses to start with it. GCS
+also serves as the [cold tier](/docs/arc-enterprise/data-lifecycle/tiered-storage)
+and as a [backup target](/docs/arc/operations/backup-restore#destinations).
 </Callout>
 
 ```toml
