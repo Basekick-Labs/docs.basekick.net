@@ -44,7 +44,7 @@ enabled = true
 default_target = "main"         # local_path above is then ignored entirely
 
 [backup.targets.main]
-type = "local"                  # local, s3, minio, azure or azblob
+type = "local"                  # local, s3, minio, azure, azblob or gcs
 local_path = "/srv/arc-backups"
 ```
 
@@ -66,7 +66,22 @@ s3_path_style = false           # required for MinIO
 ```
 
 Azure Blob Storage takes `azure_container` and `azure_prefix` with
-`type = "azure"`.
+`type = "azure"`. Google Cloud Storage (27.01.1+) takes `type = "gcs"`:
+
+```toml
+[backup.targets.main]
+type = "gcs"
+gcs_bucket = "acme-arc-backups"
+gcs_prefix = "arc/backups"
+# gcs_credentials_file = "/etc/arc/backup.json"  # default: Application Default Credentials
+# gcs_endpoint = "https://storage.googleapis.com" # https only
+```
+
+A GCS target is allowed on a cluster node. A colder storage class suits a
+backup bucket; a retention policy does not, because it stops a backup from
+being deleted and a partial one from being cleaned up, and Arc warns about it
+at startup. A target whose bucket does not exist fails the backup rather than
+completing it.
 
 ### A different target per database
 

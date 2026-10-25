@@ -1,6 +1,6 @@
 ---
 title: Tiered Storage
-description: Age Arc Enterprise data from hot storage to S3 or Azure Blob Storage with per-database policies; cold files stay queryable in place, with no retrieval step.
+description: Age Arc Enterprise data from hot storage to S3, Azure Blob Storage or Google Cloud Storage with per-database policies; cold files stay queryable in place, with no retrieval step.
 ---
 
 Reduce storage costs with automatic hot/cold data tiering. Recent data stays on fast primary storage while older data moves to object storage that costs a fraction of block storage per gigabyte, and queries keep reading it in place.
@@ -61,7 +61,7 @@ Setting it **below** the time a full scan takes is harmful rather than conservat
 
 ### Cold tier backend
 
-<Tabs items={['AWS S3 / MinIO', 'Azure Blob Storage']}>
+<Tabs items={['AWS S3 / MinIO', 'Azure Blob Storage', 'Google Cloud Storage']}>
   <Tab value="AWS S3 / MinIO">
 
 ```toml
@@ -93,6 +93,41 @@ azure_account_name = "your_account"
 ```
 
   </Tab>
+  <Tab value="Google Cloud Storage">
+
+Available since Arc v27.01.1, on standalone nodes (a licensed cluster node
+refuses a GCS cold tier for now).
+
+```toml
+[tiered_storage.cold]
+enabled = true
+backend = "gcs"
+gcs_bucket = "arc-archive"
+# gcs_prefix = "cold"                         # default: the bucket root
+# gcs_credentials_file = "/etc/arc/cold.json" # default: Application Default Credentials
+# gcs_endpoint = "https://storage.googleapis.com"  # https only
+```
+
+The cold tier has its own identity: Application Default Credentials (GKE
+Workload Identity, the metadata server, `GOOGLE_APPLICATION_CREDENTIALS`) or
+the service-account key in `gcs_credentials_file`. Queries read cold files
+with a bearer token Arc resolves from it and replaces before it expires.
+`/health` reports the tier under `"cold"`; a cold tier whose credentials have
+never resolved is `unavailable`, and with
+`server.storage_credentials_fail_ready = true` that drains `/ready`.
+
+Any primary works with a GCS cold tier (local, S3, Azure or GCS), and a GCS
+primary takes any cold tier. On one bucket, give the cold tier a prefix that
+is not a parent or child of the primary's: an overlapping cold tier is
+refused at startup.
+
+Use a STANDARD bucket, or Autoclass. A colder default class charges
+retrieval on every query read of cold data and a minimum storage duration
+when retention or DELETE removes a cold file; Arc warns at startup when it
+can read the bucket's settings (`storage.buckets.get`). A lifecycle rule that
+changes the class of cold objects is not visible to that check.
+
+  </Tab>
 </Tabs>
 
 ### Environment variables
@@ -119,7 +154,21 @@ ARC_TIERED_STORAGE_COLD_BACKEND=azure
 ARC_TIERED_STORAGE_COLD_AZURE_CONTAINER=arc-archive
 ARC_TIERED_STORAGE_COLD_AZURE_ACCOUNT_NAME=your_account
 ARC_TIERED_STORAGE_COLD_AZURE_ACCOUNT_KEY=your_key
+
+# Cold tier (GCS)
+ARC_TIERED_STORAGE_COLD_BACKEND=gcs
+ARC_TIERED_STORAGE_COLD_GCS_BUCKET=arc-archive
+ARC_TIERED_STORAGE_COLD_GCS_PREFIX=cold
 ```
+
+<Callout type="warn" title="27.01.1: a cold tier that fails to start is no longer skipped silently">
+When the cold tier is enabled but its backend cannot be built at startup (a
+bad endpoint or credentials file, any backend), a query whose time range
+reaches cold files answers HTTP 503 naming the cold tier. Earlier releases
+left the cold files out and answered with the hot rows alone, as a success.
+The startup log names the failure. A cold tier that shares a location with
+primary storage, or sits inside it (or contains it), is refused at startup.
+</Callout>
 
 <Callout type="idea" title="Use Environment Variables for Secrets">
 Store access keys and secret keys in environment variables rather than in `arc.toml`. This keeps secrets out of version control.
