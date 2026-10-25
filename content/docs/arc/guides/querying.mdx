@@ -47,6 +47,8 @@ curl -X POST "http://localhost:8000/api/v1/query" \
   -d '{"sql": "SELECT * FROM cpu WHERE time > NOW() - INTERVAL '\''1 hour'\'' LIMIT 100"}'
 ```
 
+JSON has no byte type, so since v27.01.1 a `BLOB` or `GEOMETRY` value is a standard base64 string (RFC 4648, padded) and a `UUID` is its canonical text (`6f1c2c1e-8a3b-4d2e-9f00-1234567890ab`). Before v27.01.1 they were raw bytes inside a JSON string, which is invalid JSON for most binary values. Arrow and MessagePack results carry real bytes. For a readable geometry use `ST_AsText(geom)` or `ST_AsGeoJSON(geom)`.
+
 ### Arrow query
 
 For large result sets, Arrow IPC provides ~2x throughput vs JSON:

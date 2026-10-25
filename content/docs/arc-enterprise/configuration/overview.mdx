@@ -360,7 +360,13 @@ enable_wal = false        # Query engine WAL (not Arc WAL)
 # them out. "auto" turns it off when all data is on local disk and keeps it
 # on when S3 or Azure may be read. "true" or "false" forces it. (v27.01.1)
 external_file_cache = "auto"
+# Query engine extensions to load at startup. Supported: "spatial" (ST_*
+# functions). Any other name, a path or a URL stops Arc at startup.
+# Set the same list on every node of a cluster. (v27.01.1)
+extensions = []
 ```
+
+`extensions` (since v27.01.1, env `ARC_DATABASE_EXTENSIONS`, comma-separated) loads query engine extensions; see [Spatial queries](/arc/guides/spatial/).
 
 `external_file_cache` (since v27.01.1, env `ARC_DATABASE_EXTERNAL_FILE_CACHE`) controls the query engine's file cache. On local storage the operating system's page cache already holds those blocks, so `auto` turns the engine's copy off. With ingest, compaction every minute and continuous queries, that cut memory from 1.6 GB to under 800 MB on both macOS and Linux, and queries were no slower. Without the change the memory is not given back even when the node goes idle. A node that reads S3 or Azure (primary storage or a cold tier) keeps it on, because there it is the remote read cache. Arc logs the value in effect at startup, and `/api/v1/debug/duckdb-memory` reports it as `external_file_cache`.
 

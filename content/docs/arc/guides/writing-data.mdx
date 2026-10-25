@@ -170,6 +170,28 @@ func main() {
 
 For sustained ingestion, batch multiple rows per request. Arc also accepts `gzip` and `zstd` request compression through the `Content-Encoding` header.
 
+### Binary values
+
+Since v27.01.1, a MessagePack `bin` value (Python `bytes`, Go `[]byte`, Node `Buffer`) is stored byte for byte as a binary column (`BLOB` in SQL). Use it for a geometry as WKB, a hash, or any small opaque payload. A `null` stays NULL, and an empty value stays an empty value. Earlier versions refused the write.
+
+```python
+payload = {
+    "m": "places",
+    "columns": {
+        "time": [now],
+        "name": ["depot"],
+        # WKB for POINT(-58.38 -34.60)
+        "geom": [bytes.fromhex("0101000000713d0ad7a3304dc0cdcccccccc4c41c0")],
+    },
+}
+```
+
+Encode with `use_bin_type=True` in Python, as above, so bytes are sent as `bin` and not as a string.
+
+**A column is either string or binary.** A write that sends bytes to a column already stored as a string, or a string to a binary column, is refused with `400` and nothing of the request is written. A column that is a string in some files and binary in others reads back as binary everywhere, so the stored strings would stop answering string functions such as `LIKE`. Arc checks against the measurement's [field schema](/arc/guides/field-schema/), so the check is best-effort: it does not run with `query.stable_schema = false`, for a column whose first values are still buffered, on a node that has not flushed or queried the measurement since it started, or between two writers changing the same column at the same moment. A change that gets through leaves the column mixed for good.
+
+Query results show binary values as base64 in JSON and as bytes in Arrow and MessagePack; see [Querying](/arc/guides/querying/#json-query). The [spatial guide](/arc/guides/spatial/) reads WKB columns with `ST_GeomFromWKB`.
+
 ## Line protocol
 
 Line protocol is convenient for scripts and tools that already speak the InfluxDB protocol:
