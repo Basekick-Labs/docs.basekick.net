@@ -384,7 +384,15 @@ enable_wal = false        # Query engine WAL (not Arc WAL)
 # Queries with an explicit ORDER BY are unaffected. Set true to make un-ordered
 # SELECTs return rows in file/insertion order (pre-26.09.1 behavior).
 preserve_insertion_order = false
+# The query engine's file cache keeps blocks of every Parquet file it reads,
+# including files compaction has since deleted, until the memory limit forces
+# them out. "auto" turns it off when all data is on local disk and keeps it
+# on when S3 or Azure may be read. "true" or "false" forces it. (v27.01.1)
+external_file_cache = "auto"
 ```
+
+`external_file_cache` (since v27.01.1, env `ARC_DATABASE_EXTERNAL_FILE_CACHE`) controls the query engine's file cache. On local storage the operating system's page cache already holds those blocks, so `auto` turns the engine's copy off. With ingest, compaction every minute and continuous queries, that cut memory from 1.6 GB to 760 MB after 73 minutes (macOS), and queries were no slower on macOS or Linux. A node that reads S3 or Azure (primary storage) keeps it on, because there it is the remote read cache. Arc logs the value in effect at startup, and `/api/v1/debug/duckdb-memory` reports it as `external_file_cache`.
+
 
 <Callout type="warning" title="Behaviour change in v26.09.3">
 `memory_limit` and `thread_count` are **unset** by default now, and that is deliberate: the query engine performs its own cgroup-aware detection and uses 80% of the memory limit it finds — your container's limit if you set one, host memory if you did not. It reads the CPU quota for threads the same way.
