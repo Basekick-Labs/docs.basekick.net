@@ -465,7 +465,7 @@ One database for metrics, logs, traces, and events. Query all your observability
 
 #### Storage and scalability
 - **Columnar Parquet storage** - 3-5x compression ratios, optimized for analytical queries
-- **Flexible backends** - Local filesystem, MinIO, AWS S3/R2, Google Cloud Storage, or any S3-compatible storage
+- **Flexible backends** - Local filesystem, MinIO, AWS S3/R2, or any S3-compatible storage
 - **Multi-database architecture** - Organize data by environment, tenant, or application with database namespaces
 - **Automatic compaction** - Merges small files into optimized 512MB files for 10-50x faster queries
 
