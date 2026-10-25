@@ -32,7 +32,7 @@ enable_wal = false
 
 # Storage Backend
 [storage]
-backend = "local"           # local, s3, minio, azure, azblob
+backend = "local"           # local, s3, minio, azure, azblob, gcs
 local_path = "./data/arc"
 
 # Ingestion
@@ -117,7 +117,7 @@ Settings are applied in this order (highest to lowest):
 
 ## Storage backends
 
-<Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob']}>
+<Tabs items={['Local', 'AWS S3', 'MinIO', 'Azure Blob', 'Google Cloud Storage']}>
   <Tab value="Local">
 
 **Local Filesystem** - Default, simplest option for single-node deployments.
@@ -246,6 +246,83 @@ reports it as `sas / unknown`. `storage.azure_endpoint` now applies to query
 reads as well (sovereign clouds); path-style endpoints such as Azurite apply
 to writes only.
 </Callout>
+
+  </Tab>
+  <Tab value="Google Cloud Storage">
+
+**Google Cloud Storage** - For Google Cloud deployments (standalone nodes).
+
+<Callout type="info" title="Available since v27.01.1">
+Google Cloud Storage as primary storage is available starting Arc v27.01.1,
+on standalone nodes. A licensed cluster node refuses to start with it; a cold
+tier and backup targets on GCS come in a later release.
+</Callout>
+
+```toml
+[storage]
+backend = "gcs"
+gcs_bucket = "my-arc-data"
+# gcs_prefix = "instances/abc123/"            # default: the bucket root
+# gcs_credentials_file = "/etc/arc/key.json"   # default: Application Default Credentials
+# gcs_endpoint = "https://storage.googleapis.com"  # https only
+```
+
+Environment variables:
+
+```ini
+ARC_STORAGE_BACKEND=gcs
+ARC_STORAGE_GCS_BUCKET=my-arc-data
+ARC_STORAGE_GCS_PREFIX=instances/abc123/
+```
+
+Arc talks to GCS's own API, not its S3 interoperability endpoint, so no HMAC
+keys are needed.
+
+**Authentication.** With no `gcs_credentials_file`, Arc uses Application
+Default Credentials: GKE Workload Identity, the GCE or Cloud Run metadata
+server, or `GOOGLE_APPLICATION_CREDENTIALS`. `gcs_credentials_file` names a
+service-account key instead (only that key type is accepted). Writes,
+compaction and queries all use the same identity. Queries read `gs://` with a
+bearer token Arc resolves from it and replaces before it expires; `/health`
+shows the hot tier as `gcs`, with its expiry.
+
+**IAM.** Grant `roles/storage.objectAdmin` on the bucket, plus
+`storage.buckets.get` (for example through a custom role) so Arc can check the
+bucket's settings at startup. Without `storage.buckets.get`, Arc warns that the
+settings were not checked and starts anyway.
+
+**Checked at startup** (needs `storage.buckets.get`):
+
+| Bucket setting | Arc |
+|---|---|
+| Hierarchical namespace | Refuses to start |
+| Requester pays | Refuses to start (queries could not be billed) |
+| Soft delete | Warns |
+| Retention policy | Warns (locked: louder) |
+| Default storage class other than STANDARD | Warns |
+
+<Callout type="warn" title="Cost: turn soft delete off">
+Compaction and retention delete objects all day. New buckets keep deleted
+objects for 7 days by default (soft delete), billed as storage, so every byte
+compaction replaces stays billed for another week. On a bucket used only by Arc, turn soft
+delete off. A retention policy makes those deletes fail until objects are old
+enough, and colder storage classes charge a minimum storage duration on every
+object compaction replaces — use STANDARD.
+</Callout>
+
+**Credential state.** If Arc cannot resolve a token (for example the metadata
+server is unreachable), every query of the bucket fails with an error — GCS
+has no fallback the way S3 and Azure do. `/health` reports the hot tier's
+state as `unavailable`, Arc retries in the background and logs each failure,
+and with `server.storage_credentials_fail_ready = true` `/ready` answers 503
+(`storage_credentials_unavailable`).
+
+**Endpoint.** `gcs_endpoint` must be https. Queries use only its host and
+speak GCS's XML API there, so the endpoint must serve both the JSON and XML
+APIs on one host. An emulator that serves only the JSON API cannot serve
+queries.
+
+`query.enable_s3_cache` does not apply to GCS.
 
   </Tab>
 </Tabs>
