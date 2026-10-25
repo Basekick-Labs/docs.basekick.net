@@ -180,6 +180,14 @@ increase(arc_compaction_jobs_success_total[24h]) == 0
 
 Before v27.01.1 this counter always read 0, so the alert fired all the time; it only means something from v27.01.1 ([#1343](https://github.com/Basekick-Labs/arc/issues/1343)).
 
+A partition too wide to compact in a job's memory is left uncompacted from v27.01.1, so it never tiers either:
+
+```text
+arc_compaction_partitions_too_wide > 0
+```
+
+`GET /api/v1/compaction/too-wide` on the compactor node lists them; see [File Compaction](/arc-enterprise/advanced/compaction/#partition-skipped-too-wide-to-compact-v27011).
+
 Also confirm the cold tier appears in `/health` under `storage`, alongside `hot`.
 </Callout>
 

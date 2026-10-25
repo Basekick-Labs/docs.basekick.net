@@ -78,6 +78,44 @@ For each affected file:
 
 A file whose rows all match is removed.
 
+#### Wide files (v27.01.1+)
+
+The copy holds, per DuckDB thread, a decoded row group (about 9 bytes per value
+however sparse the data, so about 3 GB for 122,880 rows of 3,100 columns) plus
+the Parquet writer's state for every column, much of it outside
+`database.memory_limit`. Before each rewrite Arc reads the file's footer and
+estimates that. When the main DuckDB would need more than half its effective
+memory limit, the file is rewritten on a private DuckDB instance instead: one
+thread, half the main memory limit, its own spill directory, sandboxed to the
+file's own directories and with no extensions, keeping the row order. On S3 or
+Azure the file is downloaded first. There is no setting.
+
+Measured on DuckDB 1.5.6 with a 4 GB limit: a DELETE on a 3,100-column,
+983k-row file took 24 s at about 1.9 GB, where before it spilled for 7 minutes
+and then ran out of memory. 905 columns took 18 s, 10,000 columns 23 s.
+
+What to expect:
+
+- **Rewritten wide files are larger and slower to read** until compaction
+  merges them. Their row groups are smaller (32,768 rows at 905 columns, 8,192
+  at 3,100, 2,048 at 10,000), so each file carries more column chunks and a
+  larger footer: a one-second query on a rewritten 3,100-column file took
+  240 ms instead of 30 ms on the original.
+- **Wide rewrites run one at a time**, single-threaded, as all rewrites already
+  run one at a time. A long narrow file can take the same path on a many-core
+  node.
+- **The private instance's memory is on top of the main one's.** With the
+  default memory limit (80% of the machine) the two together can exceed the
+  machine while queries run.
+- **A WHERE that calls an extension function** (arcx, httpfs) fails on a wide
+  file.
+- **A file whose footer cannot be read is not rewritten**: it is reported in
+  `failed_files` (`207`) and the DELETE can be retried.
+
+Every rewrite, wide or not, now keeps Arc's Parquet metadata (`arc:tags`,
+`arc:dedup_exact`, `arc:decimals`); before v27.01.1 a rewrite dropped it, so a
+rewritten continuous-query file lost its exact-duplicate marker at compaction.
+
 ### Crash safety
 
 The old file stays in place until its replacement is published, so a crash
@@ -592,6 +630,9 @@ or `503` with `files changed under the delete while it counted them`.
 **Problem**: Delete operations take longer than expected.
 
 **Solutions**:
+- On a table of hundreds or thousands of columns, upgrade to v27.01.1: before
+  it, a rewrite of a wide file spilled for minutes per row group and could run
+  out of memory (see [Wide files](#wide-files-v27011))
 - Check file sizes (large files take longer)
 - Monitor disk I/O performance
 - Batch operations during low-traffic periods

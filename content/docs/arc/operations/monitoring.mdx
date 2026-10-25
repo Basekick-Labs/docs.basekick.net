@@ -250,6 +250,8 @@ arc_compaction_jobs_total
 arc_compaction_jobs_success_total
 arc_compaction_jobs_failed_total
 arc_compaction_jobs_interrupted_total
+arc_compaction_partitions_skipped_too_wide_total
+arc_compaction_partitions_too_wide
 arc_compaction_files_compacted_total
 arc_compaction_bytes_read_total
 arc_compaction_bytes_written_total
@@ -260,6 +262,16 @@ arc_storage_invalid_path_quarantined_total
 
 ```text
 rate(arc_compaction_jobs_failed_total[1h]) > 0
+```
+
+`arc_compaction_partitions_too_wide` (v27.01.1+) is a gauge of the
+partitions this node leaves uncompacted because they fail at the smallest batch
+(see the compaction page); `arc_compaction_partitions_skipped_too_wide_total`
+counts each cycle that left one alone. A partition that never compacts never
+moves to cold storage:
+
+```text
+arc_compaction_partitions_too_wide > 0
 ```
 
 The job counters count **attempts**, as `/api/v1/compaction/stats` does:

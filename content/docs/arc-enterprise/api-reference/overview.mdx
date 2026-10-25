@@ -607,6 +607,17 @@ One cycle by id, including `failed_partitions` — a deduplicated map of
 partition path to failed-batch count, which is the retry list. A `404` names
 the retained window rather than claiming the cycle never ran.
 
+### GET /api/v1/compaction/too-wide
+
+v27.01.1+. Partitions this node remembers as too wide to compact in a job's
+memory, with the settings each failed under and the current ones; `skipped`
+says whether the next cycle leaves it alone.
+
+### DELETE /api/v1/compaction/too-wide
+
+v27.01.1+. Forgets them (all, or `?tier=` and/or `?partition=`) so the next
+cycle tries again. Returns `{"cleared": n}`.
+
 ---
 
 ## Delete operations

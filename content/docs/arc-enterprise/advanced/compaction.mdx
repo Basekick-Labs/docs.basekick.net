@@ -799,6 +799,57 @@ docker logs arc | grep compaction
 sudo journalctl -u arc | grep compaction
 ```
 
+### Partition skipped: too wide to compact (v27.01.1+)
+
+**Symptoms:** a warning naming the partition:
+
+```text
+Partition is too wide to compact in a job's memory: it fails at the smallest batch; left uncompacted until its files or the job sizing change ...
+```
+
+and later cycles report `skipped_too_wide` (`/api/v1/compaction/cycles/{id}`,
+`last_cycle` in `/api/v1/compaction/stats`) while
+`arc_compaction_partitions_too_wide` is above 0.
+
+**Cause:** compaction sorts a batch's rows by time in one DuckDB job, and a
+sort holds whole rows. On a table of hundreds or thousands of columns that does
+not fit the memory a job has: measured on DuckDB 1.5.6, two 3,100-column files
+ran out of memory at 2 GB even on one thread, and two 906-column files of 3.93M
+rows each needed 4 GB. The batch splitter halves a failing batch, but a
+smaller batch is just as wide. Before v27.01.1 such a partition failed on every
+cycle, downloading its files each time.
+
+**What happens now:** a partition that fails at the smallest batch the
+splitter can make is remembered and left alone. Only memory evidence counts,
+at most once per partition per cycle:
+
+- DuckDB's own out-of-memory error marks it after one cycle. The mark holds
+  until the partition gets a new input file or the job sizing changes.
+- A kill (the kernel may have picked another job running alongside), a crash,
+  or a cycle deadline that cut off an attempt which had nine tenths of
+  `cycle_timeout` marks it after two cycles in a row. That mark expires after
+  a day, so the partition is tried once a day.
+- A SQL error, a missing file, a full disk or an object-store error never
+  marks a partition.
+
+The list is kept per node in `too_wide.json` under `temp_directory` and
+survives a restart. A partition that later compacts is forgotten.
+
+**Its files stay as written**: queries read them as before. Tiering moves
+only `_daily.parquet` files to cold storage, so a table that never compacts
+stays on hot storage until retention removes it.
+
+**Solutions:**
+
+1. **Give each job more memory:** raise `memory_limit` or lower
+   `max_concurrent` (the automatic `memory_limit` is `database.memory_limit`
+   divided by it). A change to `memory_limit`, `threads`, `max_concurrent`,
+   `max_files_per_batch` or `cycle_timeout` retries every remembered
+   partition on the next cycle.
+2. **Retry without changing settings:** `DELETE /api/v1/compaction/too-wide`
+   (see below) forgets them.
+3. **Leave it:** the data stays queryable, uncompacted and on hot storage.
+
 ### Compaction taking too long
 
 **Symptoms:** Compaction jobs running for &gt;30 minutes
@@ -914,7 +965,8 @@ Get detailed compaction statistics.
 
 ### GET /api/v1/compaction/candidates
 
-List partitions eligible for compaction.
+List partitions eligible for compaction. From v27.01.1 each carries
+`too_wide`: `true` when the next cycle leaves it alone as too wide to compact.
 
 ### POST /api/v1/compaction/trigger
 
@@ -975,6 +1027,49 @@ path to failed-batch count, which is the list of partitions to retry.
 A `404` names the retained window rather than claiming the cycle never ran:
 ids restart at 1 on process restart, and cycles run on the node holding the
 compactor lease.
+
+### GET /api/v1/compaction/too-wide
+
+v27.01.1+, admin only. The partitions this node remembers as too wide to
+compact (see [Partition skipped: too wide to compact](#partition-skipped-too-wide-to-compact-v27011)).
+On a cluster, ask the compactor node: the list is per node.
+
+```json
+{
+  "count": 1,
+  "scope": "this node",
+  "current_settings": "memory_limit=2GB threads=23 max_concurrent=2 max_files_per_batch=30 cycle_timeout=30m0s",
+  "partitions": [
+    {
+      "tier": "hourly",
+      "partition": "prod/wide_table_b/2026/10/20/14",
+      "files": 30,
+      "reason": "memory_error",
+      "failures": 1,
+      "skipped": true,
+      "settings": "memory_limit=2GB threads=23 max_concurrent=2 max_files_per_batch=30 cycle_timeout=30m0s",
+      "first_failure": "2026-10-25T15:29:56Z",
+      "last_failure": "2026-10-25T15:29:56Z"
+    }
+  ]
+}
+```
+
+`skipped` is whether the next cycle leaves it alone: `false` while it still
+needs a second failure, after a day-old mark expired, or when the settings it
+failed under differ from `current_settings` (it is retried). A new input file
+retries it too.
+
+### DELETE /api/v1/compaction/too-wide
+
+v27.01.1+, admin only. Forgets remembered partitions so the next cycle tries
+them again: all of them, or only `?tier=` and/or `?partition=`. Returns
+`{"cleared": n}`.
+
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/compaction/too-wide?partition=prod/wide_table_b/2026/10/20/14" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
 
 ## Summary
 
