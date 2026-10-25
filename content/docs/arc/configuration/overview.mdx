@@ -250,12 +250,12 @@ to writes only.
   </Tab>
   <Tab value="Google Cloud Storage">
 
-**Google Cloud Storage** - For Google Cloud deployments (standalone nodes).
+**Google Cloud Storage** - For Google Cloud deployments, standalone or as a cluster's shared storage.
 
 <Callout type="info" title="Available since v27.01.1">
 Google Cloud Storage as primary storage is available starting Arc v27.01.1,
-on standalone nodes. A licensed cluster node refuses to start with it. GCS
-also serves as the [cold tier](/docs/arc-enterprise/data-lifecycle/tiered-storage)
+standalone or as the shared storage of a cluster (the Enterprise Helm chart
+deploys it with `storage.shared.backend: gcs`). GCS also serves as the [cold tier](/docs/arc-enterprise/data-lifecycle/tiered-storage)
 and as a [backup target](/docs/arc/operations/backup-restore#destinations).
 </Callout>
 

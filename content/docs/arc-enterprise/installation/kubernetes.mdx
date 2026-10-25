@@ -91,7 +91,7 @@ helm install arc \
 
 ## Storage backends
 
-<Tabs items={['Local (Peer Replication)', 'AWS S3', 'MinIO']}>
+<Tabs items={['Local (Peer Replication)', 'AWS S3', 'MinIO', 'Google Cloud Storage']}>
   <Tab value="Local (Peer Replication)">
 
 **Local storage** - each Arc node keeps its own PersistentVolume and the cluster
@@ -228,10 +228,59 @@ needs static credentials — the chart rejects `useIRSA: true` with bundled MinI
 </Callout>
 
   </Tab>
+  <Tab value="Google Cloud Storage">
+
+**Google Cloud Storage** (27.01.1+) - shared storage on GCS through its own
+API, so no HMAC keys. On GKE use Workload Identity:
+
+```yaml
+# values.yaml
+storage:
+  mode: shared
+  shared:
+    backend: gcs
+    external: true                 # there is no bundled GCS
+    bucket: my-arc-data
+    prefix: prod/                  # optional
+    # gcs:
+    #   endpoint: https://storage-x.p.googleapis.com   # optional, https only
+serviceAccount:
+  create: true                     # the annotation only lands on a chart-created ServiceAccount
+  annotations:
+    iam.gke.io/gcp-service-account: arc@my-project.iam.gserviceaccount.com
+```
+
+Grant the Kubernetes ServiceAccount `roles/iam.workloadIdentityUser` on that
+Google service account. Off GKE, put a service-account key in a Secret and
+name it; it is mounted read-only on every role:
+
+```bash
+kubectl create secret generic arc-gcs-key --from-file=key.json=./key.json
+```
+
+```yaml
+storage:
+  shared:
+    backend: gcs
+    external: true
+    bucket: my-arc-data
+    gcs:
+      credentialsSecret: arc-gcs-key
+      credentialsKey: key.json     # default
+```
+
+The identity needs `roles/storage.objectAdmin` on the bucket plus
+`storage.buckets.get` for Arc's startup checks. The chart refuses `backend:
+gcs` without `external: true`, with any `storage.shared.credentials` (those are
+S3 keys), or with `storage.shared.endpoint` (use `storage.shared.gcs.endpoint`).
+See [Google Cloud Storage](/docs/arc-enterprise/configuration/overview) for
+the bucket settings Arc checks and the soft-delete cost note.
+
+  </Tab>
 </Tabs>
 
-The chart emits S3 config only (`ARC_STORAGE_BACKEND=s3`); point `endpoint` at
-any S3-compatible service. For local-disk + peer replication instead of shared
+With `backend: s3` (the default) the chart emits S3 config; point `endpoint`
+at any S3-compatible service. `backend: gcs` emits GCS config. For local-disk + peer replication instead of shared
 object storage, use `storage.mode: local` (see
 [Deployment Patterns](/arc-enterprise/configuration/deployment-patterns/)).
 
