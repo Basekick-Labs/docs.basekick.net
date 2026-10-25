@@ -33,13 +33,34 @@ does not flush.
 
 ### 2. Find affected files
 
-List the measurement's Parquet files and count the rows matching the WHERE
-clause in each, with DuckDB.
+List the measurement's Parquet files that the WHERE clause's time range can
+touch, and count the rows matching the clause in each, with DuckDB.
+
+**Time range.** Since 27.01.1, when the WHERE bounds `time`
+(`time >= … AND time < …`, `BETWEEN`, or `now()` plus or minus an interval),
+the DELETE reads only the hour and day partition directories that range can
+touch, plus one hour on each side. A clause without such a range reads every
+file of the measurement: an `OR` at the top level, `time = …`, `time IN (…)`,
+or `time` compared with anything other than a literal or `now()`. Deployments
+that still hold data written by Arc 25.12 or earlier set
+`delete.time_pruning = false` (see [Configuration](#configuration)).
+
+**Counting.** Files are counted 64 at a time, without keeping their Parquet
+metadata in memory, so a DELETE's memory follows the chunk, not the table. A
+file that does not have a column the clause names, or has it with another
+type, is counted together with files that do, as one read across every file
+would count it. When no file in the range has the column, it matches nothing.
+
+**A file that cannot be counted stops the DELETE** before anything is
+rewritten. A file replaced since the listing (by a compaction) answers `503`:
+retry. A file that cannot be read answers `500` and names it. Before 27.01.1,
+such a file was skipped and the DELETE answered success.
 
 In a cluster with compaction commit on (every node runs Arc 2027.01.1 or
 later), the DELETE first catches up with the cluster manifest, then scans the
-files the manifest lists for the measurement, plus files this node is still
-registering. A file in storage the manifest does not list, such as a
+files the manifest lists for the measurement (those in the DELETE's time
+range), plus files this node is still registering. A missing file outside the
+time range is neither waited for nor reported. A file in storage the manifest does not list, such as a
 compaction output not committed yet, is left alone. A file the manifest lists
 that is not on the node yet (a compaction output on its way) is waited for, up
 to 30 seconds per scan; a file the manifest stops listing meanwhile is no
@@ -86,6 +107,7 @@ Edit `arc.toml`:
 enabled = true
 confirmation_threshold = 10000
 max_rows_per_delete = 1000000
+time_pruning = true
 ```
 
 ### Environment variables
@@ -94,6 +116,7 @@ max_rows_per_delete = 1000000
 export ARC_DELETE_ENABLED=true
 export ARC_DELETE_CONFIRMATION_THRESHOLD=10000
 export ARC_DELETE_MAX_ROWS_PER_DELETE=1000000
+export ARC_DELETE_TIME_PRUNING=true
 ```
 
 ### Configuration parameters
@@ -101,6 +124,7 @@ export ARC_DELETE_MAX_ROWS_PER_DELETE=1000000
 - `enabled` (boolean): Enable/disable delete functionality (default: `false`)
 - `confirmation_threshold` (integer): Row count requiring explicit confirmation (default: `10000`)
 - `max_rows_per_delete` (integer): Maximum rows allowed per operation (default: `1000000`)
+- `time_pruning` (boolean): Read only the partitions the WHERE's time range can touch (default: `true`, since 27.01.1). It relies on every file under an hour or day directory holding only rows of that hour or day, which holds for everything Arc has written since 26.01.1. Arc 25.12 and earlier put a file in the directory of the hour it was flushed, and compaction and cold migration keep that directory, so set it to `false` on a deployment that still holds data written by those versions: a windowed DELETE would otherwise leave rows that arrived late.
 
 ## API endpoints
 
@@ -371,6 +395,7 @@ Delete operations are computationally expensive but designed for infrequent use:
 
 ### Performance factors
 
+- **Files in the time range**: Only the files the WHERE's time range can touch are read; a clause without a time range reads every file of the measurement
 - **File Size**: Larger files take longer to rewrite
 - **Selectivity**: Fewer deleted rows = faster (less data movement)
 - **Storage I/O**: Disk speed affects read/write performance
@@ -550,6 +575,17 @@ enabled = true
 - Verify WHERE clause syntax matches data
 - Check that data exists in the specified database/measurement
 - Use dry run to inspect affected files
+
+### Delete fails naming a file
+
+**Problem**: The DELETE answers `500` with `could not count the rows of <file>`,
+or `503` with `files changed under the delete while it counted them`.
+
+**Solutions**:
+- `503`: a compaction replaced the file while the DELETE counted it. Retry.
+- `500`: the file cannot be read (a corrupt or truncated Parquet file). Every
+  DELETE whose time range includes it fails the same way until the file is
+  repaired or removed. Nothing was deleted.
 
 ### Slow execution
 
