@@ -116,8 +116,9 @@ with a bearer token Arc resolves from it and replaces before it expires.
 never resolved is `unavailable`, and with
 `server.storage_credentials_fail_ready = true` that drains `/ready`.
 
-Any primary works with a GCS cold tier (local, S3, Azure or GCS), and a GCS
-primary takes any cold tier. On one bucket, give the cold tier a prefix that
+A GCS cold tier works under any primary, and a GCS primary takes a cold tier
+of any backend (verified with local and GCS primaries; the other pairs use the
+same migration path). On one bucket, give the cold tier a prefix that
 is not a parent or child of the primary's: an overlapping cold tier is
 refused at startup.
 
@@ -164,10 +165,12 @@ ARC_TIERED_STORAGE_COLD_GCS_PREFIX=cold
 <Callout type="warn" title="27.01.1: a cold tier that fails to start is no longer skipped silently">
 When the cold tier is enabled but its backend cannot be built at startup (a
 bad endpoint or credentials file, any backend), a query whose time range
-reaches cold files answers HTTP 503 naming the cold tier. Earlier releases
+reaches cold files this node's tier metadata records answers HTTP 503 naming
+the cold tier. Earlier releases
 left the cold files out and answered with the hot rows alone, as a success.
-The startup log names the failure. A cold tier that shares a location with
-primary storage, or sits inside it (or contains it), is refused at startup.
+The startup log names the failure. New in 27.01.1 as well: a cold tier that
+shares a location with primary storage, or sits inside it (or contains it),
+is refused at startup.
 </Callout>
 
 <Callout type="idea" title="Use Environment Variables for Secrets">
