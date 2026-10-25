@@ -95,8 +95,8 @@ azure_account_name = "your_account"
   </Tab>
   <Tab value="Google Cloud Storage">
 
-Available since Arc v27.01.1, on standalone nodes (a licensed cluster node
-refuses a GCS cold tier for now).
+Available since Arc v27.01.1, standalone or on a cluster (every node reads
+the cold tier with its own identity).
 
 ```toml
 [tiered_storage.cold]
