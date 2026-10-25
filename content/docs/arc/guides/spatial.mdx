@@ -1,0 +1,79 @@
+---
+title: "Spatial queries"
+description: "Load the spatial extension with database.extensions and query points, distances and geometries with ST_* functions, over longitude/latitude columns or WKB stored in a binary column."
+---
+
+<Callout type="info" title="Available since v27.01.1">
+Off by default. Set `database.extensions = ["spatial"]` on every node and restart.
+</Callout>
+
+Arc's query engine has a spatial extension that adds the `ST_*` functions: points, polygons, containment, distances and conversions between text, GeoJSON and WKB. Enabling it changes nothing about how data is stored; the functions work over the columns you already write.
+
+## Enable it
+
+```toml
+[database]
+extensions = ["spatial"]
+```
+
+Or `ARC_DATABASE_EXTENSIONS=spatial`. Arc loads it at startup and logs `DuckDB extension loaded` with `"extension":"spatial"`.
+
+- `spatial` is the only supported extension. Any other name, a file path or a URL stops Arc at startup with an error naming the entry.
+- The container image ships the extension, so no network is needed. A native install downloads it on the first start into `~/.duckdb/extensions` of the user Arc runs as; an air-gapped host needs that directory populated first.
+- Set the same list on **every node** of a cluster. A query routed to a node without the extension fails with an unknown-function error, and a DELETE whose `WHERE` uses a spatial function cannot be applied there to files the node has not registered yet: those files wait, and the node logs a warning naming `database.extensions`, until the settings match.
+
+## Longitude and latitude columns
+
+Most telemetry carries positions as two numbers. Build a point with `ST_Point(x, y)`, where x is the **longitude** and y the **latitude**:
+
+```sql
+-- Vehicles inside a bounding polygon in the last hour
+SELECT vehicle, time, lon, lat
+FROM fleet
+WHERE time > NOW() - INTERVAL '1 hour'
+  AND ST_Within(
+        ST_Point(lon, lat),
+        ST_GeomFromText('POLYGON((-58.5 -34.7, -58.3 -34.7, -58.3 -34.5, -58.5 -34.5, -58.5 -34.7))'))
+```
+
+### Distances in metres
+
+`ST_Distance_Sphere` and `ST_Distance_Spheroid` return metres between two points, and they read the point as **(latitude, longitude)**: the opposite order to `ST_Point(lon, lat)` above.
+
+```sql
+-- Distance from each vehicle to a depot at -34.60, -58.38, nearest first
+SELECT vehicle,
+       ST_Distance_Sphere(ST_Point(lat, lon), ST_Point(-34.60, -58.38)) AS metres
+FROM fleet
+WHERE time > NOW() - INTERVAL '5 minutes'
+ORDER BY metres
+LIMIT 10
+```
+
+`ST_Distance_Spheroid` uses the WGS84 ellipsoid and is slightly more accurate. Plain `ST_Distance` returns degrees, not metres, for longitude/latitude data.
+
+## Geometries stored as WKB
+
+To store a full geometry (a polygon, a line, a point with its own precision), send it as WKB in a MessagePack binary value; see [Binary values](/arc/guides/writing-data/#binary-values). The column is `BLOB` in SQL, and `ST_GeomFromWKB` reads it:
+
+```sql
+SELECT name, ST_AsText(ST_GeomFromWKB(geom)) AS wkt
+FROM places
+WHERE ST_Intersects(ST_GeomFromWKB(geom), ST_GeomFromText('POINT(-58.38 -34.60)'))
+```
+
+A geometry in a JSON result is base64 WKB; wrap it in `ST_AsText(...)` or `ST_AsGeoJSON(...)` to get a readable value. Arrow and MessagePack results carry the bytes.
+
+Arc does not yet write GeoParquet metadata for these columns, so a GeoParquet reader sees a plain binary column.
+
+## Functions that are refused
+
+Functions that open files or URLs are rejected in queries, continuous queries and DELETE predicates, the same way `read_csv` and Arc's other file readers are:
+
+| Function | Why |
+|---|---|
+| `ST_Read`, `ST_Read_Meta`, `ST_ReadOSM`, `ST_ReadSHP`, `shapefile_meta` | Read a file. Data comes into Arc through its write and import endpoints. |
+| `ST_Drivers` | Lists the file formats the build can read. |
+| `ST_Transform` | A coordinate reference system argument can name a file. |
+
+Because `ST_Transform` is refused, data stays in the coordinate reference system it was written in. For distances in metres over longitude/latitude data, use `ST_Distance_Sphere` or `ST_Distance_Spheroid`.

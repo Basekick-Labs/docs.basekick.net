@@ -127,9 +127,10 @@ Arc's columns map to Iceberg types as follows:
 | float32 | `float` |
 | string | `string` |
 | bool | `boolean` |
+| binary | `binary` |
 | decimal128 | `decimal(P,S)` |
 
-Arc's own ingest writes int64, float64, string, bool, and timestamps; the 32-bit and decimal types are there for Parquet that arrives through the bulk import API.
+Arc's own ingest writes int64, float64, string, bool, binary (MessagePack `bin` values, since v27.01.1) and timestamps; the 32-bit and decimal types are there for Parquet that arrives through the bulk import API.
 
 Tables are partitioned by `day(time)`.
 
