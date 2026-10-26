@@ -63,7 +63,9 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 ## Notes
 
 - The Parquet file must contain a timestamp column (default name: `time`). Use the `time_column` parameter if your column has a different name. The time column may be an Arrow `TIMESTAMP` (any unit), an integer epoch column (any width), a floating-point epoch column (use `time_format`, or auto-detect by magnitude), or a timestamp string column.
-- Arc reads the Parquet file in-process via Apache Arrow and repartitions the data into Arc's hourly partition layout regardless of the source file's structure. Supported column types: integer (all widths, signed and unsigned), floating point, boolean, string, binary/byte-array, decimal (imported as `DOUBLE`), and timestamp.
+- Arc reads the Parquet file in-process via Apache Arrow and repartitions the data into Arc's hourly partition layout regardless of the source file's structure. Supported column types: integer (all widths, signed and unsigned), floating point, boolean, string, binary/byte-array (including `LargeBinary`), `UUID` (imported as its canonical text), decimal (imported as `DOUBLE`), and timestamp.
+- **Binary columns.** A byte-array column without a string annotation is stored as binary (`BLOB` in SQL) when it has Parquet's `GEOMETRY` or `GEOGRAPHY` type, when the file's GeoParquet `geo` metadata names it, when the file was written by Arc, DuckDB, pyarrow or anything that stores an Arrow schema, when the measurement already stores the column as binary, or when any of its values is not valid UTF-8. Otherwise (Spark and Hive write strings without the annotation) a column of text throughout is a string. The whole file is checked before anything is written. See [Importing GeoParquet](/arc/guides/spatial/#importing-geoparquet).
+- A column an import before v27.01.1 stored as a string while it held binary data cannot be read. Import the binary values into a new column: writing bytes to the existing string column is refused with `400`.
 - `DECIMAL` columns are imported as `DOUBLE`. If you need exact decimal precision, use Line Protocol ingestion with a configured decimal column.
 - Maximum file size: **500 MB**.
 - RBAC: write permissions are checked for the target measurement.
@@ -76,5 +78,5 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
 | `415` | The request has a `Content-Encoding` header |
-| `422` | Unreadable Parquet file, or an unsupported column type |
+| `422` | Unreadable Parquet file, an unsupported column type, or a GeoParquet column whose encoding is not WKB |
 | `500` | Import execution error. When it stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read), the body has `rows_written` and `written_measurements`: running the whole file again writes those rows again. |

@@ -66,6 +66,31 @@ A geometry in a JSON result is base64 WKB; wrap it in `ST_AsText(...)` or `ST_As
 
 Arc does not yet write GeoParquet metadata for these columns, so a GeoParquet reader sees a plain binary column.
 
+## Importing GeoParquet
+
+Import a GeoParquet file with the [Parquet import](/arc/data-import/parquet/) like any other Parquet file. Its geometry columns (WKB encoding, named in the file's `geo` metadata, or using Parquet's `GEOMETRY` type) are stored as binary, so they are queried with `ST_GeomFromWKB` like the WKB columns above:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=places" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "X-Arc-Database: geo" \
+  -F "file=@places.parquet"
+```
+
+```sql
+SELECT name, ST_AsText(ST_GeomFromWKB(geometry)) AS wkt
+FROM geo.places
+LIMIT 5
+```
+
+- The file needs a time column, as every Arc import does (`time_column` names it).
+- Only WKB geometries are supported. A column in GeoArrow's native encoding (`point`, `polygon`, …) is refused with `422` naming the column; convert it to WKB first, for example with `geopandas.read_parquet(...).to_parquet(...)`, which writes WKB.
+- The file's coordinate reference system is not kept, and `ST_Transform` is refused, so write the data in the CRS you want to query it in (longitude/latitude for the distance functions above).
+
+### Files placed directly in storage
+
+Arc reads every geometry column as `BLOB`, including one in a GeoParquet file copied straight into a measurement's storage. (DuckDB's default would read such a file as `GEOMETRY`, which cannot be mixed with the `BLOB` files of the same column: every query and every compaction of the partition would fail.) A file that uses Parquet's own `GEOMETRY` type (pyarrow, GDAL, DuckDB's GeoParquet V2) still reads as `GEOMETRY` when copied in directly; import it through the API instead.
+
 ## Functions that are refused
 
 Functions that open files or URLs are rejected in queries, continuous queries and DELETE predicates, the same way `read_csv` and Arc's other file readers are:
