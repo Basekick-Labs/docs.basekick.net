@@ -5,6 +5,7 @@
     "mqtt",
     "grafana",
     "telegraf",
+    "opcua",
     "influxdb-clients",
     "opentelemetry",
     "superset",

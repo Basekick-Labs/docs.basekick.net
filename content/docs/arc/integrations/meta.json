@@ -6,6 +6,7 @@
     "superset",
     "grafana",
     "telegraf",
+    "opcua",
     "influxdb-clients",
     "mqtt",
     "vscode",
