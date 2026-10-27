@@ -24,6 +24,7 @@ Both can run against the same server at the same time. Writing them to separate 
 
 - Telegraf, at the version in the callout above
 - Arc running and reachable from the Telegraf host
+- [arcli](/arcli/getting-started/installation/), connected to Arc with an admin token
 - An OPC UA endpoint URL, a user Telegraf can log in as, and the node IDs you want to read
 - Network access from Telegraf to the OPC UA server port (often `4840`; `50000` in the examples)
 
@@ -31,20 +32,32 @@ Both can run against the same server at the same time. Writing them to separate 
 
 ### 1. Create a write-only token
 
-Telegraf only needs to write. Create a token that cannot read or delete:
+Telegraf only needs to write. With [arcli](/arcli/) connected as an admin (see [First connection](/arcli/getting-started/first-connection/)), create a token that cannot read or delete:
 
 ```bash
-curl -s -X POST http://localhost:8000/api/v1/auth/tokens \
-  -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "telegraf-plant-a", "description": "OPC UA collector, plant A", "permissions": ["write"]}'
+arcli auth token create --name telegraf-plant-a --permission write \
+  --description "OPC UA collector, plant A"
 ```
 
-```json
-{"message":"Token created successfully. Store this token securely - it cannot be retrieved again.","success":true,"token":"<token>"}
+arcli prints the secret on stdout, once, and this on stderr:
+
+```text
+Created token "telegraf-plant-a" (id 2). Store the secret securely; it cannot be retrieved again.
 ```
 
-A query with this token is refused with `{"error":"Permission denied: read required","success":false}`.
+Check what the new token can do. Pass it with flags: arcli also reads an `ARC_TOKEN` environment variable, and `--token` needs `--endpoint`.
+
+```bash
+arcli ping --endpoint http://localhost:8000 --token "<token>"
+arcli query --endpoint http://localhost:8000 --token "<token>" "SHOW DATABASES"
+```
+
+```text
+endpoint:   http://localhost:8000 (connection (flags))
+health:     ok (uptime 16.102434632s, latency 2.2ms) storage: hot=ok
+auth:       ok as "telegraf-plant-a" (id 2, write) — not admin; `auth token` commands will be refused
+Error: arc: Permission denied: read required (HTTP 403)
+```
 
 ### 2. Configure Telegraf
 
