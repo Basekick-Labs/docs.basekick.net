@@ -1,12 +1,12 @@
 ---
-title: "OPC UA"
-description: "Read OPC UA tags from PLCs and SCADA servers with Telegraf's opcua and opcua_listener inputs and write them to an Arc Enterprise writer: security, node IDs, schema, quality and timestamps."
+title: "OPC UA via Telegraf"
+description: "Collect OPC UA tags with Telegraf into an Arc Enterprise cluster: writer endpoint behind a load balancer, RBAC-scoped write tokens per collector, plus security, node IDs and quality codes."
 ---
 
 Arc has no native OPC UA client. Telegraf has two OPC UA input plugins and a native Arc output plugin, so Telegraf is the bridge: it runs next to the OPC UA server, reads tags over an encrypted session, and writes them to Arc in MessagePack columnar batches.
 
 <Callout type="info" title="Versions">
-`outputs.arc` needs **Telegraf 1.37 or later**. Use **Telegraf 1.39.0 or later** if you subscribe with `inputs.opcua_listener` and `namespace_uri`: earlier releases fail at startup with `namespace urls require a server NamespaceArray` ([influxdata/telegraf#18681](https://github.com/influxdata/telegraf/issues/18681)). Everything on this page was tested with Telegraf 1.40.2 and Arc 26.09.3 against the Microsoft OPC PLC simulator 2.12.48.
+`outputs.arc` needs **Telegraf 1.37 or later**. Use **Telegraf 1.39.0 or later** if you subscribe with `inputs.opcua_listener` and address nodes by namespace URI (`namespace_uri` or `nsu=`): earlier releases fail at startup with `namespace urls require a server NamespaceArray` ([influxdata/telegraf#18681](https://github.com/influxdata/telegraf/issues/18681)). Everything on this page was tested with Telegraf 1.40.2 and Arc 26.09.3 against the Microsoft OPC PLC simulator 2.12.48.
 </Callout>
 
 <Callout type="info" title="In a cluster">
@@ -26,8 +26,8 @@ Both can run against the same server at the same time. Writing them to separate 
 
 ## Prerequisites
 
-- Telegraf 1.37 or later (1.39.0 or later for `opcua_listener` with `namespace_uri`)
-- Arc running and reachable from the Telegraf host
+- Telegraf, at the version in the callout above
+- An Arc Enterprise writer endpoint (or the load balancer in front of the writers) reachable from the Telegraf host
 - An OPC UA endpoint URL, a user Telegraf can log in as, and the node IDs you want to read
 - Network access from Telegraf to the OPC UA server port (often `4840`; `50000` in the examples)
 
@@ -35,10 +35,10 @@ Both can run against the same server at the same time. Writing them to separate 
 
 ### 1. Create a write-only token
 
-Telegraf only needs to write. Create a token that cannot read or delete:
+Telegraf only needs to write. Create a token that cannot read or delete, against any node of the cluster (tokens replicate cluster-wide):
 
 ```bash
-curl -s -X POST http://localhost:8000/api/v1/auth/tokens \
+curl -s -X POST http://<arc-node>:8000/api/v1/auth/tokens \
   -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "telegraf-plant-a", "description": "OPC UA collector, plant A", "permissions": ["write"]}'
@@ -50,9 +50,11 @@ curl -s -X POST http://localhost:8000/api/v1/auth/tokens \
 
 A query with this token is refused with `{"error":"Permission denied: read required","success":false}`.
 
+On its own, this token can write to every database. To limit it to `plant` and `plant_events`, add it to a team whose role grants `write` on those databases, as described in [RBAC](/arc-enterprise/security/rbac/). Once a token has a team membership, its role permissions apply instead of the coarse `permissions` list.
+
 ### 2. Configure Telegraf
 
-This polls four tags from a boiler once per second over a `Basic256Sha256` / `SignAndEncrypt` session with username authentication:
+This polls four tags from a boiler and two test signals once per second over a `Basic256Sha256` / `SignAndEncrypt` session with username authentication. `BadFastUInt1` is a simulator node that deliberately returns bad and uncertain status codes; it feeds the [quality example](#quality-and-status-codes) below.
 
 ```toml
 [agent]
@@ -92,6 +94,16 @@ This polls four tags from a boiler once per second over a `Basic256Sha256` / `Si
       {name = "overheated",          identifier = "6214"},
     ]
 
+  [[inputs.opcua.group]]
+    name = "line_signals"
+    namespace_uri = "http://microsoft.com/Opc/OpcPlc/"
+    identifier_type = "s"
+    default_tags = { site = "plant-a", asset = "line-1" }
+    nodes = [
+      {name = "spike_data",      identifier = "SpikeData"},
+      {name = "bad_fast_uint_1", identifier = "BadFastUInt1"},
+    ]
+
 ## "The operation succeeded. StatusGood (0x0)" -> quality = "0x0"
 [[processors.regex]]
   order = 1
@@ -107,7 +119,7 @@ This polls four tags from a boiler once per second over a `Basic256Sha256` / `Si
     dest = "quality"
 
 [[outputs.arc]]
-  url = "http://arc:8000/api/v1/write/msgpack"
+  url = "http://<writer-endpoint>:8000/api/v1/write/msgpack"
   api_key = "${ARC_TOKEN}"
   database = "plant"
   content_encoding = "gzip"
@@ -163,7 +175,11 @@ Each node is its own row. See [Mapping nodes to measurements](#mapping-nodes-to-
 | `security_policy` | `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `auto` | `auto` |
 | `security_mode` | `None`, `Sign`, `SignAndEncrypt`, `auto` | `auto` |
 
-Set both explicitly in production so a misconfigured server cannot negotiate the session down. `Basic256Sha256` with `SignAndEncrypt` is the strongest combination the plugin offers. A server that publishes no `None` endpoint rejects an unencrypted client with `BadSecurityPolicyRejected`.
+Set both explicitly in production so a misconfigured server cannot negotiate the session down. `Basic256Sha256` with `SignAndEncrypt` is the strongest combination the plugin offers. If no endpoint on the server matches the configured policy and mode, Telegraf fails before connecting:
+
+```text
+E! [inputs.opcua] Error in plugin: connect failed: security policy "http://opcfoundation.org/UA/SecurityPolicy#None": no suitable endpoint found: no suitable server endpoint found
+```
 
 ### Client certificate
 
@@ -206,9 +222,10 @@ A group can set `namespace_uri` and `identifier_type` once for all its nodes, as
 
 ### Groups, tags and fields
 
-- Each `[[inputs.opcua.group]]` `name` becomes an Arc **measurement** (a table). Without groups, the plugin-level `name` is used (default `opcua`).
+- Each `[[inputs.opcua.group]]` `name` becomes an Arc **measurement** (a table). Without groups, the plugin-level `name` is used (default `opcua` for `inputs.opcua`, `opcua_listener` for `inputs.opcua_listener`).
 - `default_tags` become **tag** columns on every row of the group.
 - Each node's `name` becomes a **field** column.
+- `optional_fields = ["DataType"]` on the input adds each node's OPC UA data type as a `DataType` field.
 
 Model **one measurement per asset class**, with tags for site and asset and fields for values. Every boiler goes into `boiler`, told apart by `asset`, so a fleet-wide query is one `GROUP BY` rather than a `UNION` across tables.
 
@@ -233,7 +250,20 @@ ORDER BY minute;
 
 With 1-second polling and `gather` timestamps, `COUNT(*) FILTER (WHERE overheated)` counts seconds.
 
-You can fold a poll into one wide row with `tagexclude = ["id"]` on the input and `[[aggregators.merge]]`:
+You can fold a poll into one wide row by dropping the `id` tag and merging metrics that share a timestamp:
+
+```toml
+[[inputs.opcua]]
+  ## ... connection settings and groups as above ...
+  timestamp = "gather"
+  tagexclude = ["id"]
+
+[[aggregators.merge]]
+  drop_original = true
+```
+
+`drop_original = true` matters: without it, both the narrow rows and the merged row reach Arc. One poll then becomes:
+
 
 ```text
 boiler,asset=boiler-2,site=plant-a current_temperature=69,heater_on=false,overheated=false,quality="0x0",target_temperature=80 1793110806000000000
@@ -241,7 +271,6 @@ boiler,asset=boiler-2,site=plant-a current_temperature=69,heater_on=false,overhe
 
 This only works when every node in a read has the same timestamp (`timestamp = "gather"`), and the nodes' `quality` fields collide, so only one status code survives per row. Keep the narrow shape if per-node quality matters.
 
-`optional_fields = ["DataType"]` adds the OPC UA data type of each node as a `DataType` field.
 
 ## Quality and status codes
 
@@ -297,7 +326,7 @@ minute               | readings | good | uncertain | dropped
 
 ## Subscriptions with opcua_listener
 
-`inputs.opcua_listener` takes the same connection, security, authentication and node options as `inputs.opcua`. It adds `subscription_interval`, `connect_fail_behavior` and per-node monitoring parameters:
+`inputs.opcua_listener` shares the connection, security, authentication, timestamp and node options with `inputs.opcua`, but not the read-retry options. It adds `subscription_interval`, `connect_fail_behavior`, per-node monitoring parameters and event subscriptions; run `telegraf --usage opcua_listener` for the full list. The processors and `outputs.arc` blocks below are the same as in the quick start, except for `database`:
 
 ```toml
 [agent]
@@ -363,15 +392,15 @@ minute               | readings | good | uncertain | dropped
     dest = "quality"
 
 [[outputs.arc]]
-  url = "http://arc:8000/api/v1/write/msgpack"
+  url = "http://<writer-endpoint>:8000/api/v1/write/msgpack"
   api_key = "${ARC_TOKEN}"
   database = "plant_events"
   content_encoding = "gzip"
 ```
 
-- `trigger` is `Status`, `StatusValue` or `StatusValueTimestamp`.
+- `trigger` is `Status`, `StatusValue` or `StatusValueTimestamp`. If you set a `data_change_filter` without `trigger`, it defaults to `Status`, which reports status changes only, not value changes. Set `StatusValue` explicitly.
 - `deadband_type = "Absolute"` reports a change only when the value moves by more than `deadband_value`. `"Percent"` needs the node to have an `EURange` property.
-- Nodes without `monitoring_params` use the server's defaults.
+- For nodes without `monitoring_params`, Telegraf requests a `sampling_interval` of `0` (the fastest rate the server supports) and leaves the data change filter to the server's default.
 - The server may reject a `subscription_interval` or `sampling_interval` it cannot meet; check the server's documentation.
 
 Over the same five minutes against the same server, the polling config above wrote 300 rows per node, and this subscription wrote 101 for `current_temperature`, 4 for `heater_on`, 6 for `overheated` and none for the unchanged `target_temperature`. Each subscription row is a change, so state durations come from a window function:
@@ -403,16 +432,16 @@ Where the link from the plant to the data center is unreliable, run Telegraf and
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `BadSecurityPolicyRejected` | The client asked for a policy or mode the server does not offer | Match `security_policy` and `security_mode` to an endpoint the server publishes |
+| `no suitable endpoint found` | No server endpoint matches `security_policy` and `security_mode` | Match both to an endpoint the server publishes |
 | Connects, then fails with a DNS or dial error | The server advertises a hostname Telegraf cannot resolve | Fix the advertised hostname on the server, or make it resolvable |
 | `StatusBadNodeIDUnknown` | Wrong identifier, or a namespace index that changed | Browse the server for the node; switch to `namespace_uri` |
 | `status not OK for node ...` in the log, missing rows in Arc | Non-Good status codes are dropped | Expected; add codes to `additional_valid_status_codes` to keep them |
-| `namespace urls require a server NamespaceArray` | `opcua_listener` with `namespace_uri` on Telegraf before 1.39.0 | Upgrade Telegraf, or use numeric namespace indexes |
+| `namespace urls require a server NamespaceArray` | `opcua_listener` with `namespace_uri` or `nsu=` node IDs on Telegraf before 1.39.0 | Upgrade Telegraf, or use numeric namespace indexes |
 | `arc returned status 401` | Empty or wrong `ARC_TOKEN` in Telegraf's environment | Check the variable inside the running process or container |
 | Duplicate rows with identical timestamps | Polling with `timestamp = "source"` | Use `gather` or `server` for polling |
 
 ## Next steps
 
 - [Telegraf](/arc-enterprise/integrations/telegraf/): the Arc output plugin in detail
-- [Edge sync](/arc-enterprise/configuration/edge-sync-clustered/): ship data from remote sites to a central Arc
+- [Edge sync in clusters](/arc-enterprise/configuration/edge-sync-clustered/): ship data from remote sites to the central cluster
 - [RBAC](/arc-enterprise/security/rbac/): scope collector tokens to the databases they write

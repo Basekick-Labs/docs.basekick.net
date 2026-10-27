@@ -102,7 +102,7 @@ pin the order shown, do not re-sort.
   ### arc/integrations
   ```json
   // content/docs/arc/integrations/meta.json
-  {"title": "Integrations", "pages": ["apache-iceberg", "superset", "grafana", "telegraf", "influxdb-clients", "mqtt", "vscode", "opentelemetry", "tle", "redpanda-connect"]}
+  {"title": "Integrations", "pages": ["apache-iceberg", "superset", "grafana", "telegraf", "opcua", "influxdb-clients", "mqtt", "vscode", "opentelemetry", "tle", "redpanda-connect"]}
   ```
   !! COLLISION at position 1.0: ['apache-iceberg', 'superset'] - order above is the live order
   !! COLLISION at position 2.0: ['grafana', 'telegraf'] - order above is the live order
@@ -199,7 +199,7 @@ pin the order shown, do not re-sort.
   ### arc-enterprise/integrations
   ```json
   // content/docs/arc-enterprise/integrations/meta.json
-  {"title": "Integrations", "pages": ["mqtt", "grafana", "telegraf", "influxdb-clients", "opentelemetry", "superset", "vscode", "redpanda-connect"]}
+  {"title": "Integrations", "pages": ["mqtt", "grafana", "telegraf", "opcua", "influxdb-clients", "opentelemetry", "superset", "vscode", "redpanda-connect"]}
   ```
 
   ### arc-enterprise/data-lifecycle
