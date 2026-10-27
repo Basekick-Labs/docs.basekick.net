@@ -1,0 +1,442 @@
+---
+title: "OPC UA via Telegraf"
+description: "Read OPC UA tags from PLCs and SCADA servers with Telegraf's opcua and opcua_listener inputs, then write them to Arc: security, node IDs, schema mapping, quality codes and timestamps."
+---
+
+Arc has no native OPC UA client. Telegraf has two OPC UA input plugins and a native Arc output plugin, so Telegraf is the bridge: it runs next to the OPC UA server, reads tags over an encrypted session, and writes them to Arc in MessagePack columnar batches.
+
+<Callout type="info" title="Versions">
+`outputs.arc` needs **Telegraf 1.37 or later**. Use **Telegraf 1.39.0 or later** if you subscribe with `inputs.opcua_listener` and address nodes by namespace URI (`namespace_uri` or `nsu=`): earlier releases fail at startup with `namespace urls require a server NamespaceArray` ([influxdata/telegraf#18681](https://github.com/influxdata/telegraf/issues/18681)). Everything on this page was tested with Telegraf 1.40.2 and Arc 26.09.3 against the Microsoft OPC PLC simulator 2.12.48.
+</Callout>
+
+## Polling or subscriptions
+
+| | `inputs.opcua` | `inputs.opcua_listener` |
+|---|---|---|
+| How it reads | Reads every node on each Telegraf `interval` | Subscribes; the server sends a notification when a value changes |
+| Rows written | One per node per interval, changed or not | One per change, filtered by trigger and deadband |
+| Recommended `timestamp` | `gather` | `source` |
+| Good for | Dashboards on a regular time grid, data-quality reporting with a known expected count | Setpoints, states and alarms that change rarely, exact time of change, constrained networks |
+
+Both can run against the same server at the same time. Writing them to separate Arc databases keeps the regular samples and the change events apart.
+
+## Prerequisites
+
+- Telegraf, at the version in the callout above
+- Arc running and reachable from the Telegraf host
+- An OPC UA endpoint URL, a user Telegraf can log in as, and the node IDs you want to read
+- Network access from Telegraf to the OPC UA server port (often `4840`; `50000` in the examples)
+
+## Quick start
+
+### 1. Create a write-only token
+
+Telegraf only needs to write. Create a token that cannot read or delete:
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/auth/tokens \
+  -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "telegraf-plant-a", "description": "OPC UA collector, plant A", "permissions": ["write"]}'
+```
+
+```json
+{"message":"Token created successfully. Store this token securely - it cannot be retrieved again.","success":true,"token":"<token>"}
+```
+
+A query with this token is refused with `{"error":"Permission denied: read required","success":false}`.
+
+### 2. Configure Telegraf
+
+This polls four tags from a boiler and two test signals once per second over a `Basic256Sha256` / `SignAndEncrypt` session with username authentication. `BadFastUInt1` is a simulator node that deliberately returns bad and uncertain status codes; it feeds the [quality example](#quality-and-status-codes) below.
+
+```toml
+[agent]
+  interval = "1s"
+  flush_interval = "5s"
+  omit_hostname = true
+
+[[inputs.opcua]]
+  endpoint = "opc.tcp://opc-plc:50000"
+
+  security_policy = "Basic256Sha256"
+  security_mode = "SignAndEncrypt"
+
+  ## Persist the client certificate so the server only has to trust it once.
+  certificate = "/var/lib/telegraf/telegraf-cert.pem"
+  private_key = "/var/lib/telegraf/telegraf-key.pem"
+
+  auth_method = "UserName"
+  username = "telegraf"
+  password = "${OPCUA_PASSWORD}"
+
+  timestamp = "gather"
+
+  ## Keep "uncertain, last usable value" readings instead of dropping them.
+  [inputs.opcua.workarounds]
+    additional_valid_status_codes = ["0x40900000"]
+
+  [[inputs.opcua.group]]
+    name = "boiler"
+    namespace_uri = "http://microsoft.com/Opc/OpcPlc/Boiler"
+    identifier_type = "i"
+    default_tags = { site = "plant-a", asset = "boiler-2" }
+    nodes = [
+      {name = "current_temperature", identifier = "6211"},
+      {name = "target_temperature",  identifier = "6217"},
+      {name = "heater_on",           identifier = "6212"},
+      {name = "overheated",          identifier = "6214"},
+    ]
+
+  [[inputs.opcua.group]]
+    name = "line_signals"
+    namespace_uri = "http://microsoft.com/Opc/OpcPlc/"
+    identifier_type = "s"
+    default_tags = { site = "plant-a", asset = "line-1" }
+    nodes = [
+      {name = "spike_data",      identifier = "SpikeData"},
+      {name = "bad_fast_uint_1", identifier = "BadFastUInt1"},
+    ]
+
+## "The operation succeeded. StatusGood (0x0)" -> quality = "0x0"
+[[processors.regex]]
+  order = 1
+  [[processors.regex.fields]]
+    key = "Quality"
+    pattern = '^.*\((0x[0-9A-Fa-f]+)\)$'
+    replacement = "${1}"
+
+[[processors.rename]]
+  order = 2
+  [[processors.rename.replace]]
+    field = "Quality"
+    dest = "quality"
+
+[[outputs.arc]]
+  url = "http://arc:8000/api/v1/write/msgpack"
+  api_key = "${ARC_TOKEN}"
+  database = "plant"
+  content_encoding = "gzip"
+```
+
+`ARC_TOKEN` is the write-only token from step 1 and `OPCUA_PASSWORD` is the OPC UA user's password, both read from Telegraf's environment.
+
+### 3. Test, then run
+
+Print what Telegraf reads without writing anything:
+
+```bash
+telegraf --config telegraf.conf --test
+```
+
+```text
+> boiler,asset=boiler-2,id=nsu\=http://microsoft.com/Opc/OpcPlc/Boiler;i\=6211,site=plant-a current_temperature=71,quality="0x0" 1793109791000000000
+> boiler,asset=boiler-2,id=nsu\=http://microsoft.com/Opc/OpcPlc/Boiler;i\=6217,site=plant-a quality="0x0",target_temperature=80 1793109791000000000
+```
+
+Then start Telegraf normally.
+
+### 4. Query the data
+
+```sql
+SELECT time, asset, id, current_temperature, target_temperature, heater_on, overheated, quality
+FROM plant.boiler
+ORDER BY time DESC
+LIMIT 4;
+```
+
+```text
+time                 | asset    | id                                                | current_temperature | target_temperature | heater_on | overheated | quality
+---------------------+----------+---------------------------------------------------+---------------------+--------------------+-----------+------------+--------
+2026-10-27T14:19:13Z | boiler-2 | nsu=http://microsoft.com/Opc/OpcPlc/Boiler;i=6211 | 18                  | NULL               | NULL      | NULL       | 0x0
+2026-10-27T14:19:13Z | boiler-2 | nsu=http://microsoft.com/Opc/OpcPlc/Boiler;i=6217 | NULL                | 80                 | NULL      | NULL       | 0x0
+2026-10-27T14:19:13Z | boiler-2 | nsu=http://microsoft.com/Opc/OpcPlc/Boiler;i=6212 | NULL                | NULL               | true      | NULL       | 0x0
+2026-10-27T14:19:13Z | boiler-2 | nsu=http://microsoft.com/Opc/OpcPlc/Boiler;i=6214 | NULL                | NULL               | NULL      | false      | 0x0
+```
+
+Each node is its own row. See [Mapping nodes to measurements](#mapping-nodes-to-measurements) for why, and how to query it.
+
+## Connection and security
+
+### Endpoint
+
+`endpoint` is the server's `opc.tcp://host:port` URL. An OPC UA client first asks the server for its endpoint descriptions, then connects to the URL the server advertises. If the server advertises a hostname that Telegraf cannot resolve (a container ID, a PLC's internal name), the connection fails after the first request succeeds. Configure the server to advertise a resolvable hostname, or make the name resolvable from the Telegraf host.
+
+### Security policy and mode
+
+| Option | Values | Default |
+|---|---|---|
+| `security_policy` | `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `auto` | `auto` |
+| `security_mode` | `None`, `Sign`, `SignAndEncrypt`, `auto` | `auto` |
+
+Set both explicitly in production so a misconfigured server cannot negotiate the session down. `Basic256Sha256` with `SignAndEncrypt` is the strongest combination the plugin offers. If no endpoint on the server matches the configured policy and mode, Telegraf fails before connecting:
+
+```text
+E! [inputs.opcua] Error in plugin: connect failed: security policy "http://opcfoundation.org/UA/SecurityPolicy#None": no suitable endpoint found: no suitable server endpoint found
+```
+
+### Client certificate
+
+With `certificate` and `private_key` unset, Telegraf creates a temporary self-signed certificate on every start. If you set both paths and the files do not exist, Telegraf creates a self-signed certificate there and keeps it. Use persistent paths: the server has to trust the client certificate, and a new certificate on every restart means trusting it again every time.
+
+The usual trust flow on a server that does not auto-accept clients:
+
+1. Start Telegraf once. The connection is refused, and most servers store the untrusted client certificate in a rejected list.
+2. Move that certificate to the server's trusted list (the exact step depends on the server or PLC vendor).
+3. Restart Telegraf.
+
+`remote_certificate` points Telegraf at an additional, explicitly trusted certificate for the server.
+
+The official `telegraf` container image drops privileges to the `telegraf` user, which can write to `/var/lib/telegraf`. Mount a named volume there for the certificate. A bind-mounted host directory is often not writable by that user.
+
+### Authentication
+
+`auth_method` is `Anonymous` (default), `UserName` or `Certificate`. With `UserName`, set `username` and `password`, and keep the password out of the file by referencing an environment variable as above. Give Telegraf its own OPC UA user with read access to the nodes it needs.
+
+## Node IDs
+
+A node ID has a namespace and an identifier. Telegraf accepts four equivalent forms, all tested against the same node:
+
+```toml
+nodes = [
+  {name = "by_id_uri",   id = "nsu=http://microsoft.com/Opc/OpcPlc/Boiler;i=6211"},
+  {name = "by_id_index", id = "ns=4;i=6211"},
+  {name = "by_index",    namespace = "4", identifier_type = "i", identifier = "6211"},
+  {name = "by_uri",      namespace_uri = "http://microsoft.com/Opc/OpcPlc/Boiler", identifier_type = "i", identifier = "6211"},
+]
+```
+
+`identifier_type` is `i` (numeric), `s` (string), `g` (GUID) or `b` (opaque). Use either `id` or the `namespace`/`namespace_uri` + `identifier_type` + `identifier` combination, not both.
+
+**Prefer `namespace_uri` (or `nsu=` in `id`).** A namespace index (`ns=4`) is a position in the server's namespace array, and the server assigns it. Loading other companion models, upgrading firmware or pointing the same config at a second server can change it, and the config then reads the wrong node or fails with `StatusBadNodeIDUnknown`. A namespace URI is stable; Telegraf resolves the index when it connects. Telegraf's log lines show the resolved form, for example `ns=3;s=BadFastUInt1`.
+
+A group can set `namespace_uri` and `identifier_type` once for all its nodes, as in the quick start.
+
+## Mapping nodes to measurements
+
+### Groups, tags and fields
+
+- Each `[[inputs.opcua.group]]` `name` becomes an Arc **measurement** (a table). Without groups, the plugin-level `name` is used (default `opcua` for `inputs.opcua`, `opcua_listener` for `inputs.opcua_listener`).
+- `default_tags` become **tag** columns on every row of the group.
+- Each node's `name` becomes a **field** column.
+- `optional_fields = ["DataType"]` on the input adds each node's OPC UA data type as a `DataType` field.
+
+Model **one measurement per asset class**, with tags for site and asset and fields for values. Every boiler goes into `boiler`, told apart by `asset`, so a fleet-wide query is one `GROUP BY` rather than a `UNION` across tables.
+
+### One row per node
+
+Telegraf emits every node as its own metric with an `id` tag holding the full node ID and its own `Quality` field, so Arc stores one row per node per read, with `NULL` in the other value columns. SQL aggregates skip `NULL`, so per-asset queries work directly:
+
+```sql
+SELECT
+  date_trunc('minute', time)                  AS minute,
+  ROUND(AVG(current_temperature), 1)          AS avg_temp,
+  MAX(current_temperature)                    AS max_temp,
+  MAX(target_temperature)                     AS target,
+  ROUND(100 * AVG(heater_on::INT))            AS heater_on_pct,
+  COUNT(*) FILTER (WHERE overheated)          AS overheated_s
+FROM plant.boiler
+WHERE asset = 'boiler-2'
+  AND time > NOW() - INTERVAL '1 hour'
+GROUP BY minute
+ORDER BY minute;
+```
+
+With 1-second polling and `gather` timestamps, `COUNT(*) FILTER (WHERE overheated)` counts seconds.
+
+You can fold a poll into one wide row by dropping the `id` tag and merging metrics that share a timestamp:
+
+```toml
+[[inputs.opcua]]
+  ## ... connection settings and groups as above ...
+  timestamp = "gather"
+  tagexclude = ["id"]
+
+[[aggregators.merge]]
+  drop_original = true
+```
+
+`drop_original = true` matters: without it, both the narrow rows and the merged row reach Arc. One poll then becomes:
+
+
+```text
+boiler,asset=boiler-2,site=plant-a current_temperature=69,heater_on=false,overheated=false,quality="0x0",target_temperature=80 1793110806000000000
+```
+
+This only works when every node in a read has the same timestamp (`timestamp = "gather"`), and the nodes' `quality` fields collide, so only one status code survives per row. Keep the narrow shape if per-node quality matters.
+
+
+## Quality and status codes
+
+Every OPC UA value carries a status code: Good, Uncertain or Bad. Telegraf writes it to a `Quality` field as text, for example `"The operation succeeded. StatusGood (0x0)"`. The `processors.regex` and `processors.rename` blocks in the quick start reduce it to the hex code in a `quality` field.
+
+**By default, Telegraf drops every reading whose status is not Good** and logs an error instead:
+
+```text
+E! [inputs.opcua] status not OK for node bad_fast_uint_1 (ns=3;s=BadFastUInt1): Whatever was updating this value has stopped doing so. StatusUncertainLastUsableValue (0x40900000)
+E! [inputs.opcua] status not OK for node bad_fast_uint_1 (ns=3;s=BadFastUInt1): Data is missing due to collection started/stopped/lost. StatusBadDataLost (0x809D0000)
+```
+
+A dropped reading reaches Arc only as a missing row. To keep selected codes, list them in `additional_valid_status_codes` under `[inputs.opcua.workarounds]`. The quick start keeps `0x40900000` (Uncertain, last usable value) and still drops Bad codes.
+
+With polling, the expected number of readings is known, so you can count both kinds of problem:
+
+```sql
+SELECT
+  date_trunc('minute', time)                  AS minute,
+  COUNT(*)                                    AS readings,
+  COUNT(*) FILTER (WHERE quality = '0x0')     AS good,
+  COUNT(*) FILTER (WHERE quality <> '0x0')    AS uncertain,
+  60 - COUNT(*)                               AS dropped
+FROM plant.line_signals
+WHERE id = 'nsu=http://microsoft.com/Opc/OpcPlc/;s=BadFastUInt1'
+  AND time >= TIMESTAMP '2026-10-27 14:11:00'
+  AND time <  TIMESTAMP '2026-10-27 14:16:00'
+GROUP BY minute
+ORDER BY minute;
+```
+
+```text
+minute               | readings | good | uncertain | dropped
+---------------------+----------+------+-----------+--------
+2026-10-27T14:11:00Z | 48       | 36   | 12        | 12
+2026-10-27T14:12:00Z | 48       | 36   | 12        | 12
+2026-10-27T14:13:00Z | 48       | 36   | 12        | 12
+2026-10-27T14:14:00Z | 48       | 36   | 12        | 12
+2026-10-27T14:15:00Z | 48       | 36   | 12        | 12
+```
+
+`60 - COUNT(*)` assumes a 1-second interval and complete minutes, so keep the window on minute boundaries.
+
+## Timestamps
+
+| `timestamp` | Row time is |
+|---|---|
+| `gather` (default) | When Telegraf read the value |
+| `server` | The server's timestamp for the value |
+| `source` | When the value last changed at the device |
+
+**Do not combine polling with `source`.** A value that has not changed keeps its source timestamp, so every poll writes the same value with the same timestamp again. In testing, a setpoint polled every second for 50 seconds produced 50 rows with one distinct timestamp. Use `gather` (or `server`) for polling, and `source` for subscriptions.
+
+## Subscriptions with opcua_listener
+
+`inputs.opcua_listener` shares the connection, security, authentication, timestamp and node options with `inputs.opcua`, but not the read-retry options. It adds `subscription_interval`, `connect_fail_behavior`, per-node monitoring parameters and event subscriptions; run `telegraf --usage opcua_listener` for the full list. The processors and `outputs.arc` blocks below are the same as in the quick start, except for `database`:
+
+```toml
+[agent]
+  flush_interval = "5s"
+  omit_hostname = true
+
+[[inputs.opcua_listener]]
+  endpoint = "opc.tcp://opc-plc:50000"
+  subscription_interval = "1s"
+
+  security_policy = "Basic256Sha256"
+  security_mode = "SignAndEncrypt"
+  certificate = "/var/lib/telegraf/telegraf-cert.pem"
+  private_key = "/var/lib/telegraf/telegraf-key.pem"
+
+  auth_method = "UserName"
+  username = "telegraf"
+  password = "${OPCUA_PASSWORD}"
+
+  timestamp = "source"
+
+  [[inputs.opcua_listener.group]]
+    name = "boiler"
+    namespace_uri = "http://microsoft.com/Opc/OpcPlc/Boiler"
+    identifier_type = "i"
+    default_tags = { site = "plant-a", asset = "boiler-2" }
+
+    [[inputs.opcua_listener.group.nodes]]
+      name = "current_temperature"
+      identifier = "6211"
+      [inputs.opcua_listener.group.nodes.monitoring_params]
+        sampling_interval = "1s"
+        queue_size = 10
+        discard_oldest = true
+        [inputs.opcua_listener.group.nodes.monitoring_params.data_change_filter]
+          trigger = "StatusValue"
+          deadband_type = "Absolute"
+          deadband_value = 2.0
+
+    [[inputs.opcua_listener.group.nodes]]
+      name = "target_temperature"
+      identifier = "6217"
+
+    [[inputs.opcua_listener.group.nodes]]
+      name = "heater_on"
+      identifier = "6212"
+
+    [[inputs.opcua_listener.group.nodes]]
+      name = "overheated"
+      identifier = "6214"
+
+[[processors.regex]]
+  order = 1
+  [[processors.regex.fields]]
+    key = "Quality"
+    pattern = '^.*\((0x[0-9A-Fa-f]+)\)$'
+    replacement = "${1}"
+
+[[processors.rename]]
+  order = 2
+  [[processors.rename.replace]]
+    field = "Quality"
+    dest = "quality"
+
+[[outputs.arc]]
+  url = "http://arc:8000/api/v1/write/msgpack"
+  api_key = "${ARC_TOKEN}"
+  database = "plant_events"
+  content_encoding = "gzip"
+```
+
+- `trigger` is `Status`, `StatusValue` or `StatusValueTimestamp`. If you set a `data_change_filter` without `trigger`, it defaults to `Status`, which reports status changes only, not value changes. Set `StatusValue` explicitly.
+- `deadband_type = "Absolute"` reports a change only when the value moves by more than `deadband_value`. `"Percent"` needs the node to have an `EURange` property.
+- For nodes without `monitoring_params`, Telegraf requests a `sampling_interval` of `0` (the fastest rate the server supports) and leaves the data change filter to the server's default.
+- The server may reject a `subscription_interval` or `sampling_interval` it cannot meet; check the server's documentation.
+
+Over the same five minutes against the same server, the polling config above wrote 300 rows per node, and this subscription wrote 101 for `current_temperature`, 4 for `heater_on`, 6 for `overheated` and none for the unchanged `target_temperature`. Each subscription row is a change, so state durations come from a window function:
+
+```sql
+WITH transitions AS (
+  SELECT
+    time,
+    overheated,
+    LEAD(time) OVER (ORDER BY time) AS next_change
+  FROM plant_events.boiler
+  WHERE asset = 'boiler-2'
+    AND overheated IS NOT NULL
+)
+SELECT
+  time                                          AS started,
+  next_change                                   AS ended,
+  EXTRACT(EPOCH FROM (next_change - time))      AS seconds
+FROM transitions
+WHERE overheated
+ORDER BY started;
+```
+
+## Remote sites
+
+Where the link from the plant to the data center is unreliable, run Telegraf and an Arc instance at the site, next to the OPC UA server, and ship the Parquet files to a central Arc with [edge sync](/arc/advanced/edge-sync/). The site initiates every transfer, so nothing needs inbound access to the plant network.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `no suitable endpoint found` | No server endpoint matches `security_policy` and `security_mode` | Match both to an endpoint the server publishes |
+| Connects, then fails with a DNS or dial error | The server advertises a hostname Telegraf cannot resolve | Fix the advertised hostname on the server, or make it resolvable |
+| `StatusBadNodeIDUnknown` | Wrong identifier, or a namespace index that changed | Browse the server for the node; switch to `namespace_uri` |
+| `status not OK for node ...` in the log, missing rows in Arc | Non-Good status codes are dropped | Expected; add codes to `additional_valid_status_codes` to keep them |
+| `namespace urls require a server NamespaceArray` | `opcua_listener` with `namespace_uri` or `nsu=` node IDs on Telegraf before 1.39.0 | Upgrade Telegraf, or use numeric namespace indexes |
+| `arc returned status 401` | Empty or wrong `ARC_TOKEN` in Telegraf's environment | Check the variable inside the running process or container |
+| Duplicate rows with identical timestamps | Polling with `timestamp = "source"` | Use `gather` or `server` for polling |
+
+## Next steps
+
+- [Telegraf](/arc/integrations/telegraf/): the Arc output plugin in detail
+- [Apache Iceberg export](/arc/integrations/apache-iceberg/): read the same Parquet files from other engines
+- [Edge sync](/arc/advanced/edge-sync/): ship data from remote sites to a central Arc
+- [Authentication](/arc/configuration/authentication/): token management

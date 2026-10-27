@@ -1,6 +1,6 @@
 # OSS / Enterprise near-duplicate pages
 
-30 pages exist in both trees. Descriptions must name the product and
+31 pages exist in both trees. Descriptions must name the product and
 describe what differs - never be interchangeable. Diff size shown is
 changed lines out of the total, measured at migration time.
 
@@ -22,6 +22,7 @@ installation/native.md                     435      387      58
 integrations/grafana.md                    594      594      10
 integrations/influxdb-clients.md           316      316      18
 integrations/mqtt.md                       719      582      347
+integrations/opcua.mdx                     442      447      27   (added 2026-10-27)
 integrations/opentelemetry.md              785      783      42
 integrations/redpanda-connect.md           491      491      10
 integrations/superset.md                   493      493      8
