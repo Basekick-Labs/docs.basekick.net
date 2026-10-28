@@ -186,14 +186,22 @@ Sorting by a low-cardinality column before `time` clusters equal values together
 
 Choose a column that appears in your `WHERE` clauses and has far fewer distinct values than rows — `host`, `site`, `subsystem`. Sorting by a near-unique column gains nothing.
 
-<Callout type="warn" title="A missing sort key column is a hard error">
-If a configured sort key names a column that is not present in the batch, the flush fails. Only configure sort keys on columns every write to that measurement includes.
+Sort key names match columns case-insensitively, so `cpu:Host` sorts a `host` column.
+
+<Callout type="info" title="A sort key the data has no column for">
+From v27.01.1, a write whose rows have no column for a configured sort key is sorted by the keys it does have, then `time`, and the missing key is logged: at Warn, once a minute per measurement, for a key set for that measurement in `sort_keys`, and at Debug for a key from `default_sort_keys` (measurements without that column are normal). Compaction leaves the key out of that partition's order the same way. Before v27.01.1, such a write was stored unsorted, not even by `time`, and its partition failed to compact on every cycle; no rows were lost.
 </Callout>
 
-Compaction keeps the same order: it sorts the files it rewrites by the configured columns with `time` appended, exactly as ingest does, so the long-lived compacted files get the same clustering and statistics.
+Compaction keeps the order, hour by hour: the daily compaction orders the files it rewrites by hour, then the configured columns, then `time`. Within each hour that is the order ingest wrote, so the long-lived compacted files keep the keys' clustering, and each row group holds contiguous hours, so time-range queries can still skip row groups. A measurement whose hour fills a row group (122,880 rows) gets row groups of about an hour.
 
-<Callout type="info" title="Upgrading from before 26.09.2">
-Before 26.09.2, compaction ordered by the configured columns alone, without the implicit `time` key, so rows within each key were not time-ordered in compacted files ([arc#792](https://github.com/Basekick-Labs/arc/issues/792)). From 26.09.2, newly compacted files are ordered by `(configured columns..., time)`.
+Sorting by keys costs little at ingest: from v27.01.1 the sort is linear in the rows, and loading 155.6M rows sorted by two tag columns took about as long as loading them sorted by `time` alone.
+
+<Callout type="info" title="Upgrading">
+Files keep the order they were written with until compaction rewrites them; a daily file is not rewritten again.
+
+- Before 26.09.2, compaction ordered by the configured columns alone, without the implicit `time` key, so rows within each key were not time-ordered in compacted files ([arc#792](https://github.com/Basekick-Labs/arc/issues/792)).
+- From 26.09.2 until v27.01.1, compacted files are ordered by `(configured columns..., time)` across the whole day, so each row group spans most of the day and time-range queries read every row group of a daily file ([arc#1409](https://github.com/Basekick-Labs/arc/pull/1409)).
+- From v27.01.1, newly compacted files are ordered by hour, then the configured columns, then `time`.
 </Callout>
 
 ## Lifecycle
