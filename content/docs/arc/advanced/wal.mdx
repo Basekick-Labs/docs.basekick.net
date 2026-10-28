@@ -275,11 +275,18 @@ started is answered by that one sync, so concurrent writes do not each pay a
 sync. A request that spans several measurements waits once per measurement.
 With `sync_mode = "async"`, `durable` still syncs: a waiting write forces it.
 
-**Failures:** if the entry cannot be made durable (a write or sync failure, or
-a shutdown), the write is refused with `503`, a `Retry-After` header and
-`X-Arc-Ingest-Refused: wal_not_durable`, and nothing is buffered. Retry it. The
-entry may still have reached the WAL file and replay after a restart, so a
-retry can duplicate rows (at-least-once). In a cluster with the origin stream,
+**Failures:** if an entry cannot be made durable (a write or sync failure, a
+payload the WAL cannot hold, or a shutdown), the write is refused with `503`, a
+`Retry-After` header and `X-Arc-Ingest-Refused: wal_not_durable`. The failing
+part is not buffered, but a request that spans several measurements is written
+one measurement at a time, so earlier parts may already be stored, and the
+failed part's entry may have reached the WAL file and replay after a restart.
+Retrying the request can therefore duplicate rows (at-least-once).
+
+**MQTT:** MQTT ingestion follows the same rules: each message waits for its
+sync, and a message refused as not durable is retried for a bounded time and
+then dropped, as other refusals are. Prefer `queued` for MQTT if a stalled WAL
+disk must never cost messages. In a cluster with the origin stream,
 the entry is streamed to standbys before the local sync, so a standby can hold
 a write the client was refused.
 
