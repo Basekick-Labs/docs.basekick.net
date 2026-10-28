@@ -42,7 +42,7 @@ Keep WAL disabled if you:
 | Configuration | Throughput | Data Loss Risk |
 |--------------|-----------|----------------|
 | **No WAL (default)** | Highest | 0-5 seconds |
-| **WAL enabled** | Somewhat lower | &lt;1 second (async) / near-zero (fdatasync, fsync) |
+| **WAL enabled** | Somewhat lower | Entries still queued or not yet synced at the crash (see [Acknowledgement mode](#acknowledgement-mode-planned-for-v27011)); none of the acknowledged writes with `ack_mode = "durable"` |
 
 **Tradeoff**: a modest throughput reduction for near-zero data loss.
 
@@ -148,6 +148,7 @@ directory = "./data/wal"
 max_size_mb = 500          # Rotate at 500MB
 max_age_seconds = 3600     # Rotate after 1 hour
 sync_bytes = 1048576       # Request a sync once this many bytes are unsynced (default 1 MiB)
+ack_mode = "queued"        # When a write is acknowledged: queued (default) or durable (v27.01.1+)
 ```
 
 Or via environment variables:
@@ -159,6 +160,7 @@ ARC_WAL_SYNC_MODE=fdatasync
 ARC_WAL_MAX_SIZE_MB=500
 ARC_WAL_MAX_AGE_SECONDS=3600
 ARC_WAL_SYNC_BYTES=1048576
+ARC_WAL_ACK_MODE=queued
 ```
 
 ### Sync modes
@@ -178,8 +180,11 @@ sync_mode = "fdatasync"
 - Marginally cheaper than `fsync` at equal durability for Arc's access pattern
 
 **Guarantees:**
-- Data is on physical disk
-- Can recover all data on crash
+- Synced data is on physical disk and survives a crash
+- With the default `ack_mode = "queued"`, a write is acknowledged before its
+  entry is synced, so entries still queued or written but unsynced at the
+  crash are lost. Set `ack_mode = "durable"` to acknowledge only synced
+  writes; see [Acknowledgement mode](#acknowledgement-mode-planned-for-v27011)
 
 **Platform support:** `fdatasync(2)` is used on **Linux**. macOS and Windows do
 not expose it, so Arc falls back to a full `fsync` there and logs this once at
@@ -218,11 +223,12 @@ sync_mode = "fsync"
 
 **How it works:**
 - Syncs both data AND metadata to disk
-- Slowest, but absolute guarantee
+- Slowest; the strongest guarantee for synced data. For acknowledged writes
+  to be covered too, pair it with `ack_mode = "durable"`
 
 **Use when:**
 - Regulatory compliance requires it
-- Zero tolerance for any data loss
+- Zero tolerance for any data loss (with `ack_mode = "durable"`)
 - Performance is secondary
 
 #### async (performance-first)
@@ -241,6 +247,57 @@ sync_mode = "async"
 - Need 90% of original throughput
 - Can tolerate ~1 second data loss
 - Have upstream retry mechanisms
+
+### Acknowledgement mode (planned for v27.01.1)
+
+<Callout type="info" title="Planned for v27.01.1">
+`wal.ack_mode` is merged for the planned v27.01.1 release. Earlier versions
+always behave as `queued`.
+</Callout>
+
+`ack_mode` decides when Arc answers a write with the WAL enabled.
+
+| `ack_mode` | A 2xx means | Lost on a crash | Full WAL queue |
+|---|---|---|---|
+| `queued` (default) | The entry is queued for the WAL writer | Entries still queued, or written but not yet synced | Entries are dropped while the write is still acknowledged (`arc_wal_dropped_entries_total`) |
+| `durable` | A sync covering the entry has completed | None of the acknowledged writes | The request waits (backpressure) instead of dropping |
+
+```toml
+[wal]
+enabled = true
+sync_mode = "fdatasync"
+ack_mode = "durable"
+```
+
+**How `durable` works:** each request waits for the sync that covers its
+entry. Syncs are shared: every request whose entry was written before a sync
+started is answered by that one sync, so concurrent writes do not each pay a
+sync. A request that spans several measurements waits once per measurement.
+With `sync_mode = "async"`, `durable` still syncs: a waiting write forces it.
+
+**Failures:** if an entry cannot be made durable (a write or sync failure, a
+payload the WAL cannot hold, or a shutdown), the write is refused with `503`, a
+`Retry-After` header and `X-Arc-Ingest-Refused: wal_not_durable`. The failing
+part is not buffered, but a request that spans several measurements is written
+one measurement at a time, so earlier parts may already be stored, and the
+failed part's entry may have reached the WAL file and replay after a restart.
+Retrying the request can therefore duplicate rows (at-least-once).
+
+**MQTT:** MQTT ingestion follows the same rules: each message waits for its
+sync, and a message refused as not durable is retried for a bounded time and
+then dropped, as other refusals are. Prefer `queued` for MQTT if a stalled WAL
+disk must never cost messages. In a cluster with the origin stream,
+the entry is streamed to standbys before the local sync, so a standby can hold
+a write the client was refused.
+
+**Cost:** a burst that fits in the WAL queue is acknowledged later than with
+`queued`, because each request waits for a sync. Under sustained load the
+backpressure keeps memory bounded, which can make ingest faster and cheaper
+than `queued`: measure it on your workload and storage.
+
+**Not supported with `cluster.wal_coverage = true`.** Arc refuses to start with
+both set: the covered append commits under the ingest lock, where waiting for a
+sync would stall other writers.
 
 ### Rotation settings
 
