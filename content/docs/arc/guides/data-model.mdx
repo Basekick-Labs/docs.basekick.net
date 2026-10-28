@@ -190,12 +190,10 @@ Choose a column that appears in your `WHERE` clauses and has far fewer distinct 
 If a configured sort key names a column that is not present in the batch, the flush fails. Only configure sort keys on columns every write to that measurement includes.
 </Callout>
 
-<Callout type="warn" title="Known issue: compaction does not preserve the implicit time key">
-The automatic `time` append currently happens at **ingest only**. When compaction rewrites those files it orders by the configured columns alone — so with `cpu:host`, compacted output is ordered by `host`, and rows within each host are no longer time-ordered.
+Compaction keeps the same order: it sorts the files it rewrites by the configured columns with `time` appended, exactly as ingest does, so the long-lived compacted files get the same clustering and statistics.
 
-This inverts the benefit described above for the files that matter most. Compacted files are the long-lived ones and the only ones that tier, so on a deployment with custom sort keys, time-range statistics on compacted output can end up **worse** than on the raw ingest files they replaced.
-
-Deployments on the default (`time`) are unaffected — the list is identical either way. Until [arc#792](https://github.com/Basekick-Labs/arc/issues/792) is fixed, treat custom sort keys as an ingest-side optimization only, and measure time-range query performance before and after enabling them.
+<Callout type="info" title="Upgrading from before 26.09.2">
+Before 26.09.2, compaction ordered by the configured columns alone, without the implicit `time` key, so rows within each key were not time-ordered in compacted files ([arc#792](https://github.com/Basekick-Labs/arc/issues/792)). From 26.09.2, newly compacted files are ordered by `(configured columns..., time)`.
 </Callout>
 
 ## Lifecycle
