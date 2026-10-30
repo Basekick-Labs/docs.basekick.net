@@ -51,12 +51,16 @@ the one exception: it is derived by the receiving server, not sent by Arc):
   - Platform (e.g., "linux", "darwin")
 
 - **cpu**: CPU characteristics
-  - Physical cores
+  - Physical cores (currently the same value as logical cores)
   - Logical cores (threads)
-  - Frequency in MHz
+  - Frequency in MHz (currently always `null`)
+  - Usable cores: what a CPU quota (Kubernetes `limits.cpu`, `docker --cpus`) leaves the process, read at startup. Equal to the logical cores without a quota (Arc 27.01.1 and later)
 
-- **memory**: System memory
-  - Total RAM in gigabytes
+- **memory**: System memory, in GiB
+  - Total: the machine's memory (`/proc/meminfo` on Linux, `hw.memsize` on macOS). Inside a container this is the host's memory, unless lxcfs is mounted over `/proc/meminfo`, in which case it equals the container limit. Releases before 27.01.1 sent the Arc process's own memory footprint here instead
+  - Usable (Arc 27.01.1 and later): what a cgroup memory limit leaves the process, the lower of `memory.max` and `memory.high`; the machine's memory when there is no limit. Read at startup
+
+  A value Arc cannot read is sent as `null`.
 
 ### CLI installations (Arc releases after 26.09.1)
 
@@ -81,12 +85,14 @@ the one exception: it is derived by the receiving server, not sent by Arc):
     "platform": "linux"
   },
   "cpu": {
-    "physical_cores": 8,
+    "physical_cores": 16,
     "logical_cores": 16,
-    "frequency_mhz": 3400
+    "frequency_mhz": null,
+    "usable_cores": 4
   },
   "memory": {
-    "total_gb": 32
+    "total_gb": 62.79518508911133,
+    "usable_gb": 8
   },
   "clients": {
     "arcli": {
