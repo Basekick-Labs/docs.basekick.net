@@ -58,14 +58,21 @@ the one exception: it is derived by the receiving server, not sent by Arc):
 - **memory**: System memory
   - Total RAM in gigabytes
 
-### CLI installations (Arc releases after 26.09.1)
+### Client installations (arcli: Arc releases after 26.09.1; Python SDK: 27.01.1 and later)
 
 - **clients.arcli**: the [arcli](/arcli/) installations that talked to this node since its previous report (what the CLI sends and how to opt out: [arcli privacy](/arcli/reference/privacy/))
-  - arcli sends a random per-installation UUID (`Arcli-Installation-Id` header) and its version (`User-Agent`); the node keeps at most 256 distinct ids per report and marks the list `truncated` beyond that
+  - arcli sends a random per-installation UUID (`Arcli-Installation-Id`, or the generic `Arc-Client-Installation-Id` header) and its version (`User-Agent`)
+  - Users disable it on the CLI side with `DO_NOT_TRACK=1` or `send_installation_id = false` in `~/.arcli/config.toml`
+- **clients.python_sdk**: the Python SDK installations that talked to this node since its previous report
+  - The SDK sends a random per-installation UUID (`Arc-Client-Installation-Id` header) and `User-Agent: arc-client-python/<version> (python/<x.y.z>; <os>/<arch>)`; Arc reports the SDK version, the Python version (`runtime`) and the platform (`linux/amd64`, `darwin/arm64`, …), or `unknown` for SDKs that do not send them
+  - Users disable it on the SDK side with `DO_NOT_TRACK=1`, `ARC_CLIENT_SEND_INSTALLATION_ID=0`, or `send_installation_id=False` on the client
+- For both:
+  - The client kind is taken from the `User-Agent`; a request whose `User-Agent` names neither arcli nor the Python SDK is not counted
+  - The node keeps at most 256 distinct ids per client kind per report, independently, and marks that kind's list `truncated` beyond it, so SDK churn never crowds out arcli
   - Only requests the node authenticated are counted (public routes such as `/health` never are; with authentication disabled every served request is trusted); the id is never logged and nothing about the request (database, query, token) is recorded
-  - The same id reaches every Arc server that installation uses, so Basekick can count how many CLI installations talk to how many instances
-  - Users disable it on the CLI side with `DO_NOT_TRACK=1` or `send_installation_id = false` in `~/.arcli/config.toml`; disabling Arc telemetry on the node also stops it
-  - Omitted entirely when no CLI installation was seen
+  - The same id reaches every Arc server that installation uses, so Basekick can count how many client installations talk to how many instances
+  - Disabling Arc telemetry on the node also stops it
+  - Each key is omitted when no installation of that kind was seen, and `clients` entirely when none was
 
 ### Example payload
 
@@ -95,6 +102,13 @@ the one exception: it is derived by the receiving server, not sent by Arc):
       "list": [
         { "id": "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", "version": "26.09.1", "last_seen": "2024-01-20T09:58:12Z" }
       ]
+    },
+    "python_sdk": {
+      "installations": 1,
+      "truncated": false,
+      "list": [
+        { "id": "5f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", "version": "0.2.0", "runtime": "3.12.4", "platform": "linux/amd64", "last_seen": "2024-01-20T10:01:44Z" }
+      ]
     }
   }
 }
@@ -119,7 +133,7 @@ Arc explicitly avoids collecting:
 
 1. **First Transmission**: right after Arc starts
 2. **Subsequent Transmissions**: Every 24 hours (`telemetry.interval_seconds`)
-3. **Shutdown**: one final report if CLI installations were seen since the last one (best effort, 5 s timeout), so nodes restarted more often than the interval still report them
+3. **Shutdown**: one final report if client installations were seen since the last one (best effort, 5 s timeout), so nodes restarted more often than the interval still report them
 4. **Primary Worker Only**: Only the primary worker process sends telemetry (multi-worker deployments send one report)
 
 ### Endpoint
@@ -130,7 +144,7 @@ Telemetry is sent to: `telemetry.basekick.net`
 
 - If the telemetry endpoint is unreachable, Arc logs a warning but continues operating normally
 - Failed transmissions are retried during the next scheduled transmission
-- Nothing is persisted locally besides `.instance_id`; the CLI-installation window (at most 256 ids) is held in memory until the next successful report
+- Nothing is persisted locally besides `.instance_id`; the client-installation window (at most 256 ids per client kind) is held in memory until the next successful report
 
 ### Startup logging
 
