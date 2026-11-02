@@ -51,6 +51,8 @@ Two pieces of edge-sync state live in **node-local SQLite** (the shared metadata
 - **`sync_received`** — the index reconcile answers from, so it can respond without re-hashing storage.
 - **`sync_imported_bundles`** — the air-gap dedup ledger, keyed `(spoke_id, bundle_id)`.
 
+The spoke registry, `sync_spokes`, is node-local too: a spoke is registered on the node it syncs to, and the check that refuses an ID differing from a registered one only in case or Unicode normalization ([arc#740](https://github.com/Basekick-Labs/arc/issues/740)) compares against that node's registrations.
+
 Neither is replicated. So on a multi-node hub:
 
 | Scenario | Outcome |
