@@ -164,7 +164,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object (`{string: string}`) | No | {} | Per-topic target-database override: maps an exact MQTT topic to a database name, overriding `database` for messages on that topic. See [Topic Mapping](#topic-mapping-per-topic-database-override). |
+| `topic_mapping` | object | No | {} | Per topic filter (`+`, `#`): a database name, or a rule setting `database`, `measurement` and `tags_from_topic` (v27.01.1+). See [Topic mapping](#topic-mapping). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
 | `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
@@ -247,26 +247,101 @@ A flat payload with no `m`/`tags`/`fields` (e.g. `{"time": ..., "temperature": 2
 Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic` / positional extraction) is **not** currently supported. Set the measurement and tags in the published payload as shown above.
 </Callout>
 
-## Topic mapping (per-topic database override)
+## Topic mapping
 
-`topic_mapping` maps an **exact MQTT topic string to a target database name**, overriding the subscription's `database` for messages received on that topic. It is a flat `{ "<topic>": "<database>" }` object — it does not configure measurements or tags.
+`topic_mapping` sets, per topic, where a message is written and how it is
+named. Each key is an MQTT topic filter; each value is either a database name
+(the original form) or, from v27.01.1, a rule object
+([arc#479](https://github.com/Basekick-Labs/arc/issues/479)).
 
 ```json
 {
   "name": "factory-sensors",
   "broker": "tcp://localhost:1883",
-  "topics": ["factory/line1/metrics", "factory/line2/metrics"],
+  "topics": ["factory/#"],
   "database": "iot",
   "topic_mapping": {
-    "factory/line2/metrics": "iot_line2"
+    "factory/+/+/metrics": {
+      "measurement": "machine_metrics",
+      "tags_from_topic": [
+        {"position": 1, "tag_name": "line"},
+        {"position": 2, "tag_name": "machine_id"}
+      ]
+    },
+    "factory/line9/status": "iot_line9"
   }
 }
 ```
 
-In this example, messages on `factory/line1/metrics` are written to the default `iot` database, while messages on `factory/line2/metrics` are routed to `iot_line2`.
+A message on `factory/line1/m7/metrics` is written to `iot.machine_metrics`
+with the tags `line=line1` and `machine_id=m7`. A message on
+`factory/line9/status` goes to the `iot_line9` database, with its measurement
+and tags taken from the payload. Every other message uses the subscription's
+`database` and the payload.
 
-<Callout type="info" title="topic_mapping keys match exactly">
-The mapping key is matched against the message's actual topic by exact string equality — wildcard topic patterns (`+`, `#`) are not expanded for matching. A subscription may use wildcards in `topics`, but `topic_mapping` keys must be the concrete topics you want to route to a different database.
+### Rule fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `database` | string | Database for matching messages, instead of the subscription's `database`. A string value for the key is shorthand for a rule with only this field. |
+| `measurement` | string | Measurement for matching messages, instead of the payload's `m` / `measurement`. |
+| `tags_from_topic` | array | Tags taken from topic levels: each item needs both `position` and `tag_name`. |
+
+A rule sets at least one field. Whatever it leaves out still comes from the
+payload. A rule with an unknown key is refused, so a misspelt field cannot
+leave a rule silently partial.
+
+### Matching
+
+- `+` matches exactly one topic level and `#`, only as the last level, any
+  number of levels, including none (`factory/#` matches `factory`).
+- An exact key wins. Among filters that match, the one with more literal
+  levels wins, then the one with more `+`, then the one with fewer `#`. So for
+  `factory/line9/m1/metrics`, `factory/+/+/metrics` wins over
+  `factory/line9/#`: both have two literal levels and the first has more `+`.
+- A filter starting with `+` or `#` does not match topics starting with `$`
+  (such as `$SYS/...`), as in MQTT. Name them explicitly: `$SYS/#`.
+- Filters match the topic a message was published to. A shared subscription
+  in `topics` (`$share/group/sensors/#`) still delivers topics like
+  `sensors/a`, and that is what the mapping sees.
+
+### Tag positions
+
+`position` counts the levels of the full topic from 0: in
+`factory/line1/m7/metrics`, `factory` is 0 and `m7` is 2.
+
+- On a filter without a trailing `#`, a matching topic has exactly the
+  filter's levels, so a position past the last one is refused when the
+  subscription is created or updated.
+- Under a trailing `#` a topic can be shorter: a message without that level is
+  written without the tag.
+- A topic tag replaces a payload tag of the same name, in any letter case. A
+  payload field with that name is kept, stored as `<name>_value`.
+
+### Validation
+
+Every target follows the same rule as `database`: it starts with a letter and
+contains only letters, digits, underscores and hyphens, up to 64 characters.
+A rule's `measurement` follows the HTTP write path's rule (letter first, then
+letters, digits, underscore or hyphen, up to 128 characters), and a
+`tag_name` cannot be `time` in any letter case or repeat another tag name of
+the rule. Create and update requests that break any of these, or whose key is
+not a valid MQTT filter, are refused with `400` and a message naming the
+problem.
+
+<Callout type="warn" title="Upgrading from releases before v27.01.1">
+Keys used to be matched as exact strings, and a published topic never
+contains `+` or `#`. **A stored key with a wildcard, such as
+`"sensors/+/temperature": "temperature"`, never matched before and now routes
+every topic it matches.** Check stored mappings before upgrading.
+
+A stored key that is not a valid filter (for example `sensors/temp+x`) still
+matches nothing: the subscription keeps running and logs a warning naming the
+key. To remove it, set `topic_mapping` again; `{}` clears it.
+
+An earlier release cannot read a rule object, and with one stored it fails to
+list or auto-start any MQTT subscription. Before downgrading, change every rule
+object back to a database string or remove it.
 </Callout>
 
 ## Authentication
@@ -377,18 +452,24 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
     "broker": "tcp://factory-mqtt:1883",
     "topics": ["factory/+/+/metrics"],
     "database": "manufacturing",
-    "qos": 2
+    "qos": 2,
+    "topic_mapping": {
+      "factory/+/+/metrics": {
+        "measurement": "machine_metrics",
+        "tags_from_topic": [
+          {"position": 1, "tag_name": "line"},
+          {"position": 2, "tag_name": "machine_id"}
+        ]
+      }
+    }
   }'
 ```
 
-Machines publish the measurement and tags in the payload:
+Machines publish only their readings; the measurement and the `line` and
+`machine_id` tags come from the topic (v27.01.1+):
 
 ```json
-{
-  "m": "machine_metrics",
-  "tags": { "line": "A", "machine_id": "42" },
-  "fields": { "temperature": 71.5, "rpm": 1480 }
-}
+{ "fields": { "temperature": 71.5, "rpm": 1480 } }
 ```
 
 ## Monitoring
