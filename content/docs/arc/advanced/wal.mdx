@@ -262,6 +262,14 @@ always behave as `queued`.
 | `queued` (default) | The entry is queued for the WAL writer | Entries still queued, or written but not yet synced | Entries are dropped while the write is still acknowledged (`arc_wal_dropped_entries_total`) |
 | `durable` | A sync covering the entry has completed | None of the acknowledged writes | The request waits (backpressure) instead of dropping |
 
+A write Arc refuses (schema churn on its measurement, a request its client
+cancelled, a node shutting down) leaves nothing to replay from the WAL
+(v27.01.1+). With `queued`, its entry is only queued once nothing can refuse
+the write any more; with `durable`, the entry is written first and a refusal
+retracts it with a checkpoint. Before v27.01.1, without WAL coverage, such an
+entry could be replayed after a crash or restart, storing a write the client
+was told failed.
+
 ```toml
 [wal]
 enabled = true
@@ -277,11 +285,17 @@ With `sync_mode = "async"`, `durable` still syncs: a waiting write forces it.
 
 **Failures:** if an entry cannot be made durable (a write or sync failure, a
 payload the WAL cannot hold, or a shutdown), the write is refused with `503`, a
-`Retry-After` header and `X-Arc-Ingest-Refused: wal_not_durable`. The failing
-part is not buffered, but a request that spans several measurements is written
-one measurement at a time, so earlier parts may already be stored, and the
-failed part's entry may have reached the WAL file and replay after a restart.
-Retrying the request can therefore duplicate rows (at-least-once).
+`Retry-After` header and `X-Arc-Ingest-Refused: wal_not_durable`, and nothing
+of the request is buffered. A request that spans several measurements is
+written one measurement at a time: when the failure follows measurements
+already buffered, the answer is instead a `500` naming what was written (see
+[a write that stops part-way](/arc/guides/writing-data/#a-write-that-stops-part-way),
+v27.01.1+). Arc retracts the refused entry with a checkpoint, so recovery does
+not replay it (v27.01.1+). If the checkpoint cannot be written either (on a
+failing WAL disk it often cannot), the entry may still reach the WAL file and
+replay after a restart, so a retry can duplicate rows (at-least-once). Such
+retractions are counted in `arc_wal_retractions_failed_total` and logged at
+Error, at most once every 10 seconds.
 
 **MQTT:** MQTT ingestion follows the same rules: each message waits for its
 sync, and a message refused as not durable is retried for a bounded time and

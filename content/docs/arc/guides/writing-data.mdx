@@ -305,6 +305,22 @@ A line-protocol request, or a MessagePack request in [row format](/arc/api-refer
 - **It has a tag or field named `time`.** `time` is the timestamp, not a tag or field key (arc#1297). Before, a `time` field silently replaced the point's timestamp.
 - **A value does not fit its column's type.** A column takes the type of its first value in the request. A later string in a float column, a number in a tag column, or an unsigned value above the int64 range, `NaN` or `Inf` in an integer column drops that point; an integer in a float column is widened, and a float in an integer column is truncated. Before, such a value failed the whole measurement's write with a `500` (arc#1299).
 - **Two of its keys land in one column.** A field named like one of the point's tags is stored as `<name>_value`, so a point with a tag `host`, a field `host` and a field `host_value` gives one column two values.
+- **Its measurement is refused for its content while the request is written.** A column that another write changed between string and binary after the request was checked, or a column name that cannot be stored, drops that measurement's points; the other measurements are written (v27.01.1+). Before, the request stopped there with a `400` that read as if nothing had been written.
+
+#### A write that stops part-way
+
+A request with several measurements is buffered one measurement at a time (a MessagePack batch, one record at a time). If a later one fails after earlier ones were buffered (schema churn on the measurement, a node shutting down, a WAL entry that could not be made durable), Arc answers `500` with what was written (v27.01.1+):
+
+```json
+{
+  "error": "write stopped part-way at measurement \"mem\": ... Resending the whole request writes the written rows again",
+  "rows_written": 120,
+  "written_measurements": ["cpu", "disk"],
+  "stopped_at_measurement": "mem"
+}
+```
+
+`points_dropped` and `dropped` are added when points were also left out for good. The answer has no `Retry-After` and no `X-Arc-Ingest-*` header: those mean nothing was written. The measurements not in `written_measurements` were not stored, so resend only those. Telegraf and the InfluxDB clients resend the whole request on any `5xx`, which stores the written measurements twice; compaction collapses rows identical in every column, so timestamped lines converge, but lines without a timestamp get a new time on the resend and stay duplicated. Before v27.01.1 such a request was answered `503` with `Retry-After`, as if nothing had been written. A failure before anything was buffered keeps its usual answer.
 
 Arc logs each request's drops at Error level (`Line protocol points dropped (partial write)`, or `MessagePack points dropped (partial write)`), one line per measurement, column and reason (up to 10 per request). Before v27.01.1, a row-format MessagePack point of the wrong type failed its whole measurement with a `500`, and some points with two keys in one column were accepted and then made every flush of their buffer fail.
 
