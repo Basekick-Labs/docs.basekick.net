@@ -160,13 +160,22 @@ arc_buffer_queue_depth            # gauge: flush tasks waiting for a worker
 arc_buffer_flushes_total          # counter: completed flushes
 arc_buffer_records_written_total  # counter: records written by flushes
 arc_buffer_flush_failures_total   # counter: flushes that did not reach storage
+arc_buffer_records_dropped_total  # counter: acknowledged records lost with no WAL copy (v27.01.1+)
 ```
 
-`arc_buffer_flush_failures_total` is the most important single alert in an OSS deployment. Every increment means a batch of records did not reach storage and is being held in the WAL for recovery.
+`arc_buffer_flush_failures_total` is the most important single alert in an OSS deployment. Every increment means a batch of records did not reach storage. What happens to those records depends on the WAL:
+
+- **`wal.enabled = false` (the default):** nothing else holds them and nothing retries the flush, so they are lost, although the client was answered `204`. From v27.01.1 they are counted in `arc_buffer_records_dropped_total` and logged as `Flush failed; rows without a WAL copy were lost`, with `records_without_wal`. Earlier versions logged them as "data preserved in WAL for recovery", which was not true ([arc#1377](https://github.com/Basekick-Labs/arc/issues/1377)). Shutdown counts rows it could not write the same way.
+- **`wal.enabled = true`:** they stay in the WAL and are replayed by the next recovery pass (`wal.recovery_interval_seconds`) or on restart; `arc_buffer_records_dropped_total` does not move. Rows whose WAL append failed have no copy and are counted as dropped.
+
+If losing acknowledged rows to a failed flush is not acceptable, enable the WAL.
 
 ```text
 # Data is not reaching storage
 increase(arc_buffer_flush_failures_total[5m]) > 0
+
+# Acknowledged rows were lost (no WAL copy) — v27.01.1+
+increase(arc_buffer_records_dropped_total[5m]) > 0
 
 # Backlog is growing: records are arriving faster than they flush
 arc_buffer_records_buffered + arc_buffer_records_queued + arc_buffer_records_inflight > 500000
@@ -218,7 +227,7 @@ Deferred records are held in memory, and Arc does not bound that: `max_buffer_si
 ### WAL
 
 ```text
-arc_wal_records_preserved_total            # records that fell back to WAL instead of flushing
+arc_wal_records_preserved_total            # records left to WAL recovery because their flush or shutdown write failed
 arc_wal_dropped_entries_total              # WAL buffer full — data loss risk
 arc_wal_failed_writes_total                # WAL entries that could not be written
 arc_wal_disk_full_writes_total             # ... of which the disk was full (v27.01.1+)
@@ -241,7 +250,7 @@ A rising `arc_wal_quarantined_files_total` means some WAL entries could not be r
 rate(arc_wal_dropped_entries_total[5m]) > 0
 ```
 
-A rising `arc_wal_records_preserved_total` means flushes are failing or the flush queue is full, and records are surviving only because the WAL is on. If `wal.enabled` is `false`, those records are simply lost.
+A rising `arc_wal_records_preserved_total` means flushes are failing or shutdown could not write everything, and records are surviving only because the WAL is on. From v27.01.1 it counts only records the WAL actually holds; records with no WAL copy go to `arc_buffer_records_dropped_total` instead (see [Buffer and flush health](#buffer-and-flush-health)).
 
 ### Compaction
 
@@ -398,6 +407,7 @@ Every rule below uses a metric verified to move. Thresholds are starting points 
 | Alert | Expression | Why |
 |---|---|---|
 | Buffer flush failing | `increase(arc_buffer_flush_failures_total[5m]) > 0` | Records are not reaching storage. The highest-value alert in OSS. |
+| Acknowledged rows lost | `increase(arc_buffer_records_dropped_total[5m]) > 0` | A failed flush or shutdown lost rows with no WAL copy (v27.01.1+). Always the case for a failed flush with the WAL off. |
 | Ingest errors | `rate(arc_ingest_errors_total[5m]) > 0` | Writes are being rejected. |
 | WAL entries dropped | `rate(arc_wal_dropped_entries_total[5m]) > 0` | WAL buffer full; data can be lost. |
 | WAL write failures | `rate(arc_wal_failed_writes_total[5m]) > 0` | The durability net itself is failing. |
