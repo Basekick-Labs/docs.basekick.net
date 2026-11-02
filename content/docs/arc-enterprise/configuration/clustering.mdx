@@ -43,6 +43,7 @@ coordinator_addr = ":9000"      # Address for inter-node communication
 health_check_interval = 10      # Health check interval (seconds)
 heartbeat_interval = 5          # Heartbeat interval (seconds)
 replication_enabled = true      # Peer file replication between nodes
+replication_pull_bytes_per_second = 0         # Cap on this node's inbound replication, bytes/s or "10MB"; 0 = unlimited (v27.01.1+)
 query_gate_on_catchup = false   # See "Query gating during replication catch-up" below
 replication_catchup_enabled = true            # Walk the manifest on startup and pull what is missing
 replication_catchup_barrier_timeout_ms = 30000 # Bound on the pre-walk sync with the leader (see below)
@@ -63,6 +64,7 @@ ARC_CLUSTER_COORDINATOR_ADDR=:9000
 ARC_CLUSTER_HEALTH_CHECK_INTERVAL=10
 ARC_CLUSTER_HEARTBEAT_INTERVAL=5
 ARC_CLUSTER_REPLICATION_ENABLED=true
+ARC_CLUSTER_REPLICATION_PULL_BYTES_PER_SECOND=0
 ARC_CLUSTER_REPLICATION_CATCHUP_ENABLED=true
 ARC_CLUSTER_REPLICATION_CATCHUP_BARRIER_TIMEOUT_MS=30000
 ARC_CLUSTER_QUERY_GATE_ON_CATCHUP=false
@@ -87,6 +89,36 @@ has the more recent log). Upgrade writers one at a time and wait for each to
 rejoin. To rule the window out, set `cluster.raft_pre_vote = false` on every
 node for the upgrade and remove it, with one more rolling restart, once all
 nodes run v27.01.1.
+
+### Peer replication bandwidth (v27.01.1+)
+
+A node that rejoins with a large backlog pulls every file it is missing at
+once, and can saturate the network
+([arc#397](https://github.com/Basekick-Labs/arc/issues/397)).
+`cluster.replication_pull_bytes_per_second` caps the inbound bandwidth of that
+node's peer file replication. All of the node's pull workers share one budget,
+so new files, the startup catch-up and the periodic recheck together stay
+under it. It is a per-node setting, so it can be set only where it is needed,
+such as on a reader that rejoins often.
+
+- The value is bytes per second, or a size such as `"10MB"` (1 MB = 1024 KB).
+  `0`, the default, is unlimited.
+- A negative or unparseable value fails startup.
+- The cap does not apply to the staged compaction commit, which fetches each
+  compacted output from the start every time and would otherwise never deliver
+  a large one.
+
+A file can take longer than one fetch under a low cap. Each fetch is still
+bounded by `cluster.replication_fetch_timeout_ms` (default 60000) on the
+pulling node and by `cluster.replication_serve_timeout_ms` (default 120000) on
+the node serving the file. When either ends a fetch, the next attempt resumes
+from the bytes already received, including the first attempt of a later pull,
+so a large file arrives in pieces instead of starting over. A file arrives
+sooner, with fewer interruptions, when both timeouts are longer than its
+transfer time at the cap divided among the pull workers
+(`cluster.replication_pull_workers`, default 4).
+
+Helm: `cluster.replication.pullBytesPerSecond`.
 
 ## Query gating during replication catch-up
 
