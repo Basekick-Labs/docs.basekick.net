@@ -61,11 +61,12 @@ the one exception: it is derived by the receiving server, not sent by Arc):
 ### Client installations (arcli: Arc releases after 26.09.1; Python SDK: 27.01.1 and later)
 
 - **clients.arcli**: the [arcli](/arcli/) installations that talked to this node since its previous report (what the CLI sends and how to opt out: [arcli privacy](/arcli/reference/privacy/))
-  - arcli sends a random per-installation UUID (`Arcli-Installation-Id`, or the generic `Arc-Client-Installation-Id` header) and its version (`User-Agent`)
+  - arcli sends a random per-installation UUID (`Arcli-Installation-Id` header) and its version (`User-Agent`); Arc also accepts the generic `Arc-Client-Installation-Id` header
   - Users disable it on the CLI side with `DO_NOT_TRACK=1` or `send_installation_id = false` in `~/.arcli/config.toml`
-- **clients.python_sdk**: the Python SDK installations that talked to this node since its previous report
-  - The SDK sends a random per-installation UUID (`Arc-Client-Installation-Id` header) and `User-Agent: arc-client-python/<version> (python/<x.y.z>; <os>/<arch>)`; Arc reports the SDK version, the Python version (`runtime`) and the platform (`linux/amd64`, `darwin/arm64`, …), or `unknown` for SDKs that do not send them
+- **clients.python_sdk**: the Python SDK installations that talked to this node since its previous report (what the SDK sends and how to opt out: [Python SDK privacy](https://github.com/Basekick-Labs/arc-client-python#privacy))
+  - The SDK sends a random per-installation UUID (`Arc-Client-Installation-Id` header) and `User-Agent: arc-client-python/<version> (python/<x.y.z>; <os>/<arch>)`; Arc reports the SDK version, the Python version (`runtime`) and the platform (`linux/amd64`, `darwin/arm64`, …), or `unknown` when the User-Agent comment is absent or malformed (runtime and platform are limited to letters, digits and `. _ + / -`)
   - Users disable it on the SDK side with `DO_NOT_TRACK=1`, `ARC_CLIENT_SEND_INSTALLATION_ID=0`, or `send_installation_id=False` on the client
+  - In ephemeral containers, `ARC_CLIENT_INSTALLATION_ID` set to a fixed UUID keeps each start from counting as a new installation
 - For both:
   - The client kind is taken from the `User-Agent`; a request whose `User-Agent` names neither arcli nor the Python SDK is not counted
   - The node keeps at most 256 distinct ids per client kind per report, independently, and marks that kind's list `truncated` beyond it, so SDK churn never crowds out arcli
