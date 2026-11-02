@@ -351,7 +351,9 @@ leave a rule silently partial.
 - Under a trailing `#` a topic can be shorter: a message without that level is
   written without the tag.
 - A topic tag replaces a payload tag of the same name, in any letter case. A
-  payload field with that name is kept, stored as `<name>_value`.
+  payload field of exactly that name is kept, stored as `<name>_value`. A field
+  that differs only in letter case, or a column already stored under another
+  spelling, clashes as any two such names do: one is dropped, with a warning.
 
 ### Validation
 
@@ -372,9 +374,12 @@ contains `+` or `#`. **A stored key with a wildcard, such as
 `"sensors/+/temperature": "temperature"`, never matched before and now routes
 every topic it matches.** Check stored mappings before upgrading.
 
-A stored key that is not a valid filter (for example `sensors/temp+x`) still
-matches nothing: the subscription keeps running and logs a warning naming the
-key. To remove it, set `topic_mapping` again; `{}` clears it.
+A stored key that is not a valid filter (for example `sensors/temp+x`, or one
+longer than 1024 characters) matches nothing: the subscription keeps running
+and logs a warning naming the key. An update that sets `topic_mapping` must
+use valid filters, so the first edit of the mapping removes it (`{}` clears
+it). Launchpad's subscription editor currently sends the whole mapping on
+every edit, so edit such a subscription through the API.
 
 An earlier release cannot read a rule object, and with one stored it fails to
 list or auto-start any MQTT subscription. Before downgrading, change every rule
