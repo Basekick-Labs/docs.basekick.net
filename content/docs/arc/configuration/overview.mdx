@@ -512,6 +512,13 @@ max_buffer_age_ms = 5000
 # flush_queue_size = 64    # pending flush queue (4x workers, min 100)
 # shard_count = 32         # buffer shards for lock distribution
 
+# Bulk imports (/api/v1/import/*) writing at once, and how long one waits for a
+# slot before a 503 with nothing written (v27.01.1+). 0 = auto: as many as fit
+# an eighth of the memory limit at one import allowance each, at most the CPUs
+# Arc runs on, at least 1. queue timeout 0 = as long as the request lives.
+# import_write_concurrency = 0
+# import_queue_timeout_ms = 30000
+
 # Decimal128 precision columns (v26.04.1+)
 # decimal_columns = ["trades:price=18,8;amount=18,8", "balances:balance=38,18"]
 # default_decimal_columns = ""
@@ -528,7 +535,7 @@ max_buffer_age_ms = 5000
 # numeric_dictionary = false
 ```
 
-Environment variables: `ARC_INGEST_USE_DICTIONARY`, `ARC_INGEST_NUMERIC_DICTIONARY` (v26.09.1+).
+Environment variables: `ARC_INGEST_USE_DICTIONARY`, `ARC_INGEST_NUMERIC_DICTIONARY` (v26.09.1+). `ARC_INGEST_IMPORT_WRITE_CONCURRENCY`, `ARC_INGEST_IMPORT_QUEUE_TIMEOUT_MS` (v27.01.1+); see [Data Import](/arc/data-import/#memory-and-large-files).
 
 Data flushes when **either** condition is met:
 1. Buffer reaches `max_buffer_size` records
