@@ -415,8 +415,10 @@ the client gives up, and until then the forwarding node holds the upload. A
 `504` on an import means the backstop ran out or the connection to the writer
 broke after the upload was sent; the import may have finished. An upload over
 the 500 MB import limit is refused with `413` before it is forwarded. A writer
-imports one file at a time, so a forwarded import can wait for another to
-finish; that wait counts against the backstop too.
+writes up to `ingest.import_write_concurrency` imports at once, so a forwarded
+import can wait for a slot; that wait counts against the backstop too, and
+past `ingest.import_queue_timeout_ms` (default 30 s) the writer refuses it with
+`503` and nothing written, which the forwarding node returns as is.
 
 MQTT and continuous queries on a standby still refuse with `503`.
 

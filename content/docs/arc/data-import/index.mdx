@@ -29,6 +29,7 @@ rows without an explicit timestamp in the file stay duplicated.
 |--------|---------|
 | `503` with `Retry-After` and `X-Arc-Ingest-Fenced` | No writer could be reached, or the writer may not take writes right now. Nothing was written. Retry. |
 | `504` | The import was sent to the writer but no answer came back (the connection broke, or `cluster.import_forward_timeout_ms` ran out). It may have been written. |
+| `503` with `Retry-After` and `X-Arc-Ingest-Refused: import_queue` | Every import write slot on the writer stayed busy for `ingest.import_queue_timeout_ms`. Nothing was written. Retry. |
 | `508` | The request was already forwarded once (a routing loop). |
 
 ## Memory and large files
@@ -44,9 +45,20 @@ itself (v27.01.1+). Before, a 164 MB line protocol file took over 3 GB.
   permission, a CSV parse error, mixed types in a line protocol field) is
   refused with nothing written. CSV column types are decided by the whole
   column, as before.
-- **One import writes at a time** on a node. Imports sent together are
-  validated together and written one after the other. Every request body is
-  held in memory while it waits, so send large imports one at a time.
+- **Imports write in parallel**, up to `ingest.import_write_concurrency` at
+  once on a node (default `0` = auto: as many as fit an eighth of the memory
+  limit at one import allowance each, at most the CPUs Arc runs on, at least
+  one; logged at startup as "Bulk import write slots configured"). Each
+  writing import may hold about one allowance (an eighth of the memory limit,
+  64 MB to 512 MB) plus its upload, and every request body waiting for a slot
+  is held in memory too. Set `1` for one import at a time (v27.01.1+).
+- **Bounded wait for a slot.** An import that waits
+  `ingest.import_queue_timeout_ms` (default `30000`; `0` = as long as the
+  request lives) for a slot is refused with `503`, `Retry-After` and
+  `X-Arc-Ingest-Refused: import_queue`, with nothing written: retry it. Keep
+  that timeout well under your client's own timeout. A client that gives up
+  while its import is writing does **not** stop it; check the row count
+  before you send the same file again.
 - **Failures part-way.** If an import stops after part of it was written (the
   node is fenced, flushes are not keeping up, or a later part of the file
   cannot be read), it answers `500` with `rows_written`. Running the whole
