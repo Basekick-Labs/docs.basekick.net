@@ -487,6 +487,7 @@ cluster:
   # Peer replication tuning — consulted ONLY when storage.mode=local.
   replication:
     pullWorkers: 4
+    pullBytesPerSecond: 0   # inbound replication cap per node, bytes/s; 0 = unlimited (v27.01.1+)
     fetchTimeoutMs: 60000
     serveTimeoutMs: 120000
     catchup:
