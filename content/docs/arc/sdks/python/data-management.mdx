@@ -5,6 +5,38 @@ description: "Manage Arc from Python: retention policies, continuous queries, de
 
 How to manage data lifecycle, authentication, and administrative tasks using the Python SDK.
 
+## SDK version and server compatibility
+
+The examples below use SDK development revision `539505c` (version `0.2.0`,
+not yet released). The latest published SDK release, `0.1.2`, does not include
+`replace()`, `CLEAR`, or the new completion diagnostics. To reproduce these examples:
+
+```bash
+pip install 'arc-tsdb-client @ git+https://github.com/Basekick-Labs/arc-client-python.git@539505c0b0f2113b1acbbe5b406abef89ec5b6fe'
+```
+
+Arc `26.09.3` requires complete definitions: use `replace()`.
+`replace()` sends every mutable field. Coordinate concurrent edits when
+reading a definition before replacing it. On servers with partial PUT support,
+`client.retention.update(policy.id, retention_days=60, is_active=False)` and
+`client.continuous_queries.update(cq.id, interval="30m", is_active=False)`
+send only those changes. Do not use partial updates on Arc 26.09.3.
+Sync and async clients follow the same rules; use `await` with async methods.
+`None` omits an update argument; `from arc_client import CLEAR` provides the
+sentinel for explicitly clearing a nullable field. Compatibility with other
+Arc releases is still being validated.
+
+A client timeout does not establish whether a retention execution completed.
+Inspect execution history and the resulting data before submitting it again.
+An execution may finish after the client stops waiting. On server versions
+affected by the running-history defect, an absent history entry is not proof
+that no execution is running.
+
+Manual CQ execution requires SQL containing both `{start_time}` and
+`{end_time}` placeholders. Automatic scheduling depends on the server's
+configuration and license; creating a policy or CQ does not establish that
+its scheduler is enabled.
+
 ## Overview
 
 The SDK provides clients for managing Arc's data lifecycle features:
@@ -20,7 +52,8 @@ The SDK provides clients for managing Arc's data lifecycle features:
 
 **Important:** In Arc OSS, retention policies and continuous queries do **not** run automatically. You must execute them manually or set up an external scheduler (cron, Airflow, etc.).
 
-Automatic scheduling is planned for **Arc Enterprise** (2026).
+Automatic scheduling is available in Arc Enterprise when the corresponding
+scheduler is licensed and enabled.
 
 See [Scheduling with External Tools](#scheduling-with-external-tools) for how to automate execution.
 
@@ -91,10 +124,15 @@ print(f"Deleted {result.deleted_count} rows")
 ### Update a policy
 
 ```python
-client.retention.update(
+current = client.retention.get(policy.id)
+client.retention.replace(
     policy.id,
-    retention_days=60,      # Change retention period
-    is_active=False,        # Disable the policy
+    name=current.name,
+    database=current.database,
+    retention_days=60,
+    measurement=current.measurement,
+    buffer_days=current.buffer_days,
+    is_active=False,
 )
 ```
 
@@ -173,6 +211,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 avg(usage_system) as usage_system,
                 max(usage_user) as max_usage_user
             FROM default.cpu
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1h",
@@ -240,10 +279,20 @@ result = client.continuous_queries.execute(
 ### Update a CQ
 
 ```python
-client.continuous_queries.update(
+current = client.continuous_queries.get(cq.id)
+client.continuous_queries.replace(
     cq.id,
-    interval="30m",       # Change interval
-    is_active=False,      # Pause the CQ
+    name=current.name,
+    database=current.database,
+    source_measurement=current.source_measurement,
+    destination_measurement=current.destination_measurement,
+    query=current.query,
+    interval="30m",
+    description=current.description,
+    tag_columns=current.tag_columns,
+    retention_days=current.retention_days,
+    delete_source_after_days=current.delete_source_after_days,
+    is_active=False,
 )
 ```
 
@@ -276,6 +325,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 min(usage_idle) as min_idle,
                 max(usage_idle) as max_idle
             FROM default.cpu
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1h",
@@ -295,6 +345,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 min(min_idle) as min_idle,
                 max(max_idle) as max_idle
             FROM default.cpu_1h
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1d",
@@ -467,9 +518,6 @@ All data management operations can raise specific exceptions:
 import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
     ArcError,
     ArcNotFoundError,
     ArcValidationError,
@@ -571,7 +619,7 @@ async def main():
             database="default",
             source_measurement="cpu",
             destination_measurement="cpu_1h",
-            query="SELECT time_bucket('1 hour', time) as time, avg(usage) as usage FROM default.cpu GROUP BY 1",
+            query="SELECT time_bucket('1 hour', time) as time, avg(usage) as usage FROM default.cpu WHERE time >= {start_time} AND time < {end_time} GROUP BY 1",
             interval="1h",
         )
 
@@ -607,7 +655,7 @@ result = client.delete.delete(..., dry_run=False, confirm=True)
 
 ### 2. Use descriptive names
 
-```python
+```text
 # ✅ Good: Descriptive names
 client.retention.create(name="logs-30d-cleanup", ...)
 client.continuous_queries.create(name="cpu-hourly-avg-by-host", ...)
@@ -618,7 +666,7 @@ client.retention.create(name="policy1", ...)
 
 ### 3. Document your CQ queries
 
-```python
+```text
 # ✅ Good: Include description
 cq = client.continuous_queries.create(
     name="cpu-hourly",
@@ -957,3 +1005,4 @@ with DAG(
 - **[Querying](/arc/sdks/python/querying/)** - Query data with DataFrames
 - **[Retention Policies](/arc/data-lifecycle/retention-policies/)** - Deep dive on retention
 - **[Continuous Queries](/arc/data-lifecycle/continuous-queries/)** - Deep dive on CQs
+
