@@ -88,6 +88,15 @@ longer waited for. A file still missing answers `503` listing it in
 DELETE runs without it and still lists it. A dry run does not wait and lists
 the files it could not count.
 
+With `allow_unreachable` (v27.01.1+), a missing file is waited for only while
+something is delivering it: the replication puller has it queued or in
+progress, or a staged compaction holds it. A file missing for 5 seconds with
+nothing delivering it is skipped for the rest of the request. Without the flag
+a DELETE can wait up to 30 seconds per scan, and it may scan more than once,
+so give clients a timeout well above 30 seconds. The rows of a file in
+`unreachable_files` are not deleted: run the DELETE again once the file is on
+the primary.
+
 On a shared bucket (S3, Azure), a DELETE scans what queries read:
 
 - A listed file whose object is gone is skipped. The exception is a compaction
