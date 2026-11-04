@@ -329,6 +329,11 @@ Line Protocol handler health.
 
 Execute SQL queries with JSON response.
 
+The `sql` field is limited to `query.max_sql_length` bytes, 10000 by default
+(see [Configuration](/arc-enterprise/configuration/overview/)). A longer statement
+is answered `400`. The same limit applies to `/api/v1/query/arrow`,
+`/api/v1/query/msgpack` and `/api/v1/query/estimate`.
+
 **Request:**
 ```json
 {

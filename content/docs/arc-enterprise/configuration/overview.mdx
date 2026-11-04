@@ -562,6 +562,7 @@ anchor settings are explained in the
 [query]
 timeout = 300                 # Query execution timeout in seconds (0 = no timeout)
 slow_query_threshold_ms = 0   # Log queries slower than this (0 = off)
+max_sql_length = 10000        # Longest SQL accepted, in bytes (1000 to 1048576; v27.01.1+)
 
 # Range-independent field binding through schema anchors (v26.09.2+)
 stable_schema = true
@@ -575,6 +576,18 @@ empty_range_anchor_scan = false           # EXPERIMENTAL: answer a proven-empty 
 file_time_pruning = true
 file_time_pruning_margin_seconds = 300    # writer clock-skew allowance
 ```
+
+**SQL length limit.** `max_sql_length` (env `ARC_QUERY_MAX_SQL_LENGTH`) is
+the longest SQL statement Arc accepts, in bytes. A longer one is answered `400`
+with `SQL query exceeds maximum length (N characters; query.max_sql_length)`.
+The default is 10000. Raise it for queries that list many series, such as an
+`IN (...)` with thousands of channel names. Values from 1000 to 1048576
+(1 MiB) are accepted, and the value must be smaller than
+`server.max_payload_size`; anything else refuses to start. Validating and
+rewriting a statement costs about 0.5 s of CPU per MiB before the query runs.
+The limit also applies to continuous query definitions, which are checked
+again at every run: lowering it below a stored definition's length makes that
+continuous query fail until it is shortened.
 
 **File-level time pruning** is on by default from v27.01.1. A query whose time
 range starts in the current UTC hour skips that hour's files flushed before
