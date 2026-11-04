@@ -258,7 +258,7 @@ POST /api/v1/delete
 **Parameters**:
 - `database` (string, required): Target database name
 - `measurement` (string, required): Target measurement name
-- `where` (string, required): SQL WHERE clause for deletion
+- `where` (string, required): SQL WHERE clause for deletion. Columns may be qualified by the measurement name (`cpu.host = 'a'` or `"cpu".host = 'a'` on measurement `cpu`, v27.01.1+); the qualifier is dropped before the clause runs. Quote a measurement named like an SQL keyword (`"order".id`).
 - `dry_run` (boolean, optional): Test without deleting (default: `false`)
 - `confirm` (boolean, optional): Confirm the operation; required for anything but a dry run (default: `false`)
 - `allow_unreachable` (boolean, optional, clusters): run the DELETE although files the cluster manifest lists have not reached the primary yet, or, in shared storage, other nodes could not flush their buffered rows first; those rows are not deleted. Applies with stream takeover or compaction commit, to the first scan and to the scan after a compaction replaced a file, and in shared storage to the flush of the other nodes (default: `false`)
