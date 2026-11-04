@@ -66,7 +66,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 | `execution_time_ms` | `float` | Server-side execution time |
 | `timestamp` | `str \| None` | Server timestamp for the query |
 | `error` | `str \| None` | Error message when the query failed |
-| `types` | `list[str]` | Arrow type name per column, parallel to `columns`. Populated only by `query_msgpack()`; the JSON path leaves it empty |
+| `types` | `list[str]` | Unreleased: Arrow type name per column, populated by `query_msgpack()`. Neither this field nor that method is available in published `arc-tsdb-client` 0.1.2 |
 
 
 **Server-side truncation signals:** The underlying JSON API response may
@@ -79,13 +79,16 @@ also contain these fields when a stream fails after returning some rows:
 | `rows_capped` | `bool` (optional) | Present as `true` when a governance row cap stopped the result. Enterprise only. |
 | `row_cap` | `int` (optional) | The cap that was reached, paired with `rows_capped`. |
 
-The Python SDK's `QueryResponse` exposes none of these fields yet (tracked in
-arc #726). Receiving a `QueryResponse`, or a `row_count` that matches
-expectations, does not prove that the query completed. Applications that need
-strict completeness should read the raw JSON response and check both
-`truncated` and `rows_capped`, or query through the Arrow IPC endpoint, where
-an incomplete stream fails to decode and a capped one arrives with the
-`Arc-Rows-Capped` trailer set.
+Published [`arc-tsdb-client` 0.1.2](https://pypi.org/project/arc-tsdb-client/0.1.2/)
+exposes none of these fields on `QueryResponse` and does not expose Arrow
+completion trailers. With that version, read the raw JSON response and check
+both `truncated` and `rows_capped` when completeness matters; receiving a
+`QueryResponse`, or an expected `row_count`, does not prove completion.
+
+The SDK's [unreleased main branch](https://github.com/Basekick-Labs/arc-client-python#querying-data)
+retains these JSON fields and the MessagePack cap fields. Its Arrow query
+method raises on truncation and exposes cap metadata in the returned table's
+schema. This support is not included in the published 0.1.2 package.
 
 The two are not interchangeable: `truncated` means the result failed part way
 and must be discarded, while `rows_capped` means it is valid but stopped at a
