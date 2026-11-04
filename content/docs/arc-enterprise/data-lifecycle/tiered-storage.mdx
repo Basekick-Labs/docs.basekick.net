@@ -376,7 +376,26 @@ curl -H "Authorization: Bearer $TOKEN" \
 # Filter by database
 curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/tiering/files?database=telemetry&limit=50"
+
+# Filter by database and tier: the database's files in that tier
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/tiering/files?database=telemetry&tier=cold"
 ```
+
+`tier` and `database` can be combined. Before 27.01.1, `tier` was ignored when `database` was set, and the list held the database's files in every tier ([arc#1430](https://github.com/Basekick-Labs/arc/issues/1430)).
+
+`tier` must be `hot` or `cold`, in lower case. Since 27.01.1 any other value, such as `COLD` or `warm`, is answered `400 invalid tier`; before, it listed the hot files with a `200`.
+
+`limit` defaults to `100` and keeps the first entries of the list, whose order depends on the filters:
+
+| Filters | Order |
+|---|---|
+| none | hot files, then cold files, each oldest partition first |
+| `tier` | oldest partition first |
+| `database` | newest partition first |
+| `database` and `tier` | newest partition first |
+
+So with the default `limit`, `?tier=cold` returns the oldest cold files and `?database=telemetry&tier=cold` the newest. The response's `count` is the number of files returned after `limit`, not the number that matched.
 
 ### Trigger manual migration
 
