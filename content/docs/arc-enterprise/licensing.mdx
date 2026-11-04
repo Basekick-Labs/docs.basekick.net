@@ -1,6 +1,6 @@
 ---
 title: Licensing
-description: "Arc Enterprise tiers, buying a license online or through sales, activating the key, core and machine limits, moving to a new server, renewals, expiry, and upgrades."
+description: "Arc Enterprise tiers, the free 14-day trial, buying a license online or through sales, activating the key, core and machine limits, moving to a new server, renewals, expiry, and upgrades."
 ---
 
 Arc Enterprise is the Arc binary plus a license key. This page covers how to get a key, what it allows, and what happens over its lifetime. For putting the key into a running node, see [Getting Started](/arc-enterprise/getting-started/).
@@ -35,6 +35,17 @@ valid licenses qualify without requiring this new string in their signed
 feature list. See [scheduled network sync](/arc/advanced/edge-sync/#scheduled-network-sync-planned-for-27011)
 for setup and behavior when a running node loses its license or writer role.
 
+## Free trial
+
+Try Arc Enterprise for 14 days without a card or a sales call at [basekick.net/enterprise/trial](https://basekick.net/enterprise/trial). Enter your name, company, and email, and the license key arrives at that address, usually within a minute.
+
+- **What it grants.** Tier II: up to 32 cores across up to 5 machines, with clustering, RBAC, tiered storage, and query governance. Support is not included.
+- **Activation.** Set `ARC_LICENSE_KEY` as for any key (see [Getting Started](/arc-enterprise/getting-started/)). Trial keys activate online only, so the node needs to reach `enterprise.basekick.net`; they cannot be used with an offline license file.
+- **Limits.** One trial per person (per email inbox), and a machine that has run a trial cannot activate another. Asking again with the same address re-sends the key while the trial is active, at most once an hour; after the trial ends, no new key is issued.
+- **Expiry.** The trial ends on its expiry date with no grace period. To continue, buy Tier I or Tier II [online](https://basekick.net/enterprise/buy) and replace `ARC_LICENSE_KEY` with the new key; data and configuration stay as they are.
+
+For a longer evaluation, Tier III features, or an air-gapped site, contact [enterprise@basekick.net](mailto:enterprise@basekick.net).
+
 ## Buying online
 
 Tier I and Tier II are sold directly at [basekick.net/enterprise/buy](https://basekick.net/enterprise/buy). Checkout runs on Stripe.
@@ -59,7 +70,7 @@ A direct purchase can be refunded in full within 30 days if the license fails to
 Contact [enterprise@basekick.net](mailto:enterprise@basekick.net) for:
 
 - Tier III and Unlimited
-- A 14-day trial before committing
+- Evaluations longer than the 14-day trial, of Tier III features, or on air-gapped sites
 - Invoices, purchase orders, and vendor onboarding
 - Multi-year contracts, which carry a discount
 - Offline license files for air-gapped sites
@@ -104,7 +115,7 @@ Restarts and upgrades on the same host keep the fingerprint. In Docker, pin the 
 
 Direct purchases renew automatically every year at the then-current price for the tier. Cancel from the Stripe customer portal linked in your receipt, or by emailing enterprise@basekick.net. Cancelling stops the next charge; the license runs to the end of the paid term.
 
-Keys are issued with a 14-day grace period past the paid term, so a renewal that lands a few days late does not interrupt anything. Watch the remaining days on the unauthenticated health endpoint:
+Paid keys are issued with a 14-day grace period past the paid term, so a renewal that lands a few days late does not interrupt anything. Trial keys have no grace period. Watch the remaining days on the unauthenticated health endpoint:
 
 ```bash
 curl -s http://localhost:8000/health | jq .license
@@ -124,7 +135,7 @@ Move to a higher tier at any time. You pay the prorated difference for the remai
 
 ## FAQ
 
-**I lost the key.** Email enterprise@basekick.net from the buyer or technical contact address and we resend it.
+**I lost the key.** Email enterprise@basekick.net from the buyer or technical contact address and we resend it. For a trial key, request it again at [basekick.net/enterprise/trial](https://basekick.net/enterprise/trial) with the same email.
 
 **Can I change the technical contact?** Yes, by email. The buyer address on the Stripe subscription is separate and is changed in the customer portal.
 
