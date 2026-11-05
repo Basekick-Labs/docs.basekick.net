@@ -161,6 +161,8 @@ arc_buffer_flushes_total          # counter: completed flushes
 arc_buffer_records_written_total  # counter: records written by flushes
 arc_buffer_flush_failures_total   # counter: flushes that did not reach storage
 arc_buffer_records_dropped_total  # counter: acknowledged records lost with no WAL copy (v27.01.1+)
+arc_buffer_bytes_buffered         # gauge: estimated bytes of rows not yet in storage (v27.01.1+)
+arc_ingest_buffer_full_rejections_total  # counter: requests refused at ingest.max_buffered_bytes (v27.01.1+)
 ```
 
 `arc_buffer_flush_failures_total` is the most important single alert in an OSS deployment. Every increment means a batch of records did not reach storage. What happens to those records depends on the WAL:

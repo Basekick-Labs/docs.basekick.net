@@ -519,6 +519,11 @@ max_buffer_age_ms = 5000
 # import_write_concurrency = 0
 # import_queue_timeout_ms = 30000
 
+# Refuse writes with a retryable 503 while unflushed rows reach this size
+# (v27.01.1+). "0" (default) = off; "auto" = half the detected memory limit;
+# or a size of at least "1MB".
+# max_buffered_bytes = "0"
+
 # Decimal128 precision columns (v26.04.1+)
 # decimal_columns = ["trades:price=18,8;amount=18,8", "balances:balance=38,18"]
 # default_decimal_columns = ""
@@ -534,6 +539,46 @@ max_buffer_age_ms = 5000
 # use_dictionary = false
 # numeric_dictionary = false
 ```
+
+#### Limiting unflushed data
+
+Since v27.01.1. When storage falls behind (a slow disk or object store), the
+flush queue fills and each measurement's buffer keeps growing in memory until
+the process runs out of memory. `max_buffered_bytes` (env
+`ARC_INGEST_MAX_BUFFERED_BYTES`) makes Arc refuse new writes first. It is
+**off by default**.
+
+| Value | Meaning |
+|---|---|
+| `"0"` (default) | Off: buffers grow as before. |
+| `"auto"` | Half the memory limit Arc detects (the container limit where there is one). Off when none is detected. |
+| A size, e.g. `"4GB"` | That limit. At least `1MB`. |
+
+Startup logs the value in use. Once the rows waiting to be flushed
+(`arc_buffer_bytes_buffered`) reach the limit:
+
+- Write requests (MessagePack, line protocol, TLE) answer `503` with
+  `Retry-After: 5` and `X-Arc-Ingest-Refused: buffer_full`. Nothing of a
+  refused request is stored, so retrying it is safe. A request already
+  accepted is never stopped part-way.
+- [Bulk imports](/arc/data-import/) are refused from 90% of the limit, and a
+  running import paces its writes to stay below that level.
+- MQTT subscriptions disconnect until the buffer drains below 90% of the limit
+  (and for at least 5 seconds). With `clean_session=false` and QoS 1 or 2 the
+  broker keeps their messages; a message already being handled is retried for
+  2 seconds and then dropped.
+- WAL replay and continuous-query writes are never refused.
+- `arc_ingest_buffer_full_rejections_total` counts refused requests, and Arc
+  logs a warning at 80% of the limit.
+
+It is a backstop, not a bound on memory. The estimate is a MessagePack
+request's payload size and leaves out the copies a flush makes; requests
+accepted at the same time can each go over it by their own size (up to
+`server.max_payload_size`); WAL replay at startup can put a node over it
+until the replayed rows are flushed. A refusal does not start a flush, so keep
+an explicit value well above what buffers normally hold before their size or
+age flush (`max_buffer_size`, `max_buffer_age_ms`), or writes wait for the
+next one even with storage keeping up.
 
 Environment variables: `ARC_INGEST_USE_DICTIONARY`, `ARC_INGEST_NUMERIC_DICTIONARY` (v26.09.1+). `ARC_INGEST_IMPORT_WRITE_CONCURRENCY`, `ARC_INGEST_IMPORT_QUEUE_TIMEOUT_MS` (v27.01.1+); see [Data Import](/arc/data-import/#memory-and-large-files).
 
