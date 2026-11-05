@@ -30,6 +30,7 @@ rows without an explicit timestamp in the file stay duplicated.
 | `503` with `Retry-After` and `X-Arc-Ingest-Fenced` | No writer could be reached, or the writer may not take writes right now. Nothing was written. Retry. |
 | `504` | The import was sent to the writer but no answer came back (the connection broke, or `cluster.import_forward_timeout_ms` ran out). It may have been written. |
 | `503` with `Retry-After` and `X-Arc-Ingest-Refused: import_queue` | Every import write slot on the writer stayed busy for `ingest.import_queue_timeout_ms`. Nothing was written. Retry. |
+| `503` with `Retry-After` and `X-Arc-Ingest-Refused: buffer_full` | With [`ingest.max_buffered_bytes`](/arc/configuration/overview/#limiting-unflushed-data) set, the writer's unflushed rows are at 90% of it or more (storage is behind). Nothing was written. Retry later (v27.01.1+). |
 | `508` | The request was already forwarded once (a routing loop). |
 
 ## Memory and large files
