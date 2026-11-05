@@ -91,6 +91,18 @@ FROM iceberg_scan('/var/lib/arc/data/arc_mydb.db/cpu');
 
 Arc emits a `version-hint.text` in each table's `metadata/` directory, so directory-based readers like DuckDB resolve the current snapshot without needing the exact metadata filename.
 
+On S3, give DuckDB an S3 secret and point it at the table's `s3://` directory:
+
+```sql
+INSTALL iceberg; LOAD iceberg; INSTALL httpfs; LOAD httpfs;
+
+CREATE SECRET (TYPE s3, PROVIDER credential_chain, REGION 'us-east-1');
+-- S3-compatible store: TYPE s3, KEY_ID '…', SECRET '…', ENDPOINT 'minio:9000', URL_STYLE 'path', USE_SSL false
+
+SELECT count(*)
+FROM iceberg_scan('s3://my-arc-bucket/prod/arc_mydb.db/cpu');
+```
+
 ### PyIceberg
 
 PyIceberg can read through Arc's SQLite catalog directly:
@@ -108,6 +120,24 @@ df = table.scan().to_arrow()
 print(df.num_rows, df.column_names)
 ```
 
+On S3, pass PyIceberg the `s3.*` properties. Arc's SQLite catalog is on the node that runs the reconciler, so from any other host load the table from its directory instead; PyIceberg resolves the current version from `version-hint.text`:
+
+```python
+from pyiceberg.table import StaticTable
+
+s3 = {
+    "s3.region": "us-east-1",
+    # S3-compatible store:
+    # "s3.endpoint": "http://minio:9000",
+    # "s3.access-key-id": "…", "s3.secret-access-key": "…",
+}
+
+table = StaticTable.from_metadata("s3://my-arc-bucket/prod/arc_mydb.db/cpu", properties=s3)
+print(table.scan().to_arrow().num_rows)
+```
+
+On the reconciler node, the catalog works with the same properties: `SqlCatalog("arc", uri="sqlite:////var/lib/arc/data/arc.db", warehouse="s3://my-arc-bucket/prod", **s3)`.
+
 ### Apache Spark
 
 Read a table from its directory with the Iceberg runtime and a Hadoop-style catalog, or load it directly:
@@ -118,6 +148,22 @@ df = (spark.read.format("iceberg")
 df.printSchema()
 df.createOrReplaceTempView("cpu")
 spark.sql("SELECT count(*) FROM cpu").show()
+```
+
+On S3, add `hadoop-aws` and map the `s3://` scheme Arc writes to the S3A filesystem:
+
+```python
+from pyspark.sql import SparkSession
+
+spark = (SparkSession.builder
+    .config("spark.jars.packages",
+            "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.7.1,"
+            "org.apache.hadoop:hadoop-aws:3.3.4")
+    .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    # S3-compatible store: fs.s3a.endpoint, fs.s3a.path.style.access, fs.s3a.access.key / secret.key
+    .getOrCreate())
+
+df = spark.read.format("iceberg").load("s3://my-arc-bucket/prod/arc_mydb.db/cpu")
 ```
 
 ### Trino / Snowflake / others
@@ -207,7 +253,8 @@ If you need reproducible reads of historical state, snapshot the query results r
 
 With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering moves to cold stays in the Iceberg table under its `s3://` URI, with the same rows and statistics. Readers see the same data before, during and after a migration.
 
-- **Mixed-location tables:** with a local primary, a table holds `file://` paths for hot data and `s3://` paths for cold data. A reader needs access to both: run it on the Arc host, with S3 credentials for the cold bucket.
+- **Mixed-location tables:** with a local primary, a table holds `file://` paths for hot data and `s3://` paths for cold data. A reader needs access to both: run it on the Arc host, with S3 credentials for the cold bucket. For a table every host can read, use an S3 primary too (`storage.backend = "s3"`).
+- **Glacier:** Arc writes cold objects to S3 Standard. If a bucket lifecycle rule moves them to Glacier or Deep Archive, the table still lists them, and external engines cannot read them until they are restored. Arc's export does not restore objects or skip archived ones.
 - **Which copy is exported:** the one Arc's queries read. While a file is on both tiers, during a migration or for a hot-only database, the table keeps the hot copy until Arc's tier record says the file is cold.
 - **No extra reads:** a migrated file's entry is copied from the hot one. The cold object is read only for cold data the table never held hot, and then with the cold tier's own credentials.
 - **Brief read error, never wrong rows:** in the one reconcile pass between a migration deleting the hot copy and the table moving to the cold URI, a reader that already resolved the old path can get a not-found error. Compaction and retention have the same window.
@@ -231,6 +278,7 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
   - The version published in the bucket, not a node's own catalog, is the table's current version. A node that takes over, or comes back after a failover, continues from it.
   - If two nodes ever commit the same version, the second is refused, logged as `another writer published this table version first`, and it adopts the published version on its next pass.
   - A node whose SQLite catalog was lost also continues the existing table rather than starting a second one in the same directory.
+  - The SQLite catalog is local to the node that exports, so catalog-based readers (PyIceberg's `SqlCatalog`) work only there. From any other host, read the table from its `s3://` directory (DuckDB, PyIceberg `StaticTable`, Spark).
 
 ## Backup & restore
 
