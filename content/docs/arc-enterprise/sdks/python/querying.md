@@ -63,7 +63,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 | `execution_time_ms` | `float` | Server-side execution time |
 | `timestamp` | `str \| None` | Server timestamp for the query |
 | `error` | `str \| None` | Error message when the query failed |
-| `types` | `list[str]` | Arrow type name per column, parallel to `columns`. Populated only by `query_msgpack()`; the JSON path leaves it empty |
+| `types` | `list[str]` | Arrow type name per column, populated by `query_msgpack()`; the JSON path leaves it empty. `arc-tsdb-client` 0.2.0 and later |
 
 
 **Server-side truncation signals:** The underlying JSON API response may
@@ -76,13 +76,27 @@ also contain these fields when a stream fails after returning some rows:
 | `rows_capped` | `bool` (optional) | Present as `true` when a governance row cap stopped the result. Enterprise only. |
 | `row_cap` | `int` (optional) | The cap that was reached, paired with `rows_capped`. |
 
-The Python SDK's `QueryResponse` exposes none of these fields yet (tracked in
-arc #726). Receiving a `QueryResponse`, or a `row_count` that matches
-expectations, does not prove that the query completed. Applications that need
-strict completeness should read the raw JSON response and check both
-`truncated` and `rows_capped`, or query through the Arrow IPC endpoint, where
-an incomplete stream fails to decode and a capped one arrives with the
-`Arc-Rows-Capped` trailer set.
+**`arc-tsdb-client` 0.2.0 and later** expose all four fields on
+`QueryResponse`:
+
+- `query()` returns a truncated result rather than raising, so check
+  `truncated` before using `data`, and `rows_capped` to know a cap stopped it.
+- `query_msgpack()` raises `ArcQueryError` on an incomplete body and carries
+  `rows_capped` and `row_cap`.
+- `query_arrow()` raises `ArcQueryError` on a truncated stream and records the
+  cap in the returned table's schema metadata (`arc.rows_capped`,
+  `arc.row_cap`). `query_pandas()` and `query_polars()` raise the same way,
+  but the DataFrame they return does not carry the cap; use `query_arrow()`
+  when a cap may apply.
+
+**[`arc-tsdb-client` 0.1.2](https://pypi.org/project/arc-tsdb-client/0.1.2/)**
+exposes none of these fields on `QueryResponse`, and receiving one, or an
+expected `row_count`, does not prove the query completed. With Arc 26.09.2 or
+later, its `query_arrow()`, `query_pandas()` and `query_polars()` raise
+`ArcQueryError` on a stream that failed part way, because the server marks the
+body so it cannot be read as complete. They cannot see a governance row cap,
+which arrives only in the `Arc-Rows-Capped` trailer; check `rows_capped` in
+the raw JSON response if a cap may apply.
 
 The two are not interchangeable: `truncated` means the result failed part way
 and must be discarded, while `rows_capped` means it is valid but stopped at a
