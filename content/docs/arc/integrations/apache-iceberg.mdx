@@ -40,7 +40,7 @@ Tables are created per database/measurement in the namespace `<namespace_prefix>
 ```toml
 # arc.toml
 [storage]
-backend = "local"          # Iceberg export requires a local backend in v1 (see Limitations)
+backend = "local"          # "local" or "s3" (see Limitations)
 
 [iceberg]
 enabled = true             # default: false
@@ -53,6 +53,28 @@ ARC_ICEBERG_ENABLED=true
 ```
 
 Restart Arc. Within one reconcile interval, ingested measurements appear as Iceberg tables under your storage root (`{local_path}/arc_<database>.db/<measurement>/`).
+
+### On S3
+
+Iceberg export also runs on an S3 primary, on AWS or an S3-compatible store:
+
+```toml
+[storage]
+backend = "s3"
+s3_bucket = "my-arc-bucket"
+s3_prefix = "prod/"        # optional
+s3_region = "us-east-1"
+
+[iceberg]
+enabled = true
+```
+
+Tables land under the storage root, at `s3://my-arc-bucket/prod/arc_<database>.db/<measurement>/`.
+
+- **Credentials:** the export uses Arc's own S3 credentials and renews them the same way Arc does: static keys, the default chain, IRSA on EKS, or an assumed role. No credential is written into Iceberg metadata, the catalog or the logs.
+- **Endpoint:** `storage.s3_endpoint` and `storage.s3_path_style` apply to the export too. The `AWS_S3_ENDPOINT` environment variable does not change where it writes.
+- **Readers:** readers need their own read access to the bucket.
+- **Enabling on an existing deployment:** the first pass registers every existing data file. It reads each file's footer twice (two ranged GETs, never the whole object). After a restart, an unchanged table reads no footers.
 
 ## Reading the tables
 
@@ -68,6 +90,18 @@ FROM iceberg_scan('/var/lib/arc/data/arc_mydb.db/cpu');
 ```
 
 Arc emits a `version-hint.text` in each table's `metadata/` directory, so directory-based readers like DuckDB resolve the current snapshot without needing the exact metadata filename.
+
+On S3, give DuckDB an S3 secret and point it at the table's `s3://` directory:
+
+```sql
+INSTALL iceberg; LOAD iceberg; INSTALL httpfs; LOAD httpfs;
+
+CREATE SECRET (TYPE s3, PROVIDER credential_chain, REGION 'us-east-1');
+-- S3-compatible store: TYPE s3, KEY_ID '…', SECRET '…', ENDPOINT 'minio:9000', URL_STYLE 'path', USE_SSL false
+
+SELECT count(*)
+FROM iceberg_scan('s3://my-arc-bucket/prod/arc_mydb.db/cpu');
+```
 
 ### PyIceberg
 
@@ -86,6 +120,24 @@ df = table.scan().to_arrow()
 print(df.num_rows, df.column_names)
 ```
 
+On S3, pass PyIceberg the `s3.*` properties. Arc's SQLite catalog is on the node that runs the reconciler, so from any other host load the table from its directory instead; PyIceberg resolves the current version from `version-hint.text`:
+
+```python
+from pyiceberg.table import StaticTable
+
+s3 = {
+    "s3.region": "us-east-1",
+    # S3-compatible store:
+    # "s3.endpoint": "http://minio:9000",
+    # "s3.access-key-id": "…", "s3.secret-access-key": "…",
+}
+
+table = StaticTable.from_metadata("s3://my-arc-bucket/prod/arc_mydb.db/cpu", properties=s3)
+print(table.scan().to_arrow().num_rows)
+```
+
+On the reconciler node, the catalog works with the same properties: `SqlCatalog("arc", uri="sqlite:////var/lib/arc/data/arc.db", warehouse="s3://my-arc-bucket/prod", **s3)`.
+
 ### Apache Spark
 
 Read a table from its directory with the Iceberg runtime and a Hadoop-style catalog, or load it directly:
@@ -96,6 +148,22 @@ df = (spark.read.format("iceberg")
 df.printSchema()
 df.createOrReplaceTempView("cpu")
 spark.sql("SELECT count(*) FROM cpu").show()
+```
+
+On S3, add `hadoop-aws` and map the `s3://` scheme Arc writes to the S3A filesystem:
+
+```python
+from pyspark.sql import SparkSession
+
+spark = (SparkSession.builder
+    .config("spark.jars.packages",
+            "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.7.1,"
+            "org.apache.hadoop:hadoop-aws:3.3.4")
+    .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    # S3-compatible store: fs.s3a.endpoint, fs.s3a.path.style.access, fs.s3a.access.key / secret.key
+    .getOrCreate())
+
+df = spark.read.format("iceberg").load("s3://my-arc-bucket/prod/arc_mydb.db/cpu")
 ```
 
 ### Trino / Snowflake / others
@@ -110,8 +178,9 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
-| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path). Defaults alongside the data. Outside the storage root, Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. |
+| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
+| `iceberg.cold_rescan_interval` | `ARC_ICEBERG_COLD_RESCAN_INTERVAL` | `3600` | With an S3 cold tier: seconds a measurement's cached cold-tier listing is trusted. Arc re-lists right away after its own cold-tier changes (migrations, cold retention, DELETE, database delete); this only bounds changes made outside Arc. |
 | `iceberg.orphan_sweep_enabled` | `ARC_ICEBERG_ORPHAN_SWEEP_ENABLED` | `true` | Delete manifest files that no retained metadata version references any more. This is the one thing the exporter deletes that nothing regenerates, so it has an off switch; set `false` and the manifests of expired snapshots are kept forever and copied into every backup. Arc logs a warning at startup when it is off. |
 
 ## Schema mapping
@@ -180,19 +249,40 @@ A pass that expires history this way logs at `warn` with the snapshot counts bef
 
 If you need reproducible reads of historical state, snapshot the query results rather than the table, or use Arc's backup and restore.
 
+## Cold-tier tiering
+
+With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering moves to cold stays in the Iceberg table under its `s3://` URI, with the same rows and statistics. Readers see the same data before, during and after a migration.
+
+- **Mixed-location tables:** with a local primary, a table holds `file://` paths for hot data and `s3://` paths for cold data. A reader needs access to both: run it on the Arc host, with S3 credentials for the cold bucket. For a table every host can read, use an S3 primary too (`storage.backend = "s3"`).
+- **Glacier:** Arc writes cold objects to S3 Standard. If a bucket lifecycle rule moves them to Glacier or Deep Archive, the table still lists them, and external engines cannot read them until they are restored. Arc's export does not restore objects or skip archived ones.
+- **Which copy is exported:** the one Arc's queries read. While a file is on both tiers, during a migration or for a hot-only database, the table keeps the hot copy until Arc's tier record says the file is cold.
+- **No extra reads:** a migrated file's entry is copied from the hot one. The cold object is read only for cold data the table never held hot, and then with the cold tier's own credentials.
+- **Brief read error, never wrong rows:** in the one reconcile pass between a migration deleting the hot copy and the table moving to the cold URI, a reader that already resolved the old path can get a not-found error. Compaction and retention have the same window.
+- **Licensing:** tiering requires an Enterprise license. Without it Arc disables tiering, and with a cold tier still configured the export does not start; tables keep their last snapshot until the license is restored. The same applies if the configured cold tier is unavailable at startup.
+
 ## Limitations (v1)
 
-- **Local storage only.** Iceberg export requires `storage.backend = "local"`. Arc **refuses to start** if Iceberg export is enabled with a non-local primary backend or with cold-tier tiering, because a file migrated to object storage would silently leave the Iceberg table.
-- **No cold-tier tiering.** Same reason as above — disable one of `iceberg.enabled` / `tiered_storage.cold.enabled`.
+- **Local or S3 storage.** Iceberg export runs with `storage.backend = "local"` or `"s3"`. Arc **refuses to start** with Iceberg enabled on:
+  - an Azure or GCS primary;
+  - an S3 backend pointed at Google Cloud Storage's S3-compatible endpoint (`storage.googleapis.com`);
+  - an S3 backend whose `iceberg.warehouse` is outside the storage root.
+- **Cold tier on S3 only.** Iceberg export runs alongside cold-tier tiering when the cold tier is S3 (see [Cold-tier tiering](#cold-tier-tiering)). Arc refuses to start with Iceberg enabled and an Azure or GCS cold tier, or an S3 cold tier on Google Cloud Storage's interop endpoint, because files migrated there would leave the table.
 - **Eventual consistency.** The Iceberg view reflects the last reconcile pass, so it lags live ingest by up to `reconcile_interval`. This is expected for a lakehouse export.
 - **On-disk portability.** Iceberg metadata references files by absolute path. Tables read fine on the same host; moving a local table to a different path/host requires re-pointing (object-store warehouses avoid this).
 - **Catalog discovery.** Catalog-aware access works today via the SQLite catalog (PyIceberg) or by pointing engines at the table directory (DuckDB, Spark). Broad multi-engine *catalog* discovery (Trino, Glue) would use a REST/JDBC catalog in front of the warehouse — a deployment choice beyond v1.
 - **Metadata is bounded, not constant.** Each reconcile pass that removes a file writes new manifests and leaves the superseded ones behind, so the metadata directory grows with the removal history rather than with the data. Two mechanisms bound it, both automatic: the orphan sweep (above) deletes manifests no retained metadata version references, and a pass that finds a table at 12 or more data manifests merges them into one. Expect on the order of `retain_snapshots` commits' worth of `.avro` in a steady state. A table whose file set has stopped changing is skipped by the reconciler, so it keeps whatever manifest count it last had until something writes to it again.
-- **Clustered deployments.** Exactly one node must run the reconciler. Under the compactor failover lease this is guaranteed; in a static-role cluster, enable Iceberg export where a single compaction-capable node runs.
+- **Clustered deployments.** Exactly one node must run the reconciler.
+  - Under the compactor failover lease this is guaranteed.
+  - In a static-role cluster with local storage, enable Iceberg export where a single compaction-capable node runs.
+  - **With shared storage** (`cluster.shared_storage_mode`), Iceberg export requires `cluster.failover_enabled = true`, and only the node holding the compactor lease exports. No node exports before the first lease is assigned.
+  - The version published in the bucket, not a node's own catalog, is the table's current version. A node that takes over, or comes back after a failover, continues from it.
+  - If two nodes ever commit the same version, the second is refused, logged as `another writer published this table version first`, and it adopts the published version on its next pass.
+  - A node whose SQLite catalog was lost also continues the existing table rather than starting a second one in the same directory.
+  - The SQLite catalog is local to the node that exports, so catalog-based readers (PyIceberg's `SqlCatalog`) work only there. From any other host, read the table from its `s3://` directory (DuckDB, PyIceberg `StaticTable`, Spark).
 
 ## Backup & restore
 
-Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact. A warehouse outside the storage root is backed up too, under `iceberg/` in the backup, and restored into the node's configured `iceberg.warehouse`. Both the storage root and the warehouse are recorded by absolute path in the Iceberg metadata, so restore to the same paths; see [Backup & restore](/arc/operations/backup-restore/) for the details and the cluster caveat.
+Arc's backup includes the Iceberg warehouse metadata (`metadata.json`, manifest `.avro`, `version-hint.text`) alongside the Parquet data, so a restored deployment keeps its Iceberg tables intact. On S3 the warehouse is always inside the storage root, so the metadata travels with the data. A warehouse outside the storage root is backed up too, under `iceberg/` in the backup, and restored into the node's configured `iceberg.warehouse`. Both the storage root and the warehouse are recorded by absolute path in the Iceberg metadata, so restore to the same paths; see [Backup & restore](/arc/operations/backup-restore/) for the details and the cluster caveat.
 
 ## FAQ
 
