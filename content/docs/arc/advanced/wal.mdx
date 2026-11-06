@@ -150,6 +150,7 @@ max_size_mb = 500          # Rotate at 500MB
 max_age_seconds = 3600     # Rotate after 1 hour
 sync_bytes = 1048576       # Request a sync once this many bytes are unsynced (default 1 MiB)
 ack_mode = "auto"          # durable with the WAL on (default, v27.01.1+); or queued, durable
+ack_timeout_seconds = 30   # a durable write waits at most this long for its sync (v27.01.1+); 0 = no bound
 ```
 
 Or via environment variables:
@@ -162,6 +163,7 @@ ARC_WAL_MAX_SIZE_MB=500
 ARC_WAL_MAX_AGE_SECONDS=3600
 ARC_WAL_SYNC_BYTES=1048576
 ARC_WAL_ACK_MODE=auto
+ARC_WAL_ACK_TIMEOUT_SECONDS=30
 ```
 
 ### Sync modes
@@ -318,9 +320,12 @@ it most. Measured on an M3 Max (8.7M rows of MessagePack columnar writes,
 0.66M; 5,000-row requests from eight clients 9.4M and 2.4M. Under sustained
 load the backpressure keeps memory bounded. Throughput-first benchmarks
 should set `queued` to compare with numbers published before v27.01.1. A WAL
-device that stalls stalls the writes waiting on it (the request context does
-not interrupt the wait) where `queued` would drop entries and keep
-acknowledging; watch `arc_wal_failed_syncs_total` and
+device that stalls refuses the writes waiting on it after
+`ack_timeout_seconds` (default 30; `0` = no bound, v27.01.1+): each is
+answered `503` with `X-Arc-Ingest-Refused: wal_not_durable` and its WAL entry
+is retracted without waiting on the device, where `queued` would drop entries
+and keep acknowledging. Watch `arc_wal_durable_ack_timeouts_total` (a stalled
+device), `arc_wal_failed_syncs_total` (a failing one) and
 `arc_wal_not_durable_rejections_total`.
 
 **Not supported with `cluster.wal_coverage = true`.** `auto` resolves to
