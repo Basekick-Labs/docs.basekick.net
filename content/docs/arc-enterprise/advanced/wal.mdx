@@ -282,11 +282,17 @@ retractions are counted in `arc_wal_retractions_failed_total` and logged at
 Error, at most once every 10 seconds.
 
 **MQTT:** MQTT ingestion follows the same rules: each message waits for its
-sync, and a message refused as not durable is retried for a bounded time and
-then dropped, as other refusals are. Prefer `queued` for MQTT if a stalled WAL
-disk must never cost messages. In a cluster with the origin stream,
-the entry is streamed to standbys before the local sync, so a standby can hold
-a write the client was refused.
+sync. While the WAL refuses writes as not durable (a timed-out or failed sync:
+the device is stalled or failing), subscriptions are suspended, as they are
+for a fence, WAL disk pressure and a full buffer, and resume once a sync
+succeeds (v27.01.1+); the writer syncs the WAL file once a second meanwhile,
+so an idle node recovers too. With `clean_session=false` and QoS 1
+or 2 the broker holds the messages. The message in flight when the refusal
+starts is still briefly retried and then dropped, as for the other reasons,
+and a merely slow device alternates between suspended and resumed at about
+the ack timeout. `arc_wal_durable_ack_failing` is 1 while the state holds. In
+a cluster with the origin stream, the entry is streamed to standbys before the
+local sync, so a standby can hold a write the client was refused.
 
 **Cost:** each request waits for the sync that covers its entry, about one
 `fsync`, shared between the requests in flight. Sequential small writers feel
