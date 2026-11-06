@@ -256,7 +256,7 @@ Same structure as JSON, but MessagePack encoded. Detected via magic bytes.
 
 ## Measurement, tags, and fields
 
-Arc derives the measurement, tags, and fields **from the message payload**, not from the topic structure. The topic itself is not parsed for the measurement name or for tag values.
+Arc derives the measurement, tags, and fields **from the message payload**, unless a [topic mapping](#topic-mapping) rule for the topic sets the measurement or takes tags from topic levels.
 
 For each decoded message:
 
@@ -278,8 +278,8 @@ So to land in measurement `machine_metrics` with tags `line` and `machine_id`, p
 
 A flat payload with no `m`/`tags`/`fields` (e.g. `{"time": ..., "temperature": 23.5}`) is also accepted: it lands in the default `mqtt` measurement with the remaining keys as fields and no tags.
 
-<Callout type="info" title="Topic-path extraction is not supported">
-Deriving the measurement or tags from topic path segments (e.g. `tags_from_topic` / positional extraction) is **not** currently supported. Set the measurement and tags in the published payload as shown above.
+<Callout type="info" title="Without a rule, publishers choose the measurement">
+Unless a `topic_mapping` rule sets `measurement` for the topic, the measurement comes from the payload, so anyone who can publish to a subscribed topic can write to any measurement in the subscription's database. See [Trust model](#trust-model).
 </Callout>
 
 ## Topic mapping
@@ -385,6 +385,29 @@ An earlier release cannot read a rule object, and with one stored it fails to
 list or auto-start any MQTT subscription. Before downgrading, change every rule
 object back to a database string or remove it.
 </Callout>
+
+## Trust model
+
+Arc does not authenticate MQTT publishers. It connects to the broker as one
+client, with the credentials of the subscription, and writes what arrives on
+the subscribed topics. Three things decide what a message can write:
+
+- **The subscription is the authorization.** Only an admin token can create,
+  change or delete a subscription. A subscription carries no token, team or
+  tenant: Arc's RBAC applies to the people and tokens that manage
+  subscriptions and query data, not to the devices that publish.
+- **The subscription's target decides where messages land.** The
+  subscription's `database`, or a `topic_mapping` rule's `database`, is the
+  only database a message can reach. Within it, the measurement and tags come
+  from the payload unless a rule sets `measurement` or `tags_from_topic`.
+- **The broker decides who may publish.** Anyone the broker lets publish to a
+  subscribed topic can write through Arc. Restrict publishing with the
+  broker's ACLs.
+
+So, to keep one measurement per topic, pin it with a `topic_mapping` rule and
+limit who can publish to that topic at the broker. To keep tenants apart, give
+each tenant its own subscription and database, and its own topics with broker
+ACLs.
 
 ## Authentication
 
