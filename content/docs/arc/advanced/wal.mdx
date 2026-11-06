@@ -44,10 +44,11 @@ Keep WAL disabled if you:
 | **No WAL (default)** | Highest | 0-5 seconds |
 | **WAL enabled** | Lower; each write waits for a sync | None of the acknowledged writes (the default `ack_mode`, durable); with `ack_mode = "queued"`, entries still queued or not yet synced at the crash (see [Acknowledgement mode](#acknowledgement-mode-planned-for-v27011)) |
 
-**Tradeoff**: a modest throughput reduction for near-zero data loss.
-
-The cost is in enabling the WAL at all, not in the sync mode: choose the sync
-mode for the durability semantics you need, not for speed.
+**Tradeoff**: throughput for no loss of acknowledged writes. The cost is in
+the acknowledgement mode (each write waits for a sync), not in the sync mode:
+choose the sync mode for the durability semantics you need, not for speed, and
+`ack_mode = "queued"` if you would rather acknowledge sooner and accept the
+loss window.
 
 ### How syncs work
 
@@ -225,12 +226,12 @@ sync_mode = "fsync"
 
 **How it works:**
 - Syncs both data AND metadata to disk
-- Slowest; the strongest guarantee for synced data. For acknowledged writes
-  to be covered too, pair it with `ack_mode = "durable"`
+- Slowest; the strongest guarantee for synced data. Acknowledged writes are
+  covered too with the default `ack_mode` (durable)
 
 **Use when:**
 - Regulatory compliance requires it
-- Zero tolerance for any data loss (with `ack_mode = "durable"`)
+- Zero tolerance for any data loss (with the default `ack_mode`, durable)
 - Performance is secondary
 
 #### async (performance-first)

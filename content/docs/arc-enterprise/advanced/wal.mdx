@@ -48,8 +48,8 @@ The loss figures for `queued` follow from acknowledging a write before it is
 synced; see [Acknowledgement mode](#acknowledgement-mode-planned-for-v27011).
 With `cluster.wal_coverage = true` the default resolves to `queued`.
 
-**Tradeoff**: some throughput for near-zero data loss. The cost is in enabling
-the WAL at all, not in the sync mode.
+**Tradeoff**: throughput for no loss of acknowledged writes. The cost is in
+the acknowledgement mode (each write waits for a sync), not in the sync mode.
 
 ### How syncs work
 
@@ -202,12 +202,12 @@ sync_mode = "fsync"
 
 **How it works:**
 - Syncs both data AND metadata to disk
-- Slowest; the strongest guarantee for synced data. For acknowledged writes
-  to be covered too, pair it with `ack_mode = "durable"`
+- Slowest; the strongest guarantee for synced data. Acknowledged writes are
+  covered too with the default `ack_mode` (durable)
 
 **Use when:**
 - Regulatory compliance requires it
-- Zero tolerance for any data loss (with `ack_mode = "durable"`)
+- Zero tolerance for any data loss (with the default `ack_mode`, durable)
 - Performance is secondary
 
 #### async (performance-first)
