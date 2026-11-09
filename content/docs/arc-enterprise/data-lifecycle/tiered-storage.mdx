@@ -397,6 +397,29 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 So with the default `limit`, `?tier=cold` returns the oldest cold files and `?database=telemetry&tier=cold` the newest. The response's `count` is the number of files returned after `limit`, not the number that matched.
 
+### Cold files missing from cold storage
+
+Since v27.01.1 ([arc#1551](https://github.com/Basekick-Labs/arc/issues/1551)), every cold-tier metadata sync checks each cold file Arc has a record of but the cold listing did not return, and reports two counts:
+
+- **lost**: no cold object and no hot copy. These files cannot be read, and nothing in Arc restores them. Queries still answer, without those rows.
+- **hot_copy**: the cold object is gone, but the hot copy is still read. No data is missing.
+
+They appear in:
+
+- the `cold_missing_objects` field of `GET /api/v1/tiering/status` (`lost`, `hot_copy`, `unchecked`, `sample`, `checked_at`);
+- `/health` under `tiering` (counts and check time only);
+- the gauges `arc_tiering_cold_rows_missing_objects` and `arc_tiering_cold_rows_missing_objects_hot_copy`.
+
+Alert on `arc_tiering_cold_rows_missing_objects > 0`. Arc also logs an `Error` naming a sample of paths.
+
+The usual cause is a bucket lifecycle or expiry rule, or a delete made outside Arc, on the cold prefix. To fix it, restore the objects from a backup, or delete that data through Arc so its records are retired. The count updates at the next sync: at startup, on `POST /api/v1/tiering/scan`, or in the migration cycle.
+
+Notes:
+
+- Reported on standalone nodes and on the cluster's primary writer only. On readers the field is absent and the gauges are 0 ([arc#1563](https://github.com/Basekick-Labs/arc/issues/1563)).
+- A DELETE or retention run whose record cleanup failed (it logs that) leaves records that count as lost until a later run retires them.
+- Up to 1,000 files are checked per sync, within 30 seconds. A check that could not examine every file never lowers the lost count.
+
 ### Trigger manual migration
 
 ```bash
@@ -564,7 +587,7 @@ that touches a daily file answers `503`; retry once it is back.
 
 1. **Start with 30-day hot retention** — This is a good default for most workloads. Monitor query patterns and adjust based on how often historical data is accessed.
 
-2. **Keep cold on S3 Standard or Azure Hot** — Arc writes cold objects with no storage class or access tier set, so on S3 they are Standard and on Azure they take the storage account's default tier, Hot unless the account owner changed it. Leave it that way. The saving tiering is built for is block storage versus object storage: a hot tier on EBS or local NVMe costs several times what S3 Standard does per gigabyte, and cold data stays queryable at object-store latency. Cold data in Arc is old telemetry you still query, not an archive you file away, so cheaper classes are a false economy: `STANDARD_IA` and `GLACIER_IR` add a per-gigabyte retrieval fee to every query that touches cold files, and `GLACIER`, `DEEP_ARCHIVE` and Azure Archive objects cannot be read at all without a restore. That is why Arc has no storage-class or access-tier setting. Do not attach a bucket lifecycle rule to the cold prefix that transitions objects out of Standard.
+2. **Keep cold on S3 Standard or Azure Hot** — Arc writes cold objects with no storage class or access tier set, so on S3 they are Standard and on Azure they take the storage account's default tier, Hot unless the account owner changed it. Leave it that way. The saving tiering is built for is block storage versus object storage: a hot tier on EBS or local NVMe costs several times what S3 Standard does per gigabyte, and cold data stays queryable at object-store latency. Cold data in Arc is old telemetry you still query, not an archive you file away, so cheaper classes are a false economy: `STANDARD_IA` and `GLACIER_IR` add a per-gigabyte retrieval fee to every query that touches cold files, and `GLACIER`, `DEEP_ARCHIVE` and Azure Archive objects cannot be read at all without a restore. That is why Arc has no storage-class or access-tier setting. Do not attach a bucket lifecycle rule to the cold prefix that transitions objects out of Standard. Expiry and delete rules on the cold prefix are worse: they remove data Arc still lists. Remove data through Arc's retention or DELETE instead, and watch [`arc_tiering_cold_rows_missing_objects`](#cold-files-missing-from-cold-storage).
 
 3. **Schedule migrations during off-peak hours** — The default `0 2 * * *` (2am daily) works well for most deployments.
 
