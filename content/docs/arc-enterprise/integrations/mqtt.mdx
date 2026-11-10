@@ -89,7 +89,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 
 ### 3. Start the subscription
 
-A new subscription is created `stopped`, even with `"auto_start": true`: `auto_start` only makes Arc start the subscription each time the server starts. Start it, replacing `<id>` with the `id` from the response. Subscriptions are stored on the node that created them and MQTT API calls are not forwarded between nodes, so send this request to that node directly, not through a load balancer:
+Up to Arc 26.09.x, a new subscription is created `stopped`, even with `"auto_start": true`: `auto_start` only makes Arc start the subscription each time the server starts. From 27.01.1, `"auto_start": true` also starts it on creation, and the response shows `"status": "running"`, or `"error"` with the reason in `error_message` if it cannot connect (the subscription is still created). Start it, replacing `<id>` with the `id` from the response. Subscriptions are stored on the node that created them and MQTT API calls are not forwarded between nodes, so send this request to that node directly, not through a load balancer:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions/<id>/start \
@@ -199,7 +199,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
 | `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
-| `auto_start` | bool | No | false | Start the subscription whenever Arc starts. Creating a subscription does not start it: call `POST /api/v1/mqtt/subscriptions/{id}/start`. |
+| `auto_start` | bool | No | false | Start the subscription whenever Arc starts. Up to 26.09.x, creating a subscription does not start it: call `POST /api/v1/mqtt/subscriptions/{id}/start`. From 27.01.1 it also starts on creation. |
 
 ## Message formats
 
