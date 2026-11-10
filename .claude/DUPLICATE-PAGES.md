@@ -21,7 +21,7 @@ installation/kubernetes.md                 690      778      702
 installation/native.md                     435      387      58
 integrations/grafana.md                    594      594      10
 integrations/influxdb-clients.md           316      316      18
-integrations/node-red.mdx                  268      297      63   (added 2026-11-10)
+integrations/node-red.mdx                  268      302      68   (added 2026-11-10)
 integrations/mqtt.md                       719      582      347
 integrations/opcua.mdx                     442      447      27   (added 2026-10-27)
 integrations/opentelemetry.md              785      783      42

@@ -247,9 +247,14 @@ Use an `https://` URL on the server node. The **TLS** field then appears: add a 
 
 ### Writer failover
 
-On Arc 27.01.1 and later, a node that cannot accept a write answers `503` with `X-Arc-Ingest-Fenced`, which means nothing was written, and the node resends after `Retry-After`. A failover therefore shows as rows buffering and then draining, with nothing sent to Catch.
+A standby takes over from a lost primary only with `cluster.failover_enabled` on; see [Writer failover](/arc-enterprise/configuration/clustering/). What the node sees depends on where **arc write** points:
+
+- **The writer endpoint behind a load balancer, a reader, or a standby**: writes in flight when the primary stops wait until a standby is promoted, then complete. On Arc 27.01.1 and later, while no node can accept the write, Arc answers `503` with `X-Arc-Ingest-Fenced`. Nothing was written, so the node resends after `Retry-After`, and rows buffer until a primary is back. Nothing goes to Catch.
+- **The failed writer itself**: the connection is refused, so the node backs off and resends to that same node, and the rows wait until it is back. A restarted writer rejoins as a standby and forwards the write to the new primary. Point arc write at a load balancer or a reader rather than at one writer.
 
 On Arc 26.09.x no `503` carries these headers, so the node cannot tell a refused write from one that was stored: every `503` during a failover goes to Catch and is not resent.
+
+A `204` from the old primary means it accepted the rows. Rows it had not flushed when it failed are on no other node until it restarts and replays its WAL, unless [stream takeover](/arc-enterprise/configuration/clustering/#stream-takeover-v27011) is on.
 
 ### Writing through a reader
 
