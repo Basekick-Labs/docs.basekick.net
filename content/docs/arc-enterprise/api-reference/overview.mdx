@@ -909,12 +909,11 @@ Create a continuous query.
 ```json
 {
   "name": "hourly-rollup",
-  "source_database": "default",
+  "database": "default",
   "source_measurement": "cpu",
-  "destination_database": "default",
   "destination_measurement": "cpu_hourly",
-  "query": "SELECT time_bucket('1 hour', time) as time, host, AVG(usage) as avg_usage FROM default.cpu GROUP BY 1, 2",
-  "schedule": "0 * * * *"
+  "query": "SELECT time_bucket('1 hour', time) as time, host, AVG(usage) as avg_usage FROM default.cpu WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, 2",
+  "interval": "1h"
 }
 ```
 
