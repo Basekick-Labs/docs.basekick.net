@@ -140,11 +140,11 @@ Telemetry is sent to: `telemetry.basekick.net`
 
 ### Startup logging
 
-Arc logs telemetry status on startup. With the default console log format, the lines look like this (timestamps and source locations shortened).
+Arc logs telemetry status on startup. With the default console log format, the lines look like this (timestamps and source locations shortened):
 
 **When enabled**:
 ```text
-INF > Telemetry enabled instance_id=ad9d4497-d78d-49ef-be09-8d0daf48352e interval=86400000
+INF > Telemetry enabled instance_id=<instance-id> interval=86400000
 ```
 
 `interval` is in milliseconds; 86400000 is 24 hours.
@@ -209,13 +209,11 @@ After configuring, restart Arc and check the startup log. For a package install:
 sudo journalctl -u arc | grep -i "telemetry"
 ```
 
-For Docker, use `docker logs arc 2>&1 | grep -i "telemetry"`. Telemetry is disabled when the log shows:
+For Docker, use `docker logs arc 2>&1 | grep -i "telemetry"`. Telemetry is disabled when the latest startup shows this line and no `Telemetry enabled` line:
 
 ```text
 INF > Telemetry is DISABLED (opt-out via ARC_TELEMETRY_ENABLED=false)
 ```
-
-and no `Telemetry enabled` line follows it.
 
 ## Why telemetry?
 

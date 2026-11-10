@@ -118,6 +118,7 @@ sudo journalctl -u arc | grep -i "admin"
 </Tabs>
 
 You'll see:
+
 ```text
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
@@ -126,12 +127,13 @@ You'll see:
 ======================================================================
 ```
 
-The token is the 44-character value after `Admin API token:`. Save it:
+The token is the value after `Admin API token:` (44 characters when Arc generates it). Save it:
+
 ```bash
 export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
 
-Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
+If you use [arcli](/arcli/), export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and fails with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Write data
 

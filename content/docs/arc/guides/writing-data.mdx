@@ -19,7 +19,7 @@ export ARC_TOKEN="<api-token>" ARC_ENDPOINT=http://localhost:8000
 arcli db create metrics
 ```
 
-arcli reads `ARC_TOKEN` from the environment only together with `ARC_ENDPOINT`. With the token exported on its own, every arcli command fails with `ARC_TOKEN needs ARC_ENDPOINT`.
+arcli reads `ARC_TOKEN` from the environment only together with `ARC_ENDPOINT`. With the token exported on its own, arcli commands that use the environment fail with `ARC_TOKEN needs ARC_ENDPOINT`.
 
 ## MessagePack
 

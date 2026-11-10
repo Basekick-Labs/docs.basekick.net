@@ -45,8 +45,7 @@ sudo dnf install -y ./arcli-${PKG}-1.x86_64.rpm
 
 Use `.aarch64.rpm` on ARM64. To upgrade, use `sudo dnf upgrade -y ./arcli-${PKG}-1.x86_64.rpm`.
 
-arcli RPMs up to 26.09.4 are unsigned, and releases after 26.09.4 are signed with the Basekick Labs package key, the same key as Arc's (fingerprint `3E39 9CF8 F5D2 EF9A A9A5  36EF 7629 7AF0 8CBA B6FE`). `dnf install ./arcli-….rpm` installs either; `rpm -i` refuses an unsigned package where rpm enforces signatures, as rpm 6.1 on Fedora 45 does.
-{/* TODO(verify): the first signed arcli release; signing merged in Basekick-Labs/arcli#90 on 2026-11-10 and had not been released yet */}
+arcli RPMs up to 26.09.4 are unsigned; future releases will be signed with the Basekick Labs package key, the same key as Arc's, which the `rpm --import` line installs. `dnf install ./arcli-<version>-1.x86_64.rpm` installs a signed or an unsigned package; `rpm -i` refuses an unsigned package where rpm enforces signatures, as rpm 6.1 on Fedora 45 does.
 
   </Tab>
   <Tab value="Arch">

@@ -145,11 +145,11 @@ The key is also in the repository at [`deploy/packaging/RPM-GPG-KEY-basekick`](h
 Check a downloaded package against it:
 
 ```bash
-rpm -K arc-${LATEST_VERSION}-1.x86_64.rpm
-# arc-...-1.x86_64.rpm: digests signatures OK
+rpm -K arc-<version>-1.x86_64.rpm
+# arc-<version>-1.x86_64.rpm: digests signatures OK
 ```
 
-RPMs up to 26.09.3 are unsigned. `dnf install ./arc-….rpm` still installs them, with a warning; `rpm -i` refuses them where rpm enforces signatures.
+RPMs up to 26.09.3 are unsigned. `dnf install ./arc-<version>-1.x86_64.rpm` still installs them, with a warning; `rpm -i` refuses them where rpm enforces signatures.
 
 ## Get your admin token
 
@@ -173,13 +173,13 @@ You should see:
 ======================================================================
 ```
 
-The token is the 44-character value after `Admin API token:`. Save it:
+The token is the value after `Admin API token:` (44 characters when Arc generates it). Save it:
 
 ```bash
 export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
 
-Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
+Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and fails with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Storage backends
 
@@ -316,7 +316,7 @@ port = 8000
 
 [storage]
 backend = "local"
-local_path = "/var/lib/arc/data"  # ignored under systemd: the unit sets ARC_STORAGE_LOCAL_PATH
+local_path = "/var/lib/arc/data"  # ignored under the packaged systemd unit, which sets ARC_STORAGE_LOCAL_PATH
 
 [auth]
 enabled = true
@@ -346,10 +346,12 @@ See [Configuration Overview](/arc/configuration/overview/) for all options.
 
 ### Move the data directory
 
-The package's systemd unit sets the local storage path with `ARC_STORAGE_LOCAL_PATH`, which takes precedence over `local_path` in `/etc/arc/arc.toml`. To store data somewhere else, override the variable in a drop-in:
+The package's systemd unit sets the local storage path with `ARC_STORAGE_LOCAL_PATH`, which takes precedence over `local_path` in `/etc/arc/arc.toml`. To store data somewhere else, stop Arc, copy the existing data, and override the variable in a drop-in:
 
 ```bash
-sudo mkdir -p /srv/arc/data
+sudo systemctl stop arc
+sudo mkdir -p /srv/arc
+sudo cp -a /var/lib/arc/data /srv/arc/data
 sudo chown -R arc:arc /srv/arc
 sudo systemctl edit arc
 ```
@@ -361,14 +363,14 @@ In the editor, add:
 Environment="ARC_STORAGE_LOCAL_PATH=/srv/arc/data"
 ```
 
-Save, then restart Arc and confirm the path:
+Save, then start Arc and confirm the path:
 
 ```bash
-sudo systemctl restart arc
+sudo systemctl start arc
 sudo journalctl -u arc | grep "Storage backend initialized"
 ```
 
-Arc does not move existing data. To keep it, stop Arc and copy `/var/lib/arc/data` to the new path before restarting.
+Arc does not move data by itself. Skip the `cp` on a fresh install and create the empty directory instead.
 
 ## Updating Arc
 
