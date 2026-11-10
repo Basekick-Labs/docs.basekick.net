@@ -50,7 +50,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         },
     )
 
-    # Query to pandas (bare name: the client sends x-arc-database: default)
+    # Query to pandas (a bare name reads the default database)
     df = client.query.query_pandas(
         "SELECT * FROM cpu WHERE host = 'server01'"
     )
