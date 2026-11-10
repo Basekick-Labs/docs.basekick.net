@@ -15,7 +15,7 @@ Arc provides native MQTT subscription with dynamic, API-driven configuration. Ma
 - **Topic wildcards** - Subscribe using `+` (single level) and `#` (multi-level) wildcards
 - **Auto-detection** - Automatically detects JSON and MessagePack message formats
 - **High performance** - MessagePack columnar format for high-throughput ingestion
-- **Topic mapping** - Extract tags from topic path segments
+- **Topic mapping** - Route a topic to another database; from v27.01.1, also set the measurement and extract tags from topic path segments
 - **TLS/SSL support** - Client certificates and CA verification
 - **Encrypted credentials** - Passwords encrypted at rest using AES-256-GCM
 - **Auto-reconnect** - Exponential backoff on connection loss
@@ -63,26 +63,57 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 
 ```json
 {
-  "id": "sub_abc123",
-  "name": "factory-sensors",
-  "broker": "tcp://localhost:1883",
-  "topics": ["sensors/#"],
-  "database": "iot",
-  "status": "running",
-  "created_at": "2026-02-13T10:00:00Z"
+  "success": true,
+  "subscription": {
+    "id": "056fbfda-eab0-4358-b139-42c539896a1f",
+    "name": "factory-sensors",
+    "broker": "tcp://localhost:1883",
+    "client_id": "arc-e5ccee1d",
+    "topics": ["sensors/#"],
+    "qos": 1,
+    "database": "iot",
+    "has_password": false,
+    "tls_enabled": false,
+    "tls_insecure_skip_verify": false,
+    "auto_start": true,
+    "status": "stopped",
+    "keep_alive_seconds": 60,
+    "connect_timeout_seconds": 30,
+    "reconnect_max_seconds": 60,
+    "clean_session": false,
+    "created_at": "2026-02-13T10:00:00Z",
+    "updated_at": "2026-02-13T10:00:00Z"
+  }
 }
 ```
 
-### 3. Send test data
+### 3. Start the subscription
 
-Publish a message to your MQTT broker:
+A new subscription is created `stopped`, even with `"auto_start": true`: `auto_start` only makes Arc start the subscription each time the server starts. Start it with the `id` from the response:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions/056fbfda-eab0-4358-b139-42c539896a1f/start \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{"success": true, "message": "Subscription started"}
+```
+
+`GET /api/v1/mqtt/subscriptions/{id}` now reports `"status": "running"`.
+
+### 4. Send test data
+
+Publish a message to your MQTT broker. The `m` key names the measurement; a payload without `m` or `measurement` is written to the `mqtt` measurement (see [Measurement, tags, and fields](#measurement-tags-and-fields)):
 
 ```bash
 mosquitto_pub -h localhost -t "sensors/temperature" \
-  -m '{"time": 1706745600000000, "value": 23.5, "device_id": "sensor-001"}'
+  -m '{"m": "temperature", "time": 1706745600000000, "value": 23.5, "device_id": "sensor-001"}'
 ```
 
-### 4. Query the data
+### 5. Query the data
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
@@ -164,11 +195,11 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object | No | {} | Per topic filter (`+`, `#`): a database name, or a rule setting `database`, `measurement` and `tags_from_topic` (v27.01.1+). See [Topic mapping](#topic-mapping). |
+| `topic_mapping` | object | No | {} | Up to v26.09: exact topic to database name. From v27.01.1: topic filter (`+`, `#`) to a database name or a rule setting `database`, `measurement` and `tags_from_topic`. See [Topic mapping](#topic-mapping). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
 | `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
-| `auto_start` | bool | No | true | Start on creation and server restart |
+| `auto_start` | bool | No | false | Start the subscription whenever Arc starts. Creating a subscription does not start it: call `POST /api/v1/mqtt/subscriptions/{id}/start`. |
 
 ## Message formats
 
@@ -221,7 +252,7 @@ Same structure as JSON, but MessagePack encoded. Detected via magic bytes.
 
 ## Measurement, tags, and fields
 
-Arc derives the measurement, tags, and fields **from the message payload**, unless a [topic mapping](#topic-mapping) rule for the topic sets the measurement or takes tags from topic levels.
+Arc derives the measurement, tags, and fields **from the message payload**, unless a [topic mapping](#topic-mapping) rule (v27.01.1+) for the topic sets the measurement or takes tags from topic levels.
 
 For each decoded message:
 
@@ -253,6 +284,13 @@ Unless a `topic_mapping` rule sets `measurement` for the topic, the measurement 
 named. Each key is an MQTT topic filter; each value is either a database name
 (the original form) or, from v27.01.1, a rule object
 ([arc#479](https://github.com/Basekick-Labs/arc/issues/479)).
+
+<Callout type="info" title="Up to v26.09: exact topics, database names only">
+In v26.09.x and earlier, each key is matched against the published topic as an
+exact string and each value is a database name. Wildcard keys, rule objects,
+`measurement` and `tags_from_topic`, and everything below this callout except
+the upgrade notes, need v27.01.1 or later.
+</Callout>
 
 ```json
 {
@@ -367,7 +405,7 @@ the subscribed topics. Three things decide what a message can write:
   subscribed topic can write through Arc. Restrict publishing with the
   broker's ACLs.
 
-So, to keep one measurement per topic, pin it with a `topic_mapping` rule and
+So, to keep one measurement per topic, pin it with a `topic_mapping` rule (v27.01.1+) and
 limit who can publish to that topic at the broker. To keep tenants apart, give
 each tenant its own subscription and database, and its own topics with broker
 ACLs.
@@ -618,10 +656,11 @@ If status is `error`, verify:
 
 ### No data appearing
 
-1. Verify subscription is running (status should be `"running"`)
-2. Check stats for received messages
-3. Verify topic pattern matches published topics
-4. Check Arc logs for decode errors
+1. Verify subscription is running (status should be `"running"`). A new subscription stays `stopped` until you call `POST /api/v1/mqtt/subscriptions/{id}/start`
+2. If you are querying a measurement named after the topic, check the `mqtt` measurement: without an `m` or `measurement` key in the payload, messages land there
+3. Check stats for received messages
+4. Verify topic pattern matches published topics
+5. Check Arc logs for decode errors
 
 ### Messages not decoding
 
