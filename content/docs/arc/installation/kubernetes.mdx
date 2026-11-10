@@ -494,7 +494,7 @@ replicaCount: 1
 # Container image (tag defaults to the chart appVersion).
 image:
   repository: ghcr.io/basekick-labs/arc
-  tag: ""                # set "26.06.2" for full IRSA query-read support
+  tag: ""                # IRSA query reads need 26.06.2 or later if you pin a tag
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
