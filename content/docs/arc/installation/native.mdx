@@ -48,8 +48,9 @@ sudo systemctl enable arc && sudo systemctl start arc
 
 ```bash
 LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.x86_64.rpm
-sudo rpm -i arc-${LATEST_VERSION}-1.x86_64.rpm
+sudo dnf install -y ./arc-${LATEST_VERSION}-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 curl http://localhost:8000/health
 ```
@@ -58,8 +59,9 @@ curl http://localhost:8000/health
 
 ```bash
 LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.aarch64.rpm
-sudo rpm -i arc-${LATEST_VERSION}-1.aarch64.rpm
+sudo dnf install -y ./arc-${LATEST_VERSION}-1.aarch64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 
@@ -126,6 +128,29 @@ against the CMVP-certified Go Cryptographic Module. See
 package; on Arch use the standalone binary.
 </Callout>
 
+## Verify the RPM signature
+
+From 26.09.4 the Arc RPMs (`arc` and `arc-fips`) are signed with the Basekick Labs package key. Recent rpm releases, such as rpm 6.1 on Fedora 45, refuse to install a package whose key has not been imported, so import the key once before installing:
+
+```bash
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
+```
+
+The key is also in the repository at [`deploy/packaging/RPM-GPG-KEY-basekick`](https://raw.githubusercontent.com/Basekick-Labs/arc/main/deploy/packaging/RPM-GPG-KEY-basekick). Its fingerprint is:
+
+```text
+3E39 9CF8 F5D2 EF9A A9A5  36EF 7629 7AF0 8CBA B6FE
+```
+
+Check a downloaded package against it:
+
+```bash
+rpm -K arc-${LATEST_VERSION}-1.x86_64.rpm
+# arc-...-1.x86_64.rpm: digests signatures OK
+```
+
+RPMs up to 26.09.3 are unsigned. `dnf install ./arc-….rpm` still installs them, with a warning; `rpm -i` refuses them where rpm enforces signatures.
+
 ## Get your admin token
 
 When Arc starts for the first time, it generates an admin token.
@@ -140,19 +165,21 @@ sudo journalctl -u arc | grep -i "admin"
 
 You should see:
 
-```bash
+```text
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
-Save it:
+The token is the 44-character value after `Admin API token:`. Save it:
 
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
+
+Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Storage backends
 
@@ -175,6 +202,10 @@ Or via environment:
 ARC_STORAGE_BACKEND=local
 ARC_STORAGE_LOCAL_PATH=/var/lib/arc/data
 ```
+
+<Callout type="warn" title="The systemd unit sets the storage path">
+The packaged `arc.service` sets `Environment="ARC_STORAGE_LOCAL_PATH=/var/lib/arc/data"`, and environment variables override `arc.toml`. A `local_path` edited in `/etc/arc/arc.toml` is ignored: the log still shows `Storage backend initialized backend=local path=/var/lib/arc/data`. See [Move the data directory](#move-the-data-directory).
+</Callout>
 
   </Tab>
   <Tab value="AWS S3">
@@ -285,7 +316,7 @@ port = 8000
 
 [storage]
 backend = "local"
-local_path = "/var/lib/arc/data"
+local_path = "/var/lib/arc/data"  # ignored under systemd: the unit sets ARC_STORAGE_LOCAL_PATH
 
 [auth]
 enabled = true
@@ -313,6 +344,32 @@ See [Configuration Overview](/arc/configuration/overview/) for all options.
 | Package install   | `/var/lib/arc/data`    |
 | Source build      | `./data/arc`           |
 
+### Move the data directory
+
+The package's systemd unit sets the local storage path with `ARC_STORAGE_LOCAL_PATH`, which takes precedence over `local_path` in `/etc/arc/arc.toml`. To store data somewhere else, override the variable in a drop-in:
+
+```bash
+sudo mkdir -p /srv/arc/data
+sudo chown -R arc:arc /srv/arc
+sudo systemctl edit arc
+```
+
+In the editor, add:
+
+```ini
+[Service]
+Environment="ARC_STORAGE_LOCAL_PATH=/srv/arc/data"
+```
+
+Save, then restart Arc and confirm the path:
+
+```bash
+sudo systemctl restart arc
+sudo journalctl -u arc | grep "Storage backend initialized"
+```
+
+Arc does not move existing data. To keep it, stop Arc and copy `/var/lib/arc/data` to the new path before restarting.
+
 ## Updating Arc
 
 <Tabs items={['Debian/Ubuntu', 'RHEL/Fedora', 'Arch Linux', 'Source']}>
@@ -326,16 +383,21 @@ sudo dpkg -i arc_${LATEST_VERSION}_amd64.deb
 sudo systemctl restart arc
 ```
 
+Up to 26.09.x, a `.deb` upgrade replaces `/etc/arc/arc.toml` with the packaged file, discarding your edits. Copy the file before upgrading and reapply your changes afterwards. From 27.01.1 the `.deb` keeps an existing `/etc/arc/arc.toml`.
+
   </Tab>
   <Tab value="RHEL/Fedora">
 
 ```bash
 # Automatic update to latest version
 LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-${LATEST_VERSION}-1.x86_64.rpm
-sudo rpm -U arc-${LATEST_VERSION}-1.x86_64.rpm
+sudo dnf upgrade -y ./arc-${LATEST_VERSION}-1.x86_64.rpm
 sudo systemctl restart arc
 ```
+
+The `rpm --import` is needed once, when upgrading from 26.09.3 or earlier. An edited `/etc/arc/arc.toml` is kept across upgrades; the packaged file is written next to it as `arc.toml.rpmnew`.
 
   </Tab>
   <Tab value="Arch Linux">
@@ -432,7 +494,7 @@ thread_count = 8
 
 ## Next steps
 
-- [Write your first data](/arc/getting-started/#write-data)
+- [Write your first data](/arc/getting-started/#write-your-own-data)
 - [Configure storage backends](/arc/configuration/overview/)
 - [Deploy on Kubernetes](/arc/installation/kubernetes/)
 - [Set up compaction](/arc/advanced/compaction/)

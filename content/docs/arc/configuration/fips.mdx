@@ -98,11 +98,14 @@ sudo systemctl enable arc && sudo systemctl start arc
 
 ```bash
 LATEST_VERSION=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 # arc-fips-${LATEST_VERSION}-1.aarch64.rpm on ARM
 wget https://github.com/basekick-labs/arc/releases/download/v${LATEST_VERSION}/arc-fips-${LATEST_VERSION}-1.x86_64.rpm
-sudo rpm -i arc-fips-${LATEST_VERSION}-1.x86_64.rpm
+sudo dnf install -y ./arc-fips-${LATEST_VERSION}-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
+
+From 26.09.4 the `arc-fips` RPMs are signed with the Basekick Labs package key, the same key as the standard build. See [Verify the RPM signature](/arc/installation/native/#verify-the-rpm-signature) for the fingerprint.
 
   </Tab>
 </Tabs>

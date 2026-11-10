@@ -52,7 +52,8 @@ docker run -d \
   <Tab value="Kubernetes">
 
 ```bash
-helm install arc https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.3.tgz
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+helm install arc https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}.tgz
 kubectl port-forward svc/arc 8000:8000
 ```
 
@@ -60,8 +61,9 @@ kubectl port-forward svc/arc 8000:8000
   <Tab value="Debian/Ubuntu">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/latest/download/arc_26.09.3_amd64.deb
-sudo dpkg -i arc_26.09.3_amd64.deb
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc_${LATEST}_amd64.deb
+sudo dpkg -i arc_${LATEST}_amd64.deb
 sudo systemctl enable arc && sudo systemctl start arc
 ```
 
@@ -69,10 +71,14 @@ sudo systemctl enable arc && sudo systemctl start arc
   <Tab value="RHEL/Fedora">
 
 ```bash
-wget https://github.com/basekick-labs/arc/releases/latest/download/arc-26.09.3-1.x86_64.rpm
-sudo rpm -i arc-26.09.3-1.x86_64.rpm
+LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
+wget https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}-1.x86_64.rpm
+sudo dnf install -y ./arc-${LATEST}-1.x86_64.rpm
 sudo systemctl enable arc && sudo systemctl start arc
 ```
+
+The RPMs are signed with the Basekick Labs package key from 26.09.4. See [Native installation](/arc-enterprise/installation/native/#verify-the-rpm-signature) for the key fingerprint.
 
   </Tab>
 </Tabs>
@@ -116,14 +122,16 @@ You'll see:
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
-Save it:
+The token is the 44-character value after `Admin API token:`. Save it:
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
+
+Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Write data
 

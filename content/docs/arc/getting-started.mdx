@@ -42,10 +42,13 @@ sudo systemctl enable --now arc
 
 ```bash
 LATEST=$(curl -s https://api.github.com/repos/basekick-labs/arc/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 curl -LO https://github.com/basekick-labs/arc/releases/download/v${LATEST}/arc-${LATEST}-1.x86_64.rpm
-sudo rpm -i arc-${LATEST}-1.x86_64.rpm
+sudo dnf install -y ./arc-${LATEST}-1.x86_64.rpm
 sudo systemctl enable --now arc
 ```
+
+The RPMs are signed with the Basekick Labs package key from 26.09.4. See [Native installation](/arc/installation/native/#verify-the-rpm-signature) for the key fingerprint.
 
   </Tab>
 </Tabs>
@@ -86,11 +89,13 @@ sudo journalctl -u arc | grep -i "admin"
   </Tab>
 </Tabs>
 
-Copy the value that begins with `arc_`:
+Copy the value after `Admin API token:`, a 44-character string, into a shell variable:
 
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ARC_TOKEN="<admin-api-token>"
 ```
+
+Don't `export` it. arcli reads `ARC_TOKEN` from the environment only together with `ARC_ENDPOINT`, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when the token is exported on its own. The next step saves the token in an arcli connection instead.
 
 ## 3. Connect with arcli
 
