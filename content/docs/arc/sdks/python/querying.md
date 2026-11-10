@@ -20,7 +20,7 @@ All query methods are available on `client.query`.
 
 ## SQL syntax
 
-Write measurement names unqualified. The client sends an `x-arc-database` header (the `database` given to `ArcClient`, default `"default"`, or a call's `database=` argument), and Arc rejects `database.measurement` names while it is set; see [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
+From `arc-tsdb-client` 0.2.1, a query sends an `x-arc-database` header only for a database you chose: a call's `database=` argument, or the `database` given to `ArcClient`. Without one, bare names (`FROM cpu`) read `default` and qualified names (`FROM iot.mem`) work. With one, write bare names: Arc rejects `database.measurement` names while the header is set. Up to 0.2.0 the client always sent the header (`default` unless set), so only bare names worked. See [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
 
 ```sql
 SELECT * FROM cpu WHERE host = 'server01'

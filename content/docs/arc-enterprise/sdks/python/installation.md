@@ -114,7 +114,7 @@ client = ArcClient(
     host="localhost",       # Arc server hostname
     port=8000,              # Arc server port (default: 8000)
     token="your-token",     # API token (required)
-    database="default",     # Default database for queries
+    database=None,          # Optional; see "The database setting" below
     timeout=30.0,           # Request timeout in seconds
     compression=True,       # Enable gzip compression for writes
     ssl=False,              # Use HTTPS instead of HTTP
@@ -130,7 +130,7 @@ You can also configure the client using environment variables:
 export ARC_HOST="localhost"
 export ARC_PORT="8000"
 export ARC_TOKEN="your-token"
-export ARC_DATABASE="default"
+export ARC_DATABASE="iot"   # optional
 ```
 
 ```python
@@ -143,9 +143,17 @@ client = ArcClient(
     host=os.getenv("ARC_HOST", "localhost"),
     port=int(os.getenv("ARC_PORT", "8000")),
     token=os.getenv("ARC_TOKEN"),
-    database=os.getenv("ARC_DATABASE", "default"),
+    database=os.getenv("ARC_DATABASE"),  # None when unset
 )
 ```
+
+### The database setting
+
+`database` is optional. Writes and imports go to `default` when it is unset.
+From `arc-tsdb-client` 0.2.1, queries send it as `x-arc-database` only when it
+is set: leave it unset to query any database by full name (`FROM iot.mem`),
+or set it to query bare names in that database. A `database=` argument on a
+call always wins. See [SQL syntax](/arc-enterprise/sdks/python/querying/#sql-syntax).
 
 ### Context manager (recommended)
 
