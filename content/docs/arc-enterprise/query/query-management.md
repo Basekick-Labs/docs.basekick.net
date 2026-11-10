@@ -48,7 +48,7 @@ All query management endpoints require admin authentication.
 View all currently running queries:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/active
 ```
 
@@ -87,7 +87,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Review recently completed queries:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/history
 ```
 
@@ -116,7 +116,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Inspect a specific query by ID:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/q-abc123
 ```
 
@@ -125,7 +125,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Stop a long-running or runaway query. The id comes from the `X-Arc-Query-ID` response header of the query, or from the active list above:
 
 ```bash
-curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+curl -X DELETE -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/q-abc123
 ```
 
@@ -154,11 +154,11 @@ The cancelled request itself ends with an error. On `POST /api/v1/query/arrow` a
 
 ```bash
 # Find queries running longer than expected
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/active
 
 # Cancel a specific runaway query
-curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+curl -X DELETE -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/queries/q-abc123
 ```
 

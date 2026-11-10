@@ -923,7 +923,7 @@ All cluster endpoints require admin authentication.
 ### Get cluster status
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/cluster
 ```
 
@@ -977,15 +977,15 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 # All nodes
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/cluster/nodes
 
 # Filter by role
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/cluster/nodes?role=reader"
 
 # Filter by state
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/cluster/nodes?state=healthy"
 ```
 
@@ -1016,21 +1016,21 @@ curl -H "Authorization: Bearer $TOKEN" \
 ### Get specific node
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/cluster/nodes/writer-01
 ```
 
 ### Get local node info
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/cluster/local
 ```
 
 ### Cluster health check
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/cluster/health
 ```
 

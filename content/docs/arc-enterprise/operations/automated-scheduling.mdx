@@ -134,7 +134,7 @@ Retention Schedule (runs daily at 3am):
 ```bash
 # 1-minute aggregation
 curl -X POST http://localhost:8000/api/v1/continuous-queries \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "downsample_1min",
@@ -148,7 +148,7 @@ curl -X POST http://localhost:8000/api/v1/continuous-queries \
 
 # 1-hour aggregation
 curl -X POST http://localhost:8000/api/v1/continuous-queries \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "downsample_1hr",
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8000/api/v1/continuous-queries \
 ```bash
 # Delete raw data after 7 days
 curl -X POST http://localhost:8000/api/v1/retention \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "raw_7d",
@@ -178,7 +178,7 @@ curl -X POST http://localhost:8000/api/v1/retention \
 
 # Delete 1-minute data after 30 days
 curl -X POST http://localhost:8000/api/v1/retention \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "1min_30d",

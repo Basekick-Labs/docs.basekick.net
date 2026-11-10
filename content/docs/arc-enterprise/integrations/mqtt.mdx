@@ -49,7 +49,7 @@ Restart Arc to apply the configuration.
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "factory-sensors",
     "broker": "tcp://localhost:1883",
@@ -117,7 +117,7 @@ mosquitto_pub -h localhost -t "sensors/temperature" \
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "sql": "SELECT * FROM iot.temperature ORDER BY time DESC LIMIT 10",
@@ -418,7 +418,7 @@ ACLs.
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "authenticated-broker",
     "broker": "tcp://broker.example.com:1883",
@@ -452,7 +452,7 @@ The encryption key is only required when subscriptions have passwords. Subscript
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "secure-broker",
     "broker": "ssl://broker.example.com:8883",
@@ -468,7 +468,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "mtls-broker",
     "broker": "ssl://broker.example.com:8883",
@@ -490,7 +490,7 @@ Each subscription below is created `stopped`. Start it with `POST /api/v1/mqtt/s
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "iot-sensors",
     "broker": "tcp://mosquitto:1883",
@@ -515,7 +515,7 @@ Devices set the measurement and tags in the payload — e.g. a temperature senso
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "factory-floor",
     "broker": "tcp://factory-mqtt:1883",
@@ -548,11 +548,11 @@ needs v27.01.1 or later; 26.09.x refuses it with `400 Invalid request body`:
 
 ```bash
 # Stats for a specific subscription
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats
 
 # Aggregate stats for all subscriptions
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/mqtt/stats
 ```
 
@@ -593,7 +593,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ### Health check
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/mqtt/health
 ```
 
@@ -665,7 +665,7 @@ ORDER BY time DESC;
 Check subscription status:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/mqtt/subscriptions/{id}
 ```
 
@@ -696,7 +696,7 @@ mosquitto_pub -h localhost -t "test/data" \
 Check for decode errors in stats:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats
 ```
 
