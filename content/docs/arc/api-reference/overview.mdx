@@ -1485,8 +1485,10 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         measurement="cpu",
         columns={"time": [...], "host": [...], "usage": [...]},
     )
-    df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 10")
+    df = client.query.query_pandas("SELECT * FROM cpu LIMIT 10")
 ```
+
+The client sends `x-arc-database` (default `"default"`) with every request, so write measurement names unqualified; a `database.measurement` name is rejected with `400`. See [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
 
 See [Python SDK Documentation](/arc/sdks/python/) for full details.
 

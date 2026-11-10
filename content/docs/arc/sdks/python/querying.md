@@ -20,11 +20,20 @@ All query methods are available on `client.query`.
 
 ## SQL syntax
 
-Arc uses SQL with the table syntax `database.measurement`:
+The client sends an `x-arc-database` header with every request: the `database` passed to `ArcClient` (default `"default"`), or the `database=` argument of a single query call. Write measurement names **unqualified**, and they resolve against that database:
 
 ```sql
-SELECT * FROM default.cpu WHERE host = 'server01'
+SELECT * FROM cpu WHERE host = 'server01'
 ```
+
+```python
+# Same query against another database
+df = client.query.query_pandas("SELECT * FROM cpu LIMIT 10", database="production")
+```
+
+Arc rejects a `database.measurement` name when that header is set, so `SELECT * FROM cpu` fails with `ArcQueryError` and `Cross-database queries (db.table syntax) not allowed when x-arc-database header is set`. To query more than one database in a single statement, create the client with `database=""`, which sends no header, and qualify every name. See [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header) for the full rule.
+
+Continuous query definitions are the exception: they run on the server without the header, so their `query` uses qualified names (`FROM cpu`). See [Continuous queries](/arc/sdks/python/data-management/#continuous-queries).
 
 Arc runs a full analytical SQL engine, so you have access to:
 - Window functions
@@ -45,7 +54,7 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     result = client.query.query(
-        "SELECT * FROM default.cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 100"
+        "SELECT * FROM cpu WHERE time > now() - INTERVAL '1 hour' LIMIT 100"
     )
 
     print(f"Columns: {result.columns}")
@@ -130,7 +139,7 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas(
-        "SELECT * FROM default.cpu WHERE host = 'server01' LIMIT 1000"
+        "SELECT * FROM cpu WHERE host = 'server01' LIMIT 1000"
     )
 
     print(df.head())
@@ -164,13 +173,14 @@ Returns query results as a polars DataFrame. Requires `pip install arc-tsdb-clie
 
 ```python
 import os
+import polars as pl
 from arc_client import ArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_polars(
-        "SELECT * FROM default.cpu LIMIT 100000"
+        "SELECT * FROM cpu LIMIT 100000"
     )
 
     print(df.head())
@@ -218,7 +228,7 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     table = client.query.query_arrow(
-        "SELECT * FROM default.cpu LIMIT 1000000"
+        "SELECT * FROM cpu LIMIT 1000000"
     )
 
     print(f"Rows: {table.num_rows}")
@@ -264,7 +274,7 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     estimate = client.query.estimate(
-        "SELECT * FROM default.cpu WHERE time > now() - INTERVAL '30 days'"
+        "SELECT * FROM cpu WHERE time > now() - INTERVAL '30 days'"
     )
 
     print(f"Estimated rows: {estimate.estimated_rows}")
@@ -314,7 +324,7 @@ df = client.query.query_pandas("""
         AVG(usage_idle) as avg_idle,
         MAX(usage_system) as max_system,
         COUNT(*) as samples
-    FROM default.cpu
+    FROM cpu
     WHERE time > now() - INTERVAL '1 hour'
     GROUP BY bucket, host
     ORDER BY bucket DESC
@@ -327,7 +337,7 @@ df = client.query.query_pandas("""
 df = client.query.query_pandas("""
     SELECT DISTINCT ON (host)
         time, host, usage_idle, usage_system
-    FROM default.cpu
+    FROM cpu
     ORDER BY host, time DESC
 """)
 ```
@@ -341,7 +351,7 @@ df = client.query.query_pandas("""
         percentile_cont(0.50) WITHIN GROUP (ORDER BY usage_idle) as p50,
         percentile_cont(0.95) WITHIN GROUP (ORDER BY usage_idle) as p95,
         percentile_cont(0.99) WITHIN GROUP (ORDER BY usage_idle) as p99
-    FROM default.cpu
+    FROM cpu
     WHERE time > now() - INTERVAL '24 hours'
     GROUP BY host
 """)
@@ -356,8 +366,8 @@ df = client.query.query_pandas("""
         c.host,
         c.usage_idle as cpu_idle,
         m.used_percent as mem_used
-    FROM default.cpu c
-    JOIN default.mem m
+    FROM cpu c
+    JOIN mem m
         ON c.time = m.time AND c.host = m.host
     WHERE c.time > now() - INTERVAL '10 minutes'
     ORDER BY c.time DESC
@@ -378,16 +388,16 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # JSON result
-        result = await client.query.query("SELECT * FROM default.cpu LIMIT 10")
+        result = await client.query.query("SELECT * FROM cpu LIMIT 10")
 
         # pandas DataFrame
-        df = await client.query.query_pandas("SELECT * FROM default.cpu LIMIT 1000")
+        df = await client.query.query_pandas("SELECT * FROM cpu LIMIT 1000")
 
         # Polars DataFrame
-        pl_df = await client.query.query_polars("SELECT * FROM default.cpu LIMIT 1000")
+        pl_df = await client.query.query_polars("SELECT * FROM cpu LIMIT 1000")
 
         # Arrow Table
-        table = await client.query.query_arrow("SELECT * FROM default.cpu LIMIT 10000")
+        table = await client.query.query_arrow("SELECT * FROM cpu LIMIT 10000")
 
 asyncio.run(main())
 ```
@@ -406,9 +416,9 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
         # Run queries concurrently
-        cpu_task = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 1000")
-        mem_task = client.query.query_pandas("SELECT * FROM default.mem LIMIT 1000")
-        disk_task = client.query.query_pandas("SELECT * FROM default.disk LIMIT 1000")
+        cpu_task = client.query.query_pandas("SELECT * FROM cpu LIMIT 1000")
+        mem_task = client.query.query_pandas("SELECT * FROM mem LIMIT 1000")
+        disk_task = client.query.query_pandas("SELECT * FROM disk LIMIT 1000")
 
         cpu_df, mem_df, disk_df = await asyncio.gather(cpu_task, mem_task, disk_task)
 
@@ -425,19 +435,18 @@ asyncio.run(main())
 import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
     ArcQueryError,
     ArcConnectionError,
     ArcAuthenticationError,
 )
 
+ARC_TOKEN = os.environ["ARC_TOKEN"]
+
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     try:
-        df = client.query.query_pandas("SELECT * FROM nonexistent.table")
+        df = client.query.query_pandas("SELECT * FROM nonexistent_measurement")
     except ArcQueryError as e:
-        print(f"Query failed: {e}")  # Invalid SQL or table not found
+        print(f"Query failed: {e}")  # Invalid SQL or measurement not found
     except ArcAuthenticationError as e:
         print(f"Auth failed: {e}")  # Invalid token
     except ArcConnectionError as e:
@@ -453,13 +462,13 @@ Push filters to Arc rather than filtering in Python:
 ```python
 # ✅ Good: Filter in SQL
 df = client.query.query_pandas("""
-    SELECT * FROM default.cpu
+    SELECT * FROM cpu
     WHERE time > now() - INTERVAL '1 hour'
     AND host = 'server01'
 """)
 
 # ❌ Bad: Fetch all, filter in Python
-df = client.query.query_pandas("SELECT * FROM default.cpu")
+df = client.query.query_pandas("SELECT * FROM cpu")
 df = df[df["host"] == "server01"]
 ```
 
@@ -468,25 +477,25 @@ df = df[df["host"] == "server01"]
 ```python
 # ✅ Good: Select specific columns
 df = client.query.query_pandas("""
-    SELECT time, host, usage_idle FROM default.cpu
+    SELECT time, host, usage_idle FROM cpu
 """)
 
 # ❌ Bad: Select all columns
-df = client.query.query_pandas("SELECT * FROM default.cpu")
+df = client.query.query_pandas("SELECT * FROM cpu")
 ```
 
 ### 3. Use LIMIT for exploration
 
 ```python
 # ✅ Good: Limit during exploration
-df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 100")
+df = client.query.query_pandas("SELECT * FROM cpu LIMIT 100")
 ```
 
 ### 4. Use Arrow for large results
 
 ```python
 # For 100K+ rows, Arrow is significantly faster
-table = client.query.query_arrow("SELECT * FROM default.cpu")
+table = client.query.query_arrow("SELECT * FROM cpu")
 df = table.to_pandas()  # Zero-copy conversion
 ```
 

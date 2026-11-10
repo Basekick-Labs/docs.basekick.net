@@ -21,7 +21,24 @@ curl --request POST http://localhost:8000/api/v1/query \
   --data '{"sql": "SELECT * FROM cpu LIMIT 10", "format": "json"}'
 ```
 
-This is the recommended pattern for queries within one database. Fully qualified `database.measurement` names remain useful when a query needs data from more than one database.
+This is the recommended pattern for queries within one database.
+
+### Qualified names and the database header
+
+A query can name its database in one of two ways, and they cannot be combined:
+
+- **Header**: send `x-arc-database: <database>` and write bare measurement names (`FROM cpu`).
+- **Qualified name**: send no `x-arc-database` header and write `database.measurement` (`FROM mydb.cpu`). This is the only way to read more than one database in a single query.
+
+When the header is set, any `database.measurement` reference after `FROM` or `JOIN`, or in a comma-separated `FROM` list, is rejected with `400 Bad Request` before the query runs, with this error:
+
+```text
+Cross-database queries (db.table syntax) not allowed when x-arc-database header is set
+```
+
+The rule applies to `POST /api/v1/query`, `/api/v1/query/arrow` and `/api/v1/query/msgpack`. Clients that always send the header — the [Python SDK](/arc/sdks/python/querying/#sql-syntax) and the [Grafana data source](/arc/integrations/grafana/#referring-to-tables) — therefore need bare names.
+
+With neither a header nor a qualified name, a bare measurement name resolves against the `default` database.
 
 The SQL examples below assume this header:
 
@@ -172,17 +189,28 @@ ORDER BY avg_cpu DESC;
 
 ## Cross-database queries
 
-Join data across databases and measurements:
+To join measurements in different databases, qualify every name with its database and send the request **without** the `x-arc-database` header:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/query" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @- <<'JSON'
+{"sql": "SELECT c.time, c.host, c.cpu_usage, d.version FROM production.cpu c JOIN ops.deployments d ON c.host = d.host AND c.time BETWEEN d.time AND d.time + INTERVAL '1 hour' WHERE c.time > NOW() - INTERVAL '24 hours'"}
+JSON
+```
+
+The same query, formatted:
 
 ```sql
--- Join CPU metrics with deployment events
+-- Join CPU metrics in "production" with deployment events in "ops"
 SELECT
   c.time,
   c.host,
   c.cpu_usage,
   d.version
 FROM production.cpu c
-JOIN production.deployments d
+JOIN ops.deployments d
   ON c.host = d.host
   AND c.time BETWEEN d.time AND d.time + INTERVAL '1 hour'
 WHERE c.time > NOW() - INTERVAL '24 hours';
