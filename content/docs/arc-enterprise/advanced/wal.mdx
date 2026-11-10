@@ -432,69 +432,41 @@ The replay window is bounded by rotation (`max_size_mb`, `max_age_seconds`). Gra
 
 ## Monitoring
 
-### WAL status
+Arc has no WAL-specific API endpoint. Monitor the WAL through the `arc_wal_*`
+counters on the Prometheus endpoint, `GET /metrics`, which needs no token:
 
 ```bash
-curl http://localhost:8000/api/wal/status \
-  -H "Authorization: Bearer $ARC_TOKEN"
+curl -s http://localhost:8000/metrics | grep '^arc_wal_'
 ```
 
-**Response:**
+**Output** (Arc 26.09.4):
 
-```json
-{
-  "enabled": true,
-  "configuration": {
-    "sync_mode": "fdatasync",
-    "worker_id": 1,
-    "current_file": "./data/wal/worker-1-20251008_143000.wal"
-  },
-  "stats": {
-    "current_size_mb": 45.2,
-    "current_age_seconds": 1850,
-    "total_entries": 5000,
-    "total_bytes": 47382528,
-    "total_syncs": 5000,
-    "total_rotations": 2
-  }
-}
+```text
+arc_wal_records_preserved_total 0
+arc_wal_recovery_total 0
+arc_wal_recovery_records_total 0
+arc_wal_dropped_entries_total 0
+arc_wal_failed_writes_total 0
+arc_wal_oversized_payloads_total 0
 ```
 
-### WAL files
+| Metric | Meaning |
+|---|---|
+| `arc_wal_records_preserved_total` | Records left to WAL recovery because their flush or shutdown write failed |
+| `arc_wal_recovery_total` | Successful WAL recovery runs |
+| `arc_wal_recovery_records_total` | Records replayed from the WAL |
+| `arc_wal_dropped_entries_total` | Entries dropped because the WAL buffer was full; a rising value means data can be lost |
+| `arc_wal_failed_writes_total` | WAL write failures |
+| `arc_wal_oversized_payloads_total` | Payloads refused for exceeding the single-entry cap even after chunking |
 
-```bash
-curl http://localhost:8000/api/wal/files \
-  -H "Authorization: Bearer $ARC_TOKEN"
-```
+The same six counters appear as `wal_*` keys in the JSON from
+`GET /api/v1/metrics`. Later releases add more
+`arc_wal_*` metrics; the [monitoring playbook](/arc/operations/monitoring/#wal)
+lists them with the version that introduced each, and the alerts worth paging
+on.
 
-**Response:**
-
-```json
-{
-  "active": [
-    {
-      "name": "worker-1-20251008_143000.wal",
-      "size_mb": 45.2,
-      "modified": 1696775400
-    }
-  ],
-  "recovered": [
-    {
-      "name": "worker-1-20251008_120000.wal.recovered",
-      "size_mb": 98.5,
-      "modified": 1696768800
-    }
-  ],
-  "total_size_mb": 143.7
-}
-```
-
-### Health check
-
-```bash
-curl http://localhost:8000/api/wal/health \
-  -H "Authorization: Bearer $ARC_TOKEN"
-```
+To see the WAL files themselves, list the WAL directory (`wal.directory`,
+default `./data/wal`) on the node.
 
 ## Troubleshooting
 
