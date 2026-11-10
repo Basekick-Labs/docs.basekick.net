@@ -1,6 +1,6 @@
 ---
 title: "Integrations"
-description: "Connect Arc Enterprise to Grafana, Superset, Telegraf, OPC UA, MQTT, OpenTelemetry, Redpanda Connect, VS Code, and InfluxDB clients using RBAC-scoped tokens against a cluster endpoint."
+description: "Connect Arc Enterprise to Grafana, Superset, Telegraf, OPC UA, MQTT, Node-RED, OpenTelemetry, Redpanda Connect, VS Code, and InfluxDB clients using RBAC-scoped tokens against a cluster endpoint."
 ---
 
 Every integration below works the same way against Arc Enterprise as against Arc OSS — the wire protocols are identical. Two things change in a clustered deployment.
@@ -9,6 +9,7 @@ Writers and readers are different nodes, so point ingestion tools at the writer 
 
 <Cards>
   <Card title="MQTT" href="/arc-enterprise/integrations/mqtt/" description="Native broker subscriptions managed through the API, without restarting nodes." />
+  <Card title="Node-RED" href="/arc-enterprise/integrations/node-red/" description="Native nodes writing to the writer endpoint and querying a reader." />
   <Card title="Grafana" href="/arc-enterprise/integrations/grafana/" description="The Basekick Arc data source, pointed at a reader endpoint." />
   <Card title="Telegraf" href="/arc-enterprise/integrations/telegraf/" description="Native Arc output plugin sending MessagePack columnar batches." />
   <Card title="OPC UA" href="/arc-enterprise/integrations/opcua/" description="OPC UA tags from PLCs and SCADA servers via Telegraf, sent to a writer endpoint." />

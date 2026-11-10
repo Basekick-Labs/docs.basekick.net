@@ -3,6 +3,7 @@
   "pages": [
     "[Overview](/arc-enterprise/integrations/)",
     "mqtt",
+    "node-red",
     "grafana",
     "telegraf",
     "opcua",

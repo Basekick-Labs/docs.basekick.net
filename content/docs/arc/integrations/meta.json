@@ -9,6 +9,7 @@
     "opcua",
     "influxdb-clients",
     "mqtt",
+    "node-red",
     "vscode",
     "opentelemetry",
     "tle",

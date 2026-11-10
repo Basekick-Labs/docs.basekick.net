@@ -123,6 +123,8 @@ writeApi.close();
 
 ### Node-RED (node-red-contrib-influxdb)
 
+For new flows, the native Arc nodes write MessagePack and need no InfluxDB settings; see [Node-RED](/arc-enterprise/integrations/node-red/).
+
 Configure the InfluxDB node with:
 
 - **Version**: 2.0

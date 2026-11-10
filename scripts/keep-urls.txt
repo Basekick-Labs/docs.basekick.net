@@ -20,6 +20,7 @@
 /arc-enterprise/integrations/grafana/
 /arc-enterprise/integrations/influxdb-clients/
 /arc-enterprise/integrations/mqtt/
+/arc-enterprise/integrations/node-red/
 /arc-enterprise/integrations/opcua/
 /arc-enterprise/integrations/opentelemetry/
 /arc-enterprise/integrations/redpanda-connect/
@@ -70,6 +71,7 @@
 /arc/integrations/grafana/
 /arc/integrations/influxdb-clients/
 /arc/integrations/mqtt/
+/arc/integrations/node-red/
 /arc/integrations/opcua/
 /arc/integrations/opentelemetry/
 /arc/integrations/redpanda-connect/
