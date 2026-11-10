@@ -189,14 +189,14 @@ export ARC_TELEMETRY_ENABLED=false
 
 **With Docker**:
 ```bash
-docker run -e ARC_TELEMETRY_ENABLED=false arc:latest
+docker run -e ARC_TELEMETRY_ENABLED=false ghcr.io/basekick-labs/arc:latest
 ```
 
 **With Docker Compose**:
 ```yaml
 services:
   arc:
-    image: arc:latest
+    image: ghcr.io/basekick-labs/arc:latest
     environment:
       - ARC_TELEMETRY_ENABLED=false
 ```
