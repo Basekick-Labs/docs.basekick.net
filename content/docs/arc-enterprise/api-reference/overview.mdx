@@ -1003,7 +1003,7 @@ Create a new MQTT subscription.
 }
 ```
 
-A new subscription is created `stopped`, even with `"auto_start": true`. Start it with [`POST /api/v1/mqtt/subscriptions/:id/start`](#post-apiv1mqttsubscriptionsidstart).
+Up to Arc 26.09.x, a new subscription is created `stopped`, even with `"auto_start": true`; from 27.01.1, `auto_start` also starts it on creation (`"status": "running"`, or `"error"` with `error_message`). Otherwise, start it with [`POST /api/v1/mqtt/subscriptions/:id/start`](#post-apiv1mqttsubscriptionsidstart).
 
 **Full options:**
 
@@ -1022,7 +1022,7 @@ A new subscription is created `stopped`, even with `"auto_start": true`. Start i
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
 | `topic_mapping` | object | No | {} | In 26.09.x and earlier: exact topic to database name. From v27.01.1: topic filter (`+`, `#`) to a database name or a rule with `database`, `measurement` and `tags_from_topic`. See the MQTT integration page |
-| `auto_start` | bool | No | false | Start the subscription whenever Arc starts. Creating a subscription does not start it |
+| `auto_start` | bool | No | false | Start the subscription whenever Arc starts, and from 27.01.1 also on creation |
 
 ### GET /api/v1/mqtt/subscriptions
 
