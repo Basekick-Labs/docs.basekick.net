@@ -308,9 +308,9 @@ When importing large historical datasets:
 4. **Trigger compaction after** - Consolidate small files
 
 ```bash
-# After bulk import, trigger compaction
-curl -X POST http://localhost:8000/api/v1/compaction/hourly \
-  -H "Authorization: Bearer $TOKEN"
+# After bulk import, trigger hourly compaction (admin token)
+curl -X POST "http://localhost:8000/api/v1/compaction/trigger?tier=hourly" \
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### Monitoring partition distribution

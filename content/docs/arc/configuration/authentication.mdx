@@ -33,24 +33,24 @@ export ARC_AUTH_FORCE_BOOTSTRAP=false  # v26.04.1+
 
 ## Authentication methods
 
-Arc supports multiple authentication methods for compatibility with various clients:
+Arc supports multiple authentication methods for compatibility with various clients. The header examples below call `GET /api/v1/auth/verify`, which answers `200` with the token's details when the token is valid; every other endpoint accepts the same headers.
 
 ### Bearer token (standard)
 
 ```bash
-curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Token header (InfluxDB 2.x style)
 
 ```bash
-curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### API key header
 
 ```bash
-curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Query parameter (InfluxDB 1.x style)

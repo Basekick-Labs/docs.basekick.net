@@ -47,12 +47,14 @@ with ArcClient(host="localhost", token="your-token") as client:
         },
     )
 
-    # Query to pandas
+    # Query to pandas (bare name: the client sends x-arc-database: default)
     df = client.query.query_pandas(
-        "SELECT * FROM default.cpu WHERE host = 'server01'"
+        "SELECT * FROM cpu WHERE host = 'server01'"
     )
     print(df)
 ```
+
+Write measurement names unqualified (`FROM cpu`); see [SQL syntax](/arc-enterprise/sdks/python/querying/#sql-syntax).
 
 ## Architecture
 

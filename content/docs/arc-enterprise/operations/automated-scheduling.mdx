@@ -133,31 +133,31 @@ Retention Schedule (runs daily at 3am):
 
 ```bash
 # 1-minute aggregation
-curl -X POST http://localhost:8000/api/v1/continuous-queries \
-  -H "Authorization: Bearer $TOKEN" \
+curl -X POST http://localhost:8000/api/v1/continuous_queries \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "downsample_1min",
     "database": "telemetry",
     "source_measurement": "sensors_raw",
     "destination_measurement": "sensors_1min",
-    "query": "SELECT time_bucket('\''1 minute'\'', timestamp) as timestamp, device_id, AVG(temperature) as temperature, MAX(pressure) as pressure FROM sensors_raw WHERE timestamp >= $start AND timestamp < $end GROUP BY 1, 2",
+    "query": "SELECT time_bucket('\''1 minute'\'', time) as time, device_id, AVG(temperature) as temperature, MAX(pressure) as pressure FROM telemetry.sensors_raw WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, 2",
     "interval": "1m",
-    "enabled": true
+    "is_active": true
   }'
 
 # 1-hour aggregation
-curl -X POST http://localhost:8000/api/v1/continuous-queries \
-  -H "Authorization: Bearer $TOKEN" \
+curl -X POST http://localhost:8000/api/v1/continuous_queries \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "downsample_1hr",
     "database": "telemetry",
     "source_measurement": "sensors_1min",
     "destination_measurement": "sensors_1hr",
-    "query": "SELECT time_bucket('\''1 hour'\'', timestamp) as timestamp, device_id, AVG(temperature) as temperature, MAX(pressure) as pressure FROM sensors_1min WHERE timestamp >= $start AND timestamp < $end GROUP BY 1, 2",
+    "query": "SELECT time_bucket('\''1 hour'\'', time) as time, device_id, AVG(temperature) as temperature, MAX(pressure) as pressure FROM telemetry.sensors_1min WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, 2",
     "interval": "1h",
-    "enabled": true
+    "is_active": true
   }'
 ```
 
@@ -166,26 +166,26 @@ curl -X POST http://localhost:8000/api/v1/continuous-queries \
 ```bash
 # Delete raw data after 7 days
 curl -X POST http://localhost:8000/api/v1/retention \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "raw_7d",
     "database": "telemetry",
     "measurement": "sensors_raw",
     "retention_days": 7,
-    "enabled": true
+    "is_active": true
   }'
 
 # Delete 1-minute data after 30 days
 curl -X POST http://localhost:8000/api/v1/retention \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "1min_30d",
     "database": "telemetry",
     "measurement": "sensors_1min",
     "retention_days": 30,
-    "enabled": true
+    "is_active": true
   }'
 ```
 

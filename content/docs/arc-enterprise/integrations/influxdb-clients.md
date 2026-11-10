@@ -278,12 +278,14 @@ Or use the [Arc Python SDK](/arc-enterprise/sdks/python/) for DataFrame support:
 ```python
 from arc_client import ArcClient
 
-with ArcClient(host="localhost", token="your-token") as client:
+with ArcClient(host="localhost", token="your-token", database="mydb") as client:
     df = client.query.query_pandas(
-        "SELECT * FROM mydb.cpu WHERE time > NOW() - INTERVAL '1 hour'"
+        "SELECT * FROM cpu WHERE time > NOW() - INTERVAL '1 hour'"
     )
     print(df.head())
 ```
+
+The SDK selects `mydb` with the `x-arc-database` header, so the query names `cpu` unqualified; see [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
 
 ## Troubleshooting
 

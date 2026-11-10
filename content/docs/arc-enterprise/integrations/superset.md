@@ -422,11 +422,12 @@ SHOW TABLES;
 ### Slow queries
 
 ```bash
-# Check compaction status
-curl http://localhost:8000/api/compaction/status
+# Check compaction status (admin token)
+curl http://localhost:8000/api/v1/compaction/status \
+  -H "Authorization: Bearer $ARC_TOKEN"
 
-# Manually trigger compaction
-curl -X POST http://localhost:8000/api/compaction/trigger \
+# Manually trigger compaction for every enabled tier (admin token)
+curl -X POST http://localhost:8000/api/v1/compaction/trigger \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 

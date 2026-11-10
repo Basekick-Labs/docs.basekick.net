@@ -139,6 +139,7 @@ with ArcClient(host="localhost", token="your-token") as client:
 
 ```python
 import polars as pl
+from datetime import datetime
 from arc_client import ArcClient
 
 df = pl.DataFrame({
@@ -173,20 +174,22 @@ from arc_client import ArcClient
 with ArcClient(host="localhost", token="your-token") as client:
     with client.write.buffered(batch_size=5000, flush_interval=2.0) as buffer:
         for i in range(50000):
-            buffer.write(
-                measurement="events",
-                tags={"source": "sensor-001", "type": "temperature"},
-                fields={"value": 22.5 + i * 0.01},
-                timestamp=1704067200000000 + (i * 1000),
-            )
+            buffer.write({
+                "measurement": "events",
+                "tags": {"source": "sensor-001", "type": "temperature"},
+                "fields": {"value": 22.5 + i * 0.01},
+                "timestamp": 1704067200000000 + (i * 1000),  # microseconds
+            })
         # Auto-flushes on exit
 ```
+
+`write()` takes one record as a dict: `measurement` and `fields` are required, `tags` is optional, and `timestamp` is optional (an integer in microseconds; the current time when omitted).
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `batch_size` | `int` | 5000 | Flush after N records |
+| `batch_size` | `int` | 10000 | Flush after N records |
 | `flush_interval` | `float` | 5.0 | Flush after N seconds (even if batch not full) |
 
 ### How it works
@@ -217,12 +220,12 @@ async def ingest_stream():
     async with AsyncArcClient(host="localhost", token="your-token") as client:
         async with client.write.buffered(batch_size=5000) as buffer:
             async for event in event_stream():
-                await buffer.write(
-                    measurement="events",
-                    tags={"source": event.source},
-                    fields={"value": event.value},
-                    timestamp=event.timestamp,
-                )
+                await buffer.write({
+                    "measurement": "events",
+                    "tags": {"source": event.source},
+                    "fields": {"value": event.value},
+                    "timestamp": event.timestamp,
+                })
 
 asyncio.run(ingest_stream())
 ```

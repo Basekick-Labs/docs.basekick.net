@@ -13,24 +13,24 @@ http://localhost:8000
 
 ## Authentication
 
-All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients:
+All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients. The header examples below call `GET /api/v1/auth/verify`, which answers `200` with the token's details when the token is valid; every other endpoint accepts the same headers.
 
 ### Bearer token (standard)
 
 ```bash
-curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Token header (InfluxDB 2.x style)
 
 ```bash
-curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### API key header
 
 ```bash
-curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Query parameter (InfluxDB 1.x style)
@@ -469,13 +469,22 @@ Query a specific measurement directly.
 
 Verify token validity (public endpoint).
 
+Returns `401` with `"valid": false` when the token is missing, invalid or expired. Accepts every token format listed under [Authentication](#authentication).
+
 **Response:**
 ```json
 {
   "valid": true,
-  "token_id": "abc123",
-  "name": "my-token",
-  "is_admin": false
+  "token_info": {
+    "id": 2,
+    "name": "my-token",
+    "description": "Token for my application",
+    "permissions": ["read", "write"],
+    "created_at": "2026-11-10T18:59:07Z",
+    "enabled": true,
+    "expires_at": null
+  },
+  "permissions": ["read", "write"]
 }
 ```
 
@@ -603,12 +612,12 @@ Records carry `cycle_id` and `attempt_depth`, the adaptive-splitter level.
 
 ### GET /api/v1/compaction/cycles
 
-Retained cycle history, newest first. `limit` defaults to 10, capped at 500.
+v27.01.1+. Retained cycle history, newest first. `limit` defaults to 10, capped at 500.
 Carries `running_cycle_id` while a cycle runs.
 
 ### GET /api/v1/compaction/cycles/&#123;id&#125;
 
-One cycle by id, including `failed_partitions` — a deduplicated map of
+v27.01.1+. One cycle by id, including `failed_partitions` — a deduplicated map of
 partition path to failed-batch count, which is the retry list. A `404` names
 the retained window rather than claiming the cycle never ran.
 
@@ -810,7 +819,7 @@ hold. A database whose only rows are still in a buffer answers `404`.
 
 **Request:**
 ```bash
-curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+curl -X DELETE -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/databases/old_data?confirm=true"
 ```
 
@@ -909,12 +918,11 @@ Create a continuous query.
 ```json
 {
   "name": "hourly-rollup",
-  "source_database": "default",
+  "database": "default",
   "source_measurement": "cpu",
-  "destination_database": "default",
   "destination_measurement": "cpu_hourly",
-  "query": "SELECT time_bucket('1 hour', time) as time, host, AVG(usage) as avg_usage FROM default.cpu GROUP BY 1, 2",
-  "schedule": "0 * * * *"
+  "query": "SELECT time_bucket('1 hour', time) as time, host, AVG(usage) as avg_usage FROM default.cpu WHERE time >= {start_time} AND time < {end_time} GROUP BY 1, 2",
+  "interval": "1h"
 }
 ```
 
@@ -1075,30 +1083,48 @@ Get statistics for a specific subscription.
 **Response:**
 ```json
 {
-  "id": "sub_abc123",
-  "messages_received": 15420,
-  "bytes_received": 2458320,
-  "decode_errors": 0,
-  "last_message_at": "2026-02-01T10:30:15Z",
-  "topics": {
-    "sensors/temperature": 8500,
-    "sensors/humidity": 6920
+  "success": true,
+  "stats": {
+    "id": "997823d7-e5ca-44d3-a6f3-b5992bf81593",
+    "name": "factory-sensors",
+    "status": "stopped",
+    "messages_received": 0,
+    "messages_failed": 0,
+    "bytes_received": 0,
+    "reconnects": 0
   }
 }
 ```
 
 ### GET /api/v1/mqtt/stats
 
-Aggregate statistics across all running subscriptions.
+Statistics for every subscription, with a summary.
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "running_count": 2,
-  "subscriptions_stats": {
-    "sub_abc123": { ... },
-    "sub_def456": { ... }
+  "success": true,
+  "stats": {
+    "subscriptions": [
+      {
+        "id": "997823d7-e5ca-44d3-a6f3-b5992bf81593",
+        "name": "factory-sensors",
+        "status": "stopped",
+        "messages_received": 0,
+        "messages_failed": 0,
+        "bytes_received": 0,
+        "reconnects": 0
+      }
+    ],
+    "summary": {
+      "total_subscriptions": 1,
+      "running": 0,
+      "stopped": 1,
+      "error": 0,
+      "total_messages": 0,
+      "total_failed": 0,
+      "total_bytes": 0
+    }
   }
 }
 ```
@@ -1112,12 +1138,16 @@ MQTT service health check.
 {
   "status": "healthy",
   "healthy": true,
-  "running_count": 2,
-  "connected_count": 2,
-  "disconnected_count": 0,
-  "service": "mqtt_subscriptions"
+  "subscriptions": {
+    "total": 2,
+    "running": 2,
+    "stopped": 0,
+    "errors": 0
+  }
 }
 ```
+
+`status` is `degraded` while any subscription is in an error state, and `unhealthy` when subscriptions exist but none is running (for example a new subscription before it is started), which overrides `degraded`. `healthy` is `true` only when `status` is `healthy`.
 
 ---
 
@@ -1236,8 +1266,10 @@ with ArcClient(host="localhost", token="your-token") as client:
         measurement="cpu",
         columns={"time": [...], "host": [...], "usage": [...]},
     )
-    df = client.query.query_pandas("SELECT * FROM default.cpu LIMIT 10")
+    df = client.query.query_pandas("SELECT * FROM cpu LIMIT 10")
 ```
+
+Write measurement names unqualified (`FROM cpu`); see [SQL syntax](/arc-enterprise/sdks/python/querying/#sql-syntax).
 
 See [Python SDK Documentation](/arc-enterprise/sdks/python/) for full details.
 

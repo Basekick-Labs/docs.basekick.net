@@ -90,13 +90,21 @@ print(f"Deleted {result.deleted_count} rows")
 
 ### Update a policy
 
+Up to Arc 26.09.4, `PUT /api/v1/retention/:id` replaces the whole policy, so use `replace()` and pass every field. Copy the ones you are not changing from the existing policy:
+
 ```python
-client.retention.update(
+client.retention.replace(
     policy.id,
-    retention_days=60,      # Change retention period
-    is_active=False,        # Disable the policy
+    name=policy.name,
+    database=policy.database,
+    retention_days=60,              # Change retention period
+    measurement=policy.measurement,
+    buffer_days=policy.buffer_days,
+    is_active=False,                # Disable the policy
 )
 ```
+
+`retention.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 invalid database name ""`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
 
 ### Delete a policy
 
@@ -173,6 +181,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 avg(usage_system) as usage_system,
                 max(usage_user) as max_usage_user
             FROM default.cpu
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1h",
@@ -200,7 +209,8 @@ Your CQ query should:
 - Use `time_bucket()` to aggregate time into intervals
 - Include `time` as the first column in SELECT and GROUP BY
 - Use aggregate functions (`avg`, `sum`, `count`, `min`, `max`, etc.)
-- Reference the source measurement with `database.measurement` syntax
+- Contain the `{start_time}` and `{end_time}` placeholders, normally as `WHERE time >= {start_time} AND time < {end_time}`. Arc refuses a query without them and substitutes each run's window.
+- Name the source as `FROM <database>.<source_measurement>` (here `FROM default.cpu`). Arc finds the source by matching exactly that text and rewrites it to read the measurement's files; a bare `FROM cpu` is not rewritten and fails with `Table with name cpu does not exist`.
 
 ### List continuous queries
 
@@ -239,13 +249,26 @@ result = client.continuous_queries.execute(
 
 ### Update a CQ
 
+Up to Arc 26.09.4, `PUT /api/v1/continuous_queries/:id` replaces the whole definition, so use `replace()` and pass every field. Copy the ones you are not changing from the existing CQ:
+
 ```python
-client.continuous_queries.update(
+client.continuous_queries.replace(
     cq.id,
+    name=cq.name,
+    database=cq.database,
+    source_measurement=cq.source_measurement,
+    destination_measurement=cq.destination_measurement,
+    query=cq.query,
     interval="30m",       # Change interval
+    description=cq.description,
+    tag_columns=cq.tag_columns,
+    retention_days=cq.retention_days,
+    delete_source_after_days=cq.delete_source_after_days,
     is_active=False,      # Pause the CQ
 )
 ```
+
+`continuous_queries.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 name is required`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
 
 ### Delete a CQ
 
@@ -276,6 +299,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 min(usage_idle) as min_idle,
                 max(usage_idle) as max_idle
             FROM default.cpu
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1h",
@@ -295,6 +319,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
                 min(min_idle) as min_idle,
                 max(max_idle) as max_idle
             FROM default.cpu_1h
+            WHERE time >= {start_time} AND time < {end_time}
             GROUP BY 1, 2
         """,
         interval="1d",
@@ -419,8 +444,9 @@ result = client.auth.create_token(
 
 # IMPORTANT: Save this token - it's only shown once!
 print(f"New token: {result.token}")
-print(f"Token ID: {result.token_id}")
 ```
+
+The response carries the secret but not the token's ID. Find the ID with `list_tokens()` when you need it for `rotate_token()` or `revoke_token()`.
 
 ### Available permissions
 
@@ -467,14 +493,13 @@ All data management operations can raise specific exceptions:
 import os
 from arc_client import ArcClient
 from arc_client.exceptions import (
-
-ARC_TOKEN = os.environ["ARC_TOKEN"]
-
     ArcError,
     ArcNotFoundError,
-    ArcValidationError,
+    ArcServerError,
     ArcAuthenticationError,
 )
+
+ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     try:
@@ -488,8 +513,8 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
             database="default",
             retention_days=-1,  # Invalid days
         )
-    except ArcValidationError as e:
-        print(f"Validation error: {e}")
+    except ArcServerError as e:
+        print(f"Rejected by Arc: {e}")  # HTTP 400, e.g. "name is required"
 
     try:
         client.auth.create_token(name="test", permissions=["admin"])
@@ -571,7 +596,7 @@ async def main():
             database="default",
             source_measurement="cpu",
             destination_measurement="cpu_1h",
-            query="SELECT time_bucket('1 hour', time) as time, avg(usage) as usage FROM default.cpu GROUP BY 1",
+            query="SELECT time_bucket('1 hour', time) as time, avg(usage) as usage FROM default.cpu WHERE time >= {start_time} AND time < {end_time} GROUP BY 1",
             interval="1h",
         )
 

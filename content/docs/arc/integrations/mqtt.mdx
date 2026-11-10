@@ -456,6 +456,7 @@ ACLs.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "authenticated-broker",
@@ -487,6 +488,7 @@ export ARC_ENCRYPTION_KEY="your-base64-encoded-32-byte-key"
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "secure-broker",
@@ -502,6 +504,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "mtls-broker",
@@ -526,6 +529,7 @@ Connect to different brokers for different environments:
 ```bash
 # Production broker
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "production",
@@ -537,6 +541,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 
 # Development broker
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "development",
@@ -602,10 +607,10 @@ Machines publish the measurement and tags in the payload:
 
 ```bash
 # Stats for a specific subscription
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/subscriptions/<subscription-id>/stats
 
 # Aggregate stats for all subscriptions
-curl http://localhost:8000/api/v1/mqtt/stats
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/stats
 ```
 
 Response:
@@ -646,7 +651,7 @@ Response:
 ### Health check
 
 ```bash
-curl http://localhost:8000/api/v1/mqtt/health
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/health
 ```
 
 Response:
@@ -734,7 +739,7 @@ ORDER BY t.time DESC;
 
 ```bash
 # Check subscription status
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/subscriptions/<subscription-id>
 ```
 
 If status is `error`, check:
@@ -747,15 +752,15 @@ If status is `error`, check:
 
 1. Verify subscription is running. A new subscription stays `stopped` until you call `POST /api/v1/mqtt/subscriptions/{id}/start`:
 ```bash
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}
-# status should be "running"
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/subscriptions/<subscription-id>
+# .subscription.status should be "running"
 ```
 
 2. If you are querying a measurement named after the topic, check the `mqtt` measurement: without an `m` or `measurement` key in the payload, messages land there.
 
 3. Check stats for received messages:
 ```bash
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/mqtt/subscriptions/<subscription-id>/stats
 ```
 
 4. Verify topic pattern matches published topics

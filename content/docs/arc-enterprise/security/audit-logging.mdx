@@ -73,7 +73,7 @@ All audit endpoints require admin authentication.
 ### Query audit logs
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?limit=20"
 ```
 
@@ -93,19 +93,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 # Failed authentication attempts in the last 24 hours
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=auth.failed&since=2026-02-12T00:00:00Z"
 
 # All write operations to the production database
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=data.write&database=production"
 
 # Recent RBAC changes
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=rbac&limit=50"
 
 # Activity by a specific token
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?actor=telegraf-writer&limit=100"
 ```
 
@@ -144,14 +144,14 @@ curl -H "Authorization: Bearer $TOKEN" \
 Aggregate event counts by type, useful for dashboards and alerting.
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/stats"
 ```
 
 **With time range:**
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/stats?since=2026-02-01T00:00:00Z&until=2026-02-13T23:59:59Z"
 ```
 

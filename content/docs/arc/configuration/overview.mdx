@@ -970,7 +970,7 @@ curl http://localhost:8000/api/v1/metrics/memory
 curl http://localhost:8000/api/v1/metrics/query-pool
 
 # Compaction status
-curl http://localhost:8000/api/v1/compaction/status
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/compaction/status
 ```
 
 ## Troubleshooting

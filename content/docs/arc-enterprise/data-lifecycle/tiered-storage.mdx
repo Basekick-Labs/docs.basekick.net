@@ -191,7 +191,7 @@ Override the global `default_hot_max_age_days` for specific databases, or exclud
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"hot_max_age_days": 7}'
 ```
@@ -209,7 +209,7 @@ A field left out of the body is reset, not kept. On a database pinned `hot_only`
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/tiering/policies/realtime \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"hot_only": true}'
 ```
@@ -241,7 +241,7 @@ curl -X PUT http://localhost:8000/api/v1/tiering/policies/realtime \
 ### List policies
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/policies
 ```
 
@@ -250,7 +250,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Returns `404` when the database has no custom policy:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/policies/telemetry
 ```
 
@@ -259,7 +259,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 The policy Arc applies, with global defaults filled in; `source` is `custom` or `global`:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/policies/telemetry/effective
 ```
 
@@ -269,7 +269,7 @@ The database reverts to the global defaults:
 
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/tiering/policies/telemetry \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ### Status codes
@@ -341,7 +341,7 @@ All tiering endpoints require admin authentication.
 ### Get tiering status
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/status
 ```
 
@@ -366,19 +366,19 @@ On a cluster node with peer file replication the status also carries `replicatio
 
 ```bash
 # All files
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/files
 
 # Filter by tier
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/tiering/files?tier=cold"
 
 # Filter by database
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/tiering/files?database=telemetry&limit=50"
 
 # Filter by database and tier: the database's files in that tier
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/tiering/files?database=telemetry&tier=cold"
 ```
 
@@ -424,7 +424,7 @@ Notes:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/tiering/migrate \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -445,7 +445,7 @@ On a cluster node that is not the primary writer the request is refused with `40
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/tiering/scan \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 **Response:**
@@ -525,7 +525,7 @@ The endpoint is synchronous and a scan over a large storage root can take a whil
 ### Get migration statistics
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $ARC_TOKEN" \
   http://localhost:8000/api/v1/tiering/stats
 ```
 
