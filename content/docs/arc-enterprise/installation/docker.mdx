@@ -44,15 +44,17 @@ You should see:
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
-Save it:
+The token is the 44-character value after `Admin API token:`. Save it:
 
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
+
+Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and refuses to run with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Storage backends
 

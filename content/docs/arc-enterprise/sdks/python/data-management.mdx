@@ -616,7 +616,7 @@ token = os.getenv("ARC_TOKEN")
 client = ArcClient(host="localhost", token=token)
 
 # ❌ Bad: Hardcode tokens
-client = ArcClient(host="localhost", token="arc_abc123...")
+client = ArcClient(host="localhost", token="<api-token>")
 ```
 
 ## Scheduling with external tools
