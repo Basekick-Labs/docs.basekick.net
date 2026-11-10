@@ -14,7 +14,7 @@ Patch release on 26.09.3. Compaction no longer deletes rows that differ only in 
 ### Breaking changes
 
 - **A re-sent point no longer replaces the old one** -- Up to 26.09.3, compaction kept one row per (tags, time) and deleted the rest, dropping corrections, partial writes and re-run continuous-query windows. It now removes a row only when another row is identical in every column (time, every tag and every field), so a point re-sent with a new value is stored alongside the old one and queries count both. Exact duplicates, such as a retried write, are still collapsed. Rows that 26.09.3 already deleted cannot be recovered. In a cluster, upgrade the compactor node, and the writers too when `cluster.failover_enabled` is on.
-- **Continuous queries turn on after an upgrade** -- The `arc.toml` shipped in the `.deb`, RPM, Arch package and Docker image set `enabled = false`, so every continuous-query API call answered 404 on a fresh install. The packages replace `/etc/arc/arc.toml`, which now sets `[continuous_query] enabled = true`. To keep them off, set it back to `false` or set `ARC_CONTINUOUS_QUERY_ENABLED=false`.
+- **Continuous queries turn on after an upgrade** -- The `arc.toml` shipped in the `.deb`, RPM, Arch package and Docker image set `enabled = false`, so every continuous-query API call answered 404 on a fresh install. It now sets `[continuous_query] enabled = true`. On upgrade, the `.deb` replaces `/etc/arc/arc.toml`, so continuous queries turn on (and your edits to it are lost: copy it first). The RPM and Arch packages keep an edited file, write the new one next to it as `arc.toml.rpmnew` or `arc.toml.pacnew`, and replace it only if it was unedited. To keep them off, set `[continuous_query] enabled = false` or `ARC_CONTINUOUS_QUERY_ENABLED=false`.
 - **Linux needs glibc 2.34 or newer** -- Ubuntu 20.04 and RHEL 8 are not supported. 26.09.3 needed 2.38, so no system that ran 26.09.3 loses support.
 
 ### Performance
@@ -34,7 +34,7 @@ Patch release on 26.09.3. Compaction no longer deletes rows that differ only in 
 
 - **Signed RPMs** -- The `arc` and `arc-fips` RPMs are signed with the Basekick Labs package key (fingerprint `3E39 9CF8 F5D2 EF9A A9A5 36EF 7629 7AF0 8CBA B6FE`), so Fedora 45's rpm 6.1 accepts them. Import `RPM-GPG-KEY-basekick` from the release once with `rpm --import`.
 
-Full release notes: [RELEASE_NOTES_2026.09.4.md](https://github.com/Basekick-Labs/arc/blob/v26.09.4/RELEASE_NOTES_2026.09.4.md)
+Full release notes: [Arc 26.09.4 on GitHub](https://github.com/Basekick-Labs/arc/releases/tag/v26.09.4)
 
 ---
 
