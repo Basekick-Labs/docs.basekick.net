@@ -285,7 +285,7 @@ with ArcClient(host="localhost", token="your-token", database="mydb") as client:
     print(df.head())
 ```
 
-The SDK selects the database with the `x-arc-database` header, so the query uses the bare name `cpu`; a qualified `mydb.cpu` is rejected while that header is set. See [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
+The SDK selects `mydb` with the `x-arc-database` header, so the query names `cpu` unqualified; see [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
 
 ## Troubleshooting
 

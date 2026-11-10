@@ -57,7 +57,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     print(df)
 ```
 
-Write measurement names unqualified (`FROM cpu`, not `FROM default.cpu`): the client always sends a database header, and Arc rejects `database.measurement` names when it is set. See [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
+Write measurement names unqualified (`FROM cpu`); see [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
 
 ## Architecture
 

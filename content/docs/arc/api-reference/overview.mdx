@@ -13,7 +13,7 @@ http://localhost:8000
 
 ## Authentication
 
-All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients. The examples send each one to `GET /api/v1/auth/verify`, which answers `200` with the token's details when the token is valid; every other endpoint accepts the same headers.
+All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients. The header examples below call `GET /api/v1/auth/verify`, which answers `200` with the token's details when the token is valid; every other endpoint accepts the same headers.
 
 ### Bearer token (standard)
 
@@ -139,12 +139,8 @@ for name, type_name, column in zip(result["columns"], result["types"], result["d
     print(name, type_name, column[:5])
 ```
 
-Do not set `Accept-Encoding: zstd` by hand. Arc then answers with
-`Content-Encoding: zstd`, and unless urllib3's optional zstd support is
-installed, `requests` hands the compressed bytes to `msgpack`, which fails with
-`ExtraData`. To get zstd, install that support (`pip install "urllib3[zstd]"`)
-and leave the header alone: `requests` then offers zstd itself and decodes the
-response.
+Do not add `Accept-Encoding: zstd` to this example; see
+[Response compression](#response-compression-v26091) for why, and how to get zstd.
 
 The response is a single MessagePack map:
 
@@ -645,10 +641,11 @@ Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row)
 standard `Accept-Encoding` request header — send `Accept-Encoding: zstd, gzip`
 and the response body is compressed (zstd preferred; `Content-Encoding` set
 accordingly). curl (with `--compressed`) and browsers decode it
-automatically. HTTP libraries decode only the encodings they support: Python
-`requests` handles gzip out of the box and zstd only with
-`pip install "urllib3[zstd]"`, so do not request zstd from a client that cannot
-decode it. Typical savings: JSON −68%, msgpack −38% on large results.
+automatically. HTTP libraries decode only the encodings they support. Python `requests`
+handles gzip out of the box but zstd only with `pip install "urllib3[zstd]"`;
+without it, a hand-set `Accept-Encoding: zstd` hands the compressed bytes to
+your parser (`msgpack` fails with `ExtraData`). With it installed, leave the
+header alone: `requests` offers zstd itself and decodes the response. Typical savings: JSON −68%, msgpack −38% on large results.
 Clients that omit the header get identical responses to previous versions.
 
 ### Request compression
@@ -830,12 +827,12 @@ Records carry `cycle_id` and `attempt_depth`, the adaptive-splitter level.
 
 ### GET /api/v1/compaction/cycles
 
-Retained cycle history, newest first. `limit` defaults to 10, capped at 500.
+v27.01.1+. Retained cycle history, newest first. `limit` defaults to 10, capped at 500.
 Carries `running_cycle_id` while a cycle runs.
 
 ### GET /api/v1/compaction/cycles/&#123;id&#125;
 
-One cycle by id, including `failed_partitions` — a deduplicated map of
+v27.01.1+. One cycle by id, including `failed_partitions` — a deduplicated map of
 partition path to failed-batch count, which is the retry list. A `404` names
 the retained window rather than claiming the cycle never ran.
 
@@ -1305,30 +1302,48 @@ Get statistics for a specific subscription.
 **Response:**
 ```json
 {
-  "id": "sub_abc123",
-  "messages_received": 15420,
-  "bytes_received": 2458320,
-  "decode_errors": 0,
-  "last_message_at": "2026-02-01T10:30:15Z",
-  "topics": {
-    "sensors/temperature": 8500,
-    "sensors/humidity": 6920
+  "success": true,
+  "stats": {
+    "id": "997823d7-e5ca-44d3-a6f3-b5992bf81593",
+    "name": "factory-sensors",
+    "status": "stopped",
+    "messages_received": 0,
+    "messages_failed": 0,
+    "bytes_received": 0,
+    "reconnects": 0
   }
 }
 ```
 
 ### GET /api/v1/mqtt/stats
 
-Aggregate statistics across all running subscriptions.
+Statistics for every subscription, with a summary.
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "running_count": 2,
-  "subscriptions_stats": {
-    "sub_abc123": { ... },
-    "sub_def456": { ... }
+  "success": true,
+  "stats": {
+    "subscriptions": [
+      {
+        "id": "997823d7-e5ca-44d3-a6f3-b5992bf81593",
+        "name": "factory-sensors",
+        "status": "stopped",
+        "messages_received": 0,
+        "messages_failed": 0,
+        "bytes_received": 0,
+        "reconnects": 0
+      }
+    ],
+    "summary": {
+      "total_subscriptions": 1,
+      "running": 0,
+      "stopped": 1,
+      "error": 0,
+      "total_messages": 0,
+      "total_failed": 0,
+      "total_bytes": 0
+    }
   }
 }
 ```
@@ -1351,7 +1366,7 @@ MQTT service health check.
 }
 ```
 
-`status` is `degraded` while any subscription is in an error state, and `unhealthy` when subscriptions exist but none is running; `healthy` is `true` only for `healthy`.
+`status` is `degraded` while any subscription is in an error state, and `unhealthy` when subscriptions exist but none is running (for example a new subscription before it is started), which overrides `degraded`. `healthy` is `true` only when `status` is `healthy`.
 
 ---
 
@@ -1509,7 +1524,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     df = client.query.query_pandas("SELECT * FROM cpu LIMIT 10")
 ```
 
-The client sends `x-arc-database` (default `"default"`) with every request, so write measurement names unqualified; a `database.measurement` name is rejected with `400`. See [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
+Write measurement names unqualified (`FROM cpu`); see [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
 
 See [Python SDK Documentation](/arc/sdks/python/) for full details.
 

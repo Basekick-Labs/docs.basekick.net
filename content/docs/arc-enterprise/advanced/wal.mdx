@@ -439,7 +439,7 @@ counters on the Prometheus endpoint, `GET /metrics`, which needs no token:
 curl -s http://localhost:8000/metrics | grep '^arc_wal_'
 ```
 
-**Output** (Arc 26.09.4):
+On Arc 26.09.4 this prints six counters:
 
 ```text
 arc_wal_records_preserved_total 0
@@ -460,10 +460,9 @@ arc_wal_oversized_payloads_total 0
 | `arc_wal_oversized_payloads_total` | Payloads refused for exceeding the single-entry cap even after chunking |
 
 The same six counters appear as `wal_*` keys in the JSON from
-`GET /api/v1/metrics`. Later releases add more
-`arc_wal_*` metrics; the [monitoring playbook](/arc/operations/monitoring/#wal)
-lists them with the version that introduced each, and the alerts worth paging
-on.
+`GET /api/v1/metrics`. Arc 27.01.1 adds more `arc_wal_*` metrics; the
+[monitoring playbook](/arc/operations/monitoring/#wal) lists them, marking those
+that need 27.01.1, and the alerts worth paging on.
 
 To see the WAL files themselves, list the WAL directory (`wal.directory`,
 default `./data/wal`) on the node.

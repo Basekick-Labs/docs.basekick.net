@@ -20,7 +20,7 @@ All query methods are available on `client.query`.
 
 ## SQL syntax
 
-The client sends an `x-arc-database` header with every request: the `database` passed to `ArcClient` (default `"default"`), or the `database=` argument of a single query call. Write measurement names **unqualified**, and they resolve against that database:
+Write measurement names unqualified. The client sends an `x-arc-database` header (the `database` given to `ArcClient`, default `"default"`, or a call's `database=` argument), and Arc rejects `database.measurement` names while it is set; see [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header).
 
 ```sql
 SELECT * FROM cpu WHERE host = 'server01'
@@ -31,9 +31,7 @@ SELECT * FROM cpu WHERE host = 'server01'
 df = client.query.query_pandas("SELECT * FROM cpu LIMIT 10", database="production")
 ```
 
-Arc rejects a `database.measurement` name when that header is set, so `SELECT * FROM cpu` fails with `ArcQueryError` and `Cross-database queries (db.table syntax) not allowed when x-arc-database header is set`. To query more than one database in a single statement, create the client with `database=""`, which sends no header, and qualify every name. See [Qualified names and the database header](/arc/guides/querying/#qualified-names-and-the-database-header) for the full rule.
-
-Continuous query definitions are the exception: they run on the server without the header, so their `query` uses qualified names (`FROM cpu`). See [Continuous queries](/arc-enterprise/sdks/python/data-management/#continuous-queries).
+So `SELECT * FROM default.cpu` fails with `400`. To query more than one database in one statement, create the client with `database=""`, which sends no header, and qualify every name. Continuous query definitions are different: they name their source as `database.measurement` (`FROM default.cpu`); see [Continuous queries](/arc-enterprise/sdks/python/data-management/#query-guidelines).
 
 Arc runs a full analytical SQL engine, so you have access to:
 - Window functions
@@ -411,19 +409,18 @@ asyncio.run(main())
 from arc_client import ArcClient
 from arc_client.exceptions import (
     ArcQueryError,
-    ArcConnectionError,
     ArcAuthenticationError,
 )
 
 with ArcClient(host="localhost", token="your-token") as client:
     try:
         df = client.query.query_pandas("SELECT * FROM nonexistent_measurement")
-    except ArcQueryError as e:
-        print(f"Query failed: {e}")  # Invalid SQL or measurement not found
     except ArcAuthenticationError as e:
         print(f"Auth failed: {e}")  # Invalid token
-    except ArcConnectionError as e:
-        print(f"Connection error: {e}")  # Server unreachable
+    except ArcQueryError as e:
+        # Invalid SQL, measurement not found, or server unreachable:
+        # query methods wrap connection errors in ArcQueryError
+        print(f"Query failed: {e}")
 ```
 
 ## Performance tips

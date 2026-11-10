@@ -90,7 +90,7 @@ print(f"Deleted {result.deleted_count} rows")
 
 ### Update a policy
 
-`PUT /api/v1/retention/:id` replaces the whole policy, so use `replace()` and pass every field. Copy the ones you are not changing from the existing policy:
+Up to Arc 26.09.4, `PUT /api/v1/retention/:id` replaces the whole policy, so use `replace()` and pass every field. Copy the ones you are not changing from the existing policy:
 
 ```python
 client.retention.replace(
@@ -104,7 +104,7 @@ client.retention.replace(
 )
 ```
 
-`retention.update()` sends only the fields you pass, and Arc refuses it (`400 invalid database name ""`) because the request has no `database`.
+`retention.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 invalid database name ""`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
 
 ### Delete a policy
 
@@ -209,8 +209,8 @@ Your CQ query should:
 - Use `time_bucket()` to aggregate time into intervals
 - Include `time` as the first column in SELECT and GROUP BY
 - Use aggregate functions (`avg`, `sum`, `count`, `min`, `max`, etc.)
-- Contain the `{start_time}` and `{end_time}` placeholders, normally as `WHERE time >= {start_time} AND time < {end_time}`; Arc refuses a query without them and substitutes each run's window
-- Reference the source measurement with `database.measurement` syntax. CQs run on the server without the `x-arc-database` header, so this is the one place SDK SQL uses qualified names
+- Contain the `{start_time}` and `{end_time}` placeholders, normally as `WHERE time >= {start_time} AND time < {end_time}`. Arc refuses a query without them and substitutes each run's window.
+- Name the source as `FROM <database>.<source_measurement>` (here `FROM default.cpu`). Arc finds the source by matching exactly that text and rewrites it to read the measurement's files; a bare `FROM cpu` is not rewritten and fails with `Table with name cpu does not exist`.
 
 ### List continuous queries
 
@@ -249,7 +249,7 @@ result = client.continuous_queries.execute(
 
 ### Update a CQ
 
-`PUT /api/v1/continuous_queries/:id` replaces the whole definition, so use `replace()` and pass every field. Copy the ones you are not changing from the existing CQ:
+Up to Arc 26.09.4, `PUT /api/v1/continuous_queries/:id` replaces the whole definition, so use `replace()` and pass every field. Copy the ones you are not changing from the existing CQ:
 
 ```python
 client.continuous_queries.replace(
@@ -268,7 +268,7 @@ client.continuous_queries.replace(
 )
 ```
 
-`continuous_queries.update()` sends only the fields you pass, and Arc refuses it (`400 name is required`).
+`continuous_queries.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 name is required`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
 
 ### Delete a CQ
 
