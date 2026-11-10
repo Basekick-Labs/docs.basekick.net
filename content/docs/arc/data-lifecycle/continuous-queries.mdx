@@ -322,8 +322,8 @@ date_trunc('hour', time)
 -- Daily buckets
 date_trunc('day', time)
 
--- 5-minute buckets (requires rounding)
-date_trunc('hour', time) + INTERVAL '5 minutes' * floor(extract(minute from time) / 5)
+-- 5-minute buckets
+time_bucket(INTERVAL '5 minutes', time)
 ```
 
 ### Including sample counts
@@ -460,8 +460,7 @@ response = requests.post(
         "destination_measurement": "temperature_5min",
         "query": """
             SELECT
-                date_trunc('hour', time) +
-                INTERVAL '5 minutes' * floor(extract(minute from time) / 5) AS time,
+                time_bucket(INTERVAL '5 minutes', time) AS time,
                 sensor_id,
                 location,
                 AVG(temperature) AS avg_temperature,
@@ -470,11 +469,7 @@ response = requests.post(
                 COUNT(*) AS sample_count
             FROM iot.temperature
             WHERE time >= {start_time} AND time < {end_time}
-            GROUP BY
-                date_trunc('hour', time) +
-                INTERVAL '5 minutes' * floor(extract(minute from time) / 5),
-                sensor_id,
-                location
+            GROUP BY time_bucket(INTERVAL '5 minutes', time), sensor_id, location
         """,
         "interval": "5m",
         "tag_columns": ["sensor_id", "location"],  # grouping dimensions → idempotent output
@@ -694,7 +689,7 @@ Match intervals to data characteristics:
 - Test the query directly using the `/query` endpoint
 - Verify column names exist in source measurement
 - Check for dialect-specific syntax requirements
-- Pass `time` to `date_trunc()` as it is. Wrapping it in `epoch_us()` turns it into an integer, and `date_trunc()` has no form that takes one
+- Pass `time` to `date_trunc()` directly; `epoch_us(time)` is an integer, which `date_trunc()` rejects
 
 ### Slow execution
 

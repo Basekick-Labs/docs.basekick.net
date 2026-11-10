@@ -70,15 +70,17 @@ Arc looks for `arc.toml` in `.`, `/etc/arc/`, and `$HOME/.arc/`. In containers, 
 Restart Arc after changing either source. Verify with:
 
 ```bash
-curl http://localhost:8000/api/v1/mqtt/health
+curl http://localhost:8000/api/v1/mqtt/health \
+  -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 | Response                                            | Meaning                                                                                                  |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `200` with `{"status":"healthy", ...}`              | MQTT is enabled and running.                                                                             |
+| `200` with `{"status":"healthy", ...}`              | MQTT is enabled and running. With no subscriptions yet, the status is also `healthy`.                    |
+| `200` with `{"status":"unhealthy", ...}`            | MQTT is enabled, but no subscription is running: start one (see step 3).                                 |
 | `200` with `{"status":"disabled","healthy":false}`  | MQTT was not enabled at startup. Check `ARC_MQTT_ENABLED` / `[mqtt].enabled` and restart.                |
 | `503` with `{"error":"MQTT subsystem disabled"}`    | Same as above, on older builds.                                                                          |
-| Plaintext `Cannot GET /api/v1/mqtt/health`          | Your Arc build pre-dates the MQTT API. Upgrade to a release that includes PR #416 (v26.05.1 or later).   |
+| Plaintext `Cannot GET /api/v1/mqtt/health`          | Your Arc build pre-dates the MQTT API. Upgrade to a release that includes PR #416 (v26.06.1 or later).   |
 
 ### 2. Create a subscription
 
@@ -124,10 +126,10 @@ Response:
 
 ### 3. Start the subscription
 
-A new subscription is created `stopped`, even with `"auto_start": true`: `auto_start` only makes Arc start the subscription each time the server starts. Start it with the `id` from the response:
+A new subscription is created `stopped`, even with `"auto_start": true`: `auto_start` only makes Arc start the subscription each time the server starts. Start it, replacing `<id>` with the `id` from the response:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions/056fbfda-eab0-4358-b139-42c539896a1f/start \
+curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions/<id>/start \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
@@ -230,7 +232,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object | No | {} | Up to v26.09: exact topic to database name. From v27.01.1: topic filter (`+`, `#`) to a database name or a rule setting `database`, `measurement` and `tags_from_topic`. See [Topic mapping](#topic-mapping). |
+| `topic_mapping` | object | No | {} | In 26.09.x and earlier: exact topic to database name. From v27.01.1: topic filter (`+`, `#`) to a database name or a rule setting `database`, `measurement` and `tags_from_topic`. See [Topic mapping](#topic-mapping). |
 | `keep_alive_seconds` | int | No | 60 | MQTT keep-alive interval |
 | `connect_timeout_seconds` | int | No | 30 | Connection timeout |
 | `reconnect_max_seconds` | int | No | 60 | Maximum reconnect backoff delay. The reconnect delay starts at 1 second and doubles up to this cap (the 1-second minimum is fixed by the MQTT client library and is not configurable). |
@@ -320,11 +322,12 @@ named. Each key is an MQTT topic filter; each value is either a database name
 (the original form) or, from v27.01.1, a rule object
 ([arc#479](https://github.com/Basekick-Labs/arc/issues/479)).
 
-<Callout type="info" title="Up to v26.09: exact topics, database names only">
-In v26.09.x and earlier, each key is matched against the published topic as an
+<Callout type="info" title="26.09.x and earlier: exact topics, database names only">
+In 26.09.x and earlier, each key is matched against the published topic as an
 exact string and each value is a database name. Wildcard keys, rule objects,
-`measurement` and `tags_from_topic`, and everything below this callout except
-the upgrade notes, need v27.01.1 or later.
+`measurement` and `tags_from_topic`, and the matching and tag-position rules
+in this section need v27.01.1 or later. The database-name rule under
+Validation already applies.
 </Callout>
 
 ```json
@@ -514,6 +517,8 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 
 ## Configuration examples
 
+Each subscription below is created `stopped`. Start it with `POST /api/v1/mqtt/subscriptions/<id>/start` after creating it.
+
 ### Multiple brokers
 
 Connect to different brokers for different environments:
@@ -546,6 +551,7 @@ curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "iot-sensors",
     "broker": "tcp://mosquitto:1883",
@@ -570,6 +576,7 @@ Devices set the measurement and tags in the payload — e.g. a temperature senso
 ```bash
 curl -X POST http://localhost:8000/api/v1/mqtt/subscriptions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
   -d '{
     "name": "factory-floor",
     "broker": "tcp://factory-mqtt:1883",
@@ -604,22 +611,35 @@ curl http://localhost:8000/api/v1/mqtt/stats
 Response:
 ```json
 {
-  "status": "success",
-  "running_count": 2,
-  "subscriptions_stats": {
-    "sub_abc123": {
-      "messages_received": 15420,
-      "bytes_received": 2458320,
-      "decode_errors": 0,
-      "last_message_at": "2026-02-01T10:30:15Z",
-      "topics": {
-        "sensors/temperature": 8500,
-        "sensors/humidity": 6920
+  "success": true,
+  "stats": {
+    "subscriptions": [
+      {
+        "id": "056fbfda-eab0-4358-b139-42c539896a1f",
+        "name": "factory-sensors",
+        "status": "running",
+        "messages_received": 15420,
+        "messages_failed": 0,
+        "bytes_received": 2458320,
+        "last_message_at": "2026-02-01T10:30:15Z",
+        "connected_since": "2026-02-01T10:00:05Z",
+        "reconnects": 0
       }
+    ],
+    "summary": {
+      "total_subscriptions": 1,
+      "running": 1,
+      "stopped": 0,
+      "error": 0,
+      "total_messages": 15420,
+      "total_failed": 0,
+      "total_bytes": 2458320
     }
   }
 }
 ```
+
+`GET /api/v1/mqtt/subscriptions/{id}/stats` returns one of these objects as `stats`, without the `summary`.
 
 `last_message_at` and `connected_since` are **omitted** when the subscription has not yet received a message / is not connected (rather than reporting a zero timestamp). When present they are always UTC.
 
@@ -634,12 +654,16 @@ Response:
 {
   "status": "healthy",
   "healthy": true,
-  "running_count": 2,
-  "connected_count": 2,
-  "disconnected_count": 0,
-  "service": "mqtt_subscriptions"
+  "subscriptions": {
+    "total": 1,
+    "running": 1,
+    "stopped": 0,
+    "errors": 0
+  }
 }
 ```
+
+`status` is `degraded` when any subscription is in `error`, and `unhealthy` when subscriptions exist but none is running, for example right after you create one and before you start it.
 
 ### Prometheus metrics
 
@@ -750,14 +774,16 @@ mosquitto_pub -h localhost -t "test/data" \
 
 Check for decode errors in stats:
 ```bash
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats | jq '.decode_errors'
+curl http://localhost:8000/api/v1/mqtt/subscriptions/{id}/stats \
+  -H "Authorization: Bearer $ARC_TOKEN" | jq '.stats.messages_failed'
 ```
 
 ### Subscription won't start
 
 Check for errors:
 ```bash
-curl http://localhost:8000/api/v1/mqtt/subscriptions/{id} | jq '.error_message'
+curl http://localhost:8000/api/v1/mqtt/subscriptions/{id} \
+  -H "Authorization: Bearer $ARC_TOKEN" | jq '.subscription.error_message'
 ```
 
 Common issues:
@@ -828,11 +854,11 @@ Set up alerts on:
 version: '3.8'
 services:
   arc:
-    image: basekick/arc:latest
+    image: ghcr.io/basekick-labs/arc:latest
     ports:
       - "8000:8000"
     volumes:
-      - arc-data:/data
+      - arc-data:/app/data
     environment:
       - ARC_MQTT_ENABLED=true
       - ARC_ENCRYPTION_KEY=${ARC_ENCRYPTION_KEY}

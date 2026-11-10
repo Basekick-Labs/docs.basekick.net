@@ -41,7 +41,7 @@ gpg --show-keys --with-fingerprint --with-colons ./influxdata-archive.key 2>&1 \
 sudo apt-get update && sudo apt-get install -y telegraf
 ```
 
-`apt-key` is not used: it is deprecated on Ubuntu 24.04 and removed from Debian 13. For RHEL, older distributions and other platforms, follow InfluxData's [Telegraf install guide](https://docs.influxdata.com/telegraf/v1/install/).
+If the fingerprint does not match, nothing is written and `apt-get install` then fails with `Unable to locate package telegraf`. You can delete `influxdata-archive.key` afterwards. `apt-key` is not used: it is deprecated on Ubuntu and removed from Debian 13. For RHEL, older distributions and other platforms, follow InfluxData's [Telegraf install guide](https://docs.influxdata.com/telegraf/v1/install/).
 
 On macOS:
 

@@ -1,6 +1,6 @@
 ---
 title: "Changelog"
-description: "Release history for Arc: features, fixes, and behaviour changes per version, from the current release back through the 26.x series, with upgrade notes where they apply."
+description: "Release history for Arc: features, fixes, and behaviour changes per version, from the latest release back to 25.11.1, with breaking changes and upgrade notes where they apply."
 ---
 
 Release history for Arc.
@@ -13,24 +13,26 @@ Patch release on 26.09.3. Compaction no longer deletes rows that differ only in 
 
 ### Breaking changes
 
-- **A re-sent point no longer replaces the old one** -- Compaction now removes a row only when another row is identical in every column (time, every tag and every field). A point re-sent with the same tags and time and a new value is stored alongside the old one, and queries count both. Exact duplicates, such as a retried write, are still collapsed.
-- **Continuous queries turn on after an upgrade** -- The packages replace `/etc/arc/arc.toml`, which now sets `[continuous_query] enabled = true`. To keep them off, set it back to `false` or set `ARC_CONTINUOUS_QUERY_ENABLED=false`.
+- **A re-sent point no longer replaces the old one** -- Up to 26.09.3, compaction kept one row per (tags, time) and deleted the rest, dropping corrections, partial writes and re-run continuous-query windows. It now removes a row only when another row is identical in every column (time, every tag and every field), so a point re-sent with a new value is stored alongside the old one and queries count both. Exact duplicates, such as a retried write, are still collapsed. Rows that 26.09.3 already deleted cannot be recovered. In a cluster, upgrade the compactor node, and the writers too when `cluster.failover_enabled` is on.
+- **Continuous queries turn on after an upgrade** -- The `arc.toml` shipped in the `.deb`, RPM, Arch package and Docker image set `enabled = false`, so every continuous-query API call answered 404 on a fresh install. The packages replace `/etc/arc/arc.toml`, which now sets `[continuous_query] enabled = true`. To keep them off, set it back to `false` or set `ARC_CONTINUOUS_QUERY_ENABLED=false`.
 - **Linux needs glibc 2.34 or newer** -- Ubuntu 20.04 and RHEL 8 are not supported. 26.09.3 needed 2.38, so no system that ran 26.09.3 loses support.
+
+### Performance
+
+- **Snappy encoding on arm64** -- `klauspost/compress` 1.20, which carries the zstd fix, encodes snappy on arm64 with new assembly. On an Apple M3 Max, line-protocol ingest was 3.2% slower and Parquet files 2-4% larger; no version has the fix without this cost.
 
 ### Bug fixes
 
-- **Compaction deleted rows that differed only in field values** -- Up to 26.09.3, compaction kept one row per (tags, time) and deleted the rest, dropping corrections, partial writes and re-run continuous-query windows. Rows that 26.09.3 already deleted cannot be recovered by this release. In a cluster, upgrade the compactor node, and the writers too when `cluster.failover_enabled` is on.
-- **Linux packages failed on Debian 12, Ubuntu 22.04, RHEL 9 and Amazon Linux 2023** -- The binaries are now built on Ubuntu 22.04 with libstdc++ linked in, and need only glibc 2.34 or newer. Supported: Ubuntu 22.04+, Debian 12+, RHEL/Rocky/Alma 9+, Amazon Linux 2023 and Fedora 35+, on amd64 and arm64.
-- **Continuous queries disabled in packaged configuration** -- The `arc.toml` shipped in the `.deb`, RPM, Arch package and Docker image set `enabled = false`, so every continuous-query API call answered 404 on a fresh install.
+- **Linux packages run on Debian 12, Ubuntu 22.04, RHEL 9 and Amazon Linux 2023 again** -- The 26.09.3 binaries needed glibc 2.38. The binaries are now built on Ubuntu 22.04 with libstdc++ linked in, and need only glibc 2.34 or newer. Supported: Ubuntu 22.04+, Debian 12+, RHEL/Rocky/Alma 9+, Amazon Linux 2023 and Fedora 35+, on amd64 and arm64.
+
+### Security
+
+- **A crafted zstd request no longer crashes Arc** -- A crafted zstd request body could crash Arc through `klauspost/compress` (GHSA-fpmh-frq8-7rj8). Fixed by `klauspost/compress` 1.20.4.
+- **Go 1.26.10 and dependency updates** -- Fixes in `net/http`, `net/textproto`, `crypto/tls`, `crypto/x509` and `html/template`, plus `golang.org/x/net` 0.60.0 and `andybalholm/brotli` 1.2.7.
 
 ### Packaging
 
 - **Signed RPMs** -- The `arc` and `arc-fips` RPMs are signed with the Basekick Labs package key (fingerprint `3E39 9CF8 F5D2 EF9A A9A5 36EF 7629 7AF0 8CBA B6FE`), so Fedora 45's rpm 6.1 accepts them. Import `RPM-GPG-KEY-basekick` from the release once with `rpm --import`.
-
-### Security
-
-- **Crafted zstd request crash** -- A crafted zstd request body could crash Arc through `klauspost/compress` ([GHSA-fpmh-frq8-7rj8](https://github.com/advisories/GHSA-fpmh-frq8-7rj8)). Fixed by `klauspost/compress` 1.20.4.
-- **Go 1.26.10 and dependency updates** -- Fixes in `net/http`, `net/textproto`, `crypto/tls`, `crypto/x509` and `html/template`, plus `golang.org/x/net` 0.60.0 and `andybalholm/brotli` 1.2.7.
 
 Full release notes: [RELEASE_NOTES_2026.09.4.md](https://github.com/Basekick-Labs/arc/blob/v26.09.4/RELEASE_NOTES_2026.09.4.md)
 
@@ -56,7 +58,7 @@ Correctness and security release: four security advisories in RBAC and query aut
 
 The writer exposes `arc_replication_lag_entries` and `arc_replication_lag_seconds` per connected WAL replication reader, labelled by `peer`. Pair a `seconds` alert with `arc_replication_lag_entries >= <cluster.replication_buffer_size>` or `rate(arc_replication_entries_dropped_total[5m]) > 0`.
 
-Documentation: [Clustering](/arc-enterprise/configuration/clustering/)
+Documentation: [Monitoring](/arc-enterprise/operations/monitoring/)
 
 #### Backup and ingest visibility
 
@@ -79,7 +81,7 @@ Documentation: [Backup and restore](/arc/operations/backup-restore/)
 
 ### Security
 
-- **RBAC restrictions were unreachable (GHSA-mcqm-h7hj-99fg) (Enterprise)** -- RBAC denials now stand, enforcement no longer depends on the license, and the database listing routes now require authorization.
+- **RBAC restrictions were unreachable (Enterprise, GHSA-mcqm-h7hj-99fg)** -- RBAC denials now stand, enforcement no longer depends on the license, and the database listing routes now require authorization.
 - **Query authorization gaps (GHSA-qcf2-6hm7-62c5, GHSA-9rgq-j585-5fhq, GHSA-h3rq-5r29-2wrh)** -- `GET /api/v1/query/:measurement` authorizes every table reference in the assembled statement including its `where` fragment, the replacement-scan guard now covers the relation-introducing keywords DuckDB has beyond `FROM` and `JOIN`, and RBAC extraction now agrees with the query rewriter.
 
 Full release notes: [RELEASE_NOTES_2026.09.3.md](https://github.com/Basekick-Labs/arc/blob/v26.09.3/RELEASE_NOTES_2026.09.3.md)
@@ -95,7 +97,7 @@ Correctness and hardening release: experimental file-level time pruning, a write
 ### Breaking changes
 
 - **Coordinated restart for clusters (Enterprise)** -- The coordinator and replicate-sync handshake wire formats changed: stop all cluster nodes, upgrade the binary on every node, then restart all nodes. A rolling restart causes cross-version nodes to mark each other unhealthy and can trigger an automatic writer failover.
-- **Retention with an S3 prefix will delete a backlog** -- With `storage.s3_prefix` set, retention has deleted nothing since v26.03.2, so the first run of each policy after upgrading removes everything already past its cutoff. Check each policy first with `POST /api/v1/retention/:id/execute` and `{"dry_run": true}`.
+- **Retention with an S3 prefix will delete a backlog** -- With `storage.s3_prefix` set, retention has deleted nothing since 26.03.2, so the first run of each policy after upgrading removes everything already past its cutoff. Check each policy first with `POST /api/v1/retention/:id/execute` and `{"dry_run": true}`.
 - **Invalid `storage.s3_prefix` stops startup** -- A prefix containing `..`, a space or any character outside `[A-Za-z0-9/._-]` previously fell back to the bucket root and now refuses to boot.
 - **Stricter cluster startup checks (Enterprise)** -- A clustered node with an unrecognised `cluster.role` exits (accepted: `standalone`, `writer`, `reader`, `compactor`), as does a node with `cluster.raft_bootstrap=true` on a role that does not accept writes.
 - **Helm chart: MinIO replaced by SeaweedFS** -- The `minio:` values block is renamed `seaweedfs:` and the schema rejects any `minio.*` key. Data on an existing bundled-MinIO volume is not migrated; sync the bucket first or point `storage.shared.external=true` at the old store.
@@ -103,6 +105,10 @@ Correctness and hardening release: experimental file-level time pruning, a write
 - **Shutdown exit code** -- A shutdown that cannot flush every buffer now exits with code 1 and logs `Retaining WAL files`; the data stays in the WAL and replays on the next start.
 - **Query time zone pinned to UTC** -- On non-UTC hosts, naive timestamp literals are now UTC and continuous queries with daily or weekly buckets align to UTC midnight.
 - **Removed metrics and keys** -- `arc_replication_sequence_gaps_total`, `arc_decomp_buffer_discards_total`, `arc_db_queries_total` and `arc_db_query_errors_total` are removed. The cold-tier keys `tiered_storage.cold.s3_storage_class`, `tiered_storage.cold.azure_access_tier` and `tiered_storage.cold.retrieval_mode` never did anything and are gone; configs that set them still load.
+
+### Upgrade notes
+
+- **WAL crash-recovery replay is at-least-once** -- Not new, but now documented: after a hard crash, already-flushed WAL entries are re-ingested; tagged duplicates are removed at the next compaction, tagless ones persist.
 
 ### New features
 
@@ -128,16 +134,13 @@ Each measurement now has a registered field schema stored at `_schema/{database}
 
 Documentation: [Stable field schema](/arc/guides/field-schema/)
 
+#### Telemetry reports arcli installations
+
+Arc's opt-out telemetry gains a `clients` section: the random per-installation id and version of each arcli installation that made a successful request since the last report. No query text, database or measurement names, tokens or IP addresses are included. `telemetry.enabled = false` or `ARC_TELEMETRY_ENABLED=false` turns it off with the rest of telemetry.
+
 #### Cluster membership and role controls (Enterprise)
 
 New admin endpoints: `DELETE /api/v1/cluster/files` (removes a manifest entry, requires `confirm=true`), `POST /api/v1/cluster/voters/converge`, `POST /api/v1/cluster/compactor/assign` and `POST /api/v1/cluster/writers/{id}/demote`. `GET /api/v1/cluster` now reports `raft.membership` and `active_compactor`, and the Helm chart now deploys three writers by default.
-
-### Security
-
-- **Read-SQL gate and validator hardening** -- Closes read-path bypasses on RBAC-enabled multi-tenant deployments, which should upgrade; RBAC table-reference deduplication now preserves case, and `PREPARE` and `EXECUTE` are rejected.
-- **Authenticated coordinator handshake (Enterprise)** -- Every field of every handshake message is covered by its HMAC in both directions, with replay protection; replicate-sync also authenticates `SupportsBinaryEntries`.
-- **Expired API tokens rejected on cache hits** -- A token that expired while cached no longer authorizes requests until the cache entry ages out.
-- **Dependency bumps** -- Apache Thrift 0.23.0 to 0.24.0 and gRPC-Go 1.83.1 to 1.83.2.
 
 ### Bug fixes
 
@@ -155,9 +158,12 @@ New admin endpoints: `DELETE /api/v1/cluster/files` (removes a manifest entry, r
 - **WAL and ingest** -- Oversized ingest requests are split across WAL entries instead of bypassing the WAL, and the OSS Helm chart now enables the WAL.
 - **JSON DECIMAL values** -- `POST /api/v1/query` returns DECIMAL results as numbers rather than quoted strings.
 
-### Upgrade notes
+### Security
 
-- **WAL crash-recovery replay is at-least-once** -- Not new, but now documented: after a hard crash, already-flushed WAL entries are re-ingested; tagged duplicates are removed at the next compaction, tagless ones persist.
+- **Read-SQL gate and validator hardening** -- Closes read-path bypasses on RBAC-enabled multi-tenant deployments, which should upgrade; RBAC table-reference deduplication now preserves case, and `PREPARE` and `EXECUTE` are rejected.
+- **Authenticated coordinator handshake (Enterprise)** -- Every field of every handshake message is covered by its HMAC in both directions, with replay protection; replicate-sync also authenticates `SupportsBinaryEntries`.
+- **Expired API tokens rejected on cache hits** -- A token that expired while cached no longer authorizes requests until the cache entry ages out.
+- **Dependency bumps** -- Apache Thrift 0.23.0 to 0.24.0 and gRPC-Go 1.83.1 to 1.83.2.
 
 Full release notes: [RELEASE_NOTES_2026.09.2.md](https://github.com/Basekick-Labs/arc/blob/v26.09.2/RELEASE_NOTES_2026.09.2.md)
 
@@ -171,10 +177,10 @@ Adds opt-in Apache Iceberg export, manual edge-to-cloud sync, and faster msgpack
 
 ### Breaking changes
 
-- **Coordinated restart for clusters (Enterprise)** -- the Raft transport now requires an authenticated handshake, so a node on this version will not form consensus with an older one; stop all cluster nodes, upgrade every binary, then restart all nodes.
+- **Coordinated restart for clusters (Enterprise)** -- The Raft transport now requires an authenticated handshake, so a node on this version will not form consensus with an older one; stop all cluster nodes, upgrade every binary, then restart all nodes.
 - **Insertion order no longer preserved by default** -- `database.preserve_insertion_order` now defaults to `false`, so queries without an explicit `ORDER BY` may return rows in any order; add `ORDER BY time` or set the key to `true` for the old behaviour.
-- **Builds without `duckdb_arrow` refuse to start** -- shipped artifacts already set the tag; only a bare `go build ./cmd/arc` is affected.
-- **Removed fields** -- `target_size_mb` is gone from the `tiers[]` entries of `GET /api/v1/compaction/stats`, and MQTT subscriptions no longer accept or return `reconnect_min_seconds`.
+- **Builds without `duckdb_arrow` refuse to start** -- Shipped artifacts already set the tag; only a bare `go build ./cmd/arc` is affected.
+- **Removed field** -- `target_size_mb` is gone from the `tiers[]` entries of `GET /api/v1/compaction/stats`.
 
 ### New features
 
@@ -216,29 +222,30 @@ Each release now ships a pacman package (`.pkg.tar.zst`) for `x86_64` and `aarch
 
 ### Bug fixes
 
-- **WAL recovery** -- startup recovery no longer cleans up the active WAL file, and replayed data now gets the same timestamp normalisation and UTF-8 sanitisation as live ingest; recommended for anyone running `wal.enabled = true`.
+- **MQTT `reconnect_min_seconds` removed** -- The setting never had an effect. Subscriptions no longer return it, and a request that sends it is not refused: the field is ignored.
+- **WAL recovery** -- Startup recovery no longer cleans up the active WAL file, and replayed data now gets the same timestamp normalisation and UTF-8 sanitisation as live ingest; recommended for anyone running `wal.enabled = true`.
 - **S3 and Azure query credentials** -- Arc now refreshes S3 credentials (IRSA, EC2 instance roles, EKS Pod Identity) and Azure managed-identity tokens itself, so queries no longer fail about an hour after startup.
 - **Outer joins** -- `LEFT`, `RIGHT`, `FULL OUTER` and other join modifiers were rewritten to inner joins and silently dropped rows; the operator is now kept verbatim.
 - **Quoted identifiers** -- `SELECT * FROM "my-db".cpu` now resolves to the right storage path instead of returning zero rows.
 - **Continuous query duplicates** -- CQs that select no `time` column now stamp the window start, and a new optional `tag_columns` field lets compaction collapse duplicate windows.
-- **License-server outages (Enterprise)** -- boot retries with backoff and falls back to a cached signed license instead of crash-looping; `license.file_path` adds offline license files.
-- **Compaction** -- partitions without a `time` column are skipped, a single-file remainder is folded into the last batch, and subprocesses no longer drop `storage.s3_prefix`.
-- **Backup and restore** -- concurrent requests now return `409 Conflict`, and backup streams files through a temp file instead of loading them into memory.
-- **Ingest and WAL sync** -- columns that are entirely null in a batch are no longer dropped, and `wal.sync_mode = fdatasync` now performs a real `fdatasync` on Linux.
+- **License-server outages (Enterprise)** -- Boot retries with backoff and falls back to a cached signed license instead of crash-looping; `license.file_path` adds offline license files.
+- **Compaction** -- Partitions without a `time` column are skipped, a single-file remainder is folded into the last batch, and subprocesses no longer drop `storage.s3_prefix`.
+- **Backup and restore** -- Concurrent requests now return `409 Conflict`, and backup streams files through a temp file instead of loading them into memory.
+- **Ingest and WAL sync** -- Columns that are entirely null in a batch are no longer dropped, and `wal.sync_mode = fdatasync` now performs a real `fdatasync` on Linux.
 - **API status codes** -- RBAC and MQTT endpoints return `400` or `409` for client errors instead of `500`.
 
 ### Security
 
-- **Replacement-scan RBAC bypass** -- a single-quoted string in table position is now rejected, closing a cross-database read on RBAC-enabled instances.
-- **Partition-pruner amplification** -- path generation is capped, the start date is floored at the epoch, and generation is cancelled on client disconnect.
+- **Replacement-scan RBAC bypass** -- A single-quoted string in table position is now rejected, closing a cross-database read on RBAC-enabled instances.
+- **Partition-pruner amplification** -- Path generation is capped, the start date is floored at the epoch, and generation is cancelled on client disconnect.
 - **Authenticated Raft transport (Enterprise)** -- Raft peer connections now use a mutual HMAC handshake with `cluster.shared_secret`.
-- **Forwarding headers in clusters** -- client-supplied forwarding and identity headers are stripped when a clustered node forwards a request, and a spoofed `X-Arc-Forwarded-By` now returns `508 Loop Detected`.
+- **Forwarding headers in clusters** -- Client-supplied forwarding and identity headers are stripped when a clustered node forwards a request, and a spoofed `X-Arc-Forwarded-By` now returns `508 Loop Detected`.
 - **Secret statements** -- `CREATE SECRET` and `DROP SECRET` are rejected in user SQL.
 
 ### Dependencies
 
 - **DuckDB 1.5.1 to 1.5.5** -- Parquet decompression hardening and a `TemporaryMemoryManager` deadlock fix.
-- **gRPC-Go to v1.83.1** -- moves past GHSA-hrxh-6v49-42gf; the vulnerable paths were not reachable in Arc.
+- **gRPC-Go to v1.83.1** -- Moves past GHSA-hrxh-6v49-42gf; the vulnerable paths were not reachable in Arc.
 
 Full release notes: [RELEASE_NOTES_2026.09.1.md](https://github.com/Basekick-Labs/arc/blob/v26.09.1/RELEASE_NOTES_2026.09.1.md)
 
@@ -268,29 +275,22 @@ Full release notes: [RELEASE_NOTES_2026.06.3.md](https://github.com/Basekick-Lab
 
 Released: June 2026
 
-Patch release with bug fixes and hardening: no breaking API changes and no schema migrations. It tightens authorization on query and database-management endpoints, completes the CVE-2026-47735 fix, adds signed release artifacts and an optional FIPS 140-3 build, and fixes CSV/Parquet imports and several compaction wedges.
+Patch release with bug fixes and hardening, and no schema migrations. It tightens authorization on query and database-management endpoints, completes the CVE-2026-47735 fix, adds signed release artifacts and an optional FIPS 140-3 build, and fixes CSV/Parquet imports and several compaction wedges.
 
-### Upgrade notes
+### Breaking changes
 
 - **Clustering requires a shared secret (Enterprise)** -- A node with `cluster.enabled = true` and no `cluster.shared_secret` now refuses to start; set `ARC_CLUSTER_SHARED_SECRET` before upgrading, and upgrade all cluster nodes in one window, since join, leave and heartbeat HMAC validation fails across versions during the roll.
 - **Query routes require `read` permission** -- `/api/v1/query`, `/query/msgpack`, `/query/estimate`, `/measurements`, `/query/:measurement` and the Arrow IPC endpoint no longer accept write-only tokens.
 - **Database management requires admin** -- `POST /api/v1/databases` and `DELETE /api/v1/databases/:name` now require an admin token; auto-create-on-write is unaffected.
 - **CSV/Parquet import behaviour** -- Parquet `DECIMAL` columns are imported as `DOUBLE`, and malformed files now fail with a `400` instead of partially succeeding.
+
+### Upgrade notes
+
 - **FIPS cutover** -- Tokens created by a non-FIPS build are bcrypt hashes that the FIPS build refuses to verify; rotate existing API tokens when moving to `arc-fips`.
 
-### Supply-chain hardening
+### Performance
 
-- **Signed release artifacts** -- Every release now ships SPDX and CycloneDX SBOMs, a Trivy report for the container image, cosign signatures for binaries and images, and SLSA Level 3 provenance for the release binaries.
-- **FIPS 140-3 build variant** -- The optional `arc-fips` build is the same source and version compiled against the CMVP-certified Go Cryptographic Module v1.0.0 in FIPS-only mode; Arc itself is not a CMVP-listed module. See [FIPS](/arc/configuration/fips/).
-
-### Security
-
-- **`GET /api/v1/logs` requires an admin token** -- It was reachable without a token when authentication was enabled; the JSON metrics endpoints under `/api/v1/metrics` remain public by design.
-- **Filesystem-I/O functions blocked in user SQL** -- The validator now rejects `parquet_scan()`, `glob`, `read_csv`, `read_json*` and related path-taking table functions in any query position, completing the CVE-2026-47735 fix.
-- **RBAC on estimate and measurements** -- `POST /api/v1/query/estimate` and `GET /api/v1/measurements` now enforce table-level RBAC read checks, and multi-statement queries are rejected on all query endpoints.
-- **S3 credentials no longer readable via SQL** -- S3 credentials move from global DuckDB settings to scope-bound secrets (`arc_s3_primary`, `arc_s3_cold`); S3 and Azure gain AWS/Azure credential-chain support when no static key is configured.
-- **Auth database permissions** -- The token/RBAC SQLite database and its `-wal`/`-shm` files are now locked to `0600`.
-- **RBAC-only tokens** -- `POST /api/v1/auth/tokens` with `"permissions": []` now creates a token with no platform permissions instead of defaulting to `read,write`.
+- **Compaction cleanup and ingest flush** -- Compaction cleanup uses S3 and Azure batch-delete APIs (up to 1000x fewer DELETE calls on S3, 256x on Azure), and ingest flush replaces its time sort with a radix sort.
 
 ### Bug fixes
 
@@ -301,9 +301,19 @@ Patch release with bug fixes and hardening: no breaking API changes and no schem
 - **WAL reliability** -- Header reads use `io.ReadFull`, and write failures trigger rotation and increment `arc_wal_failed_writes_total`.
 - **Tiered storage (Enterprise)** -- Policy lookups cache not-found results, and `tier_migrations` history is cleaned up after `[tiered_storage].migration_history_retention_days` (default 90).
 
-### Performance
+### Security
 
-- **Compaction cleanup and ingest flush** -- Compaction cleanup uses S3 and Azure batch-delete APIs (up to 1000x fewer DELETE calls on S3, 256x on Azure), and ingest flush replaces its time sort with a radix sort.
+- **`GET /api/v1/logs` requires an admin token** -- It was reachable without a token when authentication was enabled; the JSON metrics endpoints under `/api/v1/metrics` remain public by design.
+- **Filesystem-I/O functions blocked in user SQL** -- The validator now rejects `parquet_scan()`, `glob`, `read_csv`, `read_json*` and related path-taking table functions in any query position, completing the CVE-2026-47735 fix.
+- **RBAC on estimate and measurements** -- `POST /api/v1/query/estimate` and `GET /api/v1/measurements` now enforce table-level RBAC read checks, and multi-statement queries are rejected on all query endpoints.
+- **S3 credentials no longer readable via SQL** -- S3 credentials move from global DuckDB settings to scope-bound secrets (`arc_s3_primary`, `arc_s3_cold`); S3 and Azure gain AWS/Azure credential-chain support when no static key is configured.
+- **Auth database permissions** -- The token/RBAC SQLite database and its `-wal`/`-shm` files are now locked to `0600`.
+- **RBAC-only tokens** -- `POST /api/v1/auth/tokens` with `"permissions": []` now creates a token with no platform permissions instead of defaulting to `read,write`.
+
+### Packaging
+
+- **Signed release artifacts** -- Every release now ships SPDX and CycloneDX SBOMs, a Trivy report for the container image, cosign signatures for binaries and images, and SLSA Level 3 provenance for the release binaries.
+- **FIPS 140-3 build variant** -- The optional `arc-fips` build is the same source and version compiled against the CMVP-certified Go Cryptographic Module v1.0.0 in FIPS-only mode; Arc itself is not a CMVP-listed module. See [FIPS](/arc/configuration/fips/).
 
 Full release notes: [RELEASE_NOTES_2026.06.2.md](https://github.com/Basekick-Labs/arc/blob/v26.06.2/RELEASE_NOTES_2026.06.2.md)
 
@@ -392,10 +402,13 @@ Released: May 2026
 
 Cluster-focused release: Arc Enterprise gains peer file replication for local-storage clusters, a dedicated compactor role with failover, cluster TLS and shared-secret joins, and a Helm chart. Ingestion and query paths were hardened, and write endpoints now enforce write-tier auth.
 
+### Breaking changes
+
+- **Write endpoints require write permission** -- A read-only token can no longer write; bulk-import endpoints and the line-protocol global flush endpoint require an admin token.
+- **Stricter query API validation** -- The query API now also rejects `ATTACH/DETACH/COPY/EXPORT DATABASE/IMPORT DATABASE/PRAGMA/SET/RESET/LOAD/INSTALL/CALL`, direct `read_parquet(` calls in user SQL, and `x-arc-database` header values outside `[a-zA-Z_][a-zA-Z0-9_-]*`.
+
 ### Upgrade notes
 
-- **Write endpoints require write-tier auth** -- Ingestion endpoints now use `auth.RequireWrite`, so a read-only token can no longer write; bulk-import endpoints and the line-protocol global flush endpoint require `auth.RequireAdmin`.
-- **Stricter query API validation** -- The query API now also rejects `ATTACH/DETACH/COPY/EXPORT DATABASE/IMPORT DATABASE/PRAGMA/SET/RESET/LOAD/INSTALL/CALL`, direct `read_parquet(` calls in user SQL, and `x-arc-database` header values outside `[a-zA-Z_][a-zA-Z0-9_-]*`.
 - **`?p=` authentication deprecated** -- Token authentication via the `?p=` query parameter (InfluxDB 1.x compatibility) still works but logs a one-time warning; migrate clients to the `Authorization: Bearer <token>` header.
 - **Directory permissions** -- New sensitive-data directories are created `0700`, but existing directories keep their current permissions; run `chmod 700` on your data directory if desired.
 
@@ -440,8 +453,8 @@ A periodic reconciler detects orphan manifest entries and orphan storage files. 
 
 ### Dependencies
 
-- **DuckDB 1.4.4 → 1.5.1**
-- **AWS SDK v2** -- DNS timeout errors are retried automatically, improving S3 reliability
+- **DuckDB 1.4.4 to 1.5.1**.
+- **AWS SDK v2** -- DNS timeout errors are retried automatically, improving S3 reliability.
 
 Full release notes: [RELEASE_NOTES_2026.05.1.md](https://github.com/Basekick-Labs/arc/blob/v26.05.1/RELEASE_NOTES_2026.05.1.md)
 
