@@ -570,6 +570,31 @@ Since 26.09.3 a node's tier rows follow its own disk, not only what it ingested.
 On 26.09.2 and earlier, a node recorded tier rows only for files it flushed itself. Files pulled from a peer had no row until the next scan, and a file another node migrated was not marked cold locally until the next cold sync — at the default `0 2 * * *` schedule up to a day. Because the query layer routes reads from those rows, a node not currently ingesting a measurement lost partition pruning for it (`GET /api/v1/tiering/files` showed far fewer files on it than on the ingesting node), and a measurement with a cold row and no hot row dropped that node's local files from reads entirely: a windowed `count(*)` over data on its disk returned `0` with `success: true`. `POST /api/v1/tiering/scan` on each affected node closes the gap until the next migration cycle reopens it; upgrading removes it.
 </Callout>
 
+### Reads while the cold tier is unreachable
+
+Since v27.01.1 a read of recent data keeps working while the cold tier cannot be listed: it answers from hot data when Arc can prove the range holds no cold data. A read that does need cold data still fails rather than answer without it, and so does a read with no stated start time.
+
+- **Standalone** ([arc#1550](https://github.com/Basekick-Labs/arc/issues/1550)): the node's own tier metadata decides, once a complete cold-tier sync has recorded every cold object.
+- **Cluster** ([arc#1552](https://github.com/Basekick-Labs/arc/issues/1552)): the decision uses a **cold mark**: the newest day per measurement that may hold cold data, replicated through Raft. It is raised before every cold write, and a read leaves cold out only when its start is after that day. The mark is used only when it is trusted:
+  - every node runs a release that maintains it, and the mark was seeded from a complete cold listing;
+  - every member confirmed it within the last 15 minutes. A node rolled back to an older release, or gone silent, makes it untrusted.
+  - the reading node uses the same cold tier (backend, bucket, prefix, endpoint) as the one the mark was seeded from.
+
+  Before a read leaves cold out, the node confirms it is caught up with the Raft leader.
+
+  Do not roll a node back to an older release once the mark is in use. Until the mark turns untrusted (up to 15 minutes), that node can write to the cold tier without raising it, and a read in that window can miss those files. If it happens, upgrade the node again and reset the seed (below) so the next complete sync records what it wrote.
+
+While the cold tier is coming back, a read can still return `503` if a listing has not recovered yet; retry it.
+
+`GET /api/v1/cluster` shows `cold_mark.trusted` and, when it is not trusted, `untrusted_reason`. Reads answered this way count in `arc_query_cold_mark_skipped_total` (standalone: `arc_query_cold_unlisted_skipped_total`).
+
+If the mark reports a backend conflict, or you changed the cold tier configuration, make every node use the same cold tier first, then reset the seed. The next complete cold-tier sync seeds it again, and marks already recorded are kept:
+
+```bash
+curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:8000/api/v1/cluster/cold-mark/reset
+```
+
 ## Deleting rows in cold storage
 
 A row DELETE (`POST /api/v1/delete`) deletes a cold file when every row in it
