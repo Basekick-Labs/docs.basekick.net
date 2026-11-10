@@ -126,12 +126,11 @@ ARC_TOKEN = os.environ["ARC_TOKEN"]
 
 response = requests.post(
     "http://localhost:8000/api/v1/query/msgpack",
-    headers={
-        "Authorization": f"Bearer {ARC_TOKEN}",
-        "Accept-Encoding": "zstd",   # optional, typically ~40% smaller
-    },
+    # requests offers gzip by default and decompresses the body for you
+    headers={"Authorization": f"Bearer {ARC_TOKEN}"},
     json={"sql": "SELECT * FROM default.cpu LIMIT 100000"}
 )
+response.raise_for_status()
 
 result = msgpack.unpackb(response.content, raw=False)
 
@@ -139,6 +138,13 @@ result = msgpack.unpackb(response.content, raw=False)
 for name, type_name, column in zip(result["columns"], result["types"], result["data"]):
     print(name, type_name, column[:5])
 ```
+
+Do not set `Accept-Encoding: zstd` by hand. Arc then answers with
+`Content-Encoding: zstd`, and unless urllib3's optional zstd support is
+installed, `requests` hands the compressed bytes to `msgpack`, which fails with
+`ExtraData`. To get zstd, install that support (`pip install "urllib3[zstd]"`)
+and leave the header alone: `requests` then offers zstd itself and decodes the
+response.
 
 The response is a single MessagePack map:
 
@@ -638,8 +644,11 @@ Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row)
 `POST /api/v1/query` (JSON) and `POST /api/v1/query/msgpack` honor the
 standard `Accept-Encoding` request header — send `Accept-Encoding: zstd, gzip`
 and the response body is compressed (zstd preferred; `Content-Encoding` set
-accordingly). curl, browsers, and HTTP libraries negotiate this
-automatically. Typical savings: JSON −68%, msgpack −38% on large results.
+accordingly). curl (with `--compressed`) and browsers decode it
+automatically. HTTP libraries decode only the encodings they support: Python
+`requests` handles gzip out of the box and zstd only with
+`pip install "urllib3[zstd]"`, so do not request zstd from a client that cannot
+decode it. Typical savings: JSON −68%, msgpack −38% on large results.
 Clients that omit the header get identical responses to previous versions.
 
 ### Request compression
