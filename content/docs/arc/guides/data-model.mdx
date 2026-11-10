@@ -123,9 +123,11 @@ Arc converts `ns` to microseconds by integer division. Sub-microsecond precision
 
 ## Deduplication
 
-Arc ingests append-only and de-duplicates during compaction. A duplicate is a row with the same **dedup key** and the same timestamp.
+Arc ingests append-only and de-duplicates during compaction. Since 26.09.4 a duplicate is a row **identical in every column** (time, every tag and every field) to another row with the same **dedup key**.
 
-The dedup key comes from column names recorded in the Parquet footer as `arc:tags`, and the key is `(tag columns…, time)`, keeping one row per key.
+The dedup key comes from column names recorded in the Parquet footer as `arc:tags`, and the key is `(tag columns…, time)`. Compaction removes a row only when another row is identical in every column. A re-sent point with a new value is kept next to the old one, and queries see both; an exact re-send (a client retrying the same write) is collapsed.
+
+Up to 26.09.3, compaction kept one row per key whatever the field values, so a correction or a partial write could be deleted ([arc#1232](https://github.com/Basekick-Labs/arc/issues/1232)).
 
 **Only some write paths set that metadata:**
 

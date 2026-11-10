@@ -71,12 +71,14 @@ ended; earlier windows are not revisited.
   time the interval fires.
 - **Output is idempotent at compaction, not atomically exactly-once.** A retry,
   an overlapping manual re-run, or a crash between the write and the watermark
-  update re-emits a window's rows, so duplicates can appear transiently. They are
-  collapsed to one row per `(dimensions, time)` the next time the destination
+  update re-emits a window's rows, so duplicates can appear transiently. A re-emitted
+  row identical to the first is collapsed the next time the destination
   partition compacts — provided you declared the grouping dimensions in
   [`tag_columns`](#idempotency-and-tag_columns) (a query with no grouping is
   deduped automatically). Until compaction runs, a query over the destination may
-  see the duplicate rows.
+  see the duplicate rows. Since 26.09.4, a re-run whose aggregate differs (for
+  example, late data arrived in between) keeps both rows; up to 26.09.3 one of
+  them, usually the stale one, was kept.
 
 This model fits **periodic roll-ups and downsampling of in-order, timely data**
 (for example building 1m/5m bars from a clean feed). If your workload involves
@@ -149,12 +151,12 @@ POST /api/v1/continuous_queries
 
 #### Idempotency and `tag_columns`
 
-Continuous-query output is made idempotent by Arc's compaction step: duplicate emissions of the same window (from a retry, an overlapping manual run, or a crash between the write and the watermark advance) are collapsed to one row per `(grouping dimensions, time)` when the destination partition compacts.
+Continuous-query output is made idempotent by Arc's compaction step: duplicate emissions of the same window (from a retry, an overlapping manual run, or a crash between the write and the watermark advance) are collapsed when the destination partition compacts. Since 26.09.4 a row is removed only when another row with the same `(grouping dimensions, time)` is identical in every column, so a re-run that produced a different value keeps both rows; up to 26.09.3 one row per `(grouping dimensions, time)` was kept, whatever its value.
 
 For this to work, Arc must know which output columns are the grouping dimensions:
 
-- **A query with `GROUP BY <dimension>`** (e.g. `GROUP BY host`) must list those dimensions in `tag_columns` (e.g. `"tag_columns": ["host"]`). Arc writes them as Parquet tag metadata and dedups on `(tags, time)`.
-- **A query with no grouping** (one row per window, e.g. `SELECT AVG(x) …`) needs no `tag_columns` — Arc detects it produces one row per timestamp and dedups on time automatically.
+- **A query with `GROUP BY <dimension>`** (e.g. `GROUP BY host`) must list those dimensions in `tag_columns` (e.g. `"tag_columns": ["host"]`). Arc writes them as Parquet tag metadata and dedups exact copies within each `(tags, time)`.
+- **A query with no grouping** (one row per window, e.g. `SELECT AVG(x) …`) needs no `tag_columns` — Arc detects it produces one row per timestamp and dedups exact copies automatically.
 - **If you group but forget to declare `tag_columns`**, Arc detects the multiple-rows-per-timestamp output and does **not** dedup it (to avoid deleting distinct series). The query still runs and its rows are correct, but duplicate windows will accumulate; a warning is logged asking you to add `tag_columns`.
 
 `tag_columns` may not include `time` (time is always part of the dedup key). Names must be plain identifiers (letters, digits, `_`, `-`) and may not start with `_`, because Arc does not store columns whose names start with `_`. Output-row timestamps are stamped with the window's start time; a query that does not select a `time` column now gets the correct window timestamp instead of the ingestion wall-clock.
