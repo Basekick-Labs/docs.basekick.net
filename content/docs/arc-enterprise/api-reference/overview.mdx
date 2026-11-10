@@ -13,24 +13,24 @@ http://localhost:8000
 
 ## Authentication
 
-All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients:
+All endpoints (except public ones) require authentication. Arc supports multiple authentication methods for compatibility with various clients. The examples send each one to `GET /api/v1/auth/verify`, which answers `200` with the token's details when the token is valid; every other endpoint accepts the same headers.
 
 ### Bearer token (standard)
 
 ```bash
-curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Token header (InfluxDB 2.x style)
 
 ```bash
-curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "Authorization: Token $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### API key header
 
 ```bash
-curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/query
+curl -H "x-api-key: $ARC_TOKEN" http://localhost:8000/api/v1/auth/verify
 ```
 
 ### Query parameter (InfluxDB 1.x style)
@@ -469,13 +469,22 @@ Query a specific measurement directly.
 
 Verify token validity (public endpoint).
 
+Returns `401` with `"valid": false` when the token is missing, invalid or expired. Accepts every token format listed under [Authentication](#authentication).
+
 **Response:**
 ```json
 {
   "valid": true,
-  "token_id": "abc123",
-  "name": "my-token",
-  "is_admin": false
+  "token_info": {
+    "id": 2,
+    "name": "my-token",
+    "description": "Token for my application",
+    "permissions": ["read", "write"],
+    "created_at": "2026-11-10T18:59:07Z",
+    "enabled": true,
+    "expires_at": null
+  },
+  "permissions": ["read", "write"]
 }
 ```
 
@@ -1111,12 +1120,16 @@ MQTT service health check.
 {
   "status": "healthy",
   "healthy": true,
-  "running_count": 2,
-  "connected_count": 2,
-  "disconnected_count": 0,
-  "service": "mqtt_subscriptions"
+  "subscriptions": {
+    "total": 2,
+    "running": 2,
+    "stopped": 0,
+    "errors": 0
+  }
 }
 ```
+
+`status` is `degraded` while any subscription is in an error state, and `unhealthy` when subscriptions exist but none is running; `healthy` is `true` only for `healthy`.
 
 ---
 

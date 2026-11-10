@@ -778,7 +778,7 @@ This is the **most effective optimization** - fewer files means faster compactio
 
 **Check status:**
 ```bash
-curl http://localhost:8000/api/v1/compaction/status
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/compaction/status
 ```
 
 **Verify configuration:**
