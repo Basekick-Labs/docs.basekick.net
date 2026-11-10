@@ -26,17 +26,30 @@ Arc provides a native Telegraf output plugin that sends metrics in MessagePack c
 
 ### 1. Install Telegraf
 
+On Ubuntu 20.04 or later and Debian 10 (Buster) or later, add InfluxData's APT repository with its current signing key. The commands need `curl` and `gpg`, and write the keyring only if the downloaded key's fingerprint is `24C975CBA61A024EE1B631787C3D57159FC2F927`:
+
 ```bash
-# Ubuntu/Debian
-wget -qO- https://repos.influxdata.com/influxdb.key | sudo apt-key add -
-echo "deb https://repos.influxdata.com/ubuntu focal stable" | sudo tee /etc/apt/sources.list.d/influxdb.list
-sudo apt update && sudo apt install telegraf
-
-# macOS
-brew install telegraf
-
-# Or download from https://portal.influxdata.com/downloads/
+sudo install -d -m 0755 /etc/apt/keyrings
+curl --silent --location -O https://repos.influxdata.com/influxdata-archive.key
+gpg --show-keys --with-fingerprint --with-colons ./influxdata-archive.key 2>&1 \
+  | grep -q '^fpr::*24C975CBA61A024EE1B631787C3D57159FC2F927:$' \
+  && cat influxdata-archive.key \
+  | gpg --dearmor \
+  | sudo tee /etc/apt/keyrings/influxdata-archive.gpg > /dev/null \
+  && echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' \
+  | sudo tee /etc/apt/sources.list.d/influxdata.list
+sudo apt-get update && sudo apt-get install -y telegraf
 ```
+
+If the fingerprint does not match, nothing is written and `apt-get install` then fails with `Unable to locate package telegraf`. You can delete `influxdata-archive.key` afterwards. `apt-key` is not used: it is deprecated on Ubuntu and removed from Debian 13. For RHEL, older distributions and other platforms, follow InfluxData's [Telegraf install guide](https://docs.influxdata.com/telegraf/v1/install/).
+
+On macOS:
+
+```bash
+brew install telegraf
+```
+
+Binaries for other platforms are on [InfluxData's downloads page](https://www.influxdata.com/downloads/).
 
 Verify you have Telegraf 1.37+:
 

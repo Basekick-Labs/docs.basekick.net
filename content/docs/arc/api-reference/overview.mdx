@@ -1184,15 +1184,31 @@ Create a new MQTT subscription.
 **Response (201 Created):**
 ```json
 {
-  "id": "sub_abc123",
-  "name": "factory-sensors",
-  "broker": "tcp://localhost:1883",
-  "topics": ["sensors/#"],
-  "database": "iot",
-  "status": "running",
-  "created_at": "2026-02-01T10:00:00Z"
+  "success": true,
+  "subscription": {
+    "id": "056fbfda-eab0-4358-b139-42c539896a1f",
+    "name": "factory-sensors",
+    "broker": "tcp://localhost:1883",
+    "client_id": "arc-e5ccee1d",
+    "topics": ["sensors/#"],
+    "qos": 1,
+    "database": "iot",
+    "has_password": false,
+    "tls_enabled": false,
+    "tls_insecure_skip_verify": false,
+    "auto_start": true,
+    "status": "stopped",
+    "keep_alive_seconds": 60,
+    "connect_timeout_seconds": 30,
+    "reconnect_max_seconds": 60,
+    "clean_session": false,
+    "created_at": "2026-02-01T10:00:00Z",
+    "updated_at": "2026-02-01T10:00:00Z"
+  }
 }
 ```
+
+A new subscription is created `stopped`, even with `"auto_start": true`. Start it with [`POST /api/v1/mqtt/subscriptions/:id/start`](#post-apiv1mqttsubscriptionsidstart).
 
 **Full options:**
 
@@ -1210,8 +1226,8 @@ Create a new MQTT subscription.
 | `tls_cert_path` | string | No | - | Client certificate path |
 | `tls_key_path` | string | No | - | Client key path |
 | `tls_ca_path` | string | No | - | CA certificate path |
-| `topic_mapping` | object | No | {} | Per topic filter (`+`, `#`): a database name, or a rule with `database`, `measurement` and `tags_from_topic` (v27.01.1+); see the MQTT integration page |
-| `auto_start` | bool | No | true | Start on creation and server restart |
+| `topic_mapping` | object | No | {} | In 26.09.x and earlier: exact topic to database name. From v27.01.1: topic filter (`+`, `#`) to a database name or a rule with `database`, `measurement` and `tags_from_topic`. See the MQTT integration page |
+| `auto_start` | bool | No | false | Start the subscription whenever Arc starts. Creating a subscription does not start it |
 
 ### GET /api/v1/mqtt/subscriptions
 
@@ -1220,9 +1236,10 @@ List all MQTT subscriptions.
 **Response:**
 ```json
 {
+  "success": true,
   "subscriptions": [
     {
-      "id": "sub_abc123",
+      "id": "056fbfda-eab0-4358-b139-42c539896a1f",
       "name": "factory-sensors",
       "broker": "tcp://localhost:1883",
       "status": "running"
@@ -1246,13 +1263,12 @@ Delete a subscription. Subscription must be stopped first.
 
 ### POST /api/v1/mqtt/subscriptions/:id/start
 
-Start a stopped subscription.
+Start a stopped subscription, including one that was just created.
 
 **Response:**
 ```json
 {
-  "id": "sub_abc123",
-  "status": "running",
+  "success": true,
   "message": "Subscription started"
 }
 ```
