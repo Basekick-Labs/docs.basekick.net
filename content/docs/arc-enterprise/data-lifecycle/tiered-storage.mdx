@@ -582,6 +582,10 @@ Since v27.01.1 a read of recent data keeps working while the cold tier cannot be
 
   Before a read leaves cold out, the node confirms it is caught up with the Raft leader.
 
+  Do not roll a node back to an older release once the mark is in use. Until the mark turns untrusted (up to 15 minutes), that node can write to the cold tier without raising it, and a read in that window can miss those files. If it happens, upgrade the node again and reset the seed (below) so the next complete sync records what it wrote.
+
+While the cold tier is coming back, a read can still return `503` if a listing has not recovered yet; retry it.
+
 `GET /api/v1/cluster` shows `cold_mark.trusted` and, when it is not trusted, `untrusted_reason`. Reads answered this way count in `arc_query_cold_mark_skipped_total` (standalone: `arc_query_cold_unlisted_skipped_total`).
 
 If the mark reports a backend conflict, or you changed the cold tier configuration, make every node use the same cold tier first, then reset the seed. The next complete cold-tier sync seeds it again, and marks already recorded are kept:
