@@ -286,18 +286,18 @@ Continuous queries use standard analytical SQL with temporal optimizations.
 
 ### Recommended approach
 
-Use `epoch_us()` for timestamp conversion and `date_trunc()` for time bucketing:
+`time` is already a timestamp, so pass it to `date_trunc()` directly to bucket it:
 
 ```sql
 SELECT
-    date_trunc('hour', epoch_us(time)) AS time,
+    date_trunc('hour', time) AS time,
     host,
     AVG(usage_idle) AS avg_usage_idle,
     MAX(usage_user) AS max_usage_user,
     MIN(usage_system) AS min_usage_system,
     COUNT(*) AS sample_count
 FROM telegraf.cpu
-GROUP BY date_trunc('hour', epoch_us(time)), host
+GROUP BY date_trunc('hour', time), host
 ```
 
 ### Common aggregations
@@ -317,13 +317,13 @@ These are common examples. Arc supports the **full analytical SQL aggregate set*
 **Using `date_trunc()`**:
 ```sql
 -- Hourly buckets
-date_trunc('hour', epoch_us(time))
+date_trunc('hour', time)
 
 -- Daily buckets
-date_trunc('day', epoch_us(time))
+date_trunc('day', time)
 
 -- 5-minute buckets (requires rounding)
-date_trunc('hour', epoch_us(time)) + INTERVAL '5 minutes' * floor(extract(minute from epoch_us(time)) / 5)
+date_trunc('hour', time) + INTERVAL '5 minutes' * floor(extract(minute from time) / 5)
 ```
 
 ### Including sample counts
@@ -332,12 +332,12 @@ Always include `COUNT(*)` to track how many raw samples each aggregate represent
 
 ```sql
 SELECT
-    date_trunc('hour', epoch_us(time)) AS time,
+    date_trunc('hour', time) AS time,
     host,
     AVG(usage_idle) AS avg_usage_idle,
     COUNT(*) AS sample_count  -- Important for data quality
 FROM telegraf.cpu
-GROUP BY date_trunc('hour', epoch_us(time)), host
+GROUP BY date_trunc('hour', time), host
 ```
 
 ## Usage examples
@@ -363,7 +363,7 @@ response = requests.post(
         "destination_measurement": "cpu_hourly",
         "query": """
             SELECT
-                date_trunc('hour', epoch_us(time)) AS time,
+                date_trunc('hour', time) AS time,
                 host,
                 AVG(usage_idle) AS avg_usage_idle,
                 AVG(usage_user) AS avg_usage_user,
@@ -372,7 +372,7 @@ response = requests.post(
                 COUNT(*) AS sample_count
             FROM telegraf.cpu
             WHERE time >= {start_time} AND time < {end_time}
-            GROUP BY date_trunc('hour', epoch_us(time)), host
+            GROUP BY date_trunc('hour', time), host
         """,
         "interval": "1h",
         "tag_columns": ["host"],  # grouping dimension → idempotent output
@@ -406,6 +406,7 @@ Aggregate API request logs into daily summaries:
 
 ```python
 import os
+import requests
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
@@ -420,7 +421,7 @@ response = requests.post(
         "destination_measurement": "api_requests_daily",
         "query": """
             SELECT
-                date_trunc('day', epoch_us(time)) AS time,
+                date_trunc('day', time) AS time,
                 endpoint,
                 status_code,
                 COUNT(*) AS total_requests,
@@ -429,7 +430,7 @@ response = requests.post(
                 PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) AS p95_response_time
             FROM logs.api_requests
             WHERE time >= {start_time} AND time < {end_time}
-            GROUP BY date_trunc('day', epoch_us(time)), endpoint, status_code
+            GROUP BY date_trunc('day', time), endpoint, status_code
         """,
         "interval": "1d",
         "tag_columns": ["endpoint", "status_code"],  # grouping dimensions → idempotent output
@@ -444,6 +445,7 @@ Downsample IoT sensor data to 5-minute intervals:
 
 ```python
 import os
+import requests
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
@@ -458,8 +460,8 @@ response = requests.post(
         "destination_measurement": "temperature_5min",
         "query": """
             SELECT
-                date_trunc('hour', epoch_us(time)) +
-                INTERVAL '5 minutes' * floor(extract(minute from epoch_us(time)) / 5) AS time,
+                date_trunc('hour', time) +
+                INTERVAL '5 minutes' * floor(extract(minute from time) / 5) AS time,
                 sensor_id,
                 location,
                 AVG(temperature) AS avg_temperature,
@@ -469,8 +471,8 @@ response = requests.post(
             FROM iot.temperature
             WHERE time >= {start_time} AND time < {end_time}
             GROUP BY
-                date_trunc('hour', epoch_us(time)) +
-                INTERVAL '5 minutes' * floor(extract(minute from epoch_us(time)) / 5),
+                date_trunc('hour', time) +
+                INTERVAL '5 minutes' * floor(extract(minute from time) / 5),
                 sensor_id,
                 location
         """,
@@ -487,6 +489,7 @@ Test a continuous query before execution:
 
 ```python
 import os
+import requests
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
@@ -627,11 +630,11 @@ Track the number of raw samples in each aggregate:
 
 ```sql
 SELECT
-    date_trunc('hour', epoch_us(time)) AS time,
+    date_trunc('hour', time) AS time,
     COUNT(*) AS sample_count,  -- Essential for data quality
     AVG(value) AS avg_value
 FROM measurement
-GROUP BY date_trunc('hour', epoch_us(time))
+GROUP BY date_trunc('hour', time)
 ```
 
 This helps identify:
@@ -691,7 +694,7 @@ Match intervals to data characteristics:
 - Test the query directly using the `/query` endpoint
 - Verify column names exist in source measurement
 - Check for dialect-specific syntax requirements
-- Use `epoch_us()` for timestamp conversion
+- Pass `time` to `date_trunc()` as it is. Wrapping it in `epoch_us()` turns it into an integer, and `date_trunc()` has no form that takes one
 
 ### Slow execution
 
