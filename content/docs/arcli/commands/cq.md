@@ -5,6 +5,14 @@ description: "Arc continuous queries from arcli: cq create, list, show, update, 
 
 A continuous query (CQ) runs a SQL statement over a time window on an interval and writes the result into a destination measurement: rollups, downsampling, derived series. Every `cq` subcommand, including `list` and `show`, needs an **admin** token.
 
+The server must have continuous queries enabled. When `[continuous_query] enabled` is `false` in its `arc.toml`, every `cq` command fails with:
+
+```text
+continuous queries are disabled on this server (continuous_query.enabled=false)
+```
+
+Arc's packaged `arc.toml` sets it to `false` up to 26.09.3 and to `true` from 26.09.4. An upgraded install can still have `false`; see [Enable continuous queries](/arc/data-lifecycle/continuous-queries/#enable-continuous-queries) for how to turn it on.
+
 ## Quick reference
 
 ```bash
