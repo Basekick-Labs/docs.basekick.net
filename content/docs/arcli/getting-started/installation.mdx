@@ -38,11 +38,14 @@ Use `_arm64.deb` on ARM64.
   <Tab value="RHEL / Fedora / Rocky">
 
 ```bash
+sudo rpm --import https://github.com/basekick-labs/arc/releases/latest/download/RPM-GPG-KEY-basekick
 curl -LO $BASE/arcli-${PKG}-1.x86_64.rpm
-sudo rpm -i arcli-${PKG}-1.x86_64.rpm
+sudo dnf install -y ./arcli-${PKG}-1.x86_64.rpm
 ```
 
-Use `.aarch64.rpm` on ARM64.
+Use `.aarch64.rpm` on ARM64. To upgrade, use `sudo dnf upgrade -y ./arcli-${PKG}-1.x86_64.rpm`.
+
+arcli RPMs up to 26.09.4 are unsigned; future releases will be signed with the Basekick Labs package key, the same key as Arc's, which the `rpm --import` line installs. `dnf install ./arcli-<version>-1.x86_64.rpm` installs a signed or an unsigned package; `rpm -i` refuses an unsigned package where rpm enforces signatures, as rpm 6.1 on Fedora 45 does.
 
   </Tab>
   <Tab value="Arch">

@@ -180,6 +180,32 @@ When they are taken over:
 Once cluster-wide continuous queries are on, a node running an earlier release can no longer join. Roll back the whole cluster from a backup, never one node in place.
 </Callout>
 
+## Enable continuous queries
+
+Arc serves the continuous-query API only when `enabled` is `true` in the `[continuous_query]` section. When it is off, every continuous-query endpoint answers `404 Not Found` and every `arcli cq` command fails with `continuous queries are disabled on this server (continuous_query.enabled=false)`.
+
+Arc's built-in default is `true`. The `arc.toml` shipped in the `.deb`, RPM, Arch package and Docker image sets it to `false` up to 26.09.3 and to `true` from 26.09.4. Whether an upgraded install picks up the new value depends on the package:
+
+- **.deb:** up to 26.09.x, every upgrade replaces `/etc/arc/arc.toml` with the packaged file, so upgrading to 26.09.4 turns continuous queries on (and discards your other edits). From 27.01.1 the `.deb` keeps an existing `/etc/arc/arc.toml`, so an install that has `enabled = false` keeps it.
+- **Docker:** each image carries its own `arc.toml`, so a container started from a 26.09.4 or later image has continuous queries on, unless you mount your own `arc.toml` or set the environment variable.
+- **RPM and Arch:** an edited `/etc/arc/arc.toml` is kept across upgrades, with the new packaged file written next to it as `arc.toml.rpmnew` or `arc.toml.pacnew`. An edited install keeps `enabled = false`; an unedited file is replaced, which turns continuous queries on.
+
+To turn continuous queries on, set the key in `/etc/arc/arc.toml`:
+
+```toml
+[continuous_query]
+enabled = true
+```
+
+Or set `ARC_CONTINUOUS_QUERY_ENABLED=true` in Arc's environment (`-e ARC_CONTINUOUS_QUERY_ENABLED=true` for Docker; on a package install, with `sudo systemctl edit arc`, as shown in [Move the data directory](/arc-enterprise/installation/native/#move-the-data-directory)). Then restart Arc:
+
+```bash
+sudo systemctl restart arc
+sudo journalctl -u arc | grep -i "continuous queries"
+```
+
+The startup log shows `Continuous queries enabled` when the API is on, and `Continuous queries DISABLED` when it is off.
+
 ## API endpoints
 
 ### Create continuous query

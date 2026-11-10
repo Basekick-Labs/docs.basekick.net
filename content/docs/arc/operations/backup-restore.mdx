@@ -573,7 +573,7 @@ Deletion is refused with `409 Conflict` while a backup or restore is running -- 
 ## Tiered storage: the cold tier in a backup
 
 A backup **carries the cold tier** (27.01.1+). With
-[tiered storage](/docs/arc-enterprise/data-lifecycle/tiered-storage) on and a cold
+[tiered storage](/arc-enterprise/data-lifecycle/tiered-storage/) on and a cold
 backend this node can read, the backup copies migrated objects alongside hot
 files, and a restore puts each file back on the tier it came from. Earlier
 releases copied hot storage only.

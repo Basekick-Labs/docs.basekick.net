@@ -40,19 +40,21 @@ docker logs arc 2>&1 | grep -i "admin"
 
 You should see:
 
-```bash
+```text
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
-Save it:
+The token is the value after `Admin API token:` (44 characters when Arc generates it). Save it:
 
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export ARC_TOKEN="<admin-api-token>" ARC_ENDPOINT=http://localhost:8000
 ```
+
+Export `ARC_ENDPOINT` with the token: arcli reads the two together from the environment, and fails with `ARC_TOKEN needs ARC_ENDPOINT` when only the token is set.
 
 ## Storage backends
 
@@ -373,6 +375,6 @@ docker logs arc | head -100
 
 ## Next steps
 
-- [Write your first data](/arc/getting-started/#write-data)
+- [Write your first data](/arc/getting-started/#write-your-own-data)
 - [Configure storage backends](/arc/configuration/overview/)
 - [Deploy on Kubernetes](/arc/installation/kubernetes/)

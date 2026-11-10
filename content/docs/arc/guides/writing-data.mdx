@@ -12,12 +12,14 @@ Arc accepts MessagePack for efficient typed batches and InfluxDB line protocol f
 | Host, service, and infrastructure metrics | [Telegraf](/arc/integrations/telegraf/) |
 | Historical files | [Data import](/arc/data-import/) |
 
-The examples use a database named `metrics` and read the token from `ARC_TOKEN`. Create the database once before writing:
+The examples use a database named `metrics` and read the token from `ARC_TOKEN`. Export the token together with `ARC_ENDPOINT`, then create the database once before writing:
 
 ```bash
+export ARC_TOKEN="<api-token>" ARC_ENDPOINT=http://localhost:8000
 arcli db create metrics
-export ARC_TOKEN="your-token"
 ```
+
+arcli reads `ARC_TOKEN` from the environment only together with `ARC_ENDPOINT`. With the token exported on its own, arcli commands that use the environment fail with `ARC_TOKEN needs ARC_ENDPOINT`.
 
 ## MessagePack
 
@@ -296,7 +298,7 @@ func main() {
   </Tab>
 </Tabs>
 
-Arc also supports the InfluxDB 1.x `/write` and InfluxDB 2.x `/api/v2/write` endpoints for compatible clients. See the [write API reference](/arc/api-reference/overview/#write-data) for their parameters.
+Arc also supports the InfluxDB 1.x `/write` and InfluxDB 2.x `/api/v2/write` endpoints for compatible clients. See [`POST /write`](/arc/api-reference/overview/#post-write) and [`POST /api/v2/write`](/arc/api-reference/overview/#post-apiv2write) in the API reference for their parameters.
 
 ### Partial writes
 

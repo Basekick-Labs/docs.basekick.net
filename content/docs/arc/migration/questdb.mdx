@@ -41,11 +41,11 @@ arc
 
 On first run Arc prints a one-time admin token to **stderr**:
 
-```bash
+```text
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
@@ -108,7 +108,7 @@ Arc reads an optional `arc.toml` (searched in the current directory, then `/etc/
 Every request below authenticates with a bearer token. Export it once:
 
 ```bash
-export ARC_TOKEN="arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export ARC_TOKEN="<admin-api-token>"
 ```
 
 Verify it works:

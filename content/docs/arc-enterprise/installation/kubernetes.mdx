@@ -41,7 +41,7 @@ You should see:
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Initial admin API token: arc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
@@ -273,7 +273,7 @@ The identity needs `roles/storage.objectAdmin` on the bucket plus
 `storage.buckets.get` for Arc's startup checks. The chart refuses `backend:
 gcs` without `external: true`, with any `storage.shared.credentials` (those are
 S3 keys), or with `storage.shared.endpoint` (use `storage.shared.gcs.endpoint`).
-See [Google Cloud Storage](/docs/arc-enterprise/configuration/overview) for
+See [Google Cloud Storage](/arc-enterprise/configuration/overview/#storage-backends) for
 the bucket settings Arc checks and the soft-delete cost note.
 
   </Tab>

@@ -38,11 +38,11 @@ kubectl logs -l app.kubernetes.io/name=arc | grep -i "admin"
 
 You should see:
 
-```bash
+```text
 ======================================================================
   FIRST RUN - INITIAL ADMIN TOKEN GENERATED
 ======================================================================
-  Admin API token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=
+  Admin API token: <admin-api-token>
 ======================================================================
 ```
 
@@ -787,7 +787,7 @@ resources:
 
 ## Next steps
 
-- [Write your first data](/arc/getting-started/#write-data)
+- [Write your first data](/arc/getting-started/#write-your-own-data)
 - [Configure storage backends](/arc/configuration/overview/)
 - [Monitoring & ops playbook](/arc/operations/monitoring/) — what to scrape and alert on
 - [Telemetry](/arc/operations/telemetry/) — what Arc reports back, and how to opt out
