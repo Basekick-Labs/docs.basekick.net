@@ -358,19 +358,40 @@ curl -X POST "http://localhost:8000/api/v1/auth/tokens" \
   -d '{
     "name": "my-service",
     "description": "Token for production service",
-    "is_admin": false
+    "permissions": ["read", "write"],
+    "expires_in": "90d"
   }'
 ```
 
 ```json
 {
-  "id": "abc123",
-  "name": "my-service",
+  "success": true,
   "token": "<new-api-token>",
-  "is_admin": false,
-  "created_at": "2026-01-15T10:30:00Z"
+  "message": "Token created successfully. Store this token securely - it cannot be retrieved again."
 }
 ```
+
+- `name` (required): unique across tokens.
+- `permissions` (optional): any of `read`, `write`, `delete`, `admin`. Left
+  out, the token gets `read` and `write`; an empty array creates a token with
+  no permissions of its own, for use with RBAC.
+- `expires_in` (optional): a duration such as `"24h"` or `"90m"`, or a number
+  of days such as `"7d"`. Leave it out for a token that does not expire.
+
+The response does not carry the token's ID; list the tokens to find it.
+
+Since Arc 27.01.1:
+
+- A name another token already has answers
+  `409 token with name '<name>' already exists`, standalone and in a cluster.
+  Earlier versions answered `500`.
+- `expires_in` must be positive: zero or a negative value (`"0d"`, `"-24h"`)
+  answers `400 expires_in must be positive`. Earlier versions created a token
+  that had already expired and could not authenticate.
+- `expires_in` is at most 100 years (`"36500d"`, or the same span in hours);
+  a longer one answers `400`, with `expires_in is too long: at most 36500d`.
+  Earlier versions overflowed a very large day count into an arbitrary
+  expiry, past or future.
 
 <Callout type="warn" title="Save the Token">
 The token value is only returned once at creation time. Store it securely -- it cannot be retrieved later.
@@ -383,32 +404,82 @@ curl "http://localhost:8000/api/v1/auth/tokens" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
+### Updating a token
+
+Change a token's `name`, `description`, `permissions` or `expires_in`. Fields
+left out of the body are kept:
+
+```bash
+curl -X PATCH "http://localhost:8000/api/v1/auth/tokens/2" \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"expires_in": "30d"}'
+```
+
+`expires_in` counts from the time of the update and follows the same rules as
+on create. Since Arc 27.01.1:
+
+- `"name": ""` answers `400 Token name cannot be empty`. Earlier versions
+  renamed the token to an empty name.
+- A name another token already has answers `409`, with the same message as on
+  create. Earlier versions answered `500`.
+- A zero, negative or over-100-year `expires_in` answers `400`, as on create.
+
 ### Rotating a token
 
 Generate a new token value while keeping the same token ID and permissions:
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/tokens/abc123/rotate" \
+curl -X POST "http://localhost:8000/api/v1/auth/tokens/2/rotate" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
+
+The response's `new_token` is the new value; the old one stops working.
+
+Since Arc 27.01.1, rotating a revoked token answers `409` and the token stays
+revoked. Revocation is permanent, so a rotated value could never
+authenticate; earlier versions answered `200` with such a value. Create a new
+token instead. A new token has a new ID, so re-attach its governance policies
+and team memberships. An expired token can still be rotated.
 
 ### Revoking a token
 
 Immediately invalidate a token:
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/tokens/abc123/revoke" \
+curl -X POST "http://localhost:8000/api/v1/auth/tokens/2/revoke" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
+
+Revoking a token that is already revoked answers `200`.
 
 ### Deleting a token
 
 Permanently remove a token:
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/v1/auth/tokens/abc123" \
+curl -X DELETE "http://localhost:8000/api/v1/auth/tokens/2" \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
+
+### Unknown token IDs
+
+`PATCH`, `DELETE`, `POST .../rotate` and `POST .../revoke` answer
+`404 Token not found` for an ID with no token. A standalone node already
+did, except for a `PATCH` with no fields, which answered `200` before Arc
+27.01.1.
+
+In a cluster, before Arc 27.01.1, these four routes answered `200` for an
+unknown ID, and `rotate` returned a `new_token` that authenticated nothing.
+Since Arc 27.01.1 they answer `404`. A follower that has not yet applied a
+token created on another node answers `404` for it for that short moment.
+
+A rotate is checked again once the cluster has applied it, so a token revoked
+or deleted on another node just before answers `409` or `404`. A follower can
+still miss such a revoke or delete before cluster policies are enabled, or
+when its wait to apply the rotate times out, and then answers `200` with a
+`new_token` that never authenticates. The revoked or deleted token stays
+unusable either way.
 
 ## Verifying a token
 
@@ -423,13 +494,20 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 {
   "valid": true,
   "token_info": {
-    "id": "abc123",
+    "id": 2,
     "name": "my-service",
-    "is_admin": false
+    "description": "Token for production service",
+    "permissions": ["read", "write"],
+    "created_at": "2026-11-10T18:59:07Z",
+    "enabled": true,
+    "expires_at": "2027-02-08T18:59:07Z"
   },
-  "permissions": []
+  "permissions": ["read", "write"]
 }
 ```
+
+A missing, invalid or expired token answers `401` with `"valid": false`.
+`last_used_at` appears once the token has been used.
 
 ## Token cache
 
