@@ -74,9 +74,18 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing database/measurement/file; empty file or no rows; `time_column` not found; empty or duplicate column names; a `time_column` rename that collides with an existing `time` column; a null, `NaN` or `Inf` value in the time column; a column named `_measurement` or `_database`; or a request body cut short |
+| `400` | Missing database/measurement/file; an invalid database or measurement name; a database named after the Iceberg warehouse directory (Arc 27.01.1+); empty file or no rows; `time_column` not found; empty or duplicate column names; a `time_column` rename that collides with an existing `time` column; a null, `NaN` or `Inf` value in the time column; a column named `_measurement` or `_database`; or a request body cut short |
 | `403` | Insufficient write permissions |
 | `413` | File exceeds 500 MB size limit |
 | `415` | The request has a `Content-Encoding` header |
 | `422` | Unreadable Parquet file, an unsupported column type, or a GeoParquet column whose encoding is not WKB |
 | `500` | Import execution error. When it stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read), the body has `rows_written` and `written_measurements`: running the whole file again writes those rows again. |
+
+Since Arc 27.01.1, a missing or invalid database or measurement name answers
+the `400`, and a write-permission denial the `403`, shown above. From v26.06.2 until
+27.01.1 the import wrote that answer and then carried on with an empty database name,
+so the response could end up a later `500` or `422` instead. Also since Arc
+27.01.1, with [Iceberg export](/arc/integrations/apache-iceberg/#the-warehouse-is-not-a-database)
+on and `iceberg.warehouse` set to a subdirectory of the storage root, a
+database named after that directory answers
+`400 database name "<name>" is reserved for the Iceberg warehouse`.

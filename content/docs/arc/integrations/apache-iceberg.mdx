@@ -178,10 +178,69 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
-| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. |
+| `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. Since 27.01.1 the warehouse's directories inside the storage root are not databases; see [The warehouse is not a database](#the-warehouse-is-not-a-database). |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
 | `iceberg.cold_rescan_interval` | `ARC_ICEBERG_COLD_RESCAN_INTERVAL` | `3600` | With an S3 cold tier: seconds a measurement's cached cold-tier listing is trusted. Arc re-lists right away after its own cold-tier changes (migrations, cold retention, DELETE, database delete); this only bounds changes made outside Arc. |
 | `iceberg.orphan_sweep_enabled` | `ARC_ICEBERG_ORPHAN_SWEEP_ENABLED` | `true` | Delete manifest files that no retained metadata version references any more. This is the one thing the exporter deletes that nothing regenerates, so it has an off switch; set `false` and the manifests of expired snapshots are kept forever and copied into every backup. Arc logs a warning at startup when it is off. |
+
+## The warehouse is not a database
+
+Since Arc 27.01.1, with Iceberg export on, Arc no longer treats the
+warehouse's directories inside the storage root as databases, on local
+storage and on S3 alike. Earlier versions listed them with the databases,
+accepted writes into a subdirectory warehouse, and let a database `DELETE`
+remove the warehouse's metadata. What is hidden depends on where
+`iceberg.warehouse` points:
+
+- **The storage root (the default).** The namespace directories
+  (`<prefix>_<database>.db`, for example `arc_telemetry.db`) sit next to the
+  databases.
+- **A subdirectory of the storage root**, for example `<root>/lv_wh`. The
+  directory `lv_wh` sits next to the databases and holds the namespace
+  directories.
+- **Deeper inside the storage root**, for example `<root>/a/b`. Database `a`
+  may be a real one and stays listed; only its measurement `b` is the
+  warehouse.
+
+For a namespace directory and for a subdirectory warehouse:
+
+- `GET /api/v1/databases`, `SHOW DATABASES` and `GET /api/v1/measurements`
+  leave them out, and `SHOW TABLES` lists no tables in them.
+- `GET /api/v1/databases/{name}` and its `/measurements` answer `404`.
+- `DELETE /api/v1/databases/{name}` answers `403`.
+- A tiering policy `PUT` for them answers `404`.
+
+A subdirectory warehouse's name is also refused as a database name:
+
+- `POST /api/v1/databases` answers `400 Database name 'lv_wh' is reserved`.
+- A write to a database of that name answers
+  `400 database name "lv_wh" is reserved for the Iceberg warehouse`: line
+  protocol, MessagePack, TLE and every `/api/v1/import/*` format. Creating or
+  updating a continuous query with that database answers the same `400`, and
+  a stored one fails its runs. An MQTT subscription or `topic_mapping` rule
+  that targets it is refused, and a message that maps to it is dropped and
+  counted as failed.
+- The match is exact: `lv_wh-other` is an ordinary database. On a volume that
+  does not distinguish case, another spelling such as `LV_WH` is refused only
+  once the warehouse directory exists.
+
+For a warehouse nested deeper, at `<root>/a/b`:
+
+- Measurement `b` of database `a` is left out of the listings.
+- `DELETE` of database `a` answers `403`, because it would delete the
+  warehouse with it. Move the warehouse first.
+- Writes to measurement `b` of database `a` are **not** refused. They land
+  inside the warehouse directory, are hidden from the listings and are not
+  exported. Do not write there; a warning at startup names that measurement.
+
+The export applies the same rule, so it does not export a subdirectory
+warehouse as if it were a database.
+
+<Callout type="warn" title="Configure Iceberg the same way on every node">
+In a cluster, the rule holds only on nodes with Iceberg export on. A node with
+`iceberg.enabled = false` lists the warehouse as a database and accepts writes
+to it.
+</Callout>
 
 ## Schema mapping
 

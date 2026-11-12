@@ -205,6 +205,18 @@ curl -X PUT http://localhost:8000/api/v1/tiering/policies/telemetry \
 A field left out of the body is reset, not kept. On a database pinned `hot_only`, `PUT` with only `{"hot_max_age_days": 14}` turns `hot_only` off, and the next migration cycle moves its older files to cold. Send every field you want to keep.
 </Callout>
 
+Since Arc 27.01.1 the database must exist: a `PUT` for a database that does
+not answers `404 Database '<name>' not found` and stores nothing. Earlier
+versions stored the policy. A database exists by the same rule
+`GET /api/v1/databases/{name}` answers with: it has a marker, a file, a
+cold-tier record or, in a cluster, a manifest entry. Arc's own directories in
+the storage root, and the Iceberg warehouse's (see
+[Apache Iceberg Export](/arc/integrations/apache-iceberg/)), are not
+databases and answer `404` too. To set a policy before
+the first write, create the database first with `POST /api/v1/databases`.
+`GET`, `DELETE` and `/effective` do not check the database, so `DELETE` still
+removes a policy that a deleted database left behind.
+
 ### Pin a database to the hot tier
 
 ```bash
@@ -279,12 +291,13 @@ curl -X DELETE http://localhost:8000/api/v1/tiering/policies/telemetry \
 | Status | When |
 |---|---|
 | `200` | Done. |
-| `400` | The policy is invalid, for example a database name longer than 256 bytes (in a cluster). |
-| `404` | `DELETE` of a database with no custom policy. |
+| `400` | The policy is invalid, for example a database name longer than 256 bytes (in a cluster). Since 27.01.1 also a `PUT` whose database name is not a valid storage path segment (`invalid database name "<name>"`), or, on a local volume that does not distinguish case, a name that exists on disk in another spelling. |
+| `404` | `DELETE` of a database with no custom policy. Since 27.01.1 also a `PUT` for a database that does not exist. |
 | `503` | A cluster cannot take the write right now: no leader, or the policies are being taken over. Retry. |
-| `500` | Anything else. |
+| `500` | Anything else, including (since 27.01.1) a `PUT` whose database check itself failed (`Failed to check database`). |
 
-Before 27.01.1, `DELETE` answered `404` for any error.
+Before 27.01.1, `DELETE` answered `404` for any error, and a `PUT` stored the
+policy for a database that did not exist or whose name was not valid.
 
 ### Policies in a cluster
 
@@ -300,7 +313,11 @@ only the primary writer migrates files to cold. So:
 
 **From 27.01.1.**
 
-- **Set anywhere.** Set a policy on any node; it applies cluster-wide.
+- **Set anywhere.** Set a policy on any node; it applies cluster-wide. The
+  database check runs on the node that answers, though: on a cluster that
+  keeps data per node, a database that so far holds only the marker made by
+  `POST /api/v1/databases` exists only on the writer, so set its policy on the
+  writer, or after the first write.
 - **Read anywhere.** Every node answers `GET` with the same policies.
 - **Survives a failover.** A new primary applies the same policies.
 - **Backups carry them.** Every node that runs tiering keeps its own
