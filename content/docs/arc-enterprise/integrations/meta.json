@@ -9,6 +9,7 @@
     "opcua",
     "influxdb-clients",
     "opentelemetry",
+    "flight-sql",
     "superset",
     "vscode",
     "redpanda-connect"

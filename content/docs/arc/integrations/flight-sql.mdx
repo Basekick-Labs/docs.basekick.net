@@ -1,0 +1,115 @@
+---
+title: "Arrow Flight SQL"
+description: "Query Arc over Arrow Flight SQL with ADBC clients: enable the flight_sql listener, connect with a token over plain gRPC or TLS, and get Arrow record batches back."
+---
+
+Query Arc over **Arrow Flight SQL**: a gRPC protocol that returns results as Arrow record batches, so clients receive columnar data with no JSON or row conversion in between. Arc serves it on its own port, off by default, through the same read-only query path as the HTTP API.
+
+<Callout type="info" title="Available in v27.01.1+">
+The Flight SQL listener ships in Arc 27.01.1. It is disabled unless you turn it on.
+</Callout>
+
+## Enable the listener
+
+```toml
+[flight_sql]
+enabled = true
+port = 50051
+```
+
+Environment variables:
+
+```ini
+ARC_FLIGHT_SQL_ENABLED=true
+ARC_FLIGHT_SQL_PORT=50051
+```
+
+- With `enabled = false` (the default) Arc opens no extra port.
+- `port` must differ from `server.port`; Arc refuses to start otherwise.
+- The listener binds to `server.host`, like the HTTP API (all interfaces when it is empty).
+- TLS follows the HTTP API: with `server.tls_enabled = true` the listener uses the same certificate and key, and refuses plaintext connections.
+- With authentication on, every call needs an Arc token with read permission. The usual database and measurement permissions (RBAC) apply to every query.
+
+## Kubernetes (Helm)
+
+```yaml
+flightSql:
+  enabled: true        # default false: no port in the container or on the Service
+  port: 50051          # container port
+  servicePort: 50051   # port on the Service
+```
+
+The chart adds a `flight-sql` port to the Deployment and the Service. The Service port is marked `appProtocol: grpc`, and a port that collides with one of Arc's is refused when the chart renders. The chart's Ingress routes HTTP only: expose the port through the Service (for example a LoadBalancer) or an ingress controller that proxies gRPC.
+
+## Connect from Python (ADBC)
+
+Install the ADBC Flight SQL driver:
+
+```bash
+pip install adbc-driver-flightsql adbc-driver-manager pyarrow
+```
+
+Pass the Arc token as the password:
+
+```python
+import os
+import adbc_driver_flightsql.dbapi as flightsql
+
+conn = flightsql.connect(
+    "grpc://localhost:50051",            # grpc+tls://host:50051 when TLS is on
+    db_kwargs={"username": "", "password": os.environ["ARC_TOKEN"]},
+)
+cur = conn.cursor()
+cur.execute("SELECT host, avg(usage_idle) FROM telegraf.cpu GROUP BY host")
+table = cur.fetch_arrow_table()          # a pyarrow.Table, columnar end to end
+print(table)
+cur.close()
+conn.close()
+```
+
+With TLS and a private CA, pass the CA certificate:
+
+```python
+from adbc_driver_flightsql import DatabaseOptions
+
+conn = flightsql.connect(
+    "grpc+tls://arc.example.com:50051",
+    db_kwargs={
+        "username": "",
+        "password": os.environ["ARC_TOKEN"],
+        DatabaseOptions.TLS_ROOT_CERTS.value: open("ca.pem").read(),
+    },
+)
+```
+
+ADBC drivers also exist for Go, Java, R and Rust, and any Flight SQL client that runs plain statement queries works the same way.
+
+## What is supported
+
+| | |
+|---|---|
+| Statement queries | `SELECT`, `SHOW DATABASES`, `SHOW TABLES` |
+| Metadata | catalogs, schemas, tables (optionally with their Arrow schema), table types |
+| Not yet | prepared statements, SqlInfo, transactions, writes |
+
+The listener is read-only: a write or DDL statement is refused, as it is on the HTTP query API. Use the HTTP write APIs or an ingestion client for writes.
+
+Prepared statements and SqlInfo are not implemented yet. The **Arrow Flight SQL JDBC driver** needs them, so JDBC-based tools (Tableau, DBeaver, DataGrip) do not connect yet; support is tracked in [arc#1645](https://github.com/Basekick-Labs/arc/issues/1645). The ADBC drivers are the tested clients.
+
+## How Arc appears to clients
+
+| Flight SQL | Arc |
+|---|---|
+| Catalog | Database |
+| Schema | the empty schema, one per catalog |
+| Table | Measurement |
+
+A table listing that includes schemas leaves out measurements the token cannot read. Metadata calls run ordinary queries (one per database, plus one per measurement when schemas are requested).
+
+## Shutdown
+
+On shutdown, in-flight Flight queries get 5 seconds to finish and are then cancelled; connections still open 2 seconds later are closed, so a client that stops reading a result cannot hold shutdown up. The listener stops in at most about 11 seconds, and sooner when `server.shutdown_timeout` leaves less.
+
+## Enterprise
+
+With Arc Enterprise, query governance and audit logging apply to Flight queries as they do to HTTP ones. See the [Enterprise Flight SQL page](/arc-enterprise/integrations/flight-sql/).

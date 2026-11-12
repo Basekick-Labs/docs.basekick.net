@@ -3,6 +3,7 @@
   "pages": [
     "[Overview](/arc/integrations/)",
     "apache-iceberg",
+    "flight-sql",
     "superset",
     "grafana",
     "telegraf",
