@@ -61,7 +61,7 @@ with ArcClient(host="localhost", token="your-token") as client:
     print(f"Created policy: {policy.name} (id={policy.id})")
 ```
 
-The shorter snippets on this page run inside a `with ArcClient(...) as client:` block like this one.
+The shorter snippets on this page run inside a `with ArcClient(...) as client:` block like this one, and reuse `policy` and `cq` from the create examples.
 
 ### Parameters
 
@@ -511,6 +511,8 @@ with ArcClient(host="localhost", token="your-token") as client:
         )
     except ArcServerError as e:
         print(f"Rejected by Arc: {e}")  # Arc's 400 surfaces as ArcServerError, e.g. "name is required"
+    except ArcError as e:
+        print(f"Other Arc error: {e}")  # base class of every SDK exception
 
 # A missing, invalid or expired token raises ArcAuthenticationError
 with ArcClient(host="localhost", token="not-a-valid-token") as client:
@@ -654,7 +656,6 @@ cq = client.continuous_queries.create(
 import os
 from arc_client import ArcClient
 
-ARC_TOKEN = os.environ["ARC_TOKEN"]
 token = os.getenv("ARC_TOKEN")
 client = ArcClient(host="localhost", token=token)
 

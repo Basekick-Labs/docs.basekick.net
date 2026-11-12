@@ -440,18 +440,26 @@ For high-throughput scenarios, implement backpressure handling:
 
 ```python
 import time
-from arc_client.exceptions import ArcIngestionError
+from arc_client.exceptions import ArcIngestRefusedError, ArcRateLimitError
 
 def write_with_backoff(client, data, max_retries=3):
     for attempt in range(max_retries):
         try:
             client.write.write_columnar(**data)
             return
-        except ArcIngestionError as e:
-            if attempt == max_retries - 1:
+        except ArcIngestRefusedError as e:
+            # retry_safe=False (wal_not_durable): part of the request may be
+            # stored, so resending could duplicate rows.
+            if not e.retry_safe or attempt == max_retries - 1:
                 raise
             time.sleep(2 ** attempt)  # Exponential backoff
+        except ArcRateLimitError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
 ```
+
+Retry only errors that guarantee nothing was written: a refusal Arc marks `retry_safe` (the SDK already resends those up to `max_retries` before raising) and a rate limit (HTTP 429). Any other `ArcIngestionError` is raised as is. In particular, never resend an `ArcPartialWriteError`: Arc stored the rest of that request, so a retry duplicates it.
 
 ## Next steps
 
