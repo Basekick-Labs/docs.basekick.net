@@ -1144,7 +1144,10 @@ Execute a policy manually.
 
 ### GET /api/v1/retention/:id/executions
 
-Get policy execution history.
+Get policy execution history, newest first (`limit`, default 50). Since Arc
+27.01.1, an unknown or deleted policy ID answers `404`, and a policy that has
+not run yet lists `"executions": []`; earlier versions answered `200` with
+`"executions": null`.
 
 ---
 
@@ -1188,7 +1191,10 @@ Execute a continuous query manually.
 
 ### GET /api/v1/continuous_queries/:id/executions
 
-Get execution history.
+Get execution history, newest first (`limit`, default 50). Since Arc 27.01.1,
+an unknown or deleted query ID answers `404`, and a query that has not run yet
+lists `"executions": []`; earlier versions answered `200` with
+`"executions": null`.
 
 ---
 
