@@ -390,6 +390,22 @@ When TLS is enabled, Arc automatically:
 - Adds the `Strict-Transport-Security` (HSTS) header
 - Validates certificate and key files on startup
 
+### Arrow Flight SQL listener
+
+<Callout type="info" title="Available in v27.01.1+">
+This configuration option is available starting from Arc v27.01.1.
+</Callout>
+
+An optional gRPC listener for Arrow Flight SQL clients (ADBC). Off by default; when off, Arc opens no extra port.
+
+```toml
+[flight_sql]
+enabled = false   # true to open the listener
+port = 50051      # must differ from server.port
+```
+
+It binds to `server.host` and uses the `[server]` TLS settings. See [Arrow Flight SQL](/arc-enterprise/integrations/flight-sql/).
+
 ### Max payload size
 
 Configure the maximum request payload size for write endpoints (msgpack, line protocol):

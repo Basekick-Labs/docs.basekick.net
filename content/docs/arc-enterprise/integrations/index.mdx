@@ -8,6 +8,7 @@ Every integration below works the same way against Arc Enterprise as against Arc
 Writers and readers are different nodes, so point ingestion tools at the writer endpoint (behind an L7 load balancer if you run more than one writer) and dashboards at a reader endpoint. And each tool gets its own token, scoped by [RBAC](/arc-enterprise/security/rbac/) to the databases it needs, so a compromised dashboard credential cannot write.
 
 <Cards>
+  <Card title="Arrow Flight SQL" href="/arc-enterprise/integrations/flight-sql/" description="Columnar queries over gRPC for ADBC clients (Python, Go, Java, R, Rust)." />
   <Card title="MQTT" href="/arc-enterprise/integrations/mqtt/" description="Native broker subscriptions managed through the API, without restarting nodes." />
   <Card title="Node-RED" href="/arc-enterprise/integrations/node-red/" description="Native nodes writing to the writer endpoint and querying a reader." />
   <Card title="Grafana" href="/arc-enterprise/integrations/grafana/" description="The Basekick Arc data source, pointed at a reader endpoint." />
