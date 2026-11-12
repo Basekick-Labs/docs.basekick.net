@@ -1,6 +1,6 @@
 ---
 title: "arcli compaction"
-description: "Arc compaction from arcli: compaction status, stats, candidates, history and trigger, tier schedules and counters, candidate scans, the 409 on a running cycle, and --wait on a manual trigger."
+description: "Arc compaction from arcli: compaction status, stats, candidates, history and trigger, tier schedules and counters, candidate scans, the 409 on a running cycle or a cluster-wide pause, and --wait on a manual trigger."
 ---
 
 Compaction merges small Parquet files into larger ones on two tiers (hourly and daily). `arcli compaction` reads `/api/v1/compaction/*`; `trigger` needs an **admin** token, the rest work with any token.
@@ -45,6 +45,12 @@ cycle:           idle (current id 0)
 
 `status` is the schedulers' view (cron schedule, next run, whether the node's role gates it in a cluster) plus the active job; `stats` is the per-tier configuration and lifetime counters. `-o json` on either prints the server's document unchanged.
 
+While a cluster restore holds the cluster-wide compaction pause (Arc 27.01.1+), `stats` adds it to the cycle line (next arcli release); `arcli cluster status` shows the [pause lease](/arcli/commands/cluster/#compaction-pause):
+
+```text
+cycle:           idle, paused cluster-wide by a restore (current id 8)
+```
+
 ## candidates, history
 
 `candidates` asks the server to scan for partitions that qualify for compaction and lists them; the server bounds the scan at 30 seconds, so a very large store may return a partial list. `--database` filters the result client-side. `history` is the server's list of recent jobs: it keeps at most 10, oldest first, without timestamps.
@@ -55,7 +61,14 @@ cycle:           idle (current id 0)
 arcli compaction trigger --tier hourly,daily --wait
 ```
 
-Starts a compaction cycle now. `--tier` picks tiers (both by default); a tier that is disabled in the server config is skipped silently by Arc, so arcli warns first. A cycle already running is a 409, reported as an error. `--wait` polls `stats` until the cycle finishes (`--wait-timeout` default 30m), printing progress to stderr. The server reports the id the triggered cycle is expected to get, and that can be off by one, or a scheduled cycle can start in the same instant and take the manual trigger's place; when the reported cycle id stays below the expected one for three polls, `--wait` gives up and says so rather than wait for a cycle that will never appear.
+Starts a compaction cycle now. `--tier` picks tiers (both by default); a tier that is disabled in the server config is skipped silently by Arc, so arcli warns first. A cycle already running is a 409, reported as an error with its id. On Arc 27.01.1+, a trigger while a cluster restore holds the compaction pause is a 409 too; from the next arcli release arcli reports Arc's own message instead of claiming that another cycle is running, and exits 1:
+
+```text
+$ arcli compaction trigger
+Error: compaction is paused cluster-wide: a restore is running; retry when it ends
+```
+
+Retry once the restore has finished. `--wait` polls `stats` until the cycle finishes (`--wait-timeout` default 30m), printing progress to stderr. The server reports the id the triggered cycle is expected to get, and that can be off by one, or a scheduled cycle can start in the same instant and take the manual trigger's place; when the reported cycle id stays below the expected one for three polls, `--wait` gives up and says so rather than wait for a cycle that will never appear.
 
 | Flag | Description | Default |
 |---|---|---|
