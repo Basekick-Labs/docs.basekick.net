@@ -5,6 +5,14 @@ description: "Manage Arc Enterprise retention policies, continuous queries, dele
 
 How to manage data lifecycle, authentication, and administrative tasks using the Python SDK.
 
+These examples need `arc-tsdb-client` 0.2.0 or later:
+
+```bash
+pip install "arc-tsdb-client>=0.2.0"
+```
+
+0.1.2 and earlier have no `replace()` for retention policies and continuous queries, which the update examples below use on Arc up to 26.09.4.
+
 ## Overview
 
 The SDK provides clients for managing Arc's data lifecycle features:
@@ -105,6 +113,8 @@ client.retention.replace(
 ```
 
 `retention.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 invalid database name ""`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
+
+On Arc 27.01.1 and later, pass `CLEAR` (`from arc_client import CLEAR`) to `update()` to set a nullable field back to null, for example `client.retention.update(policy.id, measurement=CLEAR)` to apply the policy to the whole database.
 
 ### Delete a policy
 
@@ -263,6 +273,8 @@ client.continuous_queries.replace(
 ```
 
 `continuous_queries.update()` sends only the fields you pass, which Arc up to 26.09.4 refuses (`400 name is required`). Arc 27.01.1 accepts partial updates, so `update()` works from that release. `replace()` works on both.
+
+On Arc 27.01.1 and later, pass `CLEAR` to `update()` to set a nullable field back to null, for example `client.continuous_queries.update(cq.id, description=CLEAR)`. The nullable CQ fields are `description`, `tag_columns`, `retention_days` and `delete_source_after_days`.
 
 ### Delete a CQ
 
@@ -457,10 +469,10 @@ for t in tokens:
 Generate a new token value while keeping the same token ID and permissions:
 
 ```python
-result = client.auth.rotate_token(token_id=123)
+new_token = client.auth.rotate_token(token_id=123)
 
 # IMPORTANT: Save the new token - the old one is now invalid!
-print(f"New token: {result.new_token}")
+print(f"New token: {new_token}")
 ```
 
 ### Revoke a token
@@ -599,7 +611,7 @@ asyncio.run(main())
 
 For any destructive operation (delete, retention execution), always preview first:
 
-```python
+```text
 # ✅ Good: Preview before executing
 result = client.delete.delete(..., dry_run=True)
 print(f"Would delete {result.deleted_count} rows")
@@ -611,7 +623,7 @@ result = client.delete.delete(..., dry_run=False, confirm=True)
 
 ### 2. Use descriptive names
 
-```python
+```text
 # ✅ Good: Descriptive names
 client.retention.create(name="logs-30d-cleanup", ...)
 client.continuous_queries.create(name="cpu-hourly-avg-by-host", ...)
@@ -622,7 +634,7 @@ client.retention.create(name="policy1", ...)
 
 ### 3. Document your CQ queries
 
-```python
+```text
 # ✅ Good: Include description
 cq = client.continuous_queries.create(
     name="cpu-hourly",
