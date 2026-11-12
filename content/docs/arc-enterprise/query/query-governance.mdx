@@ -89,27 +89,35 @@ curl -X POST http://localhost:8000/api/v1/governance/policies \
     "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
     "max_queries_per_day": 20000,
-    "max_rows_per_query": 500000
+    "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60
   }'
 ```
 
-**Response:**
+A limit left out of the body is `0`, which means unlimited for this token, even
+when a server default is set.
+
+**Response** (`201 Created`; `409` if the token already has a policy):
 
 ```json
 {
   "success": true,
-  "data": {
+  "policy": {
+    "id": 1,
     "token_id": 1,
     "rate_limit_per_minute": 120,
     "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
     "max_queries_per_day": 20000,
     "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60,
     "created_at": "2026-02-13T10:00:00Z",
     "updated_at": "2026-02-13T10:00:00Z"
   }
 }
 ```
+
+`id` is the policy's own ID; the API addresses a policy by its `token_id`.
 
 ### List all policies
 
@@ -118,6 +126,9 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies
 ```
 
+**Response:** `{"success": true, "policies": [ ... ], "count": 1}`, each entry
+shaped like the `policy` object above.
+
 ### Get policy for token
 
 ```bash
@@ -125,7 +136,13 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies/1
 ```
 
+**Response:** `{"success": true, "policy": { ... }}`, or `404` if the token has
+no policy.
+
 ### Update policy
+
+`PUT` replaces the whole policy: every limit left out of the body becomes `0`
+(unlimited). Send every limit, including the ones that do not change:
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
@@ -133,9 +150,16 @@ curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
   -H "Content-Type: application/json" \
   -d '{
     "rate_limit_per_minute": 200,
-    "max_rows_per_query": 1000000
+    "rate_limit_per_hour": 5000,
+    "max_queries_per_hour": 2000,
+    "max_queries_per_day": 20000,
+    "max_rows_per_query": 1000000,
+    "max_scan_duration_sec": 60
   }'
 ```
+
+**Response:** `{"success": true, "policy": { ... }}` with the stored policy, or
+`404` if the token has no policy (create it first).
 
 ### Delete policy
 
@@ -145,6 +169,9 @@ Removes the per-token policy. The token reverts to the global defaults.
 curl -X DELETE http://localhost:8000/api/v1/governance/policies/1 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+**Response:** `{"success": true, "message": "Policy deleted"}`, or `404` if the
+token has no policy.
 
 ## Usage monitoring
 
@@ -160,20 +187,39 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```json
 {
   "success": true,
-  "data": {
+  "usage": {
     "token_id": 1,
-    "current_minute_count": 15,
+    "queries_this_hour": 342,
+    "queries_this_day": 1580,
+    "hour_reset_at": "2026-02-13T11:00:00Z",
+    "day_reset_at": "2026-02-14T00:00:00Z",
+    "rate_limit_remaining_per_minute": 105,
+    "rate_limit_remaining_per_hour": 4658
+  },
+  "policy": {
+    "id": 1,
+    "token_id": 1,
     "rate_limit_per_minute": 120,
-    "current_hour_count": 342,
+    "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
-    "current_day_count": 1580,
     "max_queries_per_day": 20000,
-    "remaining_minute": 105,
-    "remaining_hour": 1658,
-    "remaining_day": 18420
+    "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60,
+    "created_at": "2026-02-13T10:00:00Z",
+    "updated_at": "2026-02-13T10:00:00Z"
   }
 }
 ```
+
+- `policy` is the limits that apply to the token: its own policy, or the server
+  defaults with `id` 0 when it has none, or `null` when it has no policy and no
+  default is set.
+- `queries_this_hour` and `queries_this_day` count only queries run while the
+  token has an hourly or daily query quota; a token that never had one shows
+  `0`.
+- `rate_limit_remaining_per_minute` and `rate_limit_remaining_per_hour` are `0`
+  when that rate limit is not set (unlimited). The remaining queries under a
+  quota are the quota minus the count.
 
 ## Clusters
 
