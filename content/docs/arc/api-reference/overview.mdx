@@ -1287,13 +1287,24 @@ Start a stopped subscription, including one that was just created.
 }
 ```
 
+If Arc cannot connect to the broker, the start answers **HTTP 502** (Arc 27.01.1+; earlier versions answer 500 `Failed to start subscription`) with the reason. The same text is stored as the subscription's `error_message`, and the subscription stays in status `error`, not running:
+
+```json
+{
+  "success": false,
+  "error": "could not connect to the broker: connection timeout after 30 seconds"
+}
+```
+
+A broker that is reached but refuses the connection, for example over bad credentials, gives `"the broker refused the connection: ..."`. The text never contains the broker URL or its credentials.
+
 ### POST /api/v1/mqtt/subscriptions/:id/stop
 
 Stop a running subscription.
 
 ### POST /api/v1/mqtt/subscriptions/:id/restart
 
-Restart a subscription (stop + start).
+Restart a subscription (stop + start). A failed connect answers like [start](#post-apiv1mqttsubscriptionsidstart): HTTP 502 on Arc 27.01.1+, and the subscription is left stopped in status `error`.
 
 ### GET /api/v1/mqtt/subscriptions/:id/stats
 
