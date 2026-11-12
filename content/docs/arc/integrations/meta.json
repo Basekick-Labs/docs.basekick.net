@@ -4,6 +4,7 @@
     "[Overview](/arc/integrations/)",
     "apache-iceberg",
     "flight-sql",
+    "microsoft-fabric",
     "superset",
     "grafana",
     "telegraf",

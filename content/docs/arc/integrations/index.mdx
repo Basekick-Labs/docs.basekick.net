@@ -1,12 +1,13 @@
 ---
 title: "Integrations"
-description: "Connect Arc to Arrow Flight SQL clients, Grafana, Superset, Telegraf, OPC UA via Telegraf, MQTT brokers, Node-RED, OpenTelemetry, Redpanda Connect, VS Code, and Iceberg readers, plus InfluxDB client compatibility."
+description: "Connect Arc to Arrow Flight SQL clients, Microsoft Fabric and Power BI, Grafana, Superset, Telegraf, OPC UA via Telegraf, MQTT brokers, Node-RED, OpenTelemetry, Redpanda Connect, VS Code, and Iceberg readers, plus InfluxDB client compatibility."
 ---
 
 Arc speaks Line Protocol and standard SQL, so most tooling connects without a translation layer. These pages cover the integrations with a native plugin or dialect.
 
 <Cards>
   <Card title="Arrow Flight SQL" href="/arc/integrations/flight-sql/" description="Columnar queries over gRPC for ADBC clients (Python, Go, Java, R, Rust)." />
+  <Card title="Microsoft Fabric and Power BI" href="/arc/integrations/microsoft-fabric/" description="Pull Arc data into a Fabric Lakehouse with a notebook and report on it in Power BI, in the browser." />
   <Card title="Apache Iceberg" href="/arc/integrations/apache-iceberg/" description="Publish measurements as Iceberg tables for Spark, Trino, and PyIceberg." />
   <Card title="Apache Superset" href="/arc/integrations/superset/" description="Chart Arc data through the arc-superset-dialect SQLAlchemy driver." />
   <Card title="Grafana" href="/arc/integrations/grafana/" description="Build panels with the Arc data source plugin." />
