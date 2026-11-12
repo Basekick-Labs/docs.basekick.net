@@ -57,6 +57,13 @@ On each scheduled run, Arc:
    [Idempotency and `tag_columns`](#idempotency-and-tag_columns)).
 4. Advances `last_processed_time` to the window's end.
 
+Since Arc 27.01.1, a run whose window is empty does nothing: the previous run
+ended in this same second, or `last_processed_time` is ahead of the clock by up
+to a minute (a manual run's `end_time` may be that far ahead). Arc runs no
+aggregation, writes no execution history row and leaves `last_processed_time`
+as it is. A `last_processed_time` more than a minute ahead of the clock is
+still an error, so a query stuck behind clock skew stays visible in the logs.
+
 Because the watermark advances to the end of each processed window, **windows are
 tumbling and non-overlapping** — the next run starts where the previous one
 ended; earlier windows are not revisited.
@@ -357,9 +364,21 @@ POST /api/v1/continuous_queries/{query_id}/execute
   future one made every later run fail until the clock caught up.
 - `dry_run` (boolean, optional): Test without writing data (default: `false`)
 
+Since Arc 27.01.1, when you leave both `start_time` and `end_time` out and
+there is nothing new since `last_processed_time`, the answer is `200` with
+`records_written: 0`, `start_time` and `end_time` both equal to
+`last_processed_time`, and an empty `execution_id`: nothing ran, so no
+execution history row is written. A window you pass yourself whose
+`start_time` is not before its `end_time`, an `end_time` earlier than
+`last_processed_time` with `start_time` left out, or a `last_processed_time`
+more than a minute ahead of the clock answers
+`400 start_time must be before end_time`.
+
 A run that is not a dry run moves `last_processed_time` to its `end_time`,
-backwards too when you pass an earlier one. In a cluster (see
-[In a cluster](#in-a-cluster)) the response carries `watermark_status`:
+backwards too when you pass an earlier one, except a run with nothing to
+process, which leaves it. In a cluster (see [In a cluster](#in-a-cluster)) the
+response carries `watermark_status` (absent when the run had nothing to
+process):
 
 | Value | Meaning |
 |---|---|
@@ -389,7 +408,9 @@ one. Retry it.
 }
 ```
 
-A failed run returns `500` and is recorded in the execution history.
+A failed run returns `500` and is recorded in the execution history. Since
+Arc 27.01.1, a run with nothing to process (see the parameters above) is not
+recorded, and its empty `execution_id` matches no history row.
 
 ### View execution history
 
@@ -814,6 +835,9 @@ Match intervals to data characteristics:
 **Problem**: Execution returns `records_written: 0`.
 
 **Solutions**:
+- If `start_time` equals `end_time` (and `execution_id` is empty), there was
+  nothing new since the previous run (Arc 27.01.1+). This is not an error; the
+  next run picks up from `last_processed_time`.
 - Verify source measurement contains data in the specified time range
 - Check that the query syntax is correct
 - Ensure `GROUP BY` clause matches aggregation columns
