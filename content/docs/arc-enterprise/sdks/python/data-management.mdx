@@ -61,6 +61,8 @@ with ArcClient(host="localhost", token="your-token") as client:
     print(f"Created policy: {policy.name} (id={policy.id})")
 ```
 
+The shorter snippets on this page run inside a `with ArcClient(...) as client:` block like this one.
+
 ### Parameters
 
 | Parameter | Type | Required | Description |
@@ -497,7 +499,7 @@ from arc_client.exceptions import (
 
 with ArcClient(host="localhost", token="your-token") as client:
     try:
-        client.retention.delete(999)  # Non-existent policy
+        client.retention.get(999)  # Non-existent policy
     except ArcNotFoundError:
         print("Policy not found")
 
@@ -508,12 +510,14 @@ with ArcClient(host="localhost", token="your-token") as client:
             retention_days=-1,  # Invalid days
         )
     except ArcServerError as e:
-        print(f"Rejected by Arc: {e}")  # HTTP 400, e.g. "name is required"
+        print(f"Rejected by Arc: {e}")  # Arc's 400 surfaces as ArcServerError, e.g. "name is required"
 
+# A missing, invalid or expired token raises ArcAuthenticationError
+with ArcClient(host="localhost", token="not-a-valid-token") as client:
     try:
-        client.auth.create_token(name="test", permissions=["admin"])
-    except ArcAuthenticationError:
-        print("Current token doesn't have permission to create tokens")
+        client.retention.list()
+    except ArcAuthenticationError as e:
+        print(f"Token rejected: {e}")
 ```
 
 ### Permission errors
@@ -648,6 +652,7 @@ cq = client.continuous_queries.create(
 ```python
 # ✅ Good: Use environment variables
 import os
+from arc_client import ArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 token = os.getenv("ARC_TOKEN")

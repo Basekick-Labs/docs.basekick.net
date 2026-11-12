@@ -160,17 +160,23 @@ call always wins. See [SQL syntax](/arc-enterprise/sdks/python/querying/#sql-syn
 Always use the client as a context manager to ensure proper connection cleanup:
 
 ```python
+import asyncio
+from arc_client import ArcClient, AsyncArcClient
+
 # Sync client
 with ArcClient(host="localhost", token="your-token") as client:
     # Use client...
     pass
 # Connection automatically closed
 
-# Async client
-async with AsyncArcClient(host="localhost", token="your-token") as client:
-    # Use client...
-    pass
-# Connection automatically closed
+# Async client (async with needs a coroutine)
+async def main():
+    async with AsyncArcClient(host="localhost", token="your-token") as client:
+        # Use client...
+        pass
+    # Connection automatically closed
+
+asyncio.run(main())
 ```
 
 ### Manual connection management
@@ -178,6 +184,8 @@ async with AsyncArcClient(host="localhost", token="your-token") as client:
 If you can't use a context manager:
 
 ```python
+from arc_client import ArcClient
+
 client = ArcClient(host="localhost", token="your-token")
 try:
     # Use client...
@@ -217,6 +225,8 @@ curl http://localhost:8000/health
 Verify your token is correct:
 
 ```python
+from arc_client import ArcClient
+
 with ArcClient(host="localhost", token="your-token") as client:
     result = client.auth.verify()
     if result.valid:

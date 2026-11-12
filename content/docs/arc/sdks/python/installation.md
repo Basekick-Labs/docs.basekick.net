@@ -166,7 +166,9 @@ call always wins. See [SQL syntax](/arc/sdks/python/querying/#sql-syntax).
 Always use the client as a context manager to ensure proper connection cleanup:
 
 ```python
+import asyncio
 import os
+from arc_client import ArcClient, AsyncArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
@@ -176,11 +178,14 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
     pass
 # Connection automatically closed
 
-# Async client
-async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
-    # Use client...
-    pass
-# Connection automatically closed
+# Async client (async with needs a coroutine)
+async def main():
+    async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
+        # Use client...
+        pass
+    # Connection automatically closed
+
+asyncio.run(main())
 ```
 
 ### Manual connection management
@@ -189,6 +194,7 @@ If you can't use a context manager:
 
 ```python
 import os
+from arc_client import ArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
@@ -232,6 +238,7 @@ Verify your token is correct:
 
 ```python
 import os
+from arc_client import ArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
 
