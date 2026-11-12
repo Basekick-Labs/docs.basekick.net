@@ -89,27 +89,35 @@ curl -X POST http://localhost:8000/api/v1/governance/policies \
     "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
     "max_queries_per_day": 20000,
-    "max_rows_per_query": 500000
+    "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60
   }'
 ```
 
-**Response:**
+A limit left out of the body is `0`, which means unlimited for this token, even
+when a server default is set.
+
+**Response** (`201 Created`; `409` if the token already has a policy):
 
 ```json
 {
   "success": true,
-  "data": {
+  "policy": {
+    "id": 1,
     "token_id": 1,
     "rate_limit_per_minute": 120,
     "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
     "max_queries_per_day": 20000,
     "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60,
     "created_at": "2026-02-13T10:00:00Z",
     "updated_at": "2026-02-13T10:00:00Z"
   }
 }
 ```
+
+`id` is the policy's own ID; the API addresses a policy by its `token_id`.
 
 ### List all policies
 
@@ -118,6 +126,9 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies
 ```
 
+**Response:** `{"success": true, "policies": [ ... ], "count": 1}`, each entry
+shaped like the `policy` object above.
+
 ### Get policy for token
 
 ```bash
@@ -125,7 +136,13 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:8000/api/v1/governance/policies/1
 ```
 
+**Response:** `{"success": true, "policy": { ... }}`, or `404` if the token has
+no policy.
+
 ### Update policy
+
+`PUT` replaces the whole policy: every limit left out of the body becomes `0`
+(unlimited). Send every limit, including the ones that do not change:
 
 ```bash
 curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
@@ -133,9 +150,16 @@ curl -X PUT http://localhost:8000/api/v1/governance/policies/1 \
   -H "Content-Type: application/json" \
   -d '{
     "rate_limit_per_minute": 200,
-    "max_rows_per_query": 1000000
+    "rate_limit_per_hour": 5000,
+    "max_queries_per_hour": 2000,
+    "max_queries_per_day": 20000,
+    "max_rows_per_query": 1000000,
+    "max_scan_duration_sec": 60
   }'
 ```
+
+**Response:** `{"success": true, "policy": { ... }}` with the stored policy, or
+`404` if the token has no policy (create it first).
 
 ### Delete policy
 
@@ -145,6 +169,9 @@ Removes the per-token policy. The token reverts to the global defaults.
 curl -X DELETE http://localhost:8000/api/v1/governance/policies/1 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+**Response:** `{"success": true, "message": "Policy deleted"}`, or `404` if the
+token has no policy.
 
 ## Usage monitoring
 
@@ -160,20 +187,217 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```json
 {
   "success": true,
-  "data": {
+  "usage": {
     "token_id": 1,
-    "current_minute_count": 15,
+    "queries_this_hour": 342,
+    "queries_this_day": 1580,
+    "hour_reset_at": "2026-02-13T11:00:00Z",
+    "day_reset_at": "2026-02-14T00:00:00Z",
+    "rate_limit_remaining_per_minute": 105,
+    "rate_limit_remaining_per_hour": 4658
+  },
+  "policy": {
+    "id": 1,
+    "token_id": 1,
     "rate_limit_per_minute": 120,
-    "current_hour_count": 342,
+    "rate_limit_per_hour": 5000,
     "max_queries_per_hour": 2000,
-    "current_day_count": 1580,
     "max_queries_per_day": 20000,
-    "remaining_minute": 105,
-    "remaining_hour": 1658,
-    "remaining_day": 18420
+    "max_rows_per_query": 500000,
+    "max_scan_duration_sec": 60,
+    "created_at": "2026-02-13T10:00:00Z",
+    "updated_at": "2026-02-13T10:00:00Z"
   }
 }
 ```
+
+- `policy` is the limits that apply to the token: its own policy, or the server
+  defaults with `id` 0 when it has none, or `null` when it has no policy and no
+  default is set.
+- `queries_this_hour` and `queries_this_day` count only queries run while the
+  token has an hourly or daily query quota; a token that never had one shows
+  `0`.
+- `rate_limit_remaining_per_minute` and `rate_limit_remaining_per_hour` are `0`
+  when that rate limit is not set (unlimited). The remaining queries under a
+  quota are the quota minus the count.
+
+## Clusters
+
+Since Arc 27.01.1, governance policies are cluster-wide
+([arc#1627](https://github.com/Basekick-Labs/arc/issues/1627)). Before, each
+node kept and enforced only its own policies: a policy created on one node did
+not apply on the others.
+
+Once the cluster holds the policies:
+
+- **Write anywhere.** Create, change or delete a policy on any node; it
+  applies on every node and survives a failover.
+- **Read anywhere.** Every node lists the same policies, with the same IDs.
+- **The cluster's copy is the one read.** Each node keeps its own
+  `governance_policies` table equal to the cluster's as a backup, including
+  nodes where governance is off, but never reads it again.
+- **Cluster tokens only.** A policy applies only to the cluster token it was
+  set for. Creating or deleting a policy for any other token answers `404`
+  (`token <id> is not a cluster token; governance policies apply to cluster
+  tokens only`); changing one answers `404` because it has no policy. A
+  different token that a node keeps at the same ID (one created on that node
+  before it joined the cluster) gets that node's defaults, never the policy.
+- **Deleting a token deletes its policy.**
+
+A standalone node is unchanged.
+
+### What applies where
+
+- **Row and scan caps are per query.** `max_rows_per_query` and
+  `max_scan_duration_sec` apply identically on every node.
+- **Rate limits and quotas are counted per node.** Each node that runs
+  queries keeps its own counters, so a policy of 60 per minute allows 60 per
+  minute on each query-serving node. Behind a load balancer over N such nodes,
+  a token can run up to N times the limit.
+- **Defaults are per node.** `governance.default_*` stays in each node's own
+  configuration and applies to tokens without a policy. Set it the same on
+  every node; adoption logs a warning naming the nodes whose defaults differ.
+- **Forwarded queries are governed once.** A compactor does not serve queries
+  and forwards them; the node that runs the query applies the policy and
+  counts it, the forwarding node does not.
+
+### Adoption
+
+Once every node runs 27.01.1, the cluster turns cluster-wide governance on by
+itself: `cluster_policies.governance_enabled` in `GET /api/v1/cluster`. Until
+then the Raft leader lists the nodes still on an earlier release in
+`cluster_policies.governance_blocking_nodes`.
+
+The leader then reads every node's own policies, including nodes where
+governance is off; every node must answer. It adopts them by itself when it
+can:
+
+- **Union.** It takes the union of the nodes' policies, so a policy set on one
+  node only now applies on all of them. The same policy on two nodes counts
+  once.
+- **Orphans are dropped.** A policy whose token no longer exists is dropped,
+  with a warning in the leader's log: its token is absent on its node, no other
+  node reports that token, and the cluster does not hold it.
+- **IDs.** If every policy comes from one node, and no other node ever issued
+  those IDs, they keep their IDs. Otherwise every policy gets a new ID above
+  any ID a node held. The API names a policy by its token ID, which does not
+  change.
+
+Otherwise each node keeps enforcing its own policies, as before, and
+`cluster_policies.kinds.governance.last_error` in `GET /api/v1/cluster` says
+why, naming the node and the token. The leader tries again after 30 seconds,
+doubling the wait up to 10 minutes. Adoption waits while:
+
+- a node does not answer;
+- two nodes define the same token's policy differently;
+- a node holds a policy for a token that is not the cluster's token at that ID
+  (a token created on that node before it joined the cluster): re-issue the
+  token through the cluster, or delete that policy on that node;
+- a node holds a policy created before the cluster token at that ID existed
+  (it was set for an earlier token at that ID): delete it on that node;
+- a cluster token has not reached a node yet, or a policy's token is held only
+  by another node and not by the cluster;
+- a node cannot tell whether a token exists (it has no token table).
+
+**The admin's choice.** Except for a node that does not answer, an admin can
+end the wait by choosing one node's policies on the Raft leader. Only that
+node's policies are considered, with the same token checks. Every other
+node's own policies are then no longer enforced, and each node keeps them in
+its `governance_policies_dormant` table:
+
+```bash
+# On the Raft leader: every node's own governance policies, and a hash of each node's set
+curl -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
+  "http://leader:8000/api/v1/cluster/policies?kind=governance"
+
+# Adopt one node's policies, naming the hash GET returned for it
+curl -X POST -H "Authorization: Bearer $ARC_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind": "governance", "node": "arc-reader-0", "hash": "<hash>"}' \
+  http://leader:8000/api/v1/cluster/policies/adopt
+```
+
+`POST` answers `202`, and `cluster_policies.kinds.governance` in
+`GET /api/v1/cluster` shows the outcome (`seeded`, or `last_error`). If the
+node's policies changed since the `GET`, nothing is adopted and `last_error`
+says so: look again and choose again. See
+[Cluster-wide policies](/arc-enterprise/configuration/clustering/#cluster-wide-policies)
+for the endpoints.
+
+**Writes wait a few seconds.** While the leader reads the nodes' policies, a
+policy write answers `503` with `Retry-After: 2`. Retry it.
+
+**Dormant rows.** A node that is away (restarting) when the cluster adopts the
+policies is not asked. When it comes back, its own policies that the cluster
+did not adopt are copied to its `governance_policies_dormant` table, logged
+with their token IDs, and never enforced. That table can also hold policies
+deleted in the cluster while the node was away: check it before recreating
+any through the API.
+
+The copy happens only the first time a node's table becomes the cluster's
+backup copy. Wipe a node before it rejoins after running outside the cluster
+(for example with `cluster.enabled=false`): policies created on it in the
+meantime are replaced, not kept.
+
+### After a restart
+
+A node that restarts after adoption never enforces its own table again. Until
+its cluster state holds the adopted policies, it applies only its
+`governance.default_*`, and policy list, get, create, update and delete answer
+`503` with `Retry-After: 2`; retry them. The node then applies the policies of
+its last Raft snapshot, and the changes made since as it replays them from the
+leader.
+
+A node that joins after the adoption enforces its own table's policies, as
+before, until its cluster state has caught up. Its table is then replaced by
+the cluster's, and its own policies that the cluster does not hold go to
+`governance_policies_dormant`.
+
+### Scope
+
+The list, get and usage answers carry a top-level `scope` field:
+
+- `cluster`: this node enforces the cluster's policies (adopted, and this node
+  has caught up).
+- `node`: this node enforces its own policies, or only its defaults: a
+  standalone node, a cluster before adoption, or a node that has not caught up
+  after a restart.
+
+```json
+{
+  "success": true,
+  "count": 1,
+  "policies": [
+    {
+      "id": 1,
+      "token_id": 24,
+      "rate_limit_per_minute": 60,
+      "rate_limit_per_hour": 0,
+      "max_queries_per_hour": 0,
+      "max_queries_per_day": 0,
+      "max_rows_per_query": 5,
+      "max_scan_duration_sec": 0,
+      "created_at": "2026-11-12T23:11:01.762186349Z",
+      "updated_at": "2026-11-12T23:11:01.762186349Z"
+    }
+  ],
+  "scope": "cluster"
+}
+```
+
+In the usage answer, a `policy` with `id` 0 is still the server defaults of the
+node that answered, which stay per node. Releases before 27.01.1 send no
+`scope`.
+
+### Rollback
+
+The governance flag turns on by itself once every node runs 27.01.1, and stays
+on, like the other cluster policy flags. After that, a node running an earlier
+release is refused when it joins, even with a wiped data directory.
+
+<Callout type="warn" title="No rolling back a single node">
+Never roll back one node in place. To roll back, restore the whole cluster from a backup taken before the upgrade. A node that ran outside the cluster for a while (for example with `cluster.enabled=false`) must be wiped before it rejoins on 27.01.1 or later.
+</Callout>
 
 ## Best practices
 
