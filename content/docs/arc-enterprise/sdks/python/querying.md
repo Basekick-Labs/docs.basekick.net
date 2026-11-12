@@ -16,7 +16,7 @@ The SDK provides multiple query methods, each returning data in a different form
 | `query_polars()` | polars DataFrame | Large datasets, performance | Better |
 | `query_arrow()` | PyArrow Table | Zero-copy, interop | Best |
 
-All query methods are available on `client.query`.
+All query methods are available on `client.query`. Snippets that use `client` without creating it run inside a client opened as in the full examples below.
 
 ## SQL syntax
 

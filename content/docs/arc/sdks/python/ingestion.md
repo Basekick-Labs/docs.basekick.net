@@ -245,9 +245,23 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 ```python
 import os
 import asyncio
+import random
+import time
+from typing import NamedTuple
 from arc_client import AsyncArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
+
+class Event(NamedTuple):
+    source: str
+    value: float
+    timestamp: int  # microseconds
+
+async def event_stream():
+    # Stand-in for your real source (a queue, socket or Kafka consumer)
+    for i in range(200):
+        yield Event(f"sensor-{i % 4:03d}", random.random(), int(time.time() * 1_000_000))
+        await asyncio.sleep(0)
 
 async def ingest_stream():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -324,9 +338,16 @@ All write methods have async equivalents:
 ```python
 import os
 import asyncio
+import pandas as pd
 from arc_client import AsyncArcClient
 
 ARC_TOKEN = os.environ["ARC_TOKEN"]
+
+df = pd.DataFrame({
+    "time": pd.date_range("2024-01-01", periods=3, freq="1min"),
+    "host": ["server01"] * 3,
+    "usage": [45.2, 46.1, 44.8],
+})
 
 async def main():
     async with AsyncArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
@@ -384,7 +405,7 @@ with ArcClient(host="localhost", token=os.environ["ARC_TOKEN"]) as client:
 
 Send multiple rows per request rather than one at a time:
 
-```python
+```text
 # ✅ Good: Batch write
 client.write.write_columnar(
     measurement="cpu",
@@ -419,17 +440,26 @@ For high-throughput scenarios, implement backpressure handling:
 
 ```python
 import time
+from arc_client.exceptions import ArcIngestRefusedError, ArcRateLimitError
 
 def write_with_backoff(client, data, max_retries=3):
     for attempt in range(max_retries):
         try:
             client.write.write_columnar(**data)
             return
-        except ArcIngestionError as e:
-            if attempt == max_retries - 1:
+        except ArcIngestRefusedError as e:
+            # retry_safe=False (wal_not_durable): part of the request may be
+            # stored, so resending could duplicate rows.
+            if not e.retry_safe or attempt == max_retries - 1:
                 raise
             time.sleep(2 ** attempt)  # Exponential backoff
+        except ArcRateLimitError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
 ```
+
+Retry only errors that guarantee nothing was written: a refusal Arc marks `retry_safe` (the SDK already resends those up to `max_retries` before raising) and a rate limit (HTTP 429). Any other `ArcIngestionError` is raised as is. In particular, never resend an `ArcPartialWriteError`: Arc stored the rest of that request, so a retry duplicates it.
 
 ## Next steps
 

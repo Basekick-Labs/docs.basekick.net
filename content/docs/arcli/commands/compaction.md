@@ -68,7 +68,7 @@ $ arcli compaction trigger
 Error: compaction is paused cluster-wide: a restore is running; retry when it ends
 ```
 
-Retry once the restore has finished. `--wait` polls `stats` until the cycle finishes (`--wait-timeout` default 30m), printing progress to stderr. The server reports the id the triggered cycle is expected to get, and that can be off by one, or a scheduled cycle can start in the same instant and take the manual trigger's place; when the reported cycle id stays below the expected one for three polls, `--wait` gives up and says so rather than wait for a cycle that will never appear.
+Retry once the restore has finished. `--wait` polls `stats` until the cycle finishes (`--wait-timeout` default 30m), printing progress to stderr. From the next arcli release it then prints the cycle's own batch counts, taken from Arc 26.09.2+, for example `Cycle 4 finished: 0 of 0 batches compacted, 0 failed`; earlier releases printed the server's lifetime totals on that line ([arcli#96](https://github.com/Basekick-Labs/arcli/issues/96)). The server reports the id the triggered cycle is expected to get, and that can be off by one, or a scheduled cycle can start in the same instant and take the manual trigger's place; when the reported cycle id stays below the expected one for three polls, `--wait` gives up and says so rather than wait for a cycle that will never appear.
 
 | Flag | Description | Default |
 |---|---|---|
