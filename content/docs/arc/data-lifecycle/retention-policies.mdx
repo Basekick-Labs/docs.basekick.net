@@ -341,7 +341,7 @@ for policy in policies.json():
         f"http://localhost:8000/api/v1/retention/{policy['id']}/executions?limit=10",
         headers={"Authorization": f"Bearer {ARC_TOKEN}"}
     )
-    print(f"  Recent executions: {len(history.json())}")
+    print(f"  Recent executions: {len(history.json()['executions'])}")
 ```
 
 ## Best practices
