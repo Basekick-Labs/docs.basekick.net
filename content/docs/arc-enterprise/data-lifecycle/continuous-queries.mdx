@@ -442,6 +442,15 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 }
 ```
 
+Since Arc 27.01.1, a query ID with no continuous query behind it, mistyped or
+deleted, answers `404 Continuous query not found`, as `GET` of the query does,
+and a query that has not run yet lists `"executions": []`. In a cluster, a
+node that has not yet caught up with the cluster's continuous queries after a
+restart answers `503`; retry it. Earlier versions answered `200` with
+`"executions": null` for an unknown ID and for a query that had not run, and
+in a cluster a deleted query's history could still be listed for a moment
+after the delete.
+
 ## Query syntax
 
 Continuous queries use standard analytical SQL with temporal optimizations.

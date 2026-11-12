@@ -333,6 +333,12 @@ GET /api/v1/continuous_queries/{query_id}/executions?limit=50
 }
 ```
 
+Since Arc 27.01.1, a query ID with no continuous query behind it, mistyped or
+deleted, answers `404 Continuous query not found`, as `GET` of the query does,
+and a query that has not run yet lists `"executions": []`. Earlier versions
+answered `200` with `"executions": null` in both cases, so an unknown ID looked
+like a query that had never run.
+
 ## Query syntax
 
 Continuous queries use standard analytical SQL with temporal optimizations.

@@ -201,6 +201,12 @@ run is done. If Arc stops in the middle of a run, nothing marks that entry
 finished: it stays `running`. Before v27.01.1 the history left running
 executions out entirely.
 
+Since Arc 27.01.1, a policy ID with no retention policy behind it, mistyped or
+deleted, answers `404 Retention policy not found`, as `GET` of the policy does,
+and a policy that has not run yet lists `"executions": []`. Earlier versions
+answered `200` with `"executions": null` in both cases, so an unknown ID looked
+like a policy that had never run.
+
 ## Configuration parameters
 
 ### Retention days

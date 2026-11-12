@@ -358,6 +358,15 @@ run is done. If Arc stops in the middle of a run, nothing marks that entry
 finished: it stays `running`. Before v27.01.1 the history left running
 executions out entirely.
 
+Since Arc 27.01.1, a policy ID with no retention policy behind it, mistyped or
+deleted, answers `404 Retention policy not found`, as `GET` of the policy does,
+and a policy that has not run yet lists `"executions": []`. In a cluster, a
+node that has not yet caught up with the cluster's retention policies after a
+restart answers `503`; retry it. Earlier versions answered `200` with
+`"executions": null` for an unknown ID and for a policy that had not run, and
+in a cluster a deleted policy's history could still be listed for a moment
+after the delete.
+
 ## Configuration parameters
 
 ### Retention days
