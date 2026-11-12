@@ -5,7 +5,7 @@ description: "Server-side Arc backups from arcli: backup create, list, show, sta
 
 Arc writes backups on the server itself. Up to Arc 26.09 they go to the directory in `backup.local_path`; Arc 27.01.1+ can also write them to remote targets (`backup.targets`) and take a backup scoped to some databases (the `databases` field of `POST /api/v1/backup`). There is no incremental mode, and `backup.enabled = false` turns the feature off. `arcli backup` drives that over `/api/v1/backup`. Every subcommand needs an **admin** token. arcli always creates a full backup of every database (it has no flag for a scoped one), but it lists, shows and restores scoped backups like any other.
 
-On a cluster running Arc 27.01.1+, create, restore and delete must be sent to the **primary writer**; any other node answers HTTP 503 before the operation starts.
+On a cluster running Arc 27.01.1+, create, restore and delete must be sent to the **primary writer**; any other node answers HTTP 503 before the operation starts. Backup storage is per node when it is local, so `restore` and `delete` on a node that does not hold the backup answer HTTP 404 before the prompt.
 
 Several behaviours below are in arcli `main` but not yet in a published arcli release (the latest is 26.09.4). They are marked **arcli 26.09.5**, **arcli 27.01.1** or **next arcli release**, after the release-note files that list them.
 
