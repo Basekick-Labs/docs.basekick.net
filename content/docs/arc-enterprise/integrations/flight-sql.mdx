@@ -30,6 +30,17 @@ ARC_FLIGHT_SQL_PORT=50051
 - TLS follows the HTTP API: with `server.tls_enabled = true` the listener uses the same certificate and key, and refuses plaintext connections.
 - With authentication on, every call needs an Arc token with read permission. The usual database and measurement permissions (RBAC) apply to every query, as do query governance and audit logging (below).
 
+## Kubernetes (Helm)
+
+```yaml
+flightSql:
+  enabled: true        # default false: no port in the container or on the Service
+  port: 50051          # container port
+  servicePort: 50051   # port on the Service
+```
+
+The chart adds a `flight-sql` port to the writers and readers and to their Services. Compactors have no client Service and are not given the listener. The Service port is marked `appProtocol: grpc`, and a port that collides with one of Arc's is refused when the chart renders. The chart's Ingress routes HTTP only: expose the port through the Service (for example a LoadBalancer) or an ingress controller that proxies gRPC.
+
 ## Connect from Python (ADBC)
 
 Install the ADBC Flight SQL driver:
