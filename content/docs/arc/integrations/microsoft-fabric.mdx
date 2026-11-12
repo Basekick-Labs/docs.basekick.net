@@ -28,23 +28,23 @@ The steps use the demo dataset `weather_tracking.weather_observations` (three ci
 
 In [app.fabric.microsoft.com](https://app.fabric.microsoft.com), open **Workspaces → New workspace**, name it, and under **Advanced** choose **Trial** (or a Fabric capacity) as the license mode. You can check the mode later under **Workspace settings → Workspace type**:
 
-![Workspace settings showing the workspace type Fabric Trial](/img/arc-fabric/arc-fabric-new-workspace.png)
+![Workspace settings showing the workspace type Fabric Trial](/img/arc-fabric/arc-fabric-new-workspace.webp)
 
 ## 2. Create a Lakehouse
 
 In the workspace, click **New item → Lakehouse**, name it `arc_lakehouse` and click **Create**:
 
-![The New Lakehouse dialog with the name arc_lakehouse and Lakehouse schemas ticked](/img/arc-fabric/arc-fabric-new-lakehouse.png)
+![The New Lakehouse dialog with the name arc_lakehouse and Lakehouse schemas ticked](/img/arc-fabric/arc-fabric-new-lakehouse.webp)
 
 The Lakehouse opens empty. With **Lakehouse schemas** on (the default), tables go in the `dbo` schema. **New semantic model** stays greyed out until the Lakehouse has a table:
 
-![The empty Lakehouse: Tables with an empty dbo schema, and Files](/img/arc-fabric/arc-fabric-empty-lakehouse.png)
+![The empty Lakehouse: Tables with an empty dbo schema, and Files](/img/arc-fabric/arc-fabric-empty-lakehouse.webp)
 
 ## 3. Create a notebook
 
 From the workspace, click **New item → Notebook**, then attach the Lakehouse in the notebook's Explorer with **Add data items**. (Opening the notebook from the Lakehouse attaches it for you.) Rename it `arc_to_lakehouse`:
 
-![An empty notebook with arc_lakehouse attached in the Explorer](/img/arc-fabric/arc-fabric-notebook-attached.png)
+![An empty notebook with arc_lakehouse attached in the Explorer](/img/arc-fabric/arc-fabric-notebook-attached.webp)
 
 ## 4. Pull data from Arc
 
@@ -80,7 +80,7 @@ spark.createDataFrame(table.to_pandas()) \
 
 Click **Run all**. The cell prints the row count and writes the table:
 
-![The notebook after a run: the token cell hidden, the query cell, Spark jobs succeeded and 12762 rows from Arc, and the weather_observations table with its columns in the Explorer](/img/arc-fabric/arc-fabric-notebook-run.png)
+![The notebook after a run: the token cell hidden, the query cell, Spark jobs succeeded and 12762 rows from Arc, and the weather_observations table with its columns in the Explorer](/img/arc-fabric/arc-fabric-notebook-run.webp)
 
 <Callout type="info" title="Refresh the Explorer">
 The new table appears in the Explorer only after a refresh: **dbo → ⋯ → Refresh**.
@@ -92,7 +92,7 @@ The `WHERE time > now() - INTERVAL 30 DAY` filter keeps each run bounded: the wh
 
 Back in the Lakehouse, click **New semantic model**, name it, and select `dbo → weather_observations`:
 
-![The New semantic model dialog: Direct Lake semantic model named weather, workspace Arc Demo, dbo.weather_observations selected](/img/arc-fabric/arc-fabric-semantic-model.png)
+![The New semantic model dialog: Direct Lake semantic model named weather, workspace Arc Demo, dbo.weather_observations selected](/img/arc-fabric/arc-fabric-semantic-model.webp)
 
 The model uses **Direct Lake**: Power BI reads the table's files in OneLake directly, with no import step.
 
@@ -104,17 +104,17 @@ From the semantic model, create a new report. For a temperature chart per city:
 - Set the Y-axis field to **Average**. Power BI defaults numeric fields to Sum, which adds up readings that share a timestamp.
 - Filter by city in the **Filters** pane, or add a **Slicer** on `city`.
 
-![The Power BI report editor: Average of temperature by time and city for Buenos Aires, London and Tokyo, with a city filter showing 4254 rows per city](/img/arc-fabric/arc-fabric-report-edit.png)
+![The Power BI report editor: Average of temperature by time and city for Buenos Aires, London and Tokyo, with a city filter showing 4254 rows per city](/img/arc-fabric/arc-fabric-report-edit.webp)
 
 Save the report. In reading view:
 
-![The saved report Weather in three cities in reading view](/img/arc-fabric/arc-fabric-report-view.png)
+![The saved report Weather in three cities in reading view](/img/arc-fabric/arc-fabric-report-view.webp)
 
 ## 7. Schedule the refresh
 
 In the notebook, open **Settings (⚙) → Schedule → Add schedule**, choose **Hourly** with an interval of 1, and **Save**:
 
-![The notebook schedule panel: repeat hourly, every 1 hour, with start and end dates and time zone](/img/arc-fabric/arc-fabric-schedule.png)
+![The notebook schedule panel: repeat hourly, every 1 hour, with start and end dates and time zone](/img/arc-fabric/arc-fabric-schedule.webp)
 
 Each run replaces the table with the latest window from Arc. An open report does not pick up the new data on its own: click **Refresh** in the report to see it.
 
