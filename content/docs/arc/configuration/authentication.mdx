@@ -494,13 +494,20 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 {
   "valid": true,
   "token_info": {
-    "id": "abc123",
+    "id": 2,
     "name": "my-service",
-    "is_admin": false
+    "description": "Token for production service",
+    "permissions": ["read", "write"],
+    "created_at": "2026-11-10T18:59:07Z",
+    "enabled": true,
+    "expires_at": "2027-02-08T18:59:07Z"
   },
-  "permissions": []
+  "permissions": ["read", "write"]
 }
 ```
+
+A missing, invalid or expired token answers `401` with `"valid": false`.
+`last_used_at` appears once the token has been used.
 
 ## Token cache
 
