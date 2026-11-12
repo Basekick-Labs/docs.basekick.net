@@ -501,36 +501,57 @@ Create a new token (admin only).
 {
   "name": "my-service",
   "description": "Token for my service",
-  "is_admin": false
+  "permissions": ["read", "write"],
+  "expires_in": "90d"
 }
 ```
+
+`permissions` defaults to `read` and `write`. `expires_in` is a duration
+(`"24h"`) or a number of days (`"7d"`); leave it out for a token that does not
+expire.
 
 **Response:**
 ```json
 {
-  "id": "abc123",
-  "name": "my-service",
+  "success": true,
   "token": "<new-api-token>",
-  "is_admin": false,
-  "created_at": "2024-12-02T10:30:00Z"
+  "message": "Token created successfully. Store this token securely - it cannot be retrieved again."
 }
 ```
+
+Since Arc 27.01.1: a name another token has answers `409` (was `500`), and an
+`expires_in` that is zero, negative or over 100 years (`"36500d"`) answers
+`400`. See [Token management](/arc/configuration/authentication/#token-management).
 
 ### GET /api/v1/auth/tokens/:id
 
 Get token details (admin only).
 
+### PATCH /api/v1/auth/tokens/:id
+
+Update a token's `name`, `description`, `permissions` or `expires_in` (admin
+only). Fields left out are kept. Since Arc 27.01.1: `"name": ""` answers
+`400`, a name another token has answers `409` (was `500`), `expires_in`
+follows the create rules, and an unknown ID answers `404` with no fields in
+the body too (standalone, it answered `200` before).
+
 ### DELETE /api/v1/auth/tokens/:id
 
-Delete/revoke a token (admin only).
+Delete a token (admin only). To disable it but keep its record, revoke it
+instead.
 
 ### POST /api/v1/auth/tokens/:id/rotate
 
-Rotate a token (admin only).
+Rotate a token (admin only): the response's `new_token` replaces the old
+value. Since Arc 27.01.1, a revoked token answers `409`: create a new token
+instead.
 
 ### POST /api/v1/auth/tokens/:id/revoke
 
-Revoke a token (admin only).
+Revoke a token (admin only). Revocation is permanent.
+
+`PATCH`, `DELETE`, `rotate` and `revoke` answer `404` for an unknown token
+ID. In a cluster, before Arc 27.01.1, they answered `200` for one.
 
 ### GET /api/v1/auth/cache/stats
 
