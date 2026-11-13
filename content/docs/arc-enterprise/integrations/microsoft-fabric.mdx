@@ -5,7 +5,12 @@ description: "Bring Arc data into Microsoft Fabric with a notebook that reads Ar
 
 Get Arc data into a Power BI report in Microsoft Fabric, entirely in the browser: no Power BI Desktop, no Windows machine, no gateway and nothing to install on Arc.
 
-A Fabric notebook queries Arc's HTTP API, receives the result as Arrow, and writes it to a Lakehouse table. Power BI reads that table directly (Direct Lake), and a schedule keeps it current.
+Two routes:
+
+- **A notebook (any Arc since v25.12.1).** Steps 1–7 below.
+- **Zero-copy through Iceberg (Arc 27.01.1, S3 storage).** Fabric reads Arc's Parquet files where they are, through a OneLake shortcut. See [Zero-copy: Iceberg through OneLake](#zero-copy-iceberg-through-onelake).
+
+In the notebook route, a Fabric notebook queries Arc's HTTP API, receives the result as Arrow, and writes it to a Lakehouse table. Power BI reads that table directly (Direct Lake), and a schedule keeps it current.
 
 ```text
 Arc  ──POST /api/v1/query/arrow──▶  Fabric notebook  ──▶  Lakehouse table  ──▶  Semantic model  ──▶  Power BI report
@@ -118,6 +123,77 @@ In the notebook, open **Settings (⚙) → Schedule → Add schedule**, choose *
 
 Each run replaces the table with the latest window from Arc. An open report does not pick up the new data on its own: click **Refresh** in the report to see it.
 
+## Zero-copy: Iceberg through OneLake
+
+With Arc 27.01.1 on S3 storage, Fabric can read Arc's own Parquet files in place: Arc publishes each measurement as an Iceberg table, a OneLake shortcut points at it, and Fabric presents it as a Lakehouse table. No notebook, no copy, no schedule.
+
+```text
+Arc  ──Parquet + Iceberg metadata──▶  S3 bucket  ◀──shortcut──  Lakehouse table  ──▶  Semantic model  ──▶  Power BI report
+                                                     (OneLake, Iceberg → Delta)       (Direct Lake on SQL)
+```
+
+**Requirements:**
+
+- Arc 27.01.1 or later with an S3 primary (`storage.backend = "s3"`).
+- [Iceberg export](/arc/integrations/apache-iceberg/) on, with the **colocated** layout and the warehouse at the storage root (the default):
+
+  ```toml
+  [iceberg]
+  enabled = true
+  layout  = "colocated"
+  ```
+
+  The default `warehouse` layout does not work here: OneLake converts the table, then Fabric fails reading the first data file, because the data is outside the shortcut's folder. Tables created before you set the layout keep their old location; see [Table layout](/arc/integrations/apache-iceberg/#table-layout) to move one.
+- An AWS access key that can only read the bucket (`s3:ListBucket` and `s3:GetObject`).
+- A Lakehouse created with **Lakehouse schemas** unticked.
+
+### 1. Create the shortcut
+
+In the Lakehouse, open **Tables → ⋯ → New shortcut → Amazon S3**, and create a connection with the bucket URL (`https://<bucket>.s3.<region>.amazonaws.com`) and the read-only key. Then expand the bucket and tick the **measurement's folder**, `<database>/<measurement>`. Fabric recognises it as a table:
+
+![The New shortcut dialog: the bucket expanded to energy_grid, with the fuel_daily table ticked](/img/arc-fabric/arc-fabric-iceberg-shortcut-select.webp)
+
+Click **Next**, then **Create**:
+
+![The shortcut summary: target type AmazonS3, location arc_iceberg > Tables, shortcut fuel_daily](/img/arc-fabric/arc-fabric-iceberg-shortcut-create.webp)
+
+Pick the bucket's region close to your Fabric capacity: every read crosses from S3 to Fabric.
+
+### 2. Check the table
+
+The table appears under **Tables** with Arc's columns. Its preview reads Arc's files directly:
+
+![The Lakehouse preview of fuel_daily: solar, coal, total, region, nuclear, wind, region_name, time, gas and renewables](/img/arc-fabric/arc-fabric-iceberg-preview.webp)
+
+On our test dataset (`energy_grid.fuel_daily`, 38,360 daily rows from 2019 to mid-2026 in 2,740 files) the SQL endpoint's `SELECT COUNT(*)` matched Arc's count.
+
+### 3. Semantic model and report
+
+Click **New semantic model** and choose **Direct Lake on SQL**:
+
+![The New semantic model dialog with Direct Lake on SQL selected and fuel_daily ticked](/img/arc-fabric/arc-fabric-iceberg-semantic-model.webp)
+
+<Callout type="warn" title="Direct Lake on OneLake and long histories">
+Direct Lake has a per-table limit on the number of files, which depends on the capacity. Arc writes at least one file per hour that has data, so a long history passes it quickly: our 2,740-file table did on a trial capacity. **Direct Lake on OneLake** has no fallback and the model fails to load. **Direct Lake on SQL** falls back to DirectQuery and keeps working.
+</Callout>
+
+Build the report as in [step 6](#6-build-the-report):
+
+![A Power BI report on fuel_daily: generation by fuel from 2019 to 2026, with a region slicer](/img/arc-fabric/arc-fabric-iceberg-report.webp)
+
+### Keeping it current
+
+Arc commits a new snapshot on each reconcile pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default), and OneLake converts the new snapshot when it detects it. There is nothing to schedule in Fabric.
+
+<Callout type="warn" title="Never run orphan-file cleanup on these tables">
+The table's folder is Arc's data folder. `remove_orphan_files` (from a Fabric Spark notebook or any other engine) deletes every file there that no snapshot references, including data Arc wrote since the last pass.
+</Callout>
+
+**Limits:**
+
+- **Cold tier.** Files that tiering moves to a cold tier leave the table folder, and the shortcut cannot read them. Report on hot data, or use the notebook route.
+- **Read only.** The shortcut is a view of Arc's data; write to Arc, not to the table.
+
 ## Older Arc releases (JSON)
 
 Releases before v25.12.1 have no Arrow endpoint. Use the JSON one instead. JSON carries no column types, so convert the time column and check numeric types yourself: a float column whose values happen to be whole numbers comes back as integers.
@@ -147,4 +223,3 @@ spark.createDataFrame(pdf).write.mode("overwrite").saveAsTable("weather_observat
 ## What's next
 
 - **Arrow Flight SQL (Arc 27.01.1).** Arc gains a native [Flight SQL listener](/arc-enterprise/integrations/flight-sql/) for ADBC clients. Power BI ships a Flight SQL ADBC driver, which opens the way to a direct connector.
-- **Iceberg on object storage.** If Arc stores its data in a bucket, its [Iceberg export](/arc/integrations/apache-iceberg/) publishes tables any lakehouse engine can read, without copying data through a notebook.
