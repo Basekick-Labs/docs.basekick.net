@@ -147,4 +147,4 @@ spark.createDataFrame(pdf).write.mode("overwrite").saveAsTable("weather_observat
 ## What's next
 
 - **Arrow Flight SQL (Arc 27.01.1).** Arc gains a native [Flight SQL listener](/arc-enterprise/integrations/flight-sql/) for ADBC clients. Power BI ships a Flight SQL ADBC driver, which opens the way to a direct connector.
-- **Iceberg on object storage.** If Arc stores its data in a bucket, its [Iceberg export](/arc-enterprise/integrations/apache-iceberg/) publishes tables any lakehouse engine can read, without copying data through a notebook.
+- **Iceberg on object storage.** If Arc stores its data in a bucket, its [Iceberg export](/arc/integrations/apache-iceberg/) publishes tables any lakehouse engine can read, without copying data through a notebook.
