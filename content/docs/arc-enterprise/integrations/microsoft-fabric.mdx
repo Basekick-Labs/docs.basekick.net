@@ -149,9 +149,9 @@ Arc  ──Parquet + Iceberg metadata──▶  S3 bucket  ◀──shortcut─�
 
 ### 1. Create the shortcut
 
-In the Lakehouse, open **Tables → ⋯ → New shortcut → Amazon S3**, and create a connection with the bucket URL (`https://<bucket>.s3.<region>.amazonaws.com`) and the read-only key. Then expand the bucket and tick the **measurement's folder**, `<database>/<measurement>`. Fabric recognises it as a table:
+In the Lakehouse, open **Tables → ⋯ → New shortcut → Amazon S3**, and create a connection with the bucket URL (`https://<bucket>.s3.<region>.amazonaws.com`) and the read-only key. Then expand the bucket and tick the **measurement's folder**, `<database>/<measurement>`. Fabric recognises it as a table, marked **Transformed from iceberg**, with Arc's year folders and `metadata/` inside:
 
-![The New shortcut dialog: the bucket expanded to energy_grid, with the fuel_daily table ticked](/img/arc-fabric/arc-fabric-iceberg-shortcut-select.webp)
+![The New shortcut dialog: energy_grid/fuel_daily ticked, its tooltip reading Transformed from iceberg, and the folder holding 2019 to 2026 and metadata](/img/arc-fabric/arc-fabric-iceberg-shortcut-select.webp)
 
 Click **Next**, then **Create**:
 
