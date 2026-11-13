@@ -453,6 +453,10 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
+**Compressed MessagePack writes over the limit (Arc 27.01.1+).** `/api/v1/write/msgpack` checks the limit against the decompressed body as well, and answers `413` when it is exceeded, so a client that splits batches on `413` (the [Node-RED node](/docs/arc/integrations/node-red) does) can recover. Before 27.01.1 this answered `400`.
+
+With a limit below 32MB, a zstd body is also refused with `413` when its frame *window* (the decoder memory the encoder asks for) is larger than the limit, before it is decoded. Encoders that know the batch size, such as Node.js `zlib.zstdCompressSync`, use a window no larger than the batch, so splitting the batch fixes it. An encoder that streams without knowing the size (for example `cat batch.msgpack | zstd -19`) keeps an 8MB window however small the batch, and splitting never gets it under a smaller limit. In that case lower the encoder's window (`zstd --zstd=wlog=20` for 1MB) or raise `max_payload_size`. A window over 32MB (`--ultra`, `--long`) is always refused with `400`.
+
 ### Database (query engine)
 
 Query engine connection pool and resource settings:
