@@ -10,6 +10,7 @@
     "influxdb-clients",
     "opentelemetry",
     "flight-sql",
+    "microsoft-fabric",
     "superset",
     "vscode",
     "redpanda-connect"
