@@ -179,9 +179,40 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. Since 27.01.1 the warehouse's directories inside the storage root are not databases; see [The warehouse is not a database](#the-warehouse-is-not-a-database). |
+| `iceberg.layout` | `ARC_ICEBERG_LAYOUT` | `warehouse` | Where new tables are created (27.01.1+): `warehouse` puts metadata under `<warehouse>/<prefix>_<database>.db/<measurement>`; `colocated` puts it in `<database>/<measurement>/metadata/`, beside the data. See [Table layout](#table-layout). |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
 | `iceberg.cold_rescan_interval` | `ARC_ICEBERG_COLD_RESCAN_INTERVAL` | `3600` | With an S3 cold tier: seconds a measurement's cached cold-tier listing is trusted. Arc re-lists right away after its own cold-tier changes (migrations, cold retention, DELETE, database delete); this only bounds changes made outside Arc. |
 | `iceberg.orphan_sweep_enabled` | `ARC_ICEBERG_ORPHAN_SWEEP_ENABLED` | `true` | Delete manifest files that no retained metadata version references any more. This is the one thing the exporter deletes that nothing regenerates, so it has an off switch; set `false` and the manifests of expired snapshots are kept forever and copied into every backup. Arc logs a warning at startup when it is off. |
+
+## Table layout
+
+Since Arc 27.01.1, `iceberg.layout` decides where a new table's metadata goes.
+
+- **`warehouse` (the default).** Metadata in `<warehouse>/<prefix>_<database>.db/<measurement>/metadata/`, apart from the data. Manifests point at Arc's Parquet files by absolute path.
+- **`colocated`.** The table's location is the measurement's own directory, so its metadata goes in `<database>/<measurement>/metadata/` and every data file it references is inside the table folder.
+
+Use `colocated` for readers that reach a table only through its folder and cannot follow paths outside it. A Microsoft Fabric OneLake shortcut is one: with the default layout it converts the metadata, then fails on the first data file. See [Microsoft Fabric and Power BI](/arc/integrations/microsoft-fabric/#zero-copy-iceberg-through-onelake).
+
+```toml
+[iceberg]
+enabled = true
+layout  = "colocated"
+```
+
+- `colocated` needs local or S3 storage and the warehouse at the storage root (the default). Arc refuses to start with `iceberg.warehouse` pointing elsewhere.
+- **The layout applies to new tables only.** An existing table keeps its location, so switching the key, either way, moves nothing. To move a table: stop Arc on **every** node, delete the table's row from the `iceberg_tables` table of each node's catalog, delete its metadata directory (`<prefix>_<database>.db/<measurement>/` when moving to colocated, `<database>/<measurement>/metadata/` when moving back), and start Arc. The next pass recreates the table and registers every file again, reading each file's footer once.
+- **Same layout on every node** that exports to the same storage, or two nodes could each create the table in a different place.
+- A measurement's `metadata/` directory is not data: queries, pruning and the schema registry ignore it, and a database `DELETE` removes it through the Iceberg cleanup.
+
+<Callout type="warn" title="Never run orphan-file cleanup on a colocated table">
+A colocated table's location holds Arc's data, including files the export has not registered yet. `remove_orphan_files` (Spark, Trino) deletes every file under the location that no snapshot references, which would delete Arc data.
+</Callout>
+
+Caveats:
+
+- **Cold tier.** Files that tiering moves to a cold tier leave the table folder. The table still lists them, so catalog readers see them, but folder-scoped readers such as a OneLake shortcut cannot read them. Arc warns at startup.
+- **Cluster with node-local storage.** The metadata exists only on the exporting node. Arc warns at startup.
+- **Object storage.** A measurement whose data is all gone but whose table metadata remains is still listed.
 
 ## The warehouse is not a database
 
