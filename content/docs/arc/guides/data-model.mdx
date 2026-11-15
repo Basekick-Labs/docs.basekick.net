@@ -137,10 +137,10 @@ Up to 26.09.3, compaction kept one row per key whatever the field values, so a c
 | Continuous queries | Yes — the GROUP BY dimensions |
 | MessagePack | Only with `tag_keys` in a columnar payload (v27.01.1+); **No** on earlier versions |
 | MQTT | **No** (decodes MessagePack/JSON) |
-| WAL replay | **No** |
+| WAL replay | MessagePack `tag_keys` are kept (v27.01.1+); otherwise **No** |
 
 <Callout type="warn" title="MessagePack without tag_keys and MQTT data is compacted but never de-duplicated">
-This includes Arc's highest-throughput write path when it sends no `tag_keys`, and the standard IoT path. Data recovered from the WAL after a crash also carries no dedup key, even if it was originally written via line protocol.
+This includes Arc's highest-throughput write path when it sends no `tag_keys`, and the standard IoT path. Data recovered from the WAL after a crash also carries no dedup key, even if it was originally written via line protocol; only MessagePack `tag_keys` survive a replay (v27.01.1+).
 
 If your pipeline can deliver the same point twice — at-least-once queues, MQTT redelivery, retried batches, replayed recordings — either write via line protocol (or MessagePack with `tag_keys` on v27.01.1+), or make duplicates harmless at query time (`SELECT DISTINCT`, or an aggregate that tolerates them).
 </Callout>

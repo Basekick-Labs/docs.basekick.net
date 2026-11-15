@@ -135,8 +135,8 @@ Compaction merges all files in a partition (e.g., `2025/10/08/14/`) into one opt
 
 ### Why compaction waits at least an hour
 
-Hourly compaction reads the files of an hour partition, writes a merged file and
-then deletes the files it read. If it ran on an hour that Arc is still flushing
+Hourly compaction reads the files of an hour partition and writes a merged file
+that replaces them, after which the files it read are deleted. If it ran on an hour that Arc is still flushing
 into, a late buffer flush could land in the partition while the job runs, and
 those rows could be lost. So a partition is compacted only when **both** of these
 hold:
@@ -167,14 +167,14 @@ What this means in practice:
 
 - **Tests and benchmarks.** Data you have just written is not compacted for at
   least an hour after the last write to each hour partition. To test compaction,
-  write the data, wait more than an hour, lower `hourly_min_files` if your test
-  writes few files per hour, then trigger compaction.
+  set a low `hourly_min_files` before starting Arc if your test writes few files
+  per hour, write the data, wait more than an hour, then trigger compaction.
 - **Backfills and re-sent data.** Writing into an old hour, or sending the same
   data again, adds new files to that partition and restarts its wait: it becomes
   eligible one hour after its newest file was written. A partition that was
   already compacted is compacted again only once it holds at least
-  `hourly_min_files` new files. Until then, queries read every file in the
-  partition, so re-sent rows are counted twice.
+  `hourly_min_files` new files. Before compaction, queries read every file in
+  the partition, so both copies of re-sent rows are returned.
 
 ### Deduplication
 
@@ -189,8 +189,8 @@ Parquet metadata of its input files whether to deduplicate:
 - **Otherwise, at least one input file carries the continuous-query marker**
   (continuous-query output without tag columns): the job deduplicates, keyed by
   `time`.
-- **Otherwise**, or if the metadata cannot be read: no deduplication. Rows
-  written without declared tags are never removed as duplicates.
+- **Otherwise**, or if the metadata cannot be read: no deduplication for that
+  job.
 
 The key only narrows the search. A row is removed only when another row **in the
 same job** has the same key and is identical in every column. A re-sent row with
