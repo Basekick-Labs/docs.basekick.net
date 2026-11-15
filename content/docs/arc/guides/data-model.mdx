@@ -125,7 +125,7 @@ Arc converts `ns` to microseconds by integer division. Sub-microsecond precision
 
 Arc ingests append-only and de-duplicates during compaction. Since 26.09.4 a duplicate is a row **identical in every column** (time, every tag and every field) to another row with the same **dedup key**.
 
-The dedup key comes from column names recorded in the Parquet footer as `arc:tags`, and the key is `(tag columns…, time)`. Compaction removes a row only when another row is identical in every column. A re-sent point with a new value is kept next to the old one, and queries see both; an exact re-send (a client retrying the same write) is collapsed.
+The dedup key comes from column names recorded in the Parquet footer as `arc:tags`, and the key is `(tag columns…, time)`. Compaction removes a row only when another row in the same compaction job is identical in every column ([how compaction decides](/arc/advanced/compaction/#deduplication)). A re-sent point with a new value is kept next to the old one, and queries see both; an exact re-send (a client retrying the same write) is collapsed.
 
 Up to 26.09.3, compaction kept one row per key whatever the field values, so a correction or a partial write could be deleted ([arc#1232](https://github.com/Basekick-Labs/arc/issues/1232)).
 
@@ -135,14 +135,14 @@ Up to 26.09.3, compaction kept one row per key whatever the field values, so a c
 |---|---|
 | Line protocol | Yes — the tag columns |
 | Continuous queries | Yes — the GROUP BY dimensions |
-| MessagePack | **No** |
+| MessagePack | Only with `tag_keys` in a columnar payload (v27.01.1+); **No** on earlier versions |
 | MQTT | **No** (decodes MessagePack/JSON) |
 | WAL replay | **No** |
 
-<Callout type="warn" title="MessagePack and MQTT data is compacted but never de-duplicated">
-This includes Arc's highest-throughput write path and the standard IoT path. Data recovered from the WAL after a crash also carries no dedup key, even if it was originally written via line protocol.
+<Callout type="warn" title="MessagePack without tag_keys and MQTT data is compacted but never de-duplicated">
+This includes Arc's highest-throughput write path when it sends no `tag_keys`, and the standard IoT path. Data recovered from the WAL after a crash also carries no dedup key, even if it was originally written via line protocol.
 
-If your pipeline can deliver the same point twice — at-least-once queues, MQTT redelivery, retried batches, replayed recordings — either write via line protocol, or make duplicates harmless at query time (`SELECT DISTINCT`, or an aggregate that tolerates them).
+If your pipeline can deliver the same point twice — at-least-once queues, MQTT redelivery, retried batches, replayed recordings — either write via line protocol (or MessagePack with `tag_keys` on v27.01.1+), or make duplicates harmless at query time (`SELECT DISTINCT`, or an aggregate that tolerates them).
 </Callout>
 
 ## Schema evolution

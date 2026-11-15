@@ -47,7 +47,7 @@ max_buffer_age_ms = 5000    # ms before force flush
 [compaction]
 enabled = true
 hourly_enabled = true
-hourly_min_age_hours = 0
+hourly_min_age_hours = 1
 hourly_min_files = 5
 
 # Authentication
@@ -645,7 +645,7 @@ Automatic file optimization:
 [compaction]
 enabled = true
 hourly_enabled = true
-hourly_min_age_hours = 0    # Files must be this old
+hourly_min_age_hours = 1    # Partition hour and newest file must be this old; minimum 1
 hourly_min_files = 10       # Minimum files to trigger
 daily_enabled = true        # Daily tier
 daily_min_age_hours = 24

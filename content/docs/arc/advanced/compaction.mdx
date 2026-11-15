@@ -116,6 +116,71 @@ arc/                              # Bucket
 
 Compaction merges all files in a partition (e.g., `2025/10/08/14/`) into one optimized file.
 
+### Why compaction waits at least an hour
+
+Hourly compaction reads the files of an hour partition, writes a merged file and
+then deletes the files it read. If it ran on an hour that Arc is still flushing
+into, a late buffer flush could land in the partition while the job runs, and
+those rows could be lost. So a partition is compacted only when **both** of these
+hold:
+
+- **The hour has ended.** The partition's start time is at least
+  `hourly_min_age_hours` in the past. With the minimum of 1, the `14/` partition
+  becomes eligible at 15:00.
+- **Its newest file is old enough.** The newest file in the partition was
+  written at least `hourly_min_age_hours` ago. This is the time Arc wrote the
+  file, read from the file name, not the timestamps of the rows inside it.
+
+`hourly_min_age_hours` cannot go below 1. A lower value, including 0, is raised
+to 1 at startup with this warning in the log:
+
+```text
+hourly_min_age_hours was < 1; overriding to 1 to prevent race conditions with active ingestion
+```
+
+The built-in value of the key is 0, so if your `arc.toml` does not set it (the
+sample `arc.toml` sets 1) you see this warning on every start and the effective
+value is 1. You can raise it with `hourly_min_age_hours` in `[compaction]` or
+`ARC_COMPACTION_HOURLY_MIN_AGE_HOURS`. The floor applies to scheduled cycles and
+to [`POST /api/v1/compaction/trigger`](#manually-trigger-compaction) alike: a
+manual trigger finds no candidates in a partition that is too young. This floor
+is enforced since v26.03.2.
+
+What this means in practice:
+
+- **Tests and benchmarks.** Data you have just written is not compacted for at
+  least an hour after the last write to each hour partition. To test compaction,
+  write the data, wait more than an hour, lower `hourly_min_files` if your test
+  writes few files per hour, then trigger compaction.
+- **Backfills and re-sent data.** Writing into an old hour, or sending the same
+  data again, adds new files to that partition and restarts its wait: it becomes
+  eligible one hour after its newest file was written. A partition that was
+  already compacted is compacted again only once it holds at least
+  `hourly_min_files` new files. Until then, queries read every file in the
+  partition, so re-sent rows are counted twice.
+
+### Deduplication
+
+Ingest is append-only; compaction is where duplicate rows are removed. A partition
+with more files than `max_files_per_batch` is split into several compaction
+jobs, and each job reads only its own batch of files. Each job decides from the
+Parquet metadata of its input files whether to deduplicate:
+
+- **At least one input file carries `arc:tags`** (the tag names written at
+  ingest): the job deduplicates, keyed by the tag columns plus `time`. The tag
+  names are the union across the job's files.
+- **Otherwise, at least one input file carries the continuous-query marker**
+  (continuous-query output without tag columns): the job deduplicates, keyed by
+  `time`.
+- **Otherwise**, or if the metadata cannot be read: no deduplication. Rows
+  written without declared tags are never removed as duplicates.
+
+The key only narrows the search. A row is removed only when another row **in the
+same job** has the same key and is identical in every column. A re-sent row with
+a different value is kept beside the original. Rows are compared only within one
+compaction job. Which write paths record `arc:tags` is listed
+under [Deduplication](/arc/guides/data-model/#deduplication) in the data model guide.
+
 ## Configuration
 
 ### Default configuration
@@ -161,11 +226,11 @@ daily_schedule = "0 3 * * *"      # 3 AM daily (default)
 hourly_min_age_hours = 1    # Don't compact the current hour (default)
 daily_min_age_hours = 24    # Daily tier waits a full day (default)
 # hourly_min_age_hours = 2    # Wait 2 hours (more conservative)
-# hourly_min_age_hours = 0    # Compact immediately (aggressive)
+# hourly_min_age_hours = 0    # Not allowed: raised to 1 at startup
 ```
 
-<Callout type="warn" title="Compacting the current hour">
-Setting `hourly_min_age_hours = 0` can compact the current hour while data is still being written, potentially creating many compacted files.
+<Callout type="info" title="One hour is the minimum">
+`hourly_min_age_hours` cannot be set below 1; a lower value is raised to 1 at startup. See [why compaction waits at least an hour](#why-compaction-waits-at-least-an-hour).
 </Callout>
 
 #### Minimum files
