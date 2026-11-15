@@ -155,9 +155,9 @@ to 1 at startup with this warning in the log:
 hourly_min_age_hours was < 1; overriding to 1 to prevent race conditions with active ingestion
 ```
 
-The built-in value of the key is 0, so if your `arc.toml` does not set it (the
-sample `arc.toml` sets 1) you see this warning on every start and the effective
-value is 1. You can raise it with `hourly_min_age_hours` in `[compaction]` or
+The built-in default is 1 from v27.01.1. Before that it was 0, so a
+configuration that did not set the key logged this warning on every start and
+ran with 1 anyway; the effective value is the same in both. You can raise it with `hourly_min_age_hours` in `[compaction]` or
 `ARC_COMPACTION_HOURLY_MIN_AGE_HOURS`. The floor applies to scheduled cycles and
 to [`POST /api/v1/compaction/trigger`](#manually-trigger-compaction) alike: a
 manual trigger finds no candidates in a partition that is too young. This floor
