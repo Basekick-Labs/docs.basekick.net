@@ -17,7 +17,7 @@ enabled = true                    # Enable/disable authentication
 db_path = "./data/arc_auth.db"    # SQLite database for token storage
 cache_ttl = 30                    # Token cache TTL in seconds
 max_cache_size = 1000             # Maximum cached tokens
-bootstrap_token = ""              # Pre-set admin token value (v26.04.1+)
+bootstrap_token = ""              # Pre-set admin token value (v26.04.1+); surrounding whitespace trimmed (v27.01.1+)
 force_bootstrap = false           # Add a recovery token without removing existing ones (v26.04.1+)
 ```
 
@@ -27,7 +27,7 @@ export ARC_AUTH_ENABLED=true
 export ARC_AUTH_DB_PATH="./data/arc_auth.db"
 export ARC_AUTH_CACHE_TTL=30
 export ARC_AUTH_MAX_CACHE_SIZE=1000
-export ARC_AUTH_BOOTSTRAP_TOKEN=""   # v26.04.1+
+export ARC_AUTH_BOOTSTRAP_TOKEN=""   # v26.04.1+; surrounding whitespace trimmed from v27.01.1
 export ARC_AUTH_FORCE_BOOTSTRAP=false  # v26.04.1+
 ```
 
@@ -85,6 +85,17 @@ This is especially useful for:
 Token values must be at least 32 characters. Values are stored as bcrypt hashes — the plaintext never persists to disk.
 </Callout>
 
+#### Surrounding whitespace (v27.01.1+)
+
+From v27.01.1, Arc removes leading and trailing whitespace from `auth.bootstrap_token` / `ARC_AUTH_BOOTSTRAP_TOKEN` when it loads the configuration, from the environment or from `arc.toml`. This catches the usual trailing newline of a token file made with `openssl rand -hex 32 > token` and loaded into a Kubernetes Secret with `--from-file`. Whitespace inside the value is kept. The trimming applies to the first admin token and to the recovery token added with `ARC_AUTH_FORCE_BOOTSTRAP`.
+
+- When trimming changed the value, Arc logs a warning at startup. The warning never includes the value.
+- With `auth.enabled = true`, a value that is only whitespace stops Arc at startup with an error, instead of Arc generating a random admin token.
+- The 32-character minimum applies to the trimmed value, so a 31-character token followed by a newline is refused: Arc logs the error and starts with no admin token. On a deployment that already has an admin token, such a value logs `Failed to create initial admin token` at every start; remove or fix the value.
+- During a rolling upgrade of a cluster that has never created its first admin token, a node still on an earlier release can create it with the untrimmed value. Upgrade every node before the first boot, or check that the token works afterwards.
+
+Earlier releases stored the value exactly as given, so a bootstrap token with a trailing newline became a token that no `Authorization` or `x-api-key` header can carry: every request got `401`. Upgrading does not change tokens already stored; see [Recovering a token stored with a trailing newline](#recovering-a-token-stored-with-a-trailing-newline).
+
 ### Recovery when the admin token is lost
 
 If you no longer have access to any admin token, set both `ARC_AUTH_BOOTSTRAP_TOKEN` and `ARC_AUTH_FORCE_BOOTSTRAP=true` before restarting Arc. Arc will add a new admin token named `arc-recovery` **without removing any existing tokens**.
@@ -103,6 +114,25 @@ After recovering access:
 <Callout type="idea" title="Idempotent on restart">
 If Arc restarts with `ARC_AUTH_FORCE_BOOTSTRAP=true` and the `arc-recovery` token already exists, it is a no-op. You still hold the token value you provided.
 </Callout>
+
+### Recovering a token stored with a trailing newline
+
+If a release before v27.01.1 stored your bootstrap token with surrounding whitespace (typically a trailing newline from a token file), the token cannot be sent in a header, but the `p` query parameter still accepts it with the whitespace URL-encoded. Read the value from the file with curl's `@file` form, which keeps the trailing newline (`$(cat token-file)` drops it):
+
+```bash
+# Check that the stored token is accepted
+curl -G --data-urlencode "p@token-file" http://localhost:8000/api/v1/auth/verify
+
+# Create a new admin token with it
+curl -X POST --url-query "p@token-file" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "admin-2", "permissions": ["admin"]}' \
+  http://localhost:8000/api/v1/auth/tokens
+```
+
+Use it once to create a new admin token (`--url-query` needs curl 7.87 or later), then [revoke](#revoking-a-token) the old one with the new token.
+
+Restarting with `ARC_AUTH_FORCE_BOOTSTRAP=true` and the token value also adds it, as the `arc-recovery` admin token. If an `arc-recovery` token already exists from an earlier attempt it is not replaced (the restart logs `Recovery token already exists` and adds nothing), so delete it through the API first.
 
 ## Cluster auth replication (Enterprise)
 
