@@ -1,6 +1,6 @@
 ---
 title: "Upgrading pre-26.06.1 API tokens"
-description: "Migrate API tokens created before 26.06.1 to the replicated auth path: re-issue each token cluster-wide, then remove the old rows on each node, through the API with ?node since 27.01.1."
+description: "Migrate API tokens created before 26.06.1 to the replicated auth path: re-issue each token cluster-wide, then remove the old rows on each node, through the node-scoped token API from 27.01.1."
 ---
 
 Applies to Arc Enterprise clusters that carry API-created tokens from before 26.06.1. Before that release, every node kept its own SQLite auth database, so a token created through the API existed only on the node that issued it. 26.06.1 moved token creation and revocation onto the replicated Raft path, but pre-existing tokens were not migrated. They keep working on their home node until an operator replaces them.
@@ -11,7 +11,18 @@ Plan a maintenance window and preserve administrative access throughout. Bootstr
 On versions before 27.01.1, the cluster revoke endpoint (`POST /api/v1/auth/tokens/:id/revoke`) resolves the ID in the replicated FSM, which never held pre-26.06.1 tokens. Two failure modes follow: an unknown ID is an idempotent no-op even though the API reports success, so the legacy token keeps working on its home node; and if a legacy `AUTOINCREMENT` ID collides with a replicated token ID, the same request revokes the replacement token cluster-wide instead. On those versions, legacy tokens are removed locally, with the node stopped, as described below.
 </Callout>
 
-## From 27.01.1: Remove legacy tokens through the API
+## Maintenance procedure
+
+1. **Inventory active tokens on every node** before upgrading: record node, local token identity, name, permissions, owner, and consumers. Preserve enough non-secret identity to distinguish legacy rows from their replacements; a numeric ID alone is insufficient. Do not export hashes or plaintext into the inventory.
+2. **Back up each node's auth database** with the node stopped: the file configured by `auth.db_path`, including SQLite `-wal` and `-shm` sidecars when present. Keep the backup access-restricted. Never copy or delete the live database while the node is writing.
+3. **Upgrade all nodes** to 26.06.1 or later. Restore stable leadership and full membership before issuing replicated tokens.
+4. **Validate the replicated path** with a short-lived token created through `POST /api/v1/auth/tokens`. Confirm it authenticates on every node and that `arc_cluster_auth_apply_create_total` increments to match on every node. Revoke this new token through `POST /api/v1/auth/tokens/:id/revoke` and verify it is rejected everywhere.
+5. **Re-issue each inventoried token** through `POST /api/v1/auth/tokens` on any node, preserving its scope and permissions. Capture the returned plaintext once into the approved secret store. Verify it on every node before rotating any consumer. If an ID collision prevents materialisation, stop and resolve the divergence (see below) before proceeding.
+6. **Rotate downstream consumers** (CI secrets, SDKs, dashboards) to the replacement. Verify each consumer against multiple nodes.
+7. **Remove the old token locally on every node that holds it.** From 27.01.1, revoke or delete it through the API with `?node=<node_id>` on each node, as described below, after checking its name in that node's `GET /api/v1/auth/tokens`. On earlier versions, or where identity cannot be established that way: stop the node, take a fresh backup, and remove only the positively identified legacy rows from its local auth database, or use the supported rebuild from replicated FSM state. Do not select rows by ID alone, and do not remove a replicated replacement. If identity cannot be established, stop and seek support rather than guessing. Restart and verify that replacement tokens still authenticate and legacy tokens do not. Keep quorum available during node maintenance, or use a planned full-cluster outage. Repeat steps 5 through 7 one token at a time.
+8. **Verify completion**: every active consumer uses a replacement, apply counters converge across nodes, `arc_cluster_auth_rejected_total` is stable, and every legacy token is rejected on every node.
+
+## Removing legacy tokens through the API (27.01.1 and later)
 
 Since 27.01.1 the token endpoints recognise a token the cluster does not manage and change it on the node that received the request, and only there. The request must name that node with `?node=<node_id>`. Send it to the node that holds the token directly, not through a load balancer:
 
@@ -21,23 +32,12 @@ curl -X POST "http://<node_host>:8000/api/v1/auth/tokens/<id>/revoke?node=<node_
 ```
 
 - Without `?node`, the answer is `409` with `"code": "node_local_token"` and the node's ID in `node_id`, and nothing changes. `GET /api/v1/auth/tokens` on that node shows the token with `"node_local": true`; check its name there first, because an ID names a different token on each node.
-- A request that reaches a different node than `?node` names answers `409` (`wrong_node`) and changes nothing.
-- A row that came from another cluster history (`history_mismatch`) can only be deleted, not revoked.
+- A request that reaches a different node than `?node` names answers `409` (`wrong_node`) and changes nothing. Send it to that node directly.
+- A row left over from a different cluster history (code `history_mismatch`) can only be deleted; see the table linked below.
 - A revoke cannot be undone. Repeat it on every node that holds the token.
 - `DELETE /api/v1/auth/tokens/<id>?node=<node_id>` removes the row from that node; `POST /api/v1/auth/tokens/<id>/rotate?node=<node_id>` returns a value that authenticates on that node only.
 
 Every status and `code` is listed in [Node-local tokens on a cluster](/arc/configuration/authentication/#node-local-tokens-on-a-cluster-enterprise).
-
-## Maintenance procedure
-
-1. **Inventory active tokens on every node** before upgrading: record node, local token identity, name, permissions, owner, and consumers. Preserve enough non-secret identity to distinguish legacy rows from their replacements; a numeric ID alone is insufficient. Do not export hashes or plaintext into the inventory.
-2. **Back up each node's auth database** with the node stopped: the file configured by `auth.db_path`, including SQLite `-wal` and `-shm` sidecars when present. Keep the backup access-restricted. Never copy or delete the live database while the node is writing.
-3. **Upgrade all nodes** to 26.06.1 or later. Restore stable leadership and full membership before issuing replicated tokens.
-4. **Validate the replicated path** with a short-lived token created through `POST /api/v1/auth/tokens`. Confirm it authenticates on every node and that `arc_cluster_auth_apply_create_total` increments to match on every node. Revoke this new token through `POST /api/v1/auth/tokens/:id/revoke` and verify it is rejected everywhere.
-5. **Re-issue each inventoried token** through `POST /api/v1/auth/tokens` on any node, preserving its scope and permissions. Capture the returned plaintext once into the approved secret store. Verify it on every node before rotating any consumer. If an ID collision prevents materialisation, stop and resolve the divergence (see below) before proceeding.
-6. **Rotate downstream consumers** (CI secrets, SDKs, dashboards) to the replacement. Verify each consumer against multiple nodes.
-7. **Remove the old token locally on every node that holds it.** From 27.01.1, revoke or delete it through the API with `?node=<node_id>` on each node, as described above, after checking its name in that node's `GET /api/v1/auth/tokens`. On earlier versions, or where identity cannot be established that way: stop the node, take a fresh backup, and remove only the positively identified legacy rows from its local auth database, or use the supported rebuild from replicated FSM state. Do not select rows by ID alone, and do not remove a replicated replacement. If identity cannot be established, stop and seek support rather than guessing. Restart and verify that replacement tokens still authenticate and legacy tokens do not. Keep quorum available during node maintenance, or use a planned full-cluster outage. Repeat steps 5 through 7 one token at a time.
-8. **Verify completion**: every active consumer uses a replacement, apply counters converge across nodes, `arc_cluster_auth_rejected_total` is stable, and every legacy token is rejected on every node.
 
 ## Divergence and rollback
 
@@ -47,4 +47,4 @@ Restoring a pre-upgrade database can re-enable legacy credentials and diverge fr
 
 ## Background
 
-The [26.06.1 release notes](https://github.com/Basekick-Labs/arc/blob/main/RELEASE_NOTES_2026.06.1.md) cover the auth replication design, ID-collision detection, and the related metrics. The source issue is [#457](https://github.com/Basekick-Labs/arc/issues/457); its original suggestion to revoke legacy tokens through the API does not apply to unmigrated rows before 27.01.1; from 27.01.1 it does, with `?node=<node_id>` on each node.
+The [26.06.1 release notes](https://github.com/Basekick-Labs/arc/blob/main/RELEASE_NOTES_2026.06.1.md) cover the auth replication design, ID-collision detection, and the related metrics. The source issue is [#457](https://github.com/Basekick-Labs/arc/issues/457). Before 27.01.1 its suggestion to revoke legacy tokens through the API does not work for unmigrated rows; from 27.01.1 it does, with `?node=<node_id>` sent to each node.

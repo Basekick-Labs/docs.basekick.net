@@ -18,9 +18,9 @@ Arc Enterprise audit logging provides:
 
 | Category | Events | Description |
 |----------|--------|-------------|
-| **Authentication** | `auth.failed` | A request refused with 401 or 403 after authentication, such as a valid token without the permission a route needs |
-| **Token Management** | `token.created`, `token.updated`, `token.rotated`, `token.revoked`, `token.deleted`, `token.team_added`, `token.team_removed` | API token lifecycle and team membership changes (recorded since v27.01.1) |
-| **RBAC** | `rbac.org.created`, `rbac.team.updated`, `rbac.role.deleted`, etc. | Organization, team, role, and measurement permission changes (recorded since v27.01.1) |
+| **Permission refusals** | `auth.failed` | A request answered 401 or 403 that reaches the audit log: mostly a valid token without the permission a route needs, or a refused cluster cache-invalidation signature (actor `anonymous`) |
+| **Token management** | `token.created`, `token.updated`, `token.rotated`, `token.revoked`, `token.deleted`, `token.team_added`, `token.team_removed` | API token lifecycle and team membership changes |
+| **RBAC** | `rbac.org.created`, `rbac.team.updated`, `rbac.role.deleted`, etc. | Organization, team, role, and measurement permission changes |
 | **Data Operations** | `data.query`, `data.write`, `data.import`, `data.delete` | Data read/write operations |
 | **Database Management** | `database.created`, `database.deleted` | Database lifecycle events |
 | **Infrastructure** | `mqtt.*`, `compaction.*`, `tiering.*` | System and background operations |
@@ -82,7 +82,7 @@ is `rbac.team.created`, `POST /api/v1/rbac/teams/:team_id/roles` is
 `rbac.measurement_permission.created`.
 
 Token and RBAC reads are recorded only with `include_reads = true`: RBAC reads
-as `rbac.<resource>.read`, token reads as `api.get`.
+as `rbac.<resource>.read`, token reads as `api.get` (`api.head`, `api.options`).
 
 On a cluster, a write to a token that exists only on one node acts on that
 node only (see
@@ -139,7 +139,7 @@ ARC_AUDIT_LOG_RETENTION_DAYS=90
 ARC_AUDIT_LOG_INCLUDE_READS=false
 ```
 
-<Callout type="warn" title="High-Volume Read Logging">
+<Callout type="warn" title="High-volume read logging">
 Enabling `include_reads` logs every `GET`, `HEAD` and `OPTIONS` request. This can generate significant log volume in high-throughput environments. Enable it only when needed for compliance or debugging, and consider a shorter `retention_days` when active.
 </Callout>
 
@@ -169,7 +169,7 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 **Examples:**
 
 ```bash
-# Permission refusals (403) since a given time
+# Refusals after authentication (401/403) since a given time
 curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=auth.failed&since=2026-02-12T00:00:00Z"
 
@@ -276,7 +276,7 @@ For healthcare data, enable `include_reads = true` to log all data access, inclu
 
 ### Security monitoring
 
-Monitor `auth.failed` events to detect tokens calling routes they are not allowed to use. Requests with a missing or invalid token are refused before the audit log and are not recorded. Monitor `token.*` and `rbac.*` events for credential and permission changes.
+Monitor `auth.failed` events to detect tokens calling routes they are not allowed to use. Requests with a missing or invalid token are refused before the audit log and are not recorded. Monitor the `token.` and `rbac.` event types listed in [Token and RBAC changes](#token-and-rbac-changes). `event_type` is an exact match, so query each type, or use `/api/v1/audit/stats`.
 
 ## Best practices
 
@@ -284,7 +284,7 @@ Monitor `auth.failed` events to detect tokens calling routes they are not allowe
 
 2. **Set appropriate retention** — 90 days is a good default. Adjust based on your compliance requirements (HIPAA may require years).
 
-3. **Monitor permission refusals and admin changes** — Set up alerts on `auth.failed` events and on `token.*` and `rbac.*` events.
+3. **Monitor permission refusals and admin changes** — Set up alerts on `auth.failed` events. Monitor the `token.` and `rbac.` event types listed in [Token and RBAC changes](#token-and-rbac-changes). `event_type` is an exact match, so query each type, or use `/api/v1/audit/stats`.
 
 4. **Pair with RBAC** — Use audit logs to verify that RBAC permissions are configured correctly by reviewing who accessed what data.
 

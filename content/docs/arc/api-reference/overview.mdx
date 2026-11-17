@@ -772,9 +772,9 @@ Revoke a token (admin only). Revocation is permanent.
 `PATCH`, `DELETE`, `rotate` and `revoke` answer `404` for an unknown token
 ID. In a cluster, before Arc 27.01.1, they answered `200` for one.
 
-On a cluster, since Arc 27.01.1, a token that exists only on one node (created
-before v26.06.1, or while that node ran without its cluster) is changed on
-that node only: send `PATCH`, `DELETE`, `rotate` or `revoke` to that node with
+On an Enterprise cluster, since Arc 27.01.1, a token that exists only on one
+node (created before v26.06.1, or while that node ran without its cluster) is
+changed on that node only: send `PATCH`, `DELETE`, `rotate` or `revoke` to that node with
 `?node=<node_id>`. Without it the answer is `409` with
 `"code": "node_local_token"` and the node's `node_id`; a `200` adds `scope`,
 `node_id`, `token` and `warning`. Standalone, `?node` is ignored. See
