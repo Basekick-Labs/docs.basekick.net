@@ -333,7 +333,7 @@ SELECT count(*) FROM arc_glue.arc_mydb.cpu;
 Queries see each new version as soon as Glue names it, with no refresh. In a test, a write showed up in Databricks within seconds of Arc publishing it.
 
 - **A table dropped and recreated** under the same name (a database deleted in Arc and written again) keeps returning its old data in Databricks. `REFRESH TABLE` does not clear it. Recreating the foreign catalog does, and it changes nothing in Glue or S3.
-- **Column names that differ only by case** (`Birth Year` and `birth year`) can't be read: Databricks converts the table to Delta, which is case-insensitive. Glue also lowercases column names. Keep one spelling per column in a measurement.
+- **One schema per measurement.** A dataset whose own schema changed over time can carry the same column under two spellings (`Birth Year` and `birth year`), or with different types in different files. Arc exports such a measurement as one table. Case-insensitive engines (Databricks, Glue, Athena) can't tell the two spellings apart, and a column whose type differs between files stops the export of that table. Keep each historical schema in its own measurement, or normalise the data before writing it.
 
 **What Arc needs and promises**
 
