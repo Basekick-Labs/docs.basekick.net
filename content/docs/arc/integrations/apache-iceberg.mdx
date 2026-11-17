@@ -307,6 +307,34 @@ CREATE ICEBERG TABLE cpu
   AUTO_REFRESH = TRUE;
 ```
 
+**Databricks**
+
+Databricks reads Arc's tables through Unity Catalog's Glue federation. Two requirements come from how Databricks reads federated Iceberg tables:
+
+- **`iceberg.layout = "colocated"` in Arc.** Databricks reads only files under a federated table's location. With the default `warehouse` layout, the table's location is the metadata directory and the data files live elsewhere, so reads fail with an S3 access error. With `colocated`, the location is the measurement's own directory, which holds every data file. The layout applies to new tables. An existing table keeps its location until it is recreated.
+- **A writable `storage_root` on the foreign catalog.** Databricks needs a storage root to read Iceberg tables, and it must be writable. Give it a scratch bucket of its own rather than Arc's bucket. Without it, reads fail with `Failed to instantiate org.apache.hadoop.mapred.FileInputFormat`.
+
+Setup in Unity Catalog:
+
+1. A **service credential** whose IAM role can read Glue (`glue:GetDatabase`, `GetDatabases`, `GetTable`, `GetTables`, `GetPartitions`).
+2. A **read-only external location** on Arc's bucket, and a writable one on the scratch bucket, each backed by a storage credential.
+3. A Glue **connection** and a **foreign catalog**:
+
+```sql
+CREATE CONNECTION arc_glue_conn TYPE glue
+  OPTIONS (aws_region 'us-east-2', aws_account_id '123456789012', credential 'arc_glue_cred');
+
+CREATE FOREIGN CATALOG arc_glue USING CONNECTION arc_glue_conn
+  OPTIONS (authorized_paths 's3://my-arc-bucket/', storage_root 's3://my-databricks-scratch/');
+
+SELECT count(*) FROM arc_glue.arc_mydb.cpu;
+```
+
+Queries see each new version as soon as Glue names it, with no refresh. In a test, a write showed up in Databricks within seconds of Arc publishing it.
+
+- **A table dropped and recreated** under the same name (a database deleted in Arc and written again) keeps returning its old data in Databricks. `REFRESH TABLE` does not clear it. Recreating the foreign catalog does, and it changes nothing in Glue or S3.
+- **One schema per measurement.** A dataset whose own schema changed over time can carry the same column under two spellings (`Birth Year` and `birth year`), or with different types in different files. Arc exports such a measurement as one table. Case-insensitive engines (Databricks, Glue, Athena) can't tell the two spellings apart, and a column whose type differs between files stops the export of that table. Keep each historical schema in its own measurement, or normalise the data before writing it.
+
 **What Arc needs and promises**
 
 - **Permissions:** the credentials Arc uses for S3 also call Glue. They need `glue:GetDatabase`, `GetDatabases`, `CreateDatabase`, `GetTable`, `GetTables`, `CreateTable`, `UpdateTable` and `DeleteTable` on the `<prefix>_*` databases. Lake Formation grants are yours to set. In a cluster, give these to every node that can run the export.
