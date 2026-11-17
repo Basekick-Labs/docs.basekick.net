@@ -1,0 +1,340 @@
+---
+title: "Prometheus Remote Write"
+description: "Send metrics from Prometheus or Grafana Alloy to Arc over Remote Write 1.0: the endpoint and its headers, how series map to tables and columns, request limits, and the errors to expect."
+font: "Font Awesome v4 Compatibility"
+---
+
+Send metrics from Prometheus, Grafana Alloy, or any other Remote Write 1.0 sender straight to Arc, and query them with SQL.
+
+<Callout type="info" title="Available in v27.01.1+">
+The Prometheus Remote Write endpoint ships in Arc 27.01.1.
+</Callout>
+
+## When to use it
+
+- **Remote Write**: you already run Prometheus or Alloy and want a copy of the scraped series in Arc, with no extra agent. Every scrape target, recording rule and relabeling you have keeps working.
+- **[Line Protocol or MessagePack](/arc/guides/writing-data/), or [Telegraf](/arc/integrations/telegraf/)**: you write your own points or collect with Telegraf.
+
+## Endpoint
+
+```text
+POST /api/v1/write/prometheus
+```
+
+Arc accepts Remote Write **1.0** (`prometheus.WriteRequest`). A request must carry:
+
+| Header | Value | When missing or wrong |
+|--------|-------|-----------------------|
+| `Content-Encoding` | `snappy` | `415` `Content-Encoding must be snappy` |
+| `Content-Type` | `application/x-protobuf` (with no `proto` parameter, or `proto=prometheus.WriteRequest`) | `415` `Content-Type must be application/x-protobuf` |
+| `X-Prometheus-Remote-Write-Version` | `0.1.0` | `400` `X-Prometheus-Remote-Write-Version must be 0.1.0` |
+| `User-Agent` | any non-empty value | `400` `User-Agent is required` |
+| `Authorization` | `Bearer <token>`, when authentication is enabled | `401` |
+
+Send `Content-Encoding` and `X-Prometheus-Remote-Write-Version` once each; a repeated one is answered as if it were wrong. Prometheus and Alloy send all of these headers on their own; you only configure the token.
+
+A Remote Write 2.0 request (`proto=io.prometheus.write.v2.Request`) is answered `415` with `only Remote Write 1.0 (proto=prometheus.WriteRequest) is supported; set protobuf_message: prometheus.WriteRequest`.
+
+A successful write returns `204 No Content`.
+
+### Authentication
+
+With authentication enabled (the default), send an Arc token in the `Authorization` header as `Bearer <token>`. The token needs `write` permission; a token without it gets `403` `Permission denied: write required`. Basic authentication is not supported: a `basic_auth` block in Prometheus is answered `401`.
+
+### Choosing the database
+
+The target database comes from the `db` query parameter, or from the `x-arc-database` header, which takes precedence. Without either, data goes to `default`.
+
+```text
+http://arc:8000/api/v1/write/prometheus?db=prometheus
+```
+
+The database is created on the first write. Its name must start with a letter and contain only letters, digits, `_` or `-`, up to 64 characters; any other name is answered `400`.
+
+## How series are stored
+
+Each metric becomes a table, and each label becomes a column:
+
+| Remote Write | Arc |
+|--------------|-----|
+| `__name__` label | Table (measurement) name |
+| Every other label | A string (`VARCHAR`) tag column, named exactly as the label |
+| Sample value | `value` column (`DOUBLE`) |
+| Sample timestamp (milliseconds) | `time` column, stored at microsecond precision |
+
+For example, the series `prometheus_http_requests_total{code="200", handler="/metrics", instance="localhost:9090", job="prometheus"}` lands in the table `prometheus_http_requests_total` with the columns `time`, `value`, `code`, `handler`, `instance` and `job`.
+
+- **Table names.** Every character of the metric name other than an ASCII letter, digit or `_` becomes `_`. A recording rule `job:http_requests:rate5m` is stored as `job_http_requests_rate5m`, and a Prometheus 3 UTF-8 name such as `http.server.duration` as `http_server_duration`. Two metric names that differ only in those characters share a table.
+- **Label names** are kept as sent, including UTF-8 names such as `service.name`. Quote them in SQL: `"service.name"`.
+- **Empty label values** are treated as an absent label, as in Prometheus. The column is `NULL` for that row.
+- **Classic histograms and summaries** arrive as separate series (`_bucket`, `_sum`, `_count`), so each is its own table. `le` and `quantile` are string columns.
+- **Staleness markers**, the NaN Prometheus sends when a series disappears, are not stored. Any other NaN sample is stored as sent.
+
+## What is not supported
+
+These are left out of the write. The rest of the request is stored and Arc answers `400` with a `partial write` message that names what was dropped. Prometheus and Alloy log a `400` and do not resend the batch, so the stored part is not written twice.
+
+| What arrives | What Arc does | Message |
+|--------------|---------------|---------|
+| Exemplars | Exemplars dropped, the series' samples stored | `exemplars are not supported` |
+| Native histograms | Dropped | `native histograms are not supported` |
+| Metric metadata (`HELP`, `TYPE`, unit) | Ignored, no error | none |
+| An empty request, or one with only staleness markers | Nothing stored | none (`204`) |
+
+A response for a batch with exemplars looks like this:
+
+```json
+{"error":"partial write: 2 points dropped: 2 in \"http_requests_total\": exemplars are not supported; the other points were written"}
+```
+
+When nothing in the request could be stored, the message ends without `the other points were written`.
+
+Prometheus sends neither exemplars nor native histograms unless you turn them on (`send_exemplars`, `send_native_histograms`). Grafana Alloy sends exemplars by default, so set `send_exemplars = false` in its endpoint block.
+
+## Names Arc does not store
+
+A series with any of the following is dropped, and the other series of the request are stored. The answer is a `400` `partial write` naming the table, the label and the reason:
+
+| Problem | Reason in the message |
+|---------|-----------------------|
+| No `__name__` label | `series has no __name__ label` |
+| Metric name that does not start with a letter after the rewrite above (for example `_hidden` or `9lives`), or is longer than 128 characters | `metric name is not a valid Arc measurement name (letters, digits and _, starting with a letter, up to 128 characters)` |
+| Label named `time` in any letter case | `a tag or field named "time" in any letter case (time is the timestamp)` |
+| Label named `value` in any letter case | `label conflicts with the sample column "value"` |
+| Label name starting with `_` | `label names starting with _ are not stored by Arc` |
+| Label with an empty name | `series has a label with an empty name` |
+| The same label twice in one series | `series has the same label twice` |
+| Label name or value that is not valid UTF-8 | `a tag or field name that is not valid UTF-8` / `label value is not valid UTF-8` |
+| Timestamp outside the range Arc can store in microseconds | `sample timestamp is outside Arc's supported range` |
+
+A label name that differs only in letter case from another column of the same table (`Host` and `host`), either in the same request or already stored, drops **every sample of that metric in the request**, not just the series that carries it:
+
+```json
+{"error":"partial write: 1 points dropped: 1 in \"node_load1\" column \"HOST\": a tag or field name that differs only in letter case from another of the measurement;"}
+```
+
+Arc logs each drop at error level with the database, table, column and reason.
+
+## Limits
+
+| Limit | Value | Answer |
+|-------|-------|--------|
+| Request body (compressed) | 100 MiB | `413` `remote write payload exceeds 100 MiB limit` |
+| Decoded body | 100 MiB | `413` `remote write payload exceeds 100 MiB limit` |
+| Time series per request | 100,000 | `413` `... exceeds 100,000 time series` |
+| Samples per request | 1 million | `413` `... exceeds 1 million samples` |
+| Labels per request | 1 million | `413` `... exceeds 1 million labels` |
+| Cells (rows × columns) materialised per request | 4 million | `413` `remote write request exceeds 4 million column cells` |
+| Label bytes repeated across a request's samples | 100 MiB | `413` `remote write request repeats more than 100 MiB of label values across its samples` |
+
+These values are fixed; no configuration key changes them. The server-wide `server.max_payload_size` (default `1GB`) applies to every request body first, so setting it below 100 MiB lowers the compressed-body limit for this endpoint too (answered `413` `Request Entity Too Large`). It does not limit the decoded size.
+
+Prometheus batches far below these limits with its default `queue_config`. A body that is not a valid Snappy block or protobuf message is answered `400` (`invalid snappy block: ...`, `invalid remote write protobuf: ...`).
+
+## Quick start
+
+This runs Arc, Prometheus and Grafana Alloy in Docker on one network.
+
+### 1. Start Arc
+
+This generates the admin token first and hands it to Arc, so `ARC_TOKEN` is set in your shell for the next steps:
+
+```bash
+export ARC_TOKEN=$(openssl rand -hex 32)
+
+docker network create arc-demo
+
+docker run -d \
+  --name arc \
+  --network arc-demo \
+  -p 8000:8000 \
+  -e ARC_AUTH_BOOTSTRAP_TOKEN="$ARC_TOKEN" \
+  -v arc-demo-data:/app/data \
+  ghcr.io/basekick-labs/arc:latest
+```
+
+Arc uses `ARC_AUTH_BOOTSTRAP_TOKEN` only the first time it starts on an empty volume. To run the demo again from scratch, use [Clean up](#clean-up) first. Run every step in the same terminal, so `ARC_TOKEN` stays set.
+
+### 2. Create a write token
+
+Create a token that can only write, and save it to a file for Prometheus and Alloy to read. The first line waits until Arc answers; if Arc refuses the request, its error is printed instead of an empty token being saved:
+
+```bash
+until curl -sf http://localhost:8000/health > /dev/null; do sleep 1; done
+
+RESP=$(curl -s -X POST http://localhost:8000/api/v1/auth/tokens \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"prometheus-remote-write","permissions":["write"]}')
+echo "$RESP" | jq -ej .token > arc-write-token || echo "Token not created: $RESP"
+
+chmod 644 arc-write-token
+```
+
+`Authentication required` or `Invalid or expired token` means `ARC_TOKEN` is not the admin token (a new terminal, or a volume from an earlier run). `already exists` means the token was created before; delete it or use another name.
+
+The containers below run as a non-root user, so the file must be readable by them.
+
+### 3. Prometheus
+
+Create `prometheus.yml` (copy and paste the whole block):
+
+```bash
+cat > prometheus.yml <<'EOF'
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+remote_write:
+  - url: http://arc:8000/api/v1/write/prometheus?db=prometheus
+    protobuf_message: prometheus.WriteRequest
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/arc-write-token
+EOF
+```
+
+Start Prometheus:
+
+```bash
+docker run -d \
+  --name prometheus \
+  --network arc-demo \
+  -p 9090:9090 \
+  -v "$PWD/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+  -v "$PWD/arc-write-token:/etc/prometheus/arc-write-token:ro" \
+  prom/prometheus:v3.7.3
+```
+
+If authentication is disabled in Arc, leave out the `authorization` block.
+
+### 4. Grafana Alloy
+
+Create `config.alloy` (copy and paste the whole block). Alloy scrapes its own metrics here; point `prometheus.scrape` at your own targets instead.
+
+```bash
+cat > config.alloy <<'EOF'
+prometheus.exporter.self "alloy" { }
+
+prometheus.scrape "alloy" {
+  targets    = prometheus.exporter.self.alloy.targets
+  forward_to = [prometheus.remote_write.arc.receiver]
+}
+
+prometheus.remote_write "arc" {
+  endpoint {
+    url               = "http://arc:8000/api/v1/write/prometheus?db=alloy"
+    protobuf_message  = "prometheus.WriteRequest"
+    bearer_token_file = "/etc/alloy/arc-write-token"
+    send_exemplars    = false
+  }
+}
+EOF
+```
+
+Start Alloy:
+
+```bash
+docker run -d \
+  --name alloy \
+  --network arc-demo \
+  -p 12345:12345 \
+  -v "$PWD/config.alloy:/etc/alloy/config.alloy:ro" \
+  -v "$PWD/arc-write-token:/etc/alloy/arc-write-token:ro" \
+  grafana/alloy:v1.11.3 \
+  run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+```
+
+### 5. Verify
+
+After about 30 seconds, list the tables Prometheus created:
+
+```bash
+curl -s http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SHOW TABLES FROM prometheus"}'
+```
+
+The response lists one row per metric, such as `up`, `prometheus_http_requests_total` and `go_goroutines`. Run the same query with `FROM alloy` for the Alloy tables.
+
+Arc buffers new writes for a few seconds; if a table is missing, run the query again.
+
+### 6. Query the series
+
+```bash
+curl -s http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT time, code, handler, value FROM prometheus.prometheus_http_requests_total WHERE handler = '\''/metrics'\'' ORDER BY time DESC LIMIT 3"}'
+```
+
+The same query in SQL:
+
+```sql
+SELECT time, code, handler, value
+FROM prometheus.prometheus_http_requests_total
+WHERE handler = '/metrics'
+ORDER BY time DESC
+LIMIT 3;
+```
+
+```json
+{"success":true,"columns":["time","code","handler","value"],"data":[["2026-11-16T23:56:58.114Z","200","/metrics",17],["2026-11-16T23:56:43.114Z","200","/metrics",16],["2026-11-16T23:56:28.114Z","200","/metrics",15]],"row_count":3, ...}
+```
+
+## Clean up
+
+```bash
+docker rm -f prometheus alloy arc
+docker network rm arc-demo
+docker volume rm arc-demo-data
+rm -f prometheus.yml config.alloy arc-write-token
+```
+
+## Troubleshooting
+
+Prometheus logs every refused batch with Arc's answer. These are the most likely, as Prometheus reports them.
+
+### 404 Not Found
+
+```text
+level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 404 Not Found: {\"error\":\"Cannot POST /api/v1/write/prometheus\"}"
+```
+
+The Arc you are writing to is older than 27.01.1 and has no Remote Write endpoint. Upgrade Arc; Prometheus drops the refused samples, so nothing from before the upgrade is stored.
+
+### 401 Unauthorized
+
+```text
+level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 401 Unauthorized: {\"error\":\"Invalid or expired token\",\"success\":false}"
+```
+
+The token is wrong, expired, or missing (`Authentication required`). Check the file that `credentials_file` or `bearer_token_file` points to, and that the sender uses a bearer token, not `basic_auth`. A `403` `Permission denied: write required` means the token is valid but cannot write.
+
+### 415 Unsupported Media Type
+
+```text
+level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 415 Unsupported Media Type: {\"error\":\"only Remote Write 1.0 (proto=prometheus.WriteRequest) is supported; set protobuf_message: prometheus.WriteRequest\"}"
+```
+
+The sender is configured for Remote Write 2.0. Set `protobuf_message: prometheus.WriteRequest` (Alloy: `protobuf_message = "prometheus.WriteRequest"`). `Content-Encoding must be snappy` means something between the sender and Arc, such as a proxy, changed or removed the compression header.
+
+### 400 partial write
+
+```text
+level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 400 Bad Request: {\"error\":\"partial write: 563 points dropped: 1 in \\\"go_gc_cycles_automatic_gc_cycles_total\\\" column \\\"_env\\\": label names starting with _ are not stored by Arc; ..."
+```
+
+Some series were dropped and the rest were stored. The message names the table, the label and the reason; see [Names Arc does not store](#names-arc-does-not-store) and [What is not supported](#what-is-not-supported). Fix the label with `write_relabel_configs` (for example rename or drop it), or turn off `send_exemplars`. Prometheus does not resend a `400` batch, so the dropped samples are not stored later.
+
+## Resources
+
+- [Remote Write 1.0 specification](https://prometheus.io/docs/specs/prw/remote_write_spec/)
+- [Prometheus `remote_write` configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write)
+- [Grafana Alloy `prometheus.remote_write`](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.remote_write/)
+- [Querying Arc](/arc/guides/querying/)

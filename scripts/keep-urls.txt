@@ -74,6 +74,7 @@
 /arc/integrations/node-red/
 /arc/integrations/opcua/
 /arc/integrations/opentelemetry/
+/arc/integrations/prometheus-remote-write/
 /arc/integrations/redpanda-connect/
 /arc/integrations/superset/
 /arc/integrations/telegraf/
