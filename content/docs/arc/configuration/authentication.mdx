@@ -128,6 +128,11 @@ v26.06.1 routes auth **writes** through the cluster's Raft consensus. Auth **rea
 | Audit log entries | **No — intentionally per-node** (high-volume append-only, no consensus needed) |
 | SSO / OIDC / LDAP | **No — Phase B, separate roadmap item** |
 
+The "Yes" rows apply to tokens the cluster manages. A token created before
+v26.06.1, or while a node ran without its cluster, exists on one node only,
+and since Arc 27.01.1 a write to it applies on that node only; see
+[Node-local tokens on a cluster](#node-local-tokens-on-a-cluster-enterprise).
+
 ### Convergence semantics
 
 Eventual consistency, typically under 50 ms via Raft apply on local loopback or LAN. Customer SDKs already retry on transient 401, so the brief window between leader commit and follower materialise is invisible in normal usage.
@@ -174,7 +179,9 @@ Tokens created on a pre-v26.06.1 node by the local-only API path remain valid **
 
 1. Upgrade every cluster node to v26.06.1.
 2. Re-issue API tokens via `POST /api/v1/auth/tokens` after restart. New tokens are cluster-wide automatically.
-3. Revoke the old per-node tokens via `POST /api/v1/auth/tokens/:id/revoke` (the revoke also propagates cluster-wide).
+3. Remove the old per-node tokens on **each node that holds them**. They are not in the cluster state, so a revoke does not propagate.
+   - Since Arc 27.01.1: revoke or delete each one through the API on its node, with `?node=<node_id>`. The change applies on that node only. See [Node-local tokens on a cluster](#node-local-tokens-on-a-cluster-enterprise).
+   - Before Arc 27.01.1: do not use the API. `POST /api/v1/auth/tokens/:id/revoke` answered `200` and changed nothing for such a token, or changed the cluster token with the same ID on every node. Follow the offline procedure in [Upgrading pre-26.06.1 API tokens](/arc-enterprise/operations/legacy-token-upgrade/).
 
 Bootstrap tokens set via `ARC_AUTH_BOOTSTRAP_TOKEN` are unaffected if the same value was used on every node (which the pre-v26.06.1 workaround required) — the bytes match, so all nodes effectively share the same admin token already.
 
@@ -256,6 +263,10 @@ Before v26.06.1, RBAC writes hit only the local node's SQLite — same shape as 
 | `DELETE /api/v1/rbac/measurement-permissions/:id` (leaf delete) | Yes |
 | `POST /api/v1/auth/tokens/:id/teams` (add membership) | Yes |
 | `DELETE /api/v1/auth/tokens/:id/teams/:team_id` (remove membership) | Yes |
+
+For a token the cluster does not manage, since Arc 27.01.1, adding it to a
+team is refused and removing it from a team applies on that node only; see
+[Node-local tokens on a cluster](#node-local-tokens-on-a-cluster-enterprise).
 
 ### Cascade-on-delete
 
@@ -481,6 +492,156 @@ when its wait to apply the rotate times out, and then answers `200` with a
 `new_token` that never authenticates. The revoked or deleted token stays
 unusable either way.
 
+### Node-local tokens on a cluster (Enterprise)
+
+Since Arc 27.01.1. On a cluster node, a token that exists only in that node's
+database is not managed by the cluster: a token created before v26.06.1, or
+one created while the node ran without its cluster. It authenticates on that
+node only. Token writes for it act on that node, and only when the request
+names the node with `?node=<node_id>`.
+
+Before Arc 27.01.1, `revoke`, `rotate`, `PATCH` and `DELETE` for such a token
+answered `200` and changed nothing: a revoked token kept working, and a rotate
+returned a value that never authenticated. If a cluster token had the same ID,
+the request changed that cluster token instead, on every node.
+
+Standalone nodes and OSS are unchanged; `?node` is ignored there.
+
+#### Find node-local tokens
+
+On a cluster node, `GET /api/v1/auth/tokens` and `GET /api/v1/auth/tokens/:id`
+mark each token that a write would treat as not the cluster's with
+`"node_local": true` and the node's ID in `node_id`. Both fields are absent
+for cluster tokens and on standalone nodes. Ask each node: an ID names a
+different token on each node, so check the token's name there.
+
+```bash
+curl "http://<node_host>:8000/api/v1/auth/tokens" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "id": 7,
+  "name": "legacy-ci",
+  "enabled": true,
+  "node_local": true,
+  "node_id": "<node_id>"
+}
+```
+
+One entry of `tokens`, other fields left out. The node's ID is also the `id` in
+`GET /api/v1/cluster/local` on that node, and the `node_id` of the `409` below.
+
+#### Change a node-local token
+
+Send the request to the node that holds the token, directly rather than
+through a load balancer. Without `?node`, it answers `409` with the node's ID
+and changes nothing:
+
+```bash
+curl -X POST "http://<node_host>:8000/api/v1/auth/tokens/7/revoke" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "success": false,
+  "error": "Token 7 (\"legacy-ci\") exists only in the database of node <node_id>; the cluster does not manage it ...",
+  "code": "node_local_token",
+  "node_id": "<node_id>"
+}
+```
+
+Repeat it with that node's ID:
+
+```bash
+curl -X POST "http://<node_host>:8000/api/v1/auth/tokens/7/revoke?node=<node_id>" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+```json
+{
+  "success": true,
+  "message": "Token revoked successfully",
+  "scope": "node",
+  "node_id": "<node_id>",
+  "token": {
+    "id": 7,
+    "name": "legacy-ci",
+    "fingerprint": "<sha256-hex>"
+  },
+  "warning": "Changed on node <node_id> only: the cluster does not manage this token. It still authenticates on any other node that holds a copy. If the same token exists on other nodes, repeat this request on each of them."
+}
+```
+
+The same applies to `PATCH /api/v1/auth/tokens/:id`,
+`DELETE /api/v1/auth/tokens/:id` and `POST /api/v1/auth/tokens/:id/rotate`.
+The `200` keeps the route's usual body (`message`, and `new_token` for a
+rotate) and adds:
+
+- `scope`: `"node"`, the change applies on this node only.
+- `node_id`: the node it applies on.
+- `token`: the token's `id`, its `name` before the change, and `fingerprint`,
+  which identifies its stored hash before the change, never the secret.
+- `warning`: what did not change elsewhere. A rotated value authenticates on
+  this node only.
+
+A cluster token answers as before, with the same body, when the request has
+no `?node`. If the same old token exists on several nodes, for example one
+created with the same value on each, repeat the request on each node. A
+revoke cannot be undone.
+
+Two other kinds of row are treated the same way, with narrower writes:
+
+| Row on this node | `code` without `?node` | With `?node=<node_id>` |
+|---|---|---|
+| Not managed by the cluster | `node_local_token` | Revoke, rotate, update or delete |
+| A cluster token the cluster state no longer holds (deleted while the node was away, or refused by a snapshot) | `not_in_cluster_state` | Revoke or delete; rotate and update answer `revoke_or_delete_only` |
+| A row from another cluster history: the cluster state holds a different token at its ID | `history_mismatch` | Delete only; revoke, rotate and update answer `delete_only`. After the delete, from its next restart, the node holds the cluster's token at that ID |
+
+#### Team memberships
+
+- Adding such a token to a team (`POST /api/v1/auth/tokens/:id/teams`) answers
+  `409` with `node_local_token`, `not_in_cluster_state` or `history_mismatch`:
+  the cluster does not manage the token. Create a cluster token and add that
+  one instead.
+- Removing it from a team removes the membership on that node, with
+  `?node=<node_id>`; before Arc 27.01.1 the request answered `200` and removed
+  nothing. The `200` carries the same `scope`, `node_id`, `token` and
+  `warning` fields.
+
+```bash
+curl -X DELETE "http://<node_host>:8000/api/v1/auth/tokens/7/teams/<team_id>?node=<node_id>" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+#### Errors
+
+Every refusal changes nothing. Its body has `success: false`, the
+explanation in `error`, a `code`, and `node_id` when the answering node knows
+it.
+
+| Status | `code` | Meaning |
+|---|---|---|
+| `400` | `invalid_node` | `?node=` is present but empty. |
+| `409` | `node_local_token` | The token is not managed by the cluster. Repeat on this node with `?node=<node_id>`. |
+| `409` | `not_in_cluster_state` | A cluster token the cluster state no longer holds. Revoke or delete it with `?node=<node_id>`. |
+| `409` | `history_mismatch` | A row from another cluster history. Delete it with `?node=<node_id>`. |
+| `409` | `wrong_node` | The request reached a different node than `?node` names; `node_id` is the node that answered. Checked before the token is looked up, so a load balancer cannot apply it to another node's token with the same ID. Send it to the named node directly. |
+| `409` | `cluster_token` | `?node` was given for a token the cluster manages. Repeat without `?node`; the change applies on every node. |
+| `409` | `revoke_or_delete_only` | Rotate, update or team removal of a cluster token the cluster state no longer holds. |
+| `409` | `delete_only` | Revoke, rotate, update or team removal of a row from another cluster history. |
+| `409` | `name_held_by_cluster` | A rename to a name a cluster token has. |
+| `409` | `token_changed` | The token changed while the request ran. Retry. |
+| `409` | `cluster_membership` | Team removal with `?node`: the membership is the cluster's, not this node's token's. The `error` message says where to send the request. |
+| `503` | `not_caught_up` | The node has not caught up with the cluster state yet. Retry after the `Retry-After` header (5 seconds). |
+| `503` | `node_id_unknown` | `?node` was given, but the node cannot tell its own node ID yet. Retry after the `Retry-After` header (5 seconds). |
+
+Rotating a revoked node-local token answers `409` without a `code`, as for
+any revoked token. With audit logging on, each of these requests is recorded;
+see [Audit logging](/arc-enterprise/security/audit-logging/#token-and-rbac-changes).
+
 ## Verifying a token
 
 The verify endpoint is public (no authentication required) and checks if a token is valid:
@@ -554,5 +715,9 @@ These endpoints do not require authentication:
 | `DELETE` | `/api/v1/auth/tokens/:id` | Admin | Delete a token |
 | `POST` | `/api/v1/auth/tokens/:id/rotate` | Admin | Rotate token value |
 | `POST` | `/api/v1/auth/tokens/:id/revoke` | Admin | Revoke a token |
+| `GET` | `/api/v1/auth/tokens/:id/teams` | Admin | List a token's teams |
+| `POST` | `/api/v1/auth/tokens/:id/teams` | Admin | Add a token to a team (Enterprise license with RBAC) |
+| `DELETE` | `/api/v1/auth/tokens/:id/teams/:team_id` | Admin | Remove a token from a team |
+| `GET` | `/api/v1/auth/tokens/:id/permissions` | Admin | A token's effective permissions |
 | `GET` | `/api/v1/auth/cache/stats` | Admin | Cache statistics |
 | `POST` | `/api/v1/auth/cache/invalidate` | Admin | Invalidate token cache |

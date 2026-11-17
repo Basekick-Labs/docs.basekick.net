@@ -707,6 +707,10 @@ Returns `401` with `"valid": false` when the token is missing, invalid or expire
 
 List all tokens (admin only).
 
+On a cluster node, since Arc 27.01.1, a token that exists only on that node
+carries `"node_local": true` and `node_id`, here and in
+`GET /api/v1/auth/tokens/:id`.
+
 ### POST /api/v1/auth/tokens
 
 Create a new token (admin only).
@@ -767,6 +771,15 @@ Revoke a token (admin only). Revocation is permanent.
 
 `PATCH`, `DELETE`, `rotate` and `revoke` answer `404` for an unknown token
 ID. In a cluster, before Arc 27.01.1, they answered `200` for one.
+
+On a cluster, since Arc 27.01.1, a token that exists only on one node (created
+before v26.06.1, or while that node ran without its cluster) is changed on
+that node only: send `PATCH`, `DELETE`, `rotate` or `revoke` to that node with
+`?node=<node_id>`. Without it the answer is `409` with
+`"code": "node_local_token"` and the node's `node_id`; a `200` adds `scope`,
+`node_id`, `token` and `warning`. Standalone, `?node` is ignored. See
+[Node-local tokens on a cluster](/arc/configuration/authentication/#node-local-tokens-on-a-cluster-enterprise)
+for every status and `code`.
 
 ### GET /api/v1/auth/cache/stats
 
