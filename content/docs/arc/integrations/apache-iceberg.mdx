@@ -235,7 +235,7 @@ CREATE CATALOG INTEGRATION arc_catalog
   CATALOG_SOURCE = ICEBERG_REST
   TABLE_FORMAT = ICEBERG
   CATALOG_NAMESPACE = 'arc_mydb'
-  REST_CONFIG = (CATALOG_URI = 'https://arc.example.com/iceberg')
+  REST_CONFIG = (CATALOG_URI = 'https://arc.example.com/iceberg' CATALOG_API_TYPE = PUBLIC)
   REST_AUTHENTICATION = (TYPE = BEARER BEARER_TOKEN = '<arc token>')
   ENABLED = TRUE;
 
@@ -246,7 +246,16 @@ CREATE ICEBERG TABLE cpu
   AUTO_REFRESH = TRUE;
 ```
 
-With `AUTO_REFRESH = TRUE`, Snowflake follows each new version Arc publishes, with no manual `ALTER ICEBERG TABLE … REFRESH`.
+With `AUTO_REFRESH = TRUE`, Snowflake follows each new version Arc publishes, with no manual `ALTER ICEBERG TABLE … REFRESH`. Expect about a minute or two between Arc publishing a version and Snowflake showing it.
+
+To have Snowflake discover every table in Arc's catalog, including ones created later, use a catalog-linked database instead of creating tables one by one:
+
+```sql
+CREATE DATABASE arc_linked
+  LINKED_CATALOG = (CATALOG = 'arc_catalog')
+  EXTERNAL_VOLUME = 'arc_volume';
+-- tables appear as arc_linked."arc_mydb"."cpu"
+```
 
 **Behaviour to know**
 
