@@ -259,6 +259,7 @@ CREATE DATABASE arc_linked
 
 **Behaviour to know**
 
+- **Tokens:** give each engine a token with read permission only, never an admin token. The engine stores it, and some engines record it in their query history.
 - **Permissions:** a token sees only the namespaces and tables it can read. A table it cannot read answers 404, as if it did not exist. Arc's permissions decide what the catalog lists, not who can read the bucket.
 - **Errors:** when storage or Arc's permission store cannot be read, the catalog answers `503`, never a shorter list. A table whose current version cannot be served also answers `503`. The cause is in Arc's log.
 - **Listings** are cached for 30 seconds. A new table appears within that time; loads are never cached.
