@@ -166,9 +166,158 @@ spark = (SparkSession.builder
 df = spark.read.format("iceberg").load("s3://my-arc-bucket/prod/arc_mydb.db/cpu")
 ```
 
-### Trino / Snowflake / others
+### Through Arc's REST catalog
 
-Any engine with an Iceberg connector can read the tables. For engines that require a shared catalog service (Trino's JDBC catalog supports PostgreSQL/MySQL, not SQLite), point the connector at the Iceberg metadata; a shared REST or JDBC catalog in front of the warehouse is the path for broad multi-engine access. See **Limitations** below.
+Since 27.01.1, Arc can serve its tables through the Iceberg REST catalog protocol, so an engine lists namespaces and tables and loads each table's current version instead of addressing metadata files by path. Turn it on with:
+
+```toml
+[iceberg]
+enabled = true
+rest_catalog_enabled = true
+```
+
+The catalog URI is your Arc base URL followed by `/iceberg`, for example `https://arc.example.com/iceberg`. Clients add the spec's `/v1/...` paths themselves. Authenticate with an Arc token as a bearer token.
+
+- **Names:** the same as everywhere else in the export: the namespace `<prefix>_<database>` (`arc_mydb`), and one table per measurement.
+- **Read-only:** Arc is the only writer of its tables. Create, commit, rename and drop are refused (`406`), and `/v1/config` does not advertise them, so clients do not try.
+- **Storage credentials:** Arc does not hand them out. Each engine reads the Parquet and metadata files with its own storage credentials (its S3 settings, or Snowflake's external volume).
+- **What a load returns:** the version `version-hint.text` names, the same file directory readers use. Every node that sees the warehouse answers the same, and each load reads it fresh.
+
+**PyIceberg**
+
+```python
+from pyiceberg.catalog import load_catalog
+
+cat = load_catalog("arc", type="rest", uri="https://arc.example.com/iceberg", token="<arc token>",
+                   **{"s3.region": "us-east-1"})   # plus s3.endpoint / keys for an S3-compatible store
+print(cat.list_tables("arc_mydb"))
+df = cat.load_table("arc_mydb.cpu").scan(row_filter="host = 'server01'").to_pandas()
+```
+
+**DuckDB**
+
+```sql
+INSTALL iceberg; LOAD iceberg;
+CREATE SECRET arc_token (TYPE iceberg, TOKEN '<arc token>');
+-- and an S3 secret for the data files: CREATE SECRET (TYPE s3, ...)
+ATTACH 'arc' AS arc (TYPE iceberg, SECRET arc_token, ENDPOINT 'https://arc.example.com/iceberg');
+SELECT count(*) FROM arc.arc_mydb.cpu;
+```
+
+**Spark**
+
+```python
+spark = (SparkSession.builder
+    .config("spark.sql.catalog.arc", "org.apache.iceberg.spark.SparkCatalog")
+    .config("spark.sql.catalog.arc.type", "rest")
+    .config("spark.sql.catalog.arc.uri", "https://arc.example.com/iceberg")
+    .config("spark.sql.catalog.arc.token", "<arc token>")
+    .getOrCreate())
+spark.table("arc.arc_mydb.cpu").show()
+```
+
+**Trino** (`etc/catalog/arc.properties`)
+
+```properties
+connector.name=iceberg
+iceberg.catalog.type=rest
+iceberg.rest-catalog.uri=https://arc.example.com/iceberg
+iceberg.rest-catalog.security=OAUTH2
+iceberg.rest-catalog.oauth2.token=<arc token>
+```
+
+**Snowflake**
+
+Create an external volume over the bucket, read-only. Then add a catalog integration that points at Arc:
+
+```sql
+CREATE CATALOG INTEGRATION arc_catalog
+  CATALOG_SOURCE = ICEBERG_REST
+  TABLE_FORMAT = ICEBERG
+  CATALOG_NAMESPACE = 'arc_mydb'
+  REST_CONFIG = (CATALOG_URI = 'https://arc.example.com/iceberg' CATALOG_API_TYPE = PUBLIC)
+  REST_AUTHENTICATION = (TYPE = BEARER BEARER_TOKEN = '<arc token>')
+  ENABLED = TRUE;
+
+CREATE ICEBERG TABLE cpu
+  EXTERNAL_VOLUME = 'arc_volume'
+  CATALOG = 'arc_catalog'
+  CATALOG_TABLE_NAME = 'cpu'
+  AUTO_REFRESH = TRUE;
+```
+
+With `AUTO_REFRESH = TRUE`, Snowflake follows each new version Arc publishes, with no manual `ALTER ICEBERG TABLE … REFRESH`. Expect about a minute or two between Arc publishing a version and Snowflake showing it.
+
+To have Snowflake discover every table in Arc's catalog, including ones created later, use a catalog-linked database instead of creating tables one by one:
+
+```sql
+CREATE DATABASE arc_linked
+  LINKED_CATALOG = (CATALOG = 'arc_catalog')
+  EXTERNAL_VOLUME = 'arc_volume';
+-- tables appear as arc_linked."arc_mydb"."cpu"
+```
+
+**Behaviour to know**
+
+- **Tokens:** give each engine a token with read permission only, never an admin token. The engine stores it, and some engines record it in their query history.
+- **Permissions:** a token sees only the namespaces and tables it can read. A table it cannot read answers 404, as if it did not exist. Arc's permissions decide what the catalog lists, not who can read the bucket.
+- **Errors:** when storage or Arc's permission store cannot be read, the catalog answers `503`, never a shorter list. A table whose current version cannot be served also answers `503`. The cause is in Arc's log.
+- **Listings** are cached for 30 seconds. A new table appears within that time; loads are never cached.
+- **Clusters:** on a shared bucket every node can answer. With node-local storage only the node running the export can; the others answer `503`.
+- **Not served:** edge-sync spoke namespaces (read them by path), credential vending and the OAuth token endpoint.
+
+### Through AWS Glue
+
+Since 27.01.1, Arc can also register its tables in AWS Glue, so Athena, EMR, Redshift Spectrum, Snowflake (`CATALOG_SOURCE = GLUE`) and engines that federate Glue can read them. This needs an S3 primary on AWS.
+
+```toml
+[iceberg]
+enabled = true
+
+[iceberg.glue]
+enabled = true
+# region = "us-east-2"          # default: storage.s3_region
+# catalog_id = "123456789012"   # default: the credentials' account
+```
+
+Arc keeps one Glue table per published table, in the Glue database `<prefix>_<database>` (`arc_mydb`), named after the measurement in lowercase. Each publish updates the table's `metadata_location` within seconds. Glue only stores where the current version is; Arc keeps writing its own metadata.
+
+**Athena**
+
+```sql
+SELECT host, avg(usage) FROM arc_mydb.cpu GROUP BY host;
+```
+
+**Snowflake**
+
+```sql
+CREATE CATALOG INTEGRATION arc_glue
+  CATALOG_SOURCE = GLUE
+  CATALOG_NAMESPACE = 'arc_mydb'
+  TABLE_FORMAT = ICEBERG
+  GLUE_AWS_ROLE_ARN = 'arn:aws:iam::123456789012:role/snowflake-glue-readonly'
+  GLUE_CATALOG_ID = '123456789012'
+  GLUE_REGION = 'us-east-2'
+  ENABLED = TRUE;
+
+CREATE ICEBERG TABLE cpu
+  EXTERNAL_VOLUME = 'arc_volume'
+  CATALOG = 'arc_glue'
+  CATALOG_TABLE_NAME = 'cpu'
+  AUTO_REFRESH = TRUE;
+```
+
+**What Arc needs and promises**
+
+- **Permissions:** the credentials Arc uses for S3 also call Glue. They need `glue:GetDatabase`, `GetDatabases`, `CreateDatabase`, `GetTable`, `GetTables`, `CreateTable`, `UpdateTable` and `DeleteTable` on the `<prefix>_*` databases. Lake Formation grants are yours to set. In a cluster, give these to every node that can run the export.
+- **Arc only changes what it created:** Arc never modifies or deletes a Glue table it did not create, one created for another warehouse, a copy of one of its tables, or one another writer has committed to. It logs an error and leaves it.
+- **Dropped tables:** when an Arc table or database is dropped, its Glue table is deleted after two consecutive hourly checks, at least 10 minutes apart, both find it gone. That deletes Glue metadata only. Glue databases are never deleted.
+- **Keep Glue consumers read-only:** unlike Arc's REST catalog, Glue accepts writes. A `DROP TABLE … PURGE`, a `VACUUM` or an orphan-file cleanup run through Glue deletes the data files the table's metadata names, and those are Arc's own files. Give every Glue consumer read-only S3 access to Arc's bucket, and leave Glue's table optimizers off.
+- **One prefix per deployment:** two Arc deployments sharing a Glue catalog and region need different `iceberg.namespace_prefix` values.
+
+### Other engines
+
+Any engine with an Iceberg connector can read the tables by path too. See **Limitations** below.
 
 ## Configuration reference
 
@@ -180,6 +329,11 @@ Any engine with an Iceberg connector can read the tables. For engines that requi
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. Since 27.01.1 the warehouse's directories inside the storage root are not databases; see [The warehouse is not a database](#the-warehouse-is-not-a-database). |
 | `iceberg.layout` | `ARC_ICEBERG_LAYOUT` | `warehouse` | Where new tables are created (27.01.1+): `warehouse` puts metadata under `<warehouse>/<prefix>_<database>.db/<measurement>`; `colocated` puts it in `<database>/<measurement>/metadata/`, beside the data. See [Table layout](#table-layout). |
+| `iceberg.rest_catalog_enabled` | `ARC_ICEBERG_REST_CATALOG_ENABLED` | `false` | Serve a read-only Iceberg REST catalog at `/iceberg` (27.01.1+). Needs `iceberg.enabled`. See [Through Arc's REST catalog](#through-arcs-rest-catalog). |
+| `iceberg.glue.enabled` | `ARC_ICEBERG_GLUE_ENABLED` | `false` | Register the published tables in AWS Glue (27.01.1+). Needs `iceberg.enabled` and an S3 primary on AWS. See [Through AWS Glue](#through-aws-glue). |
+| `iceberg.glue.region` | `ARC_ICEBERG_GLUE_REGION` | *`storage.s3_region`* | Region of the Glue catalog. |
+| `iceberg.glue.catalog_id` | `ARC_ICEBERG_GLUE_CATALOG_ID` | *the credentials' account* | 12-digit account ID of the Glue catalog. |
+| `iceberg.glue.sync_interval` | `ARC_ICEBERG_GLUE_SYNC_INTERVAL` | `60` | Seconds between retries of failed Glue updates; each publish is pushed at once. |
 | `iceberg.catalog_db_path` | `ARC_ICEBERG_CATALOG_DB_PATH` | *shared auth DB* | SQLite catalog location. |
 | `iceberg.cold_rescan_interval` | `ARC_ICEBERG_COLD_RESCAN_INTERVAL` | `3600` | With an S3 cold tier: seconds a measurement's cached cold-tier listing is trusted. Arc re-lists right away after its own cold-tier changes (migrations, cold retention, DELETE, database delete); this only bounds changes made outside Arc. |
 | `iceberg.orphan_sweep_enabled` | `ARC_ICEBERG_ORPHAN_SWEEP_ENABLED` | `true` | Delete manifest files that no retained metadata version references any more. This is the one thing the exporter deletes that nothing regenerates, so it has an off switch; set `false` and the manifests of expired snapshots are kept forever and copied into every backup. Arc logs a warning at startup when it is off. |
@@ -359,7 +513,7 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
 - **Cold tier on S3 only.** Iceberg export runs alongside cold-tier tiering when the cold tier is S3 (see [Cold-tier tiering](#cold-tier-tiering)). Arc refuses to start with Iceberg enabled and an Azure or GCS cold tier, or an S3 cold tier on Google Cloud Storage's interop endpoint, because files migrated there would leave the table.
 - **Eventual consistency.** The Iceberg view reflects the last reconcile pass, so it lags live ingest by up to `reconcile_interval`. This is expected for a lakehouse export.
 - **On-disk portability.** Iceberg metadata references files by absolute path. Tables read fine on the same host; moving a local table to a different path/host requires re-pointing (object-store warehouses avoid this).
-- **Catalog discovery.** Catalog-aware access works today via the SQLite catalog (PyIceberg) or by pointing engines at the table directory (DuckDB, Spark). Broad multi-engine *catalog* discovery (Trino, Glue) would use a REST/JDBC catalog in front of the warehouse — a deployment choice beyond v1.
+- **Catalog discovery.** Since 27.01.1 Arc serves a read-only Iceberg REST catalog (`iceberg.rest_catalog_enabled`). See [Through Arc's REST catalog](#through-arcs-rest-catalog). Arc also registers its tables in AWS Glue (`iceberg.glue.enabled`); see [Through AWS Glue](#through-aws-glue).
 - **Metadata is bounded, not constant.** Each reconcile pass that removes a file writes new manifests and leaves the superseded ones behind, so the metadata directory grows with the removal history rather than with the data. Two mechanisms bound it, both automatic: the orphan sweep (above) deletes manifests no retained metadata version references, and a pass that finds a table at 12 or more data manifests merges them into one. Expect on the order of `retain_snapshots` commits' worth of `.avro` in a steady state. A table whose file set has stopped changing is skipped by the reconciler, so it keeps whatever manifest count it last had until something writes to it again.
 - **Clustered deployments.** Exactly one node must run the reconciler.
   - Under the compactor failover lease this is guaranteed.
@@ -368,7 +522,7 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
   - The version published in the bucket, not a node's own catalog, is the table's current version. A node that takes over, or comes back after a failover, continues from it.
   - If two nodes ever commit the same version, the second is refused, logged as `another writer published this table version first`, and it adopts the published version on its next pass.
   - A node whose SQLite catalog was lost also continues the existing table rather than starting a second one in the same directory.
-  - The SQLite catalog is local to the node that exports, so catalog-based readers (PyIceberg's `SqlCatalog`) work only there. From any other host, read the table from its `s3://` directory (DuckDB, PyIceberg `StaticTable`, Spark).
+  - The SQLite catalog is local to the node that exports, so catalog-based readers (PyIceberg's `SqlCatalog`) work only there. From any other host, use Arc's REST catalog (any node of a shared-bucket cluster answers), or read the table from its `s3://` directory (DuckDB, PyIceberg `StaticTable`, Spark).
 
 ## Backup & restore
 
