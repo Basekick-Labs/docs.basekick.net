@@ -332,6 +332,9 @@ SELECT count(*) FROM arc_glue.arc_mydb.cpu;
 
 Queries see each new version as soon as Glue names it, with no refresh. In a test, a write showed up in Databricks within seconds of Arc publishing it.
 
+- **A table dropped and recreated** under the same name (a database deleted in Arc and written again) keeps returning its old data in Databricks. `REFRESH TABLE` does not clear it. Recreating the foreign catalog does, and it changes nothing in Glue or S3.
+- **Column names that differ only by case** (`Birth Year` and `birth year`) can't be read: Databricks converts the table to Delta, which is case-insensitive. Glue also lowercases column names. Keep one spelling per column in a measurement.
+
 **What Arc needs and promises**
 
 - **Permissions:** the credentials Arc uses for S3 also call Glue. They need `glue:GetDatabase`, `GetDatabases`, `CreateDatabase`, `GetTable`, `GetTables`, `CreateTable`, `UpdateTable` and `DeleteTable` on the `<prefix>_*` databases. Lake Formation grants are yours to set. In a cluster, give these to every node that can run the export.
