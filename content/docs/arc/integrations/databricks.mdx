@@ -81,7 +81,21 @@ Databricks reads Glue and S3 by assuming an IAM role in your account. Create one
 }
 ```
 
-The last statement lets the role assume itself, which Unity Catalog requires. Leave the trust policy as a placeholder for now: Databricks shows the exact one in the next step.
+The last statement lets the role assume itself, which Unity Catalog requires. IAM needs a trust policy when you create the role; start with Unity Catalog's role and a placeholder external ID, and replace it with the one Databricks shows in the next step:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::414351767826:role/unity-catalog-prod-UCMasterRole-14S5ZJVKOTYTL" },
+      "Action": "sts:AssumeRole",
+      "Condition": { "StringEquals": { "sts:ExternalId": "0000" } } }
+  ]
+}
+```
+
+That ARN is Unity Catalog's role on AWS commercial regions; the dialog in step 3 shows the one for your workspace.
 
 <Callout type="warn" title="Read-only on Arc's bucket">
 Keep Databricks read-only on Arc's bucket. Glue accepts writes, and a `DROP TABLE … PURGE`, `VACUUM` or orphan-file cleanup through it deletes the data files the table names, which are Arc's own files.
@@ -99,7 +113,7 @@ After **Create**, Databricks shows the trust policy the role needs: Unity Catalo
 
 ![The Credential created dialog: the IAM role ARN, the external ID and the trust policy to copy into AWS](/img/arc-databricks/arc-databricks-trust-policy.webp)
 
-The external ID is the same for every credential in the metastore, so you set the trust policy once.
+In our workspace all three credentials showed the same external ID, so the trust policy was set once. Check the dialog for each credential you create.
 
 **A read-only storage credential for Arc's bucket.** Select **Storage Credential**, name it `arc_s3_cred`, same role, and under **Advanced Options** tick **Limit to read-only use**:
 
@@ -191,11 +205,24 @@ WHERE dayofweek(time) BETWEEN 2 AND 6
 GROUP BY ALL
 ```
 
-![The dashboard's Data tab: five datasets, and the Weekday rides by hour SQL with its result](/img/arc-databricks/arc-databricks-dashboard-data.webp)
+![The dashboard's Data tab: the datasets, and the Weekday rides by hour SQL with its result](/img/arc-databricks/arc-databricks-dashboard-data.webp)
 
 The other datasets in this dashboard:
 
 ```sql
+-- Summary (the four counters)
+SELECT round(count(*) / 1e6, 2) AS rides_m,
+       avg(CASE WHEN rideable_type = 'electric_bike' THEN 1.0 ELSE 0 END) AS ebike_share,
+       avg(CASE WHEN member_casual = 'member' THEN 1.0 ELSE 0 END) AS member_share,
+       round(percentile_approx((unix_millis(try_cast(ended_at AS timestamp)) - unix_millis(time)) / 60000.0, 0.5), 1) AS median_minutes
+FROM arc_glue.arc_citibike.trips;
+
+-- Trip length, in minutes (60 = 60 or more)
+SELECT least(floor((unix_millis(try_cast(ended_at AS timestamp)) - unix_millis(time)) / 60000), 60) AS minutes,
+       rideable_type AS bike, count(*) AS rides
+FROM arc_glue.arc_citibike.trips
+GROUP BY ALL;
+
 -- Top stations
 SELECT start_station_name AS station, count(*) AS rides
 FROM arc_glue.arc_citibike.trips
@@ -246,7 +273,7 @@ CREATE FOREIGN CATALOG arc_glue USING CONNECTION arc_glue_conn
 |---|---|---|
 | `Failed to instantiate org.apache.hadoop.mapred.FileInputFormat` | The foreign catalog has no storage location. | Recreate the catalog with a storage location. |
 | `PERMISSION_DENIED: The storage location for a foreign catalog … can not be read-only` | The storage location is a read-only external location. | Use a writable one on a separate bucket. |
-| `AccessDeniedException` reading a `.parquet` file | The table was created with the `warehouse` layout, so the data is outside the table's location; or the authorized paths don't cover Arc's bucket. | Set `iceberg.layout = "colocated"` and recreate the table; check the authorized paths. |
+| `AccessDeniedException` reading a `.parquet` file | The table was created with the `warehouse` layout, so the data is outside the table's location. | Set `iceberg.layout = "colocated"` and recreate the table. |
 | `DELTA_SHALLOW_CLONE_FILE_NOT_FOUND` on a table that was dropped and recreated in Arc | Databricks still holds the old table's state. `REFRESH TABLE` does not clear it. | Drop and recreate the foreign catalog. That changes nothing in Glue or S3. |
 | `DELTA_UNIFORM_INGRESS_VIOLATION … column names that only differ by case` | The measurement has two columns whose names differ only by case (`Birth Year` and `birth year`). | Keep each historical schema in its own measurement, or normalise the names before writing. |
 
