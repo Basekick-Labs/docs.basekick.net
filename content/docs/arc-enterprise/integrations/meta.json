@@ -11,6 +11,7 @@
     "opentelemetry",
     "flight-sql",
     "databricks",
+    "snowflake",
     "microsoft-fabric",
     "superset",
     "vscode",

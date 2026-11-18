@@ -228,7 +228,7 @@ iceberg.rest-catalog.oauth2.token=<arc token>
 
 **Snowflake**
 
-Create an external volume over the bucket, read-only. Then add a catalog integration that points at Arc:
+The [Snowflake guide](/arc/integrations/snowflake/) walks through this in Snowsight, from the IAM role to a catalog-linked database. In short: an external volume over the bucket, read-only, and a catalog integration that points at Arc:
 
 ```sql
 CREATE CATALOG INTEGRATION arc_catalog
@@ -254,7 +254,7 @@ To have Snowflake discover every table in Arc's catalog, including ones created 
 CREATE DATABASE arc_linked
   LINKED_CATALOG = (CATALOG = 'arc_catalog')
   EXTERNAL_VOLUME = 'arc_volume';
--- tables appear as arc_linked."arc_mydb"."cpu"
+-- tables appear as arc_linked.arc_mydb.cpu
 ```
 
 **Behaviour to know**
@@ -288,7 +288,7 @@ Arc keeps one Glue table per published table, in the Glue database `<prefix>_<da
 SELECT host, avg(usage) FROM arc_mydb.cpu GROUP BY host;
 ```
 
-**Snowflake**
+**Snowflake** (step by step in the [Snowflake guide](/arc/integrations/snowflake/#7-the-glue-route))
 
 ```sql
 CREATE CATALOG INTEGRATION arc_glue
