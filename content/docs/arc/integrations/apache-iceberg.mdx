@@ -268,7 +268,7 @@ CREATE DATABASE arc_linked
 
 ### Through AWS Glue
 
-Since 27.01.1, Arc can also register its tables in AWS Glue, so Athena, EMR, Redshift Spectrum, Snowflake (`CATALOG_SOURCE = GLUE`) and engines that federate Glue can read them. This needs an S3 primary on AWS.
+Since 27.01.1, Arc can also register its tables in AWS Glue, so Athena, EMR, Redshift Spectrum, Snowflake (`CATALOG_SOURCE = GLUE`), BigQuery (a [Glue federated dataset](/arc/integrations/bigquery/)) and engines that federate Glue can read them. This needs an S3 primary on AWS.
 
 ```toml
 [iceberg]

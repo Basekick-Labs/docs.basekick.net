@@ -11,6 +11,7 @@
     "opentelemetry",
     "flight-sql",
     "athena-redshift",
+    "bigquery",
     "databricks",
     "snowflake",
     "trino",
