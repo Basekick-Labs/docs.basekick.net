@@ -78,6 +78,21 @@ form.
 - Throughput and latency numbers live on the blog, not in the docs. The
   exception is `changelog.md`, which is a historical record.
 
+### Diagrams
+- Architecture and flow diagrams are rendered images, never ASCII art in a code block (decided 2026-11-18). The same look as the blog's, so a diagram can be shared between a post and its guide.
+- `.claude/ASCII-DIAGRAMS.md` lists the existing ASCII diagrams that should become images.
+- Start from the blog repo's `scripts/og/render-databricks-glue-architecture.py` (Basekick-Labs/basekick.net): copy it, keep the CSS, change the cards and arrows. Save the output under `public/img/<topic>/` and embed it as a Markdown image.
+- **Look** (match `public/images/databricks-glue-architecture.webp`):
+  - Light background `#fbfaf7`, teal accent `#0b7285`/`#0e7490`, ink `#10202e`, muted `#5f6c78`.
+  - Inter for titles and prose, JetBrains Mono for labels, paths, table names and config.
+  - White cards: 1px `#e4e2dc` border, 16px radius, soft shadow. The system the piece is about is the one solid teal card.
+  - Dashed rounded zones with an uppercase mono label mark ownership boundaries ("Your AWS account", "Databricks").
+  - Teal arrows for data flow, each labelled with a short bold verb plus a mono sub-label ("reads / files"). A dashed amber arrow for secondary writes.
+  - Title with the key phrase in teal, a mono uppercase subtitle, and a teal footer band with the promise ("No copy · No ingestion job · No schedule").
+- **Layout:** one column per system, left to right in data-flow order. Place cards so arrows run straight and never cross. Use the real names from the text (paths, tables, config keys), not placeholders.
+- **Only what was verified:** don't put a product, feature or arrow on a diagram that the piece didn't test.
+- **Output:** 1600×900, rendered with headless Chrome at 2x and downscaled, saved as `.webp`. The alt text describes the flow in full sentences.
+
 ### Git & PRs
 - Branch from main: `docs/<topic>`, `feat/<topic>`, `fix/<topic>`.
 - Commit format: `docs(scope): description`.
