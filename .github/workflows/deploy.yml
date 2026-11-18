@@ -43,10 +43,11 @@ jobs:
       # must never reach the build. Documented paths that happen to live under
       # /home are legitimate and allowlisted by name: the arcli container runs
       # as `nonroot` with HOME=/home/nonroot, and /home/you is the placeholder
-      # in sample command output. Extend ALLOWED, do not widen the pattern.
+      # in sample command output, and /home/jovyan is the Jupyter images' user
+      # in the Trino guide's Compose file. Extend ALLOWED, do not widen the pattern.
       - name: Check for leaked local paths
         run: |
-          ALLOWED='/home/(nonroot|you)([/"[:space:]]|$)'
+          ALLOWED='/home/(nonroot|you|jovyan)([/"[:space:]]|$)'
           hits=$(grep -rhoE '/(Users|home)/[a-z][a-z0-9_-]*' out/ 2>/dev/null \
                  | grep -vE "$ALLOWED" | sort -u || true)
           if [ -n "$hits" ]; then
