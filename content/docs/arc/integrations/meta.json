@@ -4,6 +4,7 @@
     "[Overview](/arc/integrations/)",
     "apache-iceberg",
     "databricks",
+    "snowflake",
     "flight-sql",
     "microsoft-fabric",
     "superset",
