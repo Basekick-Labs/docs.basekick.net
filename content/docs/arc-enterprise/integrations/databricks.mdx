@@ -1,0 +1,260 @@
+---
+title: "Databricks"
+description: "Query Arc's data in Databricks without copying it: Arc publishes each measurement as an Apache Iceberg table and registers it in AWS Glue, and Unity Catalog reads it through a Glue foreign catalog. Step by step in the Databricks UI, from the IAM role to an AI/BI dashboard."
+---
+
+Query Arc's data in Databricks where it already is. Arc publishes each measurement as an Apache Iceberg table over its own Parquet files and registers it in AWS Glue. Unity Catalog reads Glue through a foreign catalog, so Databricks SQL, notebooks and AI/BI dashboards read Arc's files in your bucket. There is no copy, no ingestion job and no schedule.
+
+```text
+Arc  ──Parquet + Iceberg metadata──▶  S3 bucket  ◀──reads files──  Databricks
+  └──registers each table──▶  AWS Glue  ◀──foreign catalog──  Unity Catalog
+```
+
+<Callout type="info" title="Availability">
+Arc **27.01.1** or later, with an S3 primary on AWS (`storage.backend = "s3"`). Every step below was run on **Databricks Free Edition** (AWS, us-east-2).
+</Callout>
+
+Databricks federates a fixed list of catalogs, AWS Glue among them, not an arbitrary Iceberg REST catalog, so it reaches Arc through Glue rather than through [Arc's own REST catalog](/arc/integrations/apache-iceberg/#through-arcs-rest-catalog).
+
+## Before you start
+
+- **Arc 27.01.1 on S3 in AWS.** The guide uses a bucket called `my-arc-bucket` in `us-east-2`.
+- **A second, empty S3 bucket** for Databricks' own use (`my-databricks-scratch` below). Databricks needs a writable storage location to read Iceberg tables through Glue, and it should not be Arc's bucket.
+- **A Databricks workspace on AWS with Unity Catalog.** New workspaces have it, including Free Edition. You need to be able to create credentials, external locations, connections and catalogs; a workspace admin can.
+- **The same region for everything** if you can: the buckets, Glue and the workspace. Every query reads Arc's files from S3.
+
+The screenshots use the demo measurement `citibike.trips`: 5.2 million Citi Bike rides, a sample of 2025.
+
+## 1. Configure Arc
+
+Turn on the Iceberg export with the **colocated** layout, and the Glue registration:
+
+```toml
+[iceberg]
+enabled = true
+layout  = "colocated"
+
+[iceberg.glue]
+enabled = true
+# region = "us-east-2"          # default: storage.s3_region
+# catalog_id = "123456789012"   # default: the credentials' account
+```
+
+Or with environment variables: `ARC_ICEBERG_ENABLED=true`, `ARC_ICEBERG_LAYOUT=colocated`, `ARC_ICEBERG_GLUE_ENABLED=true`.
+
+<Callout type="warn" title="Databricks needs the colocated layout">
+Databricks reads only the files under a federated table's location. With the default `warehouse` layout, the table's location is a metadata directory and Arc's data files are elsewhere, so every read fails with `AccessDeniedException`. With `colocated`, the location is the measurement's own folder (`my-arc-bucket/citibike/trips`), which holds every data file. Tables created before you set the layout keep their old location; see [Table layout](/arc/integrations/apache-iceberg/#table-layout).
+</Callout>
+
+The credentials Arc uses for S3 also call Glue. They need `glue:GetDatabase`, `GetDatabases`, `CreateDatabase`, `GetTable`, `GetTables`, `CreateTable`, `UpdateTable` and `DeleteTable` on the `arc_*` databases. In a cluster, give these to every node that can run the export: the Glue registration runs on whichever node runs it.
+
+After Arc's next export pass (every 5 minutes by default), each measurement has a Glue table: database `arc_<database>`, table `<measurement>` in lowercase. Check with:
+
+```bash
+aws glue get-tables --database-name arc_citibike --query 'TableList[].Name'
+```
+
+## 2. Create the IAM role for Databricks
+
+Databricks reads Glue and S3 by assuming an IAM role in your account. Create one (say `arc-databricks`) with this permissions policy. It reads Glue, reads Arc's bucket, and writes only to the scratch bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow",
+      "Action": ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable", "glue:GetTables", "glue:GetPartitions"],
+      "Resource": "*" },
+    { "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": ["arn:aws:s3:::my-arc-bucket", "arn:aws:s3:::my-databricks-scratch"] },
+    { "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+      "Resource": "arn:aws:s3:::my-arc-bucket/*" },
+    { "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::my-databricks-scratch/*" },
+    { "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::123456789012:role/arc-databricks" }
+  ]
+}
+```
+
+The last statement lets the role assume itself, which Unity Catalog requires. Leave the trust policy as a placeholder for now: Databricks shows the exact one in the next step.
+
+<Callout type="warn" title="Read-only on Arc's bucket">
+Keep Databricks read-only on Arc's bucket. Glue accepts writes, and a `DROP TABLE … PURGE`, `VACUUM` or orphan-file cleanup through it deletes the data files the table names, which are Arc's own files.
+</Callout>
+
+## 3. Create the credentials
+
+In Databricks, open **Catalog → External Data → Credentials → Create credential**. You create three, all with the role from step 2.
+
+**A service credential for Glue.** Select **Service Credential**, name it `arc_glue_cred` and enter the role's ARN:
+
+![The Create a new credential dialog with Service Credential selected, the name arc_glue_cred and the IAM role ARN](/img/arc-databricks/arc-databricks-service-credential.webp)
+
+After **Create**, Databricks shows the trust policy the role needs: Unity Catalog's role and the role itself as principals, and an external ID. Paste it into the role's trust relationship in AWS:
+
+![The Credential created dialog: the IAM role ARN, the external ID and the trust policy to copy into AWS](/img/arc-databricks/arc-databricks-trust-policy.webp)
+
+The external ID is the same for every credential in the metastore, so you set the trust policy once.
+
+**A read-only storage credential for Arc's bucket.** Select **Storage Credential**, name it `arc_s3_cred`, same role, and under **Advanced Options** tick **Limit to read-only use**:
+
+![The Create a new credential dialog with Storage Credential selected, the name arc_s3_cred and Limit to read-only use ticked](/img/arc-databricks/arc-databricks-storage-credential.webp)
+
+**A writable storage credential for the scratch bucket.** Same form, name `arc_scratch_cred`, without read-only.
+
+## 4. Create the external locations
+
+Open the **External Locations** tab → **Create external location** → **Manual**.
+
+**Arc's bucket, read-only.** Name `arc_loc`, URL `s3://my-arc-bucket/`, credential `arc_s3_cred`. Read-only is ticked and greyed out, because the credential is read-only:
+
+![The Create a new external location manually form: name arc_loc, storage type S3, the bucket URL, credential arc_s3_cred, and Limit to read-only use ticked](/img/arc-databricks/arc-databricks-location-arc.webp)
+
+**The scratch bucket, writable.** Name `arc_scratch`, URL `s3://my-databricks-scratch/`, credential `arc_scratch_cred`:
+
+![The same form for arc_scratch: the scratch bucket URL and the arc_scratch_cred credential](/img/arc-databricks/arc-databricks-location-scratch.webp)
+
+![The External Locations list with arc_loc and arc_scratch](/img/arc-databricks/arc-databricks-locations-list.webp)
+
+## 5. Connect Glue and create the catalog
+
+Open the **Connections** tab → **Create connection**. Glue is listed under Hive Metastore: choose **Hive Metastore** as the connection type and **AWS Glue** as the metastore type. Name it `arc_glue_conn`:
+
+![Set up connection, step 1: name arc_glue_conn, connection type Hive Metastore, metastore type AWS Glue](/img/arc-databricks/arc-databricks-connection-basics.webp)
+
+Enter the region of Arc's Glue catalog:
+
+![Step 2, Authentication: AWS Region us-east-2](/img/arc-databricks/arc-databricks-connection-region.webp)
+
+Then the AWS account that holds it and the service credential, and click **Create connection**:
+
+![Step 3, Connection details: the AWS account ID and the credential arc_glue_cred](/img/arc-databricks/arc-databricks-connection-details.webp)
+
+The wizard goes on to create the foreign catalog. Name it `arc_glue`, and set the two paths:
+
+- **Authorized paths:** `arc_loc`, Arc's bucket. Only tables under these paths can be queried.
+- **Storage location:** `arc_scratch`, the writable bucket.
+
+![Step 4, Catalog basics: catalog arc_glue, connection arc_glue_conn, authorized path arc_loc and storage location arc_scratch](/img/arc-databricks/arc-databricks-catalog-basics.webp)
+
+<Callout type="warn" title="Set the storage location here">
+Without a storage location, every read fails with `Failed to instantiate org.apache.hadoop.mapred.FileInputFormat`. A read-only location is refused with `PERMISSION_DENIED: The storage location for a foreign catalog … can not be read-only`. On Free Edition, `ALTER CATALOG … SET MANAGED LOCATION` is not enabled, so a catalog created without it has to be dropped and created again.
+</Callout>
+
+On **Access**, grant the catalog to the users or groups that should query it (all account users get `BROWSE` by default). **Metadata** (tags) is optional.
+
+![Step 5, Access: all workspaces, the owner, and BROWSE for all account users](/img/arc-databricks/arc-databricks-catalog-access.webp)
+
+## 6. Browse the tables
+
+Open **Catalog** in the sidebar. The first time, Databricks asks for compute: pick the SQL warehouse (on Free Edition, **Serverless Starter Warehouse**) and **Start and Close**:
+
+![Attach to an existing compute resource: Serverless Starter Warehouse](/img/arc-databricks/arc-databricks-select-compute.webp)
+
+`arc_glue` lists one schema per Arc database (`arc_citibike`) and one table per measurement. **Sample Data** reads Arc's Parquet files straight from S3:
+
+![The trips table in Catalog Explorer, Sample Data tab: rideable_type, start_station_name, start_lng, started_at and time](/img/arc-databricks/arc-databricks-sample-data.webp)
+
+**Details** shows where the table lives: the storage location is Arc's measurement folder, `metadata_location` is the Iceberg version Arc last published, and the `arc` properties mark the table as one Arc manages. Databricks reads the Iceberg metadata and converts it to Delta metadata on its side; nothing is written to Arc's bucket.
+
+![The Details tab: storage location s3://…/citibike/trips, Delta Uniform Iceberg metadata_location, and the arc properties database, managed, measurement, namespace_prefix, synced_location and warehouse](/img/arc-databricks/arc-databricks-table-details.webp)
+
+## 7. Query in the SQL editor
+
+Open **SQL Editor** and query the table by its three-part name:
+
+```sql
+SELECT member_casual, rideable_type, count(*) AS rides,
+       round(percentile_approx((unix_millis(try_cast(ended_at AS timestamp)) - unix_millis(time)) / 60000.0, 0.5), 1) AS median_minutes
+FROM arc_glue.arc_citibike.trips
+GROUP BY ALL
+ORDER BY rides DESC
+```
+
+![The SQL editor: the query above and four rows, members on e-bikes first with 3,086,638 rides and an 8.3-minute median](/img/arc-databricks/arc-databricks-sql-editor.webp)
+
+Columns keep the types Arc stored. Arc's `time` column is a `timestamp`; the Citi Bike CSVs were loaded with most fields as strings, so this query casts `ended_at` with `try_cast`.
+
+## 8. Build a dashboard
+
+**New → Dashboard**, then on the **Data** tab add each dataset with **Add SQL dataset**. For example, weekday rides by hour:
+
+```sql
+SELECT hour(time) AS hour, member_casual AS rider, count(*) AS rides
+FROM arc_glue.arc_citibike.trips
+WHERE dayofweek(time) BETWEEN 2 AND 6
+GROUP BY ALL
+```
+
+![The dashboard's Data tab: five datasets, and the Weekday rides by hour SQL with its result](/img/arc-databricks/arc-databricks-dashboard-data.webp)
+
+The other datasets in this dashboard:
+
+```sql
+-- Top stations
+SELECT start_station_name AS station, count(*) AS rides
+FROM arc_glue.arc_citibike.trips
+GROUP BY 1 ORDER BY 2 DESC LIMIT 15;
+
+-- Stations on a map
+SELECT start_station_name AS station,
+       avg(try_cast(start_lat AS double)) AS lat,
+       avg(try_cast(start_lng AS double)) AS lng,
+       count(*) AS rides
+FROM arc_glue.arc_citibike.trips
+GROUP BY 1;
+
+-- Rides by day and hour
+SELECT concat(((dayofweek(time) + 5) % 7) + 1, ' ', date_format(time, 'E')) AS day,
+       hour(time) AS hour, count(*) AS rides
+FROM arc_glue.arc_citibike.trips
+GROUP BY ALL;
+```
+
+On the canvas, add a visualization per dataset (bar, map, heatmap, counters):
+
+![The Citi Bike 2025 dashboard: counters for rides, e-bike share, member share and median trip; weekday rides by hour; trip length by bike type; top stations; a station map](/img/arc-databricks/arc-databricks-dashboard.webp)
+
+![The lower half: top 15 start stations, rides by start station on a map of New York, and a heatmap of rides by day and hour](/img/arc-databricks/arc-databricks-dashboard-map.webp)
+
+## Keeping it current
+
+There is nothing to schedule in Databricks. Arc publishes a new table version on each export pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default), Glue points at it within seconds, and the next Databricks query reads it.
+
+In a test with `reconcile_interval = 30`, a write reached Databricks 26 seconds after Arc accepted it: 22 seconds waiting for the export pass, then the first query after the Glue update returned the new rows. With the default interval, expect up to about five minutes.
+
+## Set up with SQL
+
+The same objects, for scripts. Credentials and external locations are created with the Databricks CLI or API (`databricks credentials create-credential`, `databricks storage-credentials create`, `databricks external-locations create`), then:
+
+```sql
+CREATE CONNECTION arc_glue_conn TYPE glue
+  OPTIONS (aws_region 'us-east-2', aws_account_id '123456789012', credential 'arc_glue_cred');
+
+CREATE FOREIGN CATALOG arc_glue USING CONNECTION arc_glue_conn
+  OPTIONS (authorized_paths 's3://my-arc-bucket/', storage_root 's3://my-databricks-scratch/');
+```
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Failed to instantiate org.apache.hadoop.mapred.FileInputFormat` | The foreign catalog has no storage location. | Recreate the catalog with a storage location. |
+| `PERMISSION_DENIED: The storage location for a foreign catalog … can not be read-only` | The storage location is a read-only external location. | Use a writable one on a separate bucket. |
+| `AccessDeniedException` reading a `.parquet` file | The table was created with the `warehouse` layout, so the data is outside the table's location; or the authorized paths don't cover Arc's bucket. | Set `iceberg.layout = "colocated"` and recreate the table; check the authorized paths. |
+| `DELTA_SHALLOW_CLONE_FILE_NOT_FOUND` on a table that was dropped and recreated in Arc | Databricks still holds the old table's state. `REFRESH TABLE` does not clear it. | Drop and recreate the foreign catalog. That changes nothing in Glue or S3. |
+| `DELTA_UNIFORM_INGRESS_VIOLATION … column names that only differ by case` | The measurement has two columns whose names differ only by case (`Birth Year` and `birth year`). | Keep each historical schema in its own measurement, or normalise the names before writing. |
+
+## Limits
+
+- **Read only.** Databricks reads Arc's tables; write to Arc, not to the table.
+- **Never run orphan-file cleanup or `VACUUM`** on these tables. The table's folder is Arc's data folder.
+- **Cold tier.** On Arc Enterprise with tiered storage, files that move to the cold tier leave the table's folder, and Databricks can't read them. Query hot data.
+- **One schema per measurement.** A column whose type differs between files stops the export of that table; Arc logs the column and both types.
+
+See [Apache Iceberg export](/arc/integrations/apache-iceberg/#through-aws-glue) for everything Arc does in Glue: ownership, deletion of dropped tables, and prefixes for several deployments.

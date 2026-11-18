@@ -10,6 +10,7 @@
     "influxdb-clients",
     "opentelemetry",
     "flight-sql",
+    "databricks",
     "microsoft-fabric",
     "superset",
     "vscode",

@@ -3,6 +3,7 @@
   "pages": [
     "[Overview](/arc/integrations/)",
     "apache-iceberg",
+    "databricks",
     "flight-sql",
     "microsoft-fabric",
     "superset",
