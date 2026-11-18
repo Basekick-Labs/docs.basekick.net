@@ -10,6 +10,7 @@
     "influxdb-clients",
     "opentelemetry",
     "flight-sql",
+    "athena-redshift",
     "databricks",
     "snowflake",
     "microsoft-fabric",

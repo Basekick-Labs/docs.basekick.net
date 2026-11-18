@@ -288,6 +288,8 @@ Arc keeps one Glue table per published table, in the Glue database `<prefix>_<da
 SELECT host, avg(usage) FROM arc_mydb.cpu GROUP BY host;
 ```
 
+The [Athena and Redshift guide](/arc/integrations/athena-redshift/) covers both engines step by step, including Redshift Serverless's automatically mounted catalog.
+
 **Snowflake** (step by step in the [Snowflake guide](/arc/integrations/snowflake/#7-the-glue-route))
 
 ```sql
