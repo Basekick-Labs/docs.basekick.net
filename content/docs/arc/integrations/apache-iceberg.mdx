@@ -216,7 +216,7 @@ spark = (SparkSession.builder
 spark.table("arc.arc_mydb.cpu").show()
 ```
 
-**Trino** (`etc/catalog/arc.properties`)
+**Trino** (`etc/catalog/arc.properties`; the [Trino guide](/arc/integrations/trino/) runs it end to end on-prem with SeaweedFS)
 
 ```properties
 connector.name=iceberg

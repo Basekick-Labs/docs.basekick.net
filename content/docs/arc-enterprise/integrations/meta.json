@@ -13,6 +13,7 @@
     "athena-redshift",
     "databricks",
     "snowflake",
+    "trino",
     "microsoft-fabric",
     "superset",
     "vscode",
