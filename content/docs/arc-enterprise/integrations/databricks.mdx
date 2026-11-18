@@ -5,10 +5,7 @@ description: "Query Arc's data in Databricks without copying it: Arc publishes e
 
 Query Arc's data in Databricks where it already is. Arc publishes each measurement as an Apache Iceberg table over its own Parquet files and registers it in AWS Glue. Unity Catalog reads Glue through a foreign catalog, so Databricks SQL, notebooks and AI/BI dashboards read Arc's files in your bucket. There is no copy, no ingestion job and no schedule.
 
-```text
-Arc  ──Parquet + Iceberg metadata──▶  S3 bucket  ◀──reads files──  Databricks
-  └──registers each table──▶  AWS Glue  ◀──foreign catalog──  Unity Catalog
-```
+![Architecture: Arc writes Parquet and Iceberg metadata into its S3 bucket under the measurement's folder and moves the AWS Glue table's pointer after each publish. In Databricks, the Unity Catalog foreign catalog reads the pointer from Glue and keeps its state in a writable scratch bucket, and the SQL warehouse reads Arc's Parquet files straight from S3, read-only.](/img/arc-databricks/arc-databricks-architecture.webp)
 
 <Callout type="info" title="Availability">
 Arc **27.01.1** or later, with an S3 primary on AWS (`storage.backend = "s3"`). Every step below was run on **Databricks Free Edition** (AWS, us-east-2).

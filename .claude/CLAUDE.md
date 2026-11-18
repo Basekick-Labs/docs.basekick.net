@@ -80,6 +80,7 @@ form.
 
 ### Diagrams
 - Architecture and flow diagrams are rendered images, never ASCII art in a code block (decided 2026-11-18). The same look as the blog's, so a diagram can be shared between a post and its guide.
+- `.claude/ASCII-DIAGRAMS.md` lists the existing ASCII diagrams that should become images.
 - Start from the blog repo's `scripts/og/render-databricks-glue-architecture.py` (Basekick-Labs/basekick.net): copy it, keep the CSS, change the cards and arrows. Save the output under `public/img/<topic>/` and embed it as a Markdown image.
 - **Look** (match `public/images/databricks-glue-architecture.webp`):
   - Light background `#fbfaf7`, teal accent `#0b7285`/`#0e7490`, ink `#10202e`, muted `#5f6c78`.
