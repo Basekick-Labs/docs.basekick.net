@@ -3,6 +3,7 @@
   "pages": [
     "[Overview](/arc/integrations/)",
     "apache-iceberg",
+    "athena-redshift",
     "databricks",
     "snowflake",
     "flight-sql",

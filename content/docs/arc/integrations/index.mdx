@@ -1,12 +1,13 @@
 ---
 title: "Integrations"
-description: "Connect Arc to Arrow Flight SQL clients, Microsoft Fabric and Power BI, Databricks, Snowflake, Grafana, Superset, Telegraf, OPC UA via Telegraf, MQTT brokers, Node-RED, OpenTelemetry, Redpanda Connect, VS Code, and Iceberg readers, plus InfluxDB client compatibility."
+description: "Connect Arc to Arrow Flight SQL clients, Microsoft Fabric and Power BI, Amazon Athena and Redshift, Databricks, Snowflake, Grafana, Superset, Telegraf, OPC UA via Telegraf, MQTT brokers, Node-RED, OpenTelemetry, Redpanda Connect, VS Code, and Iceberg readers, plus InfluxDB client compatibility."
 ---
 
 Arc speaks Line Protocol and standard SQL, so most tooling connects without a translation layer. These pages cover the integrations with a native plugin or dialect.
 
 <Cards>
   <Card title="Arrow Flight SQL" href="/arc/integrations/flight-sql/" description="Columnar queries over gRPC for ADBC clients (Python, Go, Java, R, Rust)." />
+  <Card title="Amazon Athena and Redshift" href="/arc/integrations/athena-redshift/" description="Query Arc's Iceberg tables from Athena and Redshift Serverless through the AWS Glue Data Catalog, with no copy." />
   <Card title="Databricks" href="/arc/integrations/databricks/" description="Query Arc's Iceberg tables in Databricks through AWS Glue and Unity Catalog, with no copy." />
   <Card title="Snowflake" href="/arc/integrations/snowflake/" description="Query Arc's Iceberg tables in Snowflake through Arc's REST catalog or AWS Glue, with no copy." />
   <Card title="Microsoft Fabric and Power BI" href="/arc/integrations/microsoft-fabric/" description="Pull Arc data into a Fabric Lakehouse with a notebook and report on it in Power BI, in the browser." />
