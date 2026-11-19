@@ -22,9 +22,13 @@ Point the sender at the writer endpoint (behind an L7 load balancer if you run m
 
 This runs Prometheus and Grafana Alloy in Docker and sends their metrics to a running Arc Enterprise cluster (27.01.1 or later). You need Docker, `curl`, `jq`, an admin token, a writer endpoint and a reader endpoint. Run every step in the same terminal, so the variables stay set.
 
+No cluster yet? The free 14-day [trial license](/arc-enterprise/licensing/#free-trial) is Tier II, which includes clustering and RBAC; writer failover is a Tier III feature and is not part of the trial.
+
 The writer endpoint must resolve and be reachable both from this shell and from inside a container. `localhost` does not work for the containers, since there it is the container itself.
 
 ### 1. Set the endpoints
+
+Set `ARC_TOKEN` to your cluster's admin token; it is only used by the `curl` commands in this shell.
 
 ```bash
 export ARC_TOKEN="<admin-token>"
@@ -352,7 +356,7 @@ On a cluster with local storage and peer replication, a reader or standby writer
 
 ### During a writer failover
 
-This applies to a cluster with local storage, where a standby writer takes over only when `cluster.failover_enabled` is on; see [Clustering](/arc-enterprise/configuration/clustering/). Until a standby takes over, a request forwarded to the primary is refused with `503` and nothing is written:
+This applies to a cluster with local storage, where a standby writer takes over only when `cluster.failover_enabled` is on and the license includes writer failover (Tier III); see [Clustering](/arc-enterprise/configuration/clustering/). Until a standby takes over, a request forwarded to the primary is refused with `503` and nothing is written:
 
 ```text
 level=WARN msg="Failed to send batch, retrying" ... err="server returned HTTP status 503 Service Unavailable: {\"error\":\"Write rejected (the primary writer could not be reached; nothing was written, retry)\"}"
