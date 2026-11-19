@@ -9,6 +9,7 @@
     "opcua",
     "influxdb-clients",
     "opentelemetry",
+    "prometheus-remote-write",
     "flight-sql",
     "athena-redshift",
     "bigquery",
