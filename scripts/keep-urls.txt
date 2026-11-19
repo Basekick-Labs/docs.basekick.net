@@ -23,6 +23,7 @@
 /arc-enterprise/integrations/node-red/
 /arc-enterprise/integrations/opcua/
 /arc-enterprise/integrations/opentelemetry/
+/arc-enterprise/integrations/prometheus-remote-write/
 /arc-enterprise/integrations/redpanda-connect/
 /arc-enterprise/integrations/superset/
 /arc-enterprise/integrations/telegraf/

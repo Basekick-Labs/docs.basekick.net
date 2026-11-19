@@ -1,6 +1,6 @@
 ---
 title: "Prometheus Remote Write"
-description: "Send metrics from Prometheus or Grafana Alloy to an Arc Enterprise cluster over Remote Write 1.0: the writer endpoint, RBAC-scoped tokens, what happens during writer failover, and the errors to expect."
+description: "Send metrics from Prometheus or Grafana Alloy to an Arc Enterprise cluster over Remote Write 1.0: the writer endpoint, RBAC-scoped tokens, behaviour during writer failover, and the errors to expect."
 ---
 
 Send metrics from Prometheus, Grafana Alloy, or any other Remote Write 1.0 sender straight to Arc, and query them with SQL.
@@ -10,7 +10,7 @@ The Prometheus Remote Write endpoint ships in Arc 27.01.1.
 </Callout>
 
 <Callout type="info" title="In a cluster">
-Point the sender at the writer endpoint (behind an L7 load balancer if you run more than one writer) and query from a reader endpoint. Give each sender its own write token, scoped with [RBAC](/arc-enterprise/security/rbac/) to the databases it writes. See [In a cluster](#in-a-cluster) for forwarding, failover and scoped-token errors. Everything else on this page is the same as on Arc OSS.
+Point the sender at the writer endpoint (behind an L7 load balancer if you run more than one writer) and query from a reader endpoint. Give each sender its own write token, scoped with [RBAC](/arc-enterprise/security/rbac/) to the databases it writes. See [In a cluster](#in-a-cluster) for forwarding and failover. The reference sections, from [Endpoint](#endpoint) down, are the same as on Arc OSS.
 </Callout>
 
 ## When to use it
@@ -20,52 +20,56 @@ Point the sender at the writer endpoint (behind an L7 load balancer if you run m
 
 ## Quick start
 
-This sends Prometheus and Grafana Alloy, both in Docker, to a running Arc Enterprise cluster (27.01.1 or later). You need Docker, `curl`, `jq`, an admin token, a writer endpoint the containers can reach and a reader endpoint. Run every step in the same terminal, so the variables stay set.
+This runs Prometheus and Grafana Alloy in Docker and sends their metrics to a running Arc Enterprise cluster (27.01.1 or later). You need Docker, `curl`, `jq`, an admin token, a writer endpoint and a reader endpoint. Run every step in the same terminal, so the variables stay set.
+
+The writer endpoint must resolve and be reachable both from this shell and from inside a container. `localhost` does not work for the containers, since there it is the container itself.
 
 ### 1. Set the endpoints
 
 ```bash
-export ARC_TOKEN=<admin-token>
-export ARC_WRITER=http://<writer-endpoint>:8000
-export ARC_READER=http://<reader-endpoint>:8000
+export ARC_TOKEN="<admin-token>"
+export ARC_WRITER="http://<writer-endpoint>:8000"
+export ARC_READER="http://<reader-endpoint>:8000"
 ```
 
 ### 2. Create a write token
 
-Create a token that can only write, and save it to a file for Prometheus and Alloy to read. Tokens replicate cluster-wide, so any node can create it. If Arc refuses the request, its error is printed and no token file is written:
+Create a token that can only write, and save it to a file for Prometheus and Alloy to read. Tokens replicate cluster-wide. If Arc refuses the request, its error is printed and no token file is written:
 
 ```bash
 RESP=$(curl -s -X POST $ARC_WRITER/api/v1/auth/tokens \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"prometheus-remote-write","permissions":["write"]}')
-TOKEN=$(echo "$RESP" | jq -er .token) && printf '%s' "$TOKEN" > arc-write-token || echo "Token not created: $RESP"
-
-chmod 644 arc-write-token
+TOKEN=$(echo "$RESP" | jq -er .token) && printf '%s' "$TOKEN" > arc-write-token && chmod 644 arc-write-token || echo "Token not created: $RESP"
 ```
 
 `chmod 644` is needed because the Prometheus container runs as a non-root user (`nobody`), so the file must be readable by others.
 
+`Authentication required` or `Invalid or expired token` means `ARC_TOKEN` is not an admin token. `already exists` means the token was created before, for example by an earlier run; [clean up](#8-clean-up) first or use another name.
+
 ### 3. Scope the token with RBAC (optional)
 
-On its own, this token can write to every database. To limit it to the `prometheus` and `alloy` databases, add it to a team whose role grants `write` on them. Once a token has a team membership, its role permissions apply instead of its own `permissions` list. Skip this step to keep the unscoped token.
+On its own, this token can write to every database. To limit it to the `prometheus` and `alloy` databases, add it to a team whose role grants `write` on them. Once a token that is not an admin token has a team membership, its role permissions apply instead of its own `permissions` list. Creating teams and roles needs a license with the RBAC feature (see [Prerequisites](/arc-enterprise/security/rbac/#prerequisites)). Skip this step to keep the unscoped token.
+
+Each command prints Arc's error and stops the step if a request is refused:
 
 ```bash
 H=(-H "Authorization: Bearer $ARC_TOKEN" -H "Content-Type: application/json")
 
-ORG=$(curl -s "${H[@]}" $ARC_WRITER/api/v1/rbac/organizations \
-  -d '{"name":"monitoring"}' | jq -er .organization.id)
-TEAM=$(curl -s "${H[@]}" $ARC_WRITER/api/v1/rbac/organizations/$ORG/teams \
-  -d '{"name":"prometheus-senders"}' | jq -er .team.id)
-for DB in prometheus alloy; do
-  curl -s "${H[@]}" $ARC_WRITER/api/v1/rbac/teams/$TEAM/roles \
-    -d "{\"database_pattern\":\"$DB\",\"permissions\":[\"write\"]}" | jq -c .role
-done
+rbac() {  # rbac <path> <json> <jq-filter>
+  local resp
+  resp=$(curl -s "${H[@]}" "$ARC_WRITER$1" -d "$2")
+  echo "$resp" | jq -er "$3" || { echo "Refused: $resp" >&2; return 1; }
+}
 
+ORG=$(rbac /api/v1/rbac/organizations '{"name":"monitoring"}' .organization.id) &&
+TEAM=$(rbac /api/v1/rbac/organizations/$ORG/teams '{"name":"prometheus-senders"}' .team.id) &&
+rbac /api/v1/rbac/teams/$TEAM/roles '{"database_pattern":"prometheus","permissions":["write"]}' .role.id &&
+rbac /api/v1/rbac/teams/$TEAM/roles '{"database_pattern":"alloy","permissions":["write"]}' .role.id &&
 TOKEN_ID=$(curl -s "${H[@]}" $ARC_WRITER/api/v1/auth/tokens \
-  | jq -er '.tokens[] | select(.name == "prometheus-remote-write") | .id')
-curl -s "${H[@]}" $ARC_WRITER/api/v1/auth/tokens/$TOKEN_ID/teams \
-  -d "{\"team_id\":$TEAM}" | jq -c .membership
+  | jq -er '.tokens[] | select(.name == "prometheus-remote-write") | .id') &&
+rbac /api/v1/auth/tokens/$TOKEN_ID/teams "{\"team_id\":$TEAM}" .membership.id
 ```
 
 See [RBAC](/arc-enterprise/security/rbac/) for organizations, teams, roles and measurement-level permissions.
@@ -156,7 +160,7 @@ curl -s $ARC_READER/api/v1/query \
 
 The response lists one row per metric, such as `up`, `prometheus_http_requests_total` and `go_goroutines`. Run the same query with `FROM alloy` for the Alloy tables.
 
-Arc buffers new writes for a few seconds and a reader sees them once they are replicated; if a table is missing, run the query again.
+Arc buffers new writes for a few seconds before readers can see them; if a table is missing, run the query again.
 
 ### 7. Query the series
 
@@ -165,6 +169,12 @@ curl -s $ARC_READER/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sql":"SELECT time, code, handler, value FROM prometheus.prometheus_http_requests_total WHERE handler = '\''/metrics'\'' ORDER BY time DESC LIMIT 3"}'
+```
+
+The response, trimmed to the fields that matter here:
+
+```json
+{"success":true,"columns":["time","code","handler","value"],"data":[["2026-11-19T02:02:05.424Z","200","/metrics",2],["2026-11-19T02:01:50.424Z","200","/metrics",1],["2026-11-19T02:01:35.424Z","200","/metrics",0]],"row_count":3}
 ```
 
 The same query in SQL:
@@ -179,38 +189,20 @@ LIMIT 3;
 
 ### 8. Clean up
 
-This removes the containers and files from this guide. The `prometheus` and `alloy` databases, the token and any RBAC objects stay in the cluster.
+This removes the containers, the files, the token and the `monitoring` organization (with its team and roles) from this guide. The `prometheus` and `alloy` databases and their data stay in the cluster.
 
 ```bash
 docker rm -f prometheus alloy
 rm -f prometheus.yml config.alloy arc-write-token
+
+H=(-H "Authorization: Bearer $ARC_TOKEN")
+TOKEN_ID=$(curl -s "${H[@]}" $ARC_WRITER/api/v1/auth/tokens \
+  | jq -er '.tokens[] | select(.name == "prometheus-remote-write") | .id') &&
+  curl -s -X DELETE "${H[@]}" $ARC_WRITER/api/v1/auth/tokens/$TOKEN_ID
+ORG_ID=$(curl -s "${H[@]}" $ARC_WRITER/api/v1/rbac/organizations \
+  | jq -er '.organizations[] | select(.name == "monitoring") | .id') &&
+  curl -s -X DELETE "${H[@]}" $ARC_WRITER/api/v1/rbac/organizations/$ORG_ID
 ```
-
-## In a cluster
-
-### Where to send
-
-Send to the writer endpoint: the load balancer in front of your writers, or a writer node. A reader or standby writer also accepts the request and forwards it to the primary writer, so a sender pointed at any node keeps working. A forwarded request is counted by the writer that answers it (see [Monitoring](#monitoring)). Query from a reader endpoint.
-
-### During a writer failover
-
-While the primary writer is down and before a standby takes over, Arc refuses the batch with `503` and says nothing was written:
-
-```text
-level=WARN msg="Failed to send batch, retrying" ... err="server returned HTTP status 503 Service Unavailable: {\"error\":\"Write rejected (the primary writer could not be reached; nothing was written, retry)\"}"
-```
-
-On a clean shutdown of the primary the message is `Write rejected (not the available primary writer, retry): ingest fenced: ...`. Prometheus retries a `503` batch on its own. In our test (Prometheus 3.7.3, a graceful stop and then a `kill -9` of the primary writer, a standby taking over within 40 seconds) the series had no gaps and `prometheus_remote_storage_samples_failed_total` stayed at 0.
-
-### Scoped tokens
-
-A token whose RBAC role does not grant `write` on the target database gets `403`:
-
-```text
-level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 403 Forbidden: {\"error\":\"access denied: no write permission for prom_denied.go_gc_cycles_automatic_gc_cycles_total\"}"
-```
-
-Prometheus does not resend a `403` batch, so those samples are lost. Grant the role `write` on the database in the `db` parameter, or change `db`.
 
 ## Endpoint
 
@@ -236,7 +228,7 @@ A successful write returns `204 No Content`.
 
 ### Authentication
 
-With authentication enabled (the default), send an Arc token in the `Authorization` header as `Bearer <token>`. The token needs `write` permission; a token without it gets `403` `Permission denied: write required`. A token scoped with [RBAC](/arc-enterprise/security/rbac/) also needs `write` on the target database; see [Scope the token with RBAC](#3-scope-the-token-with-rbac-optional). Basic authentication is not supported: for a `basic_auth` block in Prometheus, Arc returns `401`.
+With authentication enabled (the default), send an Arc token in the `Authorization` header as `Bearer <token>`. The token needs `write` permission; a token without it gets `403` `Permission denied: write required`. A token scoped with [RBAC](/arc-enterprise/security/rbac/) also needs `write` on the target database; see [step 3](#3-scope-the-token-with-rbac-optional) and [403 Forbidden](#403-forbidden). Basic authentication is not supported: for a `basic_auth` block in Prometheus, Arc returns `401`.
 
 ### Choosing the database
 
@@ -246,7 +238,7 @@ The target database comes from the `db` query parameter, or from the `x-arc-data
 http://<writer-endpoint>:8000/api/v1/write/prometheus?db=prometheus
 ```
 
-The database is created on the first write, and every node of the cluster sees it. Its name must start with a letter and contain only letters, digits, `_` or `-`, up to 64 characters; for any other name Arc returns `400`.
+The database is created on the first write. Its name must start with a letter and contain only letters, digits, `_` or `-`, up to 64 characters; for any other name Arc returns `400`.
 
 ## How series are stored
 
@@ -350,6 +342,24 @@ Arc exposes the receiver's own counters at `/metrics` (Prometheus format) and `/
 
 A body over `server.max_payload_size` is refused before the endpoint and is not counted. The line-protocol counters do not include Remote Write. In a cluster, a request a reader or standby writer forwards is counted by the writer that answers it; the forwarding node counts only what it answers itself (a refused token, a writer it could not reach), so on a reader most counted requests are errors.
 
+## In a cluster
+
+### Where to send
+
+Send to the writer endpoint: the load balancer in front of your writers. A reader or standby writer also accepts the request while it is up and forwards it to the primary writer, which counts it (see [Monitoring](#monitoring)). A sender pointed at a single writer node stops when that node does, so use the load balancer. Query from a reader endpoint.
+
+### During a writer failover
+
+A standby writer takes over only when `cluster.failover_enabled` is on; see [Clustering](/arc-enterprise/configuration/clustering/). Until it does, a request forwarded to the primary is refused with `503` and nothing is written:
+
+```text
+level=WARN msg="Failed to send batch, retrying" ... err="server returned HTTP status 503 Service Unavailable: {\"error\":\"Write rejected (the primary writer could not be reached; nothing was written, retry)\"}"
+```
+
+While the primary is shutting down, the message may instead be `Write rejected (not the available primary writer, retry): ingest fenced: ...`. Prometheus resends a `503` batch on its own; tested with Prometheus 3.7.3, through both a clean stop and a `kill -9` of the primary, the series had no gaps.
+
+If the primary stops after a forwarded request reached it but before it answered, Arc returns `504` `Write forwarded to the primary writer got no answer; it may have been written`. Prometheus resends that batch too, so its samples may be stored twice.
+
 ## Troubleshooting
 
 Prometheus logs every refused batch with Arc's response. These are the most likely, as Prometheus reports them.
@@ -368,7 +378,15 @@ The Arc you are writing to is older than 27.01.1 and has no Remote Write endpoin
 level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 401 Unauthorized: {\"error\":\"Invalid or expired token\",\"success\":false}"
 ```
 
-The token is wrong, expired, or missing (`Authentication required`). Check the file that `credentials_file` or `bearer_token_file` points to, and that the sender uses a bearer token, not `basic_auth`. A `403` `Permission denied: write required` means the token is valid but cannot write; `403` `access denied: no write permission for <database>.<metric>` means its RBAC role does not grant `write` on that database.
+The token is wrong, expired, or missing (`Authentication required`). Check the file that `credentials_file` or `bearer_token_file` points to, and that the sender uses a bearer token, not `basic_auth`.
+
+### 403 Forbidden
+
+```text
+level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 403 Forbidden: {\"error\":\"access denied: no write permission for prom_denied.go_gc_cycles_automatic_gc_cycles_total\"}"
+```
+
+The token's RBAC role does not grant `write` on that database (`<database>.<table>`, with the table name as stored). Grant the role `write` on the database in the `db` parameter, or change `db`. `Permission denied: write required` means the token cannot write to any database: it lacks `write`, or it belongs to a team and none of its roles grant `write`. Prometheus does not resend a `403` batch, so those samples are lost.
 
 ### 415 Unsupported Media Type
 
