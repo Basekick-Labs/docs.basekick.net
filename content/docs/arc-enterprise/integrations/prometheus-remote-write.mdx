@@ -262,6 +262,8 @@ For example, the series `prometheus_http_requests_total{code="200", handler="/me
 - **Empty label values** are treated as an absent label, as in Prometheus. The column is `NULL` for that row.
 - **Classic histograms and summaries** arrive as separate series (`_bucket`, `_sum`, `_count`), so each is its own table. `le` and `quantile` are string columns.
 - **Staleness markers**, the NaN Prometheus sends when a series disappears, are not stored. Any other NaN sample is stored as sent.
+- **Resent batches.** Samples are stored as sent. A batch the sender resends after a timeout or a `5xx` can be stored twice. [Compaction](/arc-enterprise/advanced/compaction/) later removes rows that are identical in every column, but only when every label name of the metric has only letters, digits, `_` or `-`. With a label such as `service.name`, or no label besides `__name__`, the duplicates stay.
+- **Files.** Every metric is a table, so each buffer flush writes one Parquet file per metric that received samples. A Prometheus scraping a few hundred metric names writes a few hundred small files per flush until compaction merges them; raising [`ingest.max_buffer_age_ms`](/arc/configuration/overview/#ingestion) (default `5000`) writes fewer for metrics that stay under `ingest.max_buffer_size` (default `50000` rows) per flush.
 
 ## What is not supported
 
@@ -344,7 +346,7 @@ Arc exposes the receiver's own counters at `/metrics` (Prometheus format) and `/
 | `arc_prometheus_remote_write_records_total` | Samples written |
 | `arc_prometheus_remote_write_bytes_total` | Decoded bytes of requests that decoded |
 
-A body over `server.max_payload_size` is refused before the endpoint and is not counted. The line-protocol counters do not include Remote Write. In a cluster, a request a reader or standby writer forwards is counted by the writer that answers it; the forwarding node counts only what it answers itself (a refused token, a writer it could not reach), so on a reader most counted requests are errors.
+A body over `server.max_payload_size` is refused before the endpoint and is not counted. The line-protocol counters do not include Remote Write. In a cluster, a request a reader or standby writer forwards is counted by the writer that answers it; the forwarding node counts only what it answers itself (a refused token, a writer it could not reach), so on a reader most counted requests are errors. A forward the reader answers with `504` (sent, no answer) is an error there, and the writer may have counted the same request.
 
 ## In a cluster
 
