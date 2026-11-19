@@ -22,7 +22,7 @@ Point the sender at the writer endpoint (behind an L7 load balancer if you run m
 
 This runs Prometheus and Grafana Alloy in Docker and sends their metrics to a running Arc Enterprise cluster (27.01.1 or later). You need Docker, `curl`, `jq`, an admin token, a writer endpoint and a reader endpoint. Run every step in the same terminal, so the variables stay set.
 
-No cluster yet? The free 14-day [trial license](/arc-enterprise/licensing/#free-trial) is Tier II, which includes clustering and RBAC; writer failover is a Tier III feature and is not part of the trial.
+No Arc Enterprise license yet? Request a free 14-day trial key at [basekick.net/enterprise/trial](https://basekick.net/enterprise/trial): no card is needed, the key is emailed to you, and Arc activates it online on first start when you set `ARC_LICENSE_KEY`. The trial has Tier II features, which include clustering and RBAC; writer failover is a Tier III feature and is not part of it. See [Licensing](/arc-enterprise/licensing/#free-trial).
 
 The writer endpoint must resolve and be reachable both from this shell and from inside a container. `localhost` does not work for the containers, since there it is the container itself.
 
