@@ -352,7 +352,7 @@ A body over `server.max_payload_size` is refused before the endpoint and is not 
 
 Send to the writer endpoint: the load balancer in front of your writers. Query from a reader endpoint.
 
-On a cluster with local storage and peer replication, a reader or standby writer also accepts the request while it is up and forwards it to the primary writer, which counts it (see [Monitoring](#monitoring)). A sender pointed at a single writer node stops when that node does, so use the load balancer. On a shared-storage cluster every writer accepts writes and the load balancer routes around a failed one; see [Clustering](/arc-enterprise/configuration/clustering/).
+On a cluster with local storage and peer replication, a reader that receives the request forwards it to the primary writer, which counts it (see [Monitoring](#monitoring)). A standby writer forwards it too when it can trust its view of the cluster, and otherwise refuses it with `503`; see [Clustering](/arc-enterprise/configuration/clustering/). A sender pointed at a single writer node stops when that node does, so use the load balancer. On a shared-storage cluster every writer accepts writes and the load balancer routes around a failed one.
 
 ### During a writer failover
 
@@ -362,7 +362,7 @@ This applies to a cluster with local storage, where a standby writer takes over 
 level=WARN msg="Failed to send batch, retrying" ... err="server returned HTTP status 503 Service Unavailable: {\"error\":\"Write rejected (the primary writer could not be reached; nothing was written, retry)\"}"
 ```
 
-While the primary is shutting down, the message may instead be `Write rejected (not the available primary writer, retry): ingest fenced: ...`. Prometheus resends a `503` batch on its own. Rows the old primary had already accepted but not flushed stay on that node until it restarts; see [Clustering](/arc-enterprise/configuration/clustering/).
+While the primary is shutting down, the message may instead be `Write rejected (not the available primary writer, retry): ingest fenced: ...`. Prometheus resends a `503` batch on its own. By default, rows the old primary had already accepted but not flushed stay on that node until it restarts; see [Clustering](/arc-enterprise/configuration/clustering/) for the exceptions.
 
 If a forwarded request got no answer from the primary, because it stopped or the forward timed out, Arc returns `504` `Write forwarded to the primary writer got no answer; it may have been written`. A Remote Write sender retries a `5xx` response (see the [specification](https://prometheus.io/docs/specs/prw/remote_write_spec/)), so the samples of that batch may be stored twice.
 
@@ -392,7 +392,7 @@ The token is wrong, expired, or missing (`Authentication required`). Check the f
 level=ERROR msg="non-recoverable error" ... err="server returned HTTP status 403 Forbidden: {\"error\":\"access denied: no write permission for prom_denied.go_gc_cycles_automatic_gc_cycles_total\"}"
 ```
 
-The token's RBAC grants do not include `write` on that table (`<database>.<table>`, with the table name as stored): no role grants `write` on the database, or a measurement permission leaves the table out. Grant `write` on the database in the `db` parameter, or change `db`. `Permission denied: write required` means the token cannot write to any database: it lacks `write`, or it belongs to a team and none of its roles grant `write`. Prometheus does not resend a `403` batch, so those samples are lost.
+The token's RBAC grants do not include `write` on that table (`<database>.<table>`, with the table name as stored). Grant the token's role `write` on the database in the `db` parameter, or change `db`. `Permission denied: write required` means the token cannot write to any database: it lacks `write`, or it belongs to a team and none of its roles grant `write`. Prometheus does not resend a `403` batch, so those samples are lost.
 
 ### 415 Unsupported Media Type
 
