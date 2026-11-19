@@ -19,6 +19,7 @@
     "node-red",
     "vscode",
     "opentelemetry",
+    "prometheus-remote-write",
     "tle",
     "redpanda-connect"
   ]
