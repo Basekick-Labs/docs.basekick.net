@@ -1,15 +1,15 @@
 ---
 title: "Audit Logging"
-description: "Record authentication, data access, RBAC changes, and infrastructure events in the Arc Enterprise audit log, with retention and a switch for high-volume read events."
+description: "Record permission refusals, data access, token and RBAC changes, and infrastructure events in the Arc Enterprise audit log, with retention and a switch for GET, HEAD and OPTIONS reads."
 ---
 
-Track every significant operation in your Arc deployment. Audit logging captures authentication attempts, data access, configuration changes, and infrastructure events for compliance and security monitoring.
+Track every significant operation in your Arc deployment. Audit logging captures permission refusals, token and RBAC changes, data access, configuration changes, and infrastructure events for compliance and security monitoring.
 
 ## Overview
 
 Arc Enterprise audit logging provides:
 
-- **Comprehensive event capture** — Authentication, data operations, RBAC changes, and infrastructure events
+- **Comprehensive event capture** — Permission refusals, data operations, token and RBAC changes, and infrastructure events
 - **Query and filter API** — Search logs by event type, actor, database, and time range
 - **Configurable retention** — Automatic cleanup of old audit entries
 - **Non-blocking** — Audit events are captured asynchronously with zero impact on request latency
@@ -18,9 +18,9 @@ Arc Enterprise audit logging provides:
 
 | Category | Events | Description |
 |----------|--------|-------------|
-| **Authentication** | `auth.failed` | Failed authentication attempts (401/403) |
-| **Token Management** | `token.created`, `token.deleted`, `token.rotated` | API token lifecycle events |
-| **RBAC** | `rbac.org.created`, `rbac.team.updated`, `rbac.role.deleted`, etc. | Organization, team, role, and membership changes |
+| **Permission refusals** | `auth.failed` | A request answered 401 or 403 that reaches the audit log: mostly a valid token without the permission a route needs, or a refused cluster cache-invalidation signature (actor `anonymous`) |
+| **Token management** | `token.created`, `token.updated`, `token.rotated`, `token.revoked`, `token.deleted`, `token.team_added`, `token.team_removed` | API token lifecycle and team membership changes |
+| **RBAC** | `rbac.org.created`, `rbac.team.updated`, `rbac.role.deleted`, etc. | Organization, team, role, and measurement permission changes |
 | **Data Operations** | `data.query`, `data.write`, `data.import`, `data.delete` | Data read/write operations |
 | **Database Management** | `database.created`, `database.deleted` | Database lifecycle events |
 | **Infrastructure** | `mqtt.*`, `compaction.*`, `tiering.*` | System and background operations |
@@ -39,9 +39,86 @@ Before that release all of them were recorded as `compaction.triggered`, so
 anyone counting that action for alerting was over-counting and the number will
 drop after upgrading.
 
-HEAD requests are audited even with `include_reads = false`, which suppresses
-`GET` only. A monitoring probe that polls with HEAD therefore writes one row
-per poll at the default setting.
+From v27.01.1, `include_reads` covers `HEAD` and `OPTIONS` as well as `GET`:
+at the default `include_reads = false` none of the three is recorded, so the
+`compaction.head` action appears only with `include_reads = true`. Before that
+release, `HEAD` and `OPTIONS` requests were recorded at the default setting,
+and a monitoring probe that polled with `HEAD` wrote one row per poll.
+
+From v27.01.1, an event for a request that ended in an error (for example a
+`404` for an unknown ID, a `405`, or a `500`) records that status in
+`status_code`. Earlier versions recorded `200`. The event type names the
+request, not its outcome: a refused token revoke is still `token.revoked`,
+with `status_code` `409`. Check `status_code` before reading an event as a
+change that took effect.
+
+## Token and RBAC changes
+
+Before v27.01.1, no change made through `/api/v1/auth/tokens` or
+`/api/v1/rbac` was recorded, on any version since audit logging shipped: those
+routes ran ahead of the audit middleware. Since v27.01.1 they are recorded,
+with the token name as the actor. Changes made before the upgrade were not
+recorded and cannot be recovered.
+
+| Request | Event |
+|---|---|
+| `POST /api/v1/auth/tokens` | `token.created` |
+| `PATCH /api/v1/auth/tokens/:id` | `token.updated` |
+| `POST /api/v1/auth/tokens/:id/rotate` | `token.rotated` |
+| `POST /api/v1/auth/tokens/:id/revoke` | `token.revoked` |
+| `DELETE /api/v1/auth/tokens/:id` | `token.deleted` |
+| `POST /api/v1/auth/tokens/:id/teams` | `token.team_added` |
+| `DELETE /api/v1/auth/tokens/:id/teams/:team_id` | `token.team_removed` |
+| `POST /api/v1/rbac/...` | `rbac.<resource>.created` |
+| `PATCH /api/v1/rbac/...` | `rbac.<resource>.updated` |
+| `DELETE /api/v1/rbac/...` | `rbac.<resource>.deleted` |
+
+`<resource>` is named after the last resource segment of the path, which is
+the thing the route changes: `org` for `organizations`, `team` for `teams`,
+`role` for `roles`, and `measurement_permission` for `measurements` and
+`measurement-permissions`. So `POST /api/v1/rbac/organizations/:org_id/teams`
+is `rbac.team.created`, `POST /api/v1/rbac/teams/:team_id/roles` is
+`rbac.role.created`, and `POST /api/v1/rbac/roles/:role_id/measurements` is
+`rbac.measurement_permission.created`.
+
+Token and RBAC reads are recorded only with `include_reads = true`: RBAC reads
+as `rbac.<resource>.read`, token reads as `api.get` (`api.head`, `api.options`).
+
+On a cluster, a write to a token that exists only on one node acts on that
+node only (see
+[Node-local tokens on a cluster](/arc/configuration/authentication/#node-local-tokens-on-a-cluster-enterprise)).
+Its event carries a `detail` with `scope` (`node`), `node_id`, `token_id` and
+`token_name`. A refusal of such a write records its `code` in `detail`, with
+`node_id` and `token_id` when known:
+
+```json
+{
+  "event_type": "token.revoked",
+  "actor": "admin",
+  "method": "POST",
+  "path": "/api/v1/auth/tokens/7/revoke",
+  "status_code": 200,
+  "detail": "{\"node_id\":\"<node_id>\",\"scope\":\"node\",\"token_id\":\"7\",\"token_name\":\"legacy-ci\"}"
+}
+```
+
+## What is recorded and what is not
+
+- **Refusals after authentication:** any request that reaches the audit log
+  and is answered `401` or `403` is recorded as `auth.failed`. Mostly this is
+  a valid token that lacks the permission or license feature a route needs,
+  with the token name as the actor.
+- **Authentication failures are not recorded:** a request to an
+  authenticated route with no token or an invalid one is refused (`401`) by
+  authentication before it reaches the audit log.
+- **Never recorded, in any method:** `/health`, `/healthz`, `/metrics`,
+  `/api/v1/ready`, `/api/v1/logs`, and since v27.01.1 `/api/v1/auth/verify`,
+  even with `include_reads = true`.
+- **Public routes:** a write (`POST`, `PUT`, `PATCH`, `DELETE`) to a public
+  route runs ahead of authentication and is recorded with the actor
+  `anonymous`. In practice this is mainly `POST /api/v1/internal/cache/invalidate`,
+  the signed cache invalidation that cluster peers send after a compaction:
+  one row per call, and a refused signature (`403`) is `auth.failed`.
 
 ## Configuration
 
@@ -51,7 +128,7 @@ per poll at the default setting.
 [audit_log]
 enabled = true
 retention_days = 90          # Auto-cleanup entries older than this
-include_reads = false        # Log GET/query requests (high volume)
+include_reads = false        # Also log GET, HEAD and OPTIONS requests (high volume)
 ```
 
 ### Environment variables
@@ -62,8 +139,8 @@ ARC_AUDIT_LOG_RETENTION_DAYS=90
 ARC_AUDIT_LOG_INCLUDE_READS=false
 ```
 
-<Callout type="warn" title="High-Volume Read Logging">
-Enabling `include_reads` logs every query and GET request. This can generate significant log volume in high-throughput environments. Enable it only when needed for compliance or debugging, and consider a shorter `retention_days` when active.
+<Callout type="warn" title="High-volume read logging">
+Enabling `include_reads` logs every `GET`, `HEAD` and `OPTIONS` request. This can generate significant log volume in high-throughput environments. Enable it only when needed for compliance or debugging, and consider a shorter `retention_days` when active.
 </Callout>
 
 ## API reference
@@ -81,18 +158,18 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `event_type` | string | Filter by event type (e.g., `auth.failed`, `data.write`) |
-| `actor` | string | Filter by actor (token name or ID) |
+| `event_type` | string | Exact event type (e.g., `auth.failed`, `data.write`); a prefix such as `rbac` matches nothing |
+| `actor` | string | Exact actor: a token name, or `anonymous` |
 | `database` | string | Filter by database name |
 | `since` | string | Start time (RFC3339, e.g., `2026-02-01T00:00:00Z`) |
 | `until` | string | End time (RFC3339) |
-| `limit` | int | Maximum results (default: 50) |
+| `limit` | int | Maximum results (default: 100, at most 10000) |
 | `offset` | int | Pagination offset |
 
 **Examples:**
 
 ```bash
-# Failed authentication attempts in the last 24 hours
+# Refusals after authentication (401/403) since a given time
 curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=auth.failed&since=2026-02-12T00:00:00Z"
 
@@ -100,9 +177,13 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
 curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/logs?event_type=data.write&database=production"
 
-# Recent RBAC changes
+# Recent role grants
 curl -H "Authorization: Bearer $ARC_TOKEN" \
-  "http://localhost:8000/api/v1/audit/logs?event_type=rbac&limit=50"
+  "http://localhost:8000/api/v1/audit/logs?event_type=rbac.role.created&limit=50"
+
+# Token revocations
+curl -H "Authorization: Bearer $ARC_TOKEN" \
+  "http://localhost:8000/api/v1/audit/logs?event_type=token.revoked"
 
 # Activity by a specific token
 curl -H "Authorization: Bearer $ARC_TOKEN" \
@@ -117,25 +198,31 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
   "data": [
     {
       "id": 1542,
+      "timestamp": "2026-02-13T10:30:00Z",
       "event_type": "data.write",
       "actor": "telegraf-writer",
+      "method": "POST",
+      "path": "/api/v1/write/msgpack",
       "database": "production",
-      "detail": "measurement=cpu, records=5000",
+      "status_code": 204,
       "ip_address": "10.0.1.50",
-      "timestamp": "2026-02-13T10:30:00Z"
+      "user_agent": "Telegraf/1.30.0",
+      "duration_ms": 3
     },
     {
       "id": 1541,
+      "timestamp": "2026-02-13T10:29:55Z",
       "event_type": "auth.failed",
-      "actor": "unknown",
-      "detail": "invalid token",
+      "actor": "dashboard-reader",
+      "method": "DELETE",
+      "path": "/api/v1/auth/tokens/12",
+      "status_code": 403,
       "ip_address": "192.168.1.100",
-      "timestamp": "2026-02-13T10:29:55Z"
+      "user_agent": "curl/8.5.0",
+      "duration_ms": 0
     }
   ],
-  "total": 1542,
-  "limit": 20,
-  "offset": 0
+  "count": 2
 }
 ```
 
@@ -148,11 +235,12 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
   "http://localhost:8000/api/v1/audit/stats"
 ```
 
-**With time range:**
+Counts cover the last 24 hours unless `since` (RFC3339) sets the start; there
+is no end bound.
 
 ```bash
 curl -H "Authorization: Bearer $ARC_TOKEN" \
-  "http://localhost:8000/api/v1/audit/stats?since=2026-02-01T00:00:00Z&until=2026-02-13T23:59:59Z"
+  "http://localhost:8000/api/v1/audit/stats?since=2026-02-01T00:00:00Z"
 ```
 
 **Response:**
@@ -167,7 +255,8 @@ curl -H "Authorization: Bearer $ARC_TOKEN" \
     "token.created": 5,
     "rbac.role.created": 3,
     "database.created": 2
-  }
+  },
+  "since": "2026-02-01T00:00:00Z"
 }
 ```
 
@@ -187,7 +276,7 @@ For healthcare data, enable `include_reads = true` to log all data access, inclu
 
 ### Security monitoring
 
-Monitor `auth.failed` events to detect brute-force attempts. Use the stats API to set up alerts when failed authentication counts exceed normal thresholds.
+Monitor `auth.failed` events to detect tokens calling routes they are not allowed to use. Requests with a missing or invalid token are refused before the audit log and are not recorded. Monitor the `token.` and `rbac.` event types listed in [Token and RBAC changes](#token-and-rbac-changes). `event_type` is an exact match, so query each type, or use `/api/v1/audit/stats`.
 
 ## Best practices
 
@@ -195,7 +284,7 @@ Monitor `auth.failed` events to detect brute-force attempts. Use the stats API t
 
 2. **Set appropriate retention** — 90 days is a good default. Adjust based on your compliance requirements (HIPAA may require years).
 
-3. **Monitor failed auth attempts** — Set up alerts on `auth.failed` events to detect unauthorized access attempts.
+3. **Monitor permission refusals and admin changes** — Set up alerts on `auth.failed` events. Monitor the `token.` and `rbac.` event types listed in [Token and RBAC changes](#token-and-rbac-changes). `event_type` is an exact match, so query each type, or use `/api/v1/audit/stats`.
 
 4. **Pair with RBAC** — Use audit logs to verify that RBAC permissions are configured correctly by reviewing who accessed what data.
 
