@@ -1,6 +1,6 @@
 ---
 title: "Arrow Flight SQL"
-description: "Query Arc over Arrow Flight SQL with ADBC clients: enable the flight_sql listener, connect with a token over plain gRPC or TLS, and get Arrow record batches back."
+description: "Query Arc over Arrow Flight SQL with ADBC and JDBC clients: enable the flight_sql listener, connect with a token over plain gRPC or TLS, and get Arrow record batches back."
 ---
 
 Query Arc over **Arrow Flight SQL**: a gRPC protocol that returns results as Arrow record batches, so clients receive columnar data with no JSON or row conversion in between. Arc serves it on its own port, off by default, through the same read-only query path as the HTTP API.
@@ -89,22 +89,42 @@ ADBC drivers also exist for Go, Java, R and Rust, and any Flight SQL client that
 | | |
 |---|---|
 | Statement queries | `SELECT`, `SHOW DATABASES`, `SHOW TABLES` |
-| Metadata | catalogs, schemas, tables (optionally with their Arrow schema), table types |
-| Not yet | prepared statements, SqlInfo, transactions, writes |
+| Prepared statements | without parameters (what the JDBC driver and Tableau use) |
+| Metadata | catalogs, schemas, tables (optionally with their Arrow schema), table types; SqlInfo |
+| Not yet | parameters in prepared statements, transactions, writes |
 
 The listener is read-only: a write or DDL statement is refused, as it is on the HTTP query API. Use the HTTP write APIs or an ingestion client for writes.
 
-Prepared statements and SqlInfo are not implemented yet. The **Arrow Flight SQL JDBC driver** needs them, so JDBC-based tools (Tableau, DBeaver, DataGrip) do not connect yet; support is tracked in [arc#1645](https://github.com/Basekick-Labs/arc/issues/1645). The ADBC drivers are the tested clients.
+A prepared statement's result schema is read by binding the statement, without running it. Each ADBC execute prepares first, so it pays one bind; on a measurement with many files the bind adds some time to each query.
+
+## Connect with JDBC (DBeaver, DataGrip, Tableau)
+
+Use the Arrow Flight SQL JDBC driver (`flight-sql-jdbc-driver`, tested with 19.0.0):
+
+- **URL:** `jdbc:arrow-flight-sql://<host>:<flight_sql.port>?useEncryption=false` (with TLS, `useEncryption=true`).
+- **User:** any value. **Password:** the Arc token.
+- **TLS with a private CA:** add `trustStore=<path to a JKS truststore>&trustStorePassword=<password>&useSystemTrustStore=false` to the URL.
 
 ## How Arc appears to clients
 
-| Flight SQL | Arc |
-|---|---|
-| Catalog | Database |
-| Schema | the empty schema, one per catalog |
-| Table | Measurement |
+| Flight SQL | Arc (default) | Arc with `x-arc-metadata: schemas` |
+|---|---|---|
+| Catalog | Database | none |
+| Schema | the empty schema, one per catalog | Database |
+| Table | Measurement | Measurement |
 
 A table listing that includes schemas leaves out measurements the token cannot read. Metadata calls run ordinary queries (one per database, plus one per measurement when schemas are requested).
+
+Tools that cannot select an empty schema, such as Tableau, need the second shape: send the call header `x-arc-metadata: schemas`. With JDBC, add `x-arc-metadata=schemas` to the URL; with ADBC, set the connection option `adbc.flight.sql.rpc.call_header.x-arc-metadata`. In that shape the catalog filter is ignored and the primary and foreign key listings answer empty. Without the header nothing changes. In SQL, tables are always `"database"."measurement"`.
+
+## Tableau
+
+In Tableau Desktop, choose **Other Databases (JDBC)** after copying the driver jar to Tableau's `Drivers` folder:
+
+- **URL:** `jdbc:arrow-flight-sql://<host>:<flight_sql.port>?useEncryption=false&x-arc-metadata=schemas`
+- **Dialect:** PostgreSQL. **Username:** any value. **Password:** the Arc token.
+
+Pick the database under **Schema** and drag measurements in. Tableau shows Arc's `time` column (a timestamp with time zone, UTC) as text; to use it as a date, add it through **New Custom SQL** with a cast, `SELECT "time"::TIMESTAMP AS "time", … FROM "mydb"."orders"`. In an Extract, Tableau reads those timestamps in the computer's time zone, so use a Live connection or run Tableau in UTC.
 
 ## Shutdown
 
