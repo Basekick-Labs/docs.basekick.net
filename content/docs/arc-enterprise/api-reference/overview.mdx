@@ -388,7 +388,8 @@ these two fields.
 The `POST /api/v1/query/msgpack` endpoint uses a different completion
 contract: the `truncated` and `truncation_reason` fields are JSON-only. It
 materializes the full result before committing response headers, so a DuckDB
-failure becomes a proper 5xx rather than a marked partial body. A failure
+failure becomes an error status (5xx, or 400 for a [decimal value beyond
+int64](/arc-enterprise/api-reference/overview/#decimal-results)) rather than a marked partial body. A failure
 while writing the MessagePack body can still produce a partial response
 without an in-band truncation marker.
 
@@ -397,6 +398,22 @@ The row cap is **not** JSON-only: the MessagePack envelope carries
 this endpoint has no failure marker but does have a cap marker, and a client
 reading it still has to check for one.
 
+
+
+### Decimal results
+
+Arc sends decimal result columns as numbers: a decimal with a scale (`DECIMAL(18,8)`, or `sum()` of one) as `float64`, and a scale-0 decimal as `int64`. That includes `sum()` of any integer column, which DuckDB computes as a 128-bit integer (`HUGEINT`, a `DECIMAL(38,0)`), and columns stored with `ingest.decimal_columns`. Stored values stay exact; the conversion only applies to the response:
+
+- A `float64` keeps about 15–17 significant digits. `DECIMAL(18,8)` value `1234567890.12345678` comes back as `1234567890.1234567`.
+- A scale-0 value beyond the `int64` range (−9,223,372,036,854,775,808 to 9,223,372,036,854,775,807) cannot be sent as a number. Since Arc 27.01.1, a query whose first chunk of results (at most 2,048 rows) holds such a value is answered with **HTTP 400** (Flight SQL: `INVALID_ARGUMENT`), and the message names the column and the row:
+
+  ```
+  decimal value beyond the int64 range: column "s" (DECIMAL(38,0)/HUGEINT) at row 0; cast it in SQL: ::DOUBLE (approximate) or ::VARCHAR (exact digits)
+  ```
+
+  If the value first appears after the first chunk, the response has already started: JSON ends with `truncated: true` and this message as `truncation_reason` (the column name is masked as `"..."` there, like every quoted name in a truncation reason), Arrow with the `Arc-Stream-Truncated` trailer, and Flight SQL with `INVALID_ARGUMENT`. MessagePack reads the whole result first, so it answers 400 for any row within the governance row cap. Before 27.01.1, the same query returned `200` with `truncated` (JSON), a cut Arrow stream or `500` (MessagePack).
+
+To get such a value, cast it in the query: `sum(x)::DOUBLE` returns an approximate number, `sum(x)::VARCHAR` the exact digits as text. `::VARCHAR` returns the exact digits of any decimal. Nothing has to be enabled or redefined: no setting, no change to stored data or to `ingest.decimal_columns`.
 
 ### POST /api/v1/query/arrow
 
