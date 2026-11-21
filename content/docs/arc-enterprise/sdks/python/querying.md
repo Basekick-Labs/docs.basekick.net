@@ -105,6 +105,14 @@ body so it cannot be read as complete. They cannot see a governance row cap,
 which arrives only in the `Arc-Rows-Capped` trailer; check `rows_capped` in
 the raw JSON response if a cap may apply.
 
+**A decimal value beyond the `int64` range** (for example `sum()` of a large
+integer column): with Arc 27.01.1 or later, when the value is in the first
+chunk of the result, the server answers HTTP 400 and every query method
+raises `ArcQueryError` whose message carries the server's reason, including
+the SQL cast that returns the value (`::DOUBLE` or `::VARCHAR`). A value
+later in the result still arrives as a truncation, as above. See
+[Decimal results](/arc-enterprise/api-reference/overview#decimal-results).
+
 The two are not interchangeable: `truncated` means the result failed part way
 and must be discarded, while `rows_capped` means it is valid but stopped at a
 policy limit. Treating a capped result as a failure is as wrong as treating it

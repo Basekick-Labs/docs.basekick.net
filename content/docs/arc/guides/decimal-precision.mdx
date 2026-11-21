@@ -136,50 +136,47 @@ Line Protocol transmits all float values as text, so precision is preserved thro
 
 ## Querying
 
-Arc reads the Parquet DECIMAL type natively — no query changes needed:
+Arc reads the Parquet DECIMAL type natively — no query changes needed, and all SQL operations work with decimal columns (aggregation, filtering, ordering, window functions). The computation in DuckDB is exact.
+
+**The response converts decimals to numbers.** The query APIs send a decimal with a scale as `float64` and a scale-0 decimal as `int64` (the same on JSON, MessagePack and Arrow), so a value with more than about 15–17 significant digits is rounded in the response:
 
 ```sql
-SELECT price, amount, typeof(price) as price_type
+SELECT price, typeof(price) AS price_type
 FROM trades
-LIMIT 5
+LIMIT 2
 ```
-
-Response:
 
 ```json
 {
-  "columns": ["price", "amount", "price_type"],
+  "columns": ["price", "price_type"],
   "data": [
-    ["123.45678901", "999.12345678", "DECIMAL(18,8)"],
-    ["99999.12345678", "0.00000001", "DECIMAL(18,8)"]
+    [1234567890.1234567, "DECIMAL(18,8)"],
+    [0.1, "DECIMAL(18,8)"]
   ]
 }
 ```
 
-All SQL operations work with decimal columns — aggregation, filtering, ordering, window functions:
+The stored value is `1234567890.12345678`; the response carries the nearest `float64`. **To get the exact digits, cast to text in the query:**
 
 ```sql
--- Aggregation preserves decimal precision
-SELECT symbol,
-       AVG(price) as avg_price,
-       SUM(amount) as total_amount,
-       COUNT(*) as trade_count
+SELECT price::VARCHAR AS price FROM trades LIMIT 2
+-- ["1234567890.12345678"], ["0.10000000"]
+
+SELECT symbol, sum(amount)::VARCHAR AS total_amount
 FROM trades
 GROUP BY symbol
-
--- Filtering works as expected
-SELECT * FROM trades WHERE price > 50000.00
-
--- Arithmetic on decimal columns
-SELECT price * amount as notional_value FROM trades
 ```
+
+<Callout type="info" title="Scale-0 decimals beyond int64">
+A `DECIMAL(p,0)` value outside the int64 range (for example a `DECIMAL(38,0)` column, or `sum()` of a large integer column) cannot be sent as a number. Since Arc 27.01.1 the query is answered with HTTP 400 and a message naming the column and the cast to use; see [Decimal results](/arc/api-reference/overview#decimal-results). Cast it as above to get the value.
+</Callout>
 
 ## How it works
 
 1. **Ingestion**: Float64, int64, or string values arriving for declared decimal columns are converted to Arrow Decimal128 at buffer time
 2. **Storage**: Stored as Parquet DECIMAL logical type (16 bytes per value, exact precision)
 3. **Metadata**: Decimal column specs are stored as Parquet metadata (`arc:decimals`) for self-describing files
-4. **Querying**: Arc reads Parquet DECIMAL natively
+4. **Querying**: Arc reads Parquet DECIMAL natively; responses send decimals as `float64` or `int64`, so cast to `VARCHAR` in SQL for exact digits
 5. **Compaction**: DECIMAL types are preserved automatically during compaction
 
 ## Performance
