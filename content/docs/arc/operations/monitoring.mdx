@@ -13,26 +13,33 @@ Each metric documented here was checked against a running Arc by scraping `/metr
 
 ## Endpoints
 
-| Endpoint | Format | Auth (Arc 27.01.1+, `auth.enabled = true`) |
-|---|---|---|
-| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | **Any valid token** |
-| `GET /api/v1/metrics` | JSON snapshot of every counter | **Any valid token** |
-| `GET /api/v1/metrics/memory` | Go runtime and GC detail | **Any valid token** |
-| `GET /api/v1/metrics/query-pool` | Query counters | **Any valid token** |
-| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | **Any valid token** |
-| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | **Any valid token** |
-| `GET /health` | Liveness | **None** |
-| `GET /ready` | Readiness | **None** |
-| `GET /api/v1/logs` | Buffered application logs | **Admin** |
+| Endpoint | Format | Auth before 27.01.1 | Auth from 27.01.1 (`auth.enabled = true`) |
+|---|---|---|---|
+| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | None | **Any valid token** |
+| `GET /api/v1/metrics` | JSON snapshot of every counter | None | **Any valid token** |
+| `GET /api/v1/metrics/memory` | Go runtime and GC detail | None | **Any valid token** |
+| `GET /api/v1/metrics/query-pool` | Query counters | None | **Any valid token** |
+| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | None | **Any valid token** |
+| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | None | **Any valid token** |
+| `GET /health` | Liveness | None | None |
+| `GET /ready` | Readiness | None | None |
+| `GET /ready/write` | Write-pool readiness | None | None |
+| `GET /api/v1/logs` | Buffered application logs | Admin | Admin |
 
-<Callout type="warn" title="The metrics endpoints need a token from Arc 27.01.1">
-From Arc 27.01.1, `/metrics` and every `/api/v1/metrics*` path need a valid token while `auth.enabled = true`, the default. Any token works, read-only included, so give each scraper its own [read-only token](/arc/configuration/authentication/). Without one they answer `401`. `/health` and `/ready` stay public for load balancers and probes.
+<Callout type="info" title="Who can read the metrics">
+The metrics endpoints carry aggregate counters, Go runtime stats and host architecture, and, only if you enable `iceberg.export_lag_table_series`, database and measurement names. No queries, file paths or credentials.
 
-**Released versions before 27.01.1** serve the metrics endpoints without a token, even with auth on. If Arc is reachable beyond your network, restrict these paths at your ingress or proxy.
+From Arc 27.01.1 they need a valid token while `auth.enabled = true`, the default. Any token works, read-only included, so give each scraper its own [read-only token](/arc/configuration/authentication/). Without one they answer `401`. A token scoped to one database (Enterprise RBAC) can read all of them. `/health`, `/ready` and `/ready/write` stay public for load balancers and probes.
 
-To keep them public on 27.01.1 and later, set `auth.metrics_public = true` (`ARC_AUTH_METRICS_PUBLIC=true`); Arc logs a warning at start. With `auth.enabled = false` they are public either way. `/api/v1/logs` always requires admin auth, because buffered log lines can contain operational detail.
+To keep the metrics endpoints public on 27.01.1 and later, set `auth.metrics_public = true` (`ARC_AUTH_METRICS_PUBLIC=true`); with auth on, Arc logs a warning at start. With `auth.enabled = false` they are public either way.
 
-They carry aggregate counters, Go runtime stats and host architecture, and, only if you enable `iceberg.export_lag_table_series`, database and measurement names. A token scoped to one database can read all of it.
+Versions before 27.01.1 serve the metrics endpoints without a token, even with auth on. If Arc is reachable beyond your network, restrict these paths at your ingress or proxy.
+
+`/api/v1/logs` requires admin auth while auth is on, because buffered log lines can contain operational detail.
+</Callout>
+
+<Callout type="warn" title="Upgrading to 27.01.1">
+A scraper without a token gets `401` on every scrape after the upgrade, so in Prometheus `up` goes to `0` for Arc and an `up == 0` alert fires. Add the token before upgrading, or set `auth.metrics_public = true` until you do.
 </Callout>
 
 ### Scrape configuration
@@ -49,36 +56,63 @@ scrape_configs:
       - targets: ['arc:8000']
 ```
 
-Use `authorization`, not `basic_auth`: Arc does not accept basic auth. Other clients can send `Authorization: Bearer <token>` or `x-api-key: <token>`:
+Use `authorization`, not `basic_auth`: Arc does not accept basic auth. Other clients send the token with any of the [authentication methods](/arc/configuration/authentication/#authentication-methods), for example:
 
 ```bash
 curl -s -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/metrics | head
 ```
 
-Neither Helm chart ships a `ServiceMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself. The `prometheus.io/*` pod annotations cannot carry a token. Either keep annotation-based discovery and add the `authorization` block to the scrape job that uses it, or use a Prometheus Operator `ServiceMonitor` with a token from a Secret:
+Neither Helm chart ships a `ServiceMonitor`, a `PodMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself.
+
+**Prometheus Operator.** Put a read-only Arc token in a Secret in the namespace Arc runs in (here `arc`), then select Arc's pods with a `PodMonitor`. A `PodMonitor` scrapes each pod once; a `ServiceMonitor` on the Enterprise chart would match both the plain and the headless Service of each role and scrape writer and reader pods twice.
+
+```bash
+kubectl -n arc create secret generic arc-metrics-token --from-literal=token="$ARC_METRICS_TOKEN"
+```
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
   name: arc
+  namespace: arc
+  # labels:
+  #   release: <your kube-prometheus-stack release>   # if your Prometheus selects monitors by label
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: arc
-  endpoints:
+      app.kubernetes.io/name: arc   # arc-enterprise for the Enterprise chart
+  podMetricsEndpoints:
     - port: http
       path: /metrics
+      interval: 30s
       authorization:
         type: Bearer
         credentials:
-          name: arc-metrics-token   # a Secret holding a read-only Arc token
+          name: arc-metrics-token
           key: token
 ```
 
-<Callout type="info" title="Upgrading to 27.01.1">
-A scraper without a token gets `401` after the upgrade: `up` goes to `0` for Arc, and Arc's auth-failure counters climb with every scrape, so an alert on them fires. Add the token before upgrading, or set `auth.metrics_public = true` until you do.
-</Callout>
+**Annotation-based discovery.** `prometheus.io/*` annotations cannot carry a token, and a token set on a shared `kubernetes-pods` job would be sent to every annotated pod. Give Arc its own job instead:
+
+```yaml
+scrape_configs:
+  - job_name: arc
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/arc-token
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [arc]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        regex: arc|arc-enterprise
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        regex: http
+        action: keep
+```
 
 ## The signals that matter
 
@@ -503,7 +537,7 @@ One metric is wired everywhere but has a deliberate exclusion:
 For air-gapped or edge deployments, Arc keeps its own in-memory history — no external system required.
 
 ```bash
-curl 'http://arc:8000/api/v1/metrics/timeseries/application?duration_minutes=30'
+curl -H "Authorization: Bearer $ARC_TOKEN" 'http://arc:8000/api/v1/metrics/timeseries/application?duration_minutes=30'
 ```
 
 Valid types are **`system`**, **`application`**, and **`api`** only; anything else returns 400 with the valid list. `duration_minutes` accepts 1–1440 and defaults to 30.

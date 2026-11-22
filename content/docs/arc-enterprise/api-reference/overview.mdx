@@ -45,9 +45,10 @@ curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 us
 
 - `GET /health` - Health check
 - `GET /ready` - Readiness probe
+- `GET /ready/write` - Write-pool readiness probe
 - `GET /api/v1/auth/verify` - Token verification
 
-From Arc 27.01.1, `GET /metrics` and the `GET /api/v1/metrics*` endpoints need a valid token (any token, read-only included) while auth is on, unless `auth.metrics_public = true`. Released versions before 27.01.1 serve them without a token.
+**Not public from Arc 27.01.1:** `GET /metrics` and the `GET /api/v1/metrics*` endpoints need a valid token (any token, read-only included) while auth is on, unless `auth.metrics_public = true`. Versions before 27.01.1 serve them without a token.
 
 ## Quick examples
 

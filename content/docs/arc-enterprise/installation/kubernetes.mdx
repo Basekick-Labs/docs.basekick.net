@@ -711,35 +711,38 @@ the [Monitoring & Ops Playbook](/arc-enterprise/operations/monitoring/).
 
 Arc exposes Prometheus metrics at `/metrics`. From Arc 27.01.1 the endpoint
 needs a valid token while auth is on (any token, read-only included), unless
-`auth.metrics_public = true`. Released versions before 27.01.1 serve it without
-a token; restrict it at your ingress if Arc is reachable beyond the cluster.
+`auth.metrics_public = true`. Versions before 27.01.1 serve it without a token;
+restrict it at your ingress if Arc is reachable beyond the cluster. See
+[Monitoring](/arc/operations/monitoring/#scrape-configuration).
 
-The chart does not ship a `ServiceMonitor`, so create one yourself:
+The chart does not ship a `ServiceMonitor` or `PodMonitor`. Put a read-only Arc
+token in a Secret in the release namespace (here `arc`):
+
+```bash
+kubectl -n arc create secret generic arc-metrics-token --from-literal=token="$ARC_METRICS_TOKEN"
+```
+
+Then create a `PodMonitor`, which scrapes each Arc pod once:
 
 ```yaml
-# ServiceMonitor for Prometheus Operator
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
   name: arc
+  namespace: arc
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: arc-enterprise
-  endpoints:
+  podMetricsEndpoints:
     - port: http
       path: /metrics
       interval: 30s
-      # Arc 27.01.1+: /metrics needs a token while auth is on.
-      authorization:
+      authorization:         # Arc 27.01.1+: /metrics needs a token while auth is on
         type: Bearer
         credentials:
-          name: arc-metrics-token   # Secret with a read-only Arc token
+          name: arc-metrics-token
           key: token
-```
-
-```bash
-kubectl create secret generic arc-metrics-token --from-literal=token=<read-only Arc token>
 ```
 
 ### Readiness/liveness probes

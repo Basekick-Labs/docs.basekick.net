@@ -660,13 +660,13 @@ Token-based API authentication:
 ```toml
 [auth]
 enabled = true              # Enable/disable auth
-db_path = "./data/arc_auth.db"  # Token database
-cache_ttl = 30              # Token cache TTL (seconds)
+db_path = "./data/arc.db"   # Token database
+cache_ttl = 300             # Token cache TTL (seconds)
 max_cache_size = 1000       # Max cached tokens
 metrics_public = false      # Serve /metrics and /api/v1/metrics without a token (v27.01.1+)
 ```
 
-From Arc 27.01.1 the metrics endpoints need a valid token while auth is on; `metrics_public = true` keeps them open. See [Metrics endpoints](/arc/configuration/authentication/#metrics-endpoints-arc-27011).
+From Arc 27.01.1 the metrics endpoints need a valid token while auth is on; `metrics_public = true` keeps them open. See [Metrics endpoints](/arc/configuration/authentication/#metrics-endpoints).
 
 ### Delete operations
 
