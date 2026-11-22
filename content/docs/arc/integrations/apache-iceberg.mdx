@@ -20,12 +20,12 @@ Arc's Iceberg export is a background **reconciler** that registers Arc's **exist
 - **No lock-in, taken further.** Arc already stores open Parquet files you own. Iceberg export makes those same files a standard lakehouse table that the entire Iceberg ecosystem can read — no proprietary API in the path.
 - **Zero-copy.** Files are registered in place using Iceberg's `add_files` semantics. **No data is copied or rewritten**, so there is effectively no storage overhead beyond small Iceberg metadata. (This is a real differentiator: many streaming/TSDB systems re-export data into *new* Parquet; Arc doesn't need to, because it already writes Parquet.)
 - **Query with your existing tools.** Spark, Trino, DuckDB, Snowflake, Dremio, and PyIceberg all read Iceberg. Point them at Arc's data instead of building a custom connector.
-- **Ingest is untouched.** The export runs on a background timer and never touches Arc's high-throughput write path.
+- **Ingest is untouched.** The export runs in the background and never touches Arc's high-throughput write path.
 
 ## How it works
 
 1. Arc ingests as usual, writing Parquet under `{database}/{measurement}/{Y}/{M}/{D}/{H}/`.
-2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set.
+2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set. Since 27.01.1, on a standalone node, an ingest flush also asks for an export of its table (the *ingest trigger*, `iceberg.ingest_export_interval`, default 60 s), so new files reach the table within about a minute instead of at the next timed pass.
 3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**. Since 27.01.1 the row-level delete API publishes a rewritten file under a fresh path rather than replacing the original in place, so a partial delete reaches the table as a normal add-and-remove.
 4. Old snapshots are expired on a retention policy so metadata stays bounded. A pass that removes any file expires **all** older snapshots, because they reference files Arc has deleted — see [Time travel](#time-travel) below.
 
@@ -52,7 +52,7 @@ Or via environment variable:
 ARC_ICEBERG_ENABLED=true
 ```
 
-Restart Arc. Within one reconcile interval, ingested measurements appear as Iceberg tables under your storage root (`{local_path}/arc_<database>.db/<measurement>/`).
+Restart Arc. Ingested measurements appear as Iceberg tables under your storage root (`{local_path}/arc_<database>.db/<measurement>/`): within about a minute on a standalone node since 27.01.1 (the ingest trigger), otherwise within one reconcile interval.
 
 ### On S3
 
@@ -335,6 +335,8 @@ Any engine with an Iceberg connector can read the tables by path too. See **Limi
 |---|---|---|---|
 | `iceberg.enabled` | `ARC_ICEBERG_ENABLED` | `false` | Enable the export reconciler. |
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
+| `iceberg.ingest_export_interval` | `ARC_ICEBERG_INGEST_EXPORT_INTERVAL` | `60` | Since 27.01.1: the ingest trigger. The least time, in seconds, between two exports of one table that ingest flushes cause, so a flushed file is exported after at most this long plus the export itself (with many tables written at once, they can queue). `0` turns the trigger off and leaves the timed passes only; otherwise at least `5`. Standalone nodes only: a cluster node exports on the timed pass. |
+| `iceberg.export_lag_table_series` | `ARC_ICEBERG_EXPORT_LAG_TABLE_SERIES` | `0` | Since 27.01.1: how many tables get their own export lag series on `/metrics` (`0`–`1000`; `0` = none). See [Monitoring the export](#monitoring-the-export). |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. Since 27.01.1 the warehouse's directories inside the storage root are not databases; see [The warehouse is not a database](#the-warehouse-is-not-a-database). |
@@ -514,6 +516,55 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
 - **Brief read error, never wrong rows:** in the one reconcile pass between a migration deleting the hot copy and the table moving to the cold URI, a reader that already resolved the old path can get a not-found error. Compaction and retention have the same window.
 - **Licensing:** tiering requires an Enterprise license. Without it Arc disables tiering, and with a cold tier still configured the export does not start; tables keep their last snapshot until the license is restored. The same applies if the configured cold tier is unavailable at startup.
 
+## Monitoring the export
+
+Since Arc 27.01.1, `/metrics` reports how far the export is behind ingest. `/metrics` needs a valid token while auth is on, unless `auth.metrics_public = true`; see [Monitoring](/arc/operations/monitoring/#scrape-configuration).
+
+### Node-wide
+
+Always on:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `arc_iceberg_export_lag_seconds` | histogram | Per ingest file published in a table: the time from when the file was written until a table version containing it was published. Files written before the process started are left out. |
+| `arc_iceberg_export_pending_seconds` | gauge | How long the oldest flushed file that asked for an export has waited for one that covers it; `0` when none is waiting. Set by the ingest trigger only, so it reads `0` on every cluster node and with `ingest_export_interval = 0`; use the histogram, or the per-table series below, there. |
+| `arc_iceberg_export_backlog_files_total` | counter | Ingest files published that were written before the process started: existing data exported after a start, not lag. |
+
+### Per table
+
+Opt-in: set `iceberg.export_lag_table_series` to a number N. Two terms first:
+
+- **The ingest trigger** is the export an ingest flush asks for, on a standalone node with `ingest_export_interval` above `0`. A cluster node has none; it exports on its timed pass.
+- **The floor** is twice `ingest_export_interval`, or twice `reconcile_interval` where the ingest trigger is off. A table counts as waiting only once its wait passes the floor, so a healthy table between two exports is not listed.
+
+The per-table series are labelled `database` and `measurement`, at most N of each, so up to 2N labelled series:
+
+| Metric | Type | Which tables | Meaning |
+|---|---|---|---|
+| `arc_iceberg_export_table_pending_seconds` | gauge | the N waiting longest, past the floor | How long the table's oldest file waiting for an export has waited. |
+| `arc_iceberg_export_table_last_lag_seconds` | gauge | the N with the longest recent lag | The longest time from when an ingest file was written until its table version was published, among the files the table's last publish covered. |
+
+And one unlabelled count, `arc_iceberg_export_tables_pending`: how many tables have waited past the floor, so a table dropping out of the top N can be told from one catching up.
+
+```text
+# The table that has waited longest for an export, in seconds
+topk(1, arc_iceberg_export_table_pending_seconds)
+
+# Tables waiting past the floor, on whichever node exports
+max(arc_iceberg_export_tables_pending) > 0
+```
+
+How the per-table values are counted:
+
+- **Where a wait starts.** The earlier of two times: when a flushed file asked for an export (the ingest trigger), and when a file the table has committed but not yet published was written (every mode; files written after the process started).
+- **What is not shown.** On a cluster, or with `ingest_export_interval = 0`, a table whose commits keep failing. After a restart, a table whose publishes keep failing, until it commits again.
+- **Last lag.** Only files written after the process started count, and only publishes within the last hour, or within three reconcile intervals if that is longer. A table missing from this series is not known to be healthy, only not recently slow.
+- **Cluster.** A node that is not the exporter reports no labelled series, checked at each scrape, so during a failover two nodes do not report the same table. Its `arc_iceberg_export_tables_pending` reads `0`, which says nothing; take `max()` across nodes.
+
+<Callout type="warn" title="The per-table series name your tables">
+These series carry database and measurement names, which no other Arc metric does. Any valid token can read `/metrics`, including a token scoped to one database (Enterprise RBAC), which then sees the names of every exported table. With `auth.metrics_public = true`, anyone who can reach Arc sees them. Neither `/metrics` with `Accept: application/json` nor `/api/v1/metrics` carries them.
+</Callout>
+
 ## Limitations (v1)
 
 - **Local or S3 storage.** Iceberg export runs with `storage.backend = "local"` or `"s3"`. Arc **refuses to start** with Iceberg enabled on:
@@ -521,7 +572,7 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
   - an S3 backend pointed at Google Cloud Storage's S3-compatible endpoint (`storage.googleapis.com`);
   - an S3 backend whose `iceberg.warehouse` is outside the storage root.
 - **Cold tier on S3 only.** Iceberg export runs alongside cold-tier tiering when the cold tier is S3 (see [Cold-tier tiering](#cold-tier-tiering)). Arc refuses to start with Iceberg enabled and an Azure or GCS cold tier, or an S3 cold tier on Google Cloud Storage's interop endpoint, because files migrated there would leave the table.
-- **Eventual consistency.** The Iceberg view reflects the last reconcile pass, so it lags live ingest by up to `reconcile_interval`. This is expected for a lakehouse export.
+- **Eventual consistency.** The Iceberg view reflects the last export. It lags live ingest by up to `reconcile_interval`, or, on a standalone node with the ingest trigger on (since 27.01.1), by about `ingest_export_interval`. See [Monitoring the export](#monitoring-the-export). This is expected for a lakehouse export.
 - **On-disk portability.** Iceberg metadata references files by absolute path. Tables read fine on the same host; moving a local table to a different path/host requires re-pointing (object-store warehouses avoid this).
 - **Catalog discovery.** Since 27.01.1 Arc serves a read-only Iceberg REST catalog (`iceberg.rest_catalog_enabled`). See [Through Arc's REST catalog](#through-arcs-rest-catalog). Arc also registers its tables in AWS Glue (`iceberg.glue.enabled`); see [Through AWS Glue](#through-aws-glue).
 - **Metadata is bounded, not constant.** Each reconcile pass that removes a file writes new manifests and leaves the superseded ones behind, so the metadata directory grows with the removal history rather than with the data. Two mechanisms bound it, both automatic: the orphan sweep (above) deletes manifests no retained metadata version references, and a pass that finds a table at 12 or more data manifests merges them into one. Expect on the order of `retain_snapshots` commits' worth of `.avro` in a steady state. A table whose file set has stopped changing is skipped by the reconciler, so it keeps whatever manifest count it last had until something writes to it again.
