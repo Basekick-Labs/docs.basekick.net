@@ -433,10 +433,12 @@ The replay window is bounded by rotation (`max_size_mb`, `max_age_seconds`). Gra
 ## Monitoring
 
 Arc has no WAL-specific API endpoint. Monitor the WAL through the `arc_wal_*`
-counters on the Prometheus endpoint, `GET /metrics`, which needs no token:
+counters on the Prometheus endpoint, `GET /metrics`. From Arc 27.01.1 it needs
+a valid token while auth is on (any token, read-only included); versions
+before 27.01.1 serve it without one:
 
 ```bash
-curl -s http://localhost:8000/metrics | grep '^arc_wal_'
+curl -s -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/metrics | grep '^arc_wal_'
 ```
 
 On Arc 26.09.4 this prints six counters:
