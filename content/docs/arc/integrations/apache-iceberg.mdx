@@ -335,6 +335,8 @@ Any engine with an Iceberg connector can read the tables by path too. See **Limi
 |---|---|---|---|
 | `iceberg.enabled` | `ARC_ICEBERG_ENABLED` | `false` | Enable the export reconciler. |
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
+| `iceberg.ingest_export_interval` | `ARC_ICEBERG_INGEST_EXPORT_INTERVAL` | `60` | 27.01.1+: seconds within which a flushed file is exported, instead of waiting for the next timed pass. `0` = timed passes only; otherwise at least `5`. Standalone nodes only: a cluster node exports on the timed pass. |
+| `iceberg.export_lag_table_series` | `ARC_ICEBERG_EXPORT_LAG_TABLE_SERIES` | `0` | 27.01.1+: how many tables get their own export lag series on `/metrics` (`0`–`1000`; `0` = none). See [Monitoring the export](#monitoring-the-export). |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
 | `iceberg.warehouse` | `ARC_ICEBERG_WAREHOUSE` | *storage root* | Root URI where table metadata is written (`file://` or a plain path; `s3://` with an S3 backend). Defaults alongside the data. On local storage, a warehouse outside the storage root works but Arc cannot publish `version-hint.text` for directory-based readers, and backups copy the warehouse separately. With an S3 backend it must be inside the storage root (`s3://<s3_bucket>/<s3_prefix>/…`); Arc refuses to start otherwise. Since 27.01.1 the warehouse's directories inside the storage root are not databases; see [The warehouse is not a database](#the-warehouse-is-not-a-database). |
@@ -513,6 +515,47 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
 - **No extra reads:** a migrated file's entry is copied from the hot one. The cold object is read only for cold data the table never held hot, and then with the cold tier's own credentials.
 - **Brief read error, never wrong rows:** in the one reconcile pass between a migration deleting the hot copy and the table moving to the cold URI, a reader that already resolved the old path can get a not-found error. Compaction and retention have the same window.
 - **Licensing:** tiering requires an Enterprise license. Without it Arc disables tiering, and with a cold tier still configured the export does not start; tables keep their last snapshot until the license is restored. The same applies if the configured cold tier is unavailable at startup.
+
+## Monitoring the export
+
+From Arc 27.01.1, `/metrics` reports how far the export is behind ingest. `/metrics` needs a valid token while auth is on, unless `auth.metrics_public = true`; see [Monitoring](/arc/operations/monitoring/#scrape-configuration).
+
+**Node-wide**, always on:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `arc_iceberg_export_lag_seconds` | histogram | Per ingest file published in a table: time from the file being written to the table version that holds it being published. Files written before the process started are left out. |
+| `arc_iceberg_export_pending_seconds` | gauge | How long the oldest ingest file reported to the export has waited for an export that covers it; `0` when none is waiting. |
+| `arc_iceberg_export_backlog_files_total` | counter | Ingest files published that were written before the process started: existing data exported after a start, not lag. |
+
+**Per table**, opt-in with `iceberg.export_lag_table_series` set to a number N. Each series is labelled `database` and `measurement`, and only the N worst tables are shown:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `arc_iceberg_export_table_pending_seconds` | gauge | How long the table's oldest file waiting for an export has waited. |
+| `arc_iceberg_export_tables_pending` | gauge | How many tables have waited past the floor, so dropping out of the top N can be told from catching up. Unlabelled. |
+| `arc_iceberg_export_table_last_lag_seconds` | gauge | The longest time from an ingest file being written to its table version being published, among the files the table's last publish covered. |
+
+```text
+# The table that has waited longest for an export, in seconds
+topk(1, arc_iceberg_export_table_pending_seconds)
+
+# Tables waiting past the floor
+arc_iceberg_export_tables_pending > 0
+```
+
+How the per-table values are counted:
+
+- **Floor.** A table counts as waiting only once its wait passes twice `iceberg.ingest_export_interval`, or twice `iceberg.reconcile_interval` where the ingest trigger is off, as on every cluster node. A healthy table between two exports is not listed.
+- **Where the wait starts.** On a standalone node with the ingest trigger on, from when a flushed file was reported to the export. In every mode, from when a file was written, for files the table has committed but not yet published.
+  - So on a cluster, or with `ingest_export_interval = 0`, a table whose commits keep failing is not shown.
+  - After a restart, a table whose publishes keep failing is not shown until it commits again.
+- **Last lag.** Only files written after the process started count, and only publishes within the last hour, or within three `reconcile_interval`s if that is longer. A table missing from this series is not known to be healthy, only not recently slow.
+- **Cluster.** A node that is not the exporter reports no per-table series, checked at each scrape, so during a failover two nodes do not report the same table.
+
+<Callout type="warn" title="The per-table series name your tables">
+They carry database and measurement names, which no other Arc metric does. Any valid token can read `/metrics`, including a token scoped to one database, which then sees the names of every exported table. With `auth.metrics_public = true`, anyone who can reach Arc sees them. The JSON metrics endpoints never carry them.
+</Callout>
 
 ## Limitations (v1)
 
