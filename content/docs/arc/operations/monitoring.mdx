@@ -13,42 +13,72 @@ Each metric documented here was checked against a running Arc by scraping `/metr
 
 ## Endpoints
 
-| Endpoint | Format | Auth |
+| Endpoint | Format | Auth (Arc 27.01.1+, `auth.enabled = true`) |
 |---|---|---|
-| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | **None** |
-| `GET /api/v1/metrics` | JSON snapshot of every counter | **None** |
-| `GET /api/v1/metrics/memory` | Go runtime and GC detail | **None** |
-| `GET /api/v1/metrics/query-pool` | Query counters | **None** |
-| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | **None** |
-| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | **None** |
+| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | **Any valid token** |
+| `GET /api/v1/metrics` | JSON snapshot of every counter | **Any valid token** |
+| `GET /api/v1/metrics/memory` | Go runtime and GC detail | **Any valid token** |
+| `GET /api/v1/metrics/query-pool` | Query counters | **Any valid token** |
+| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | **Any valid token** |
+| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | **Any valid token** |
 | `GET /health` | Liveness | **None** |
 | `GET /ready` | Readiness | **None** |
 | `GET /api/v1/logs` | Buffered application logs | **Admin** |
 
-<Callout type="warn" title="The metrics endpoints are public by design">
-`/metrics` and every `/api/v1/metrics*` path bypass authentication even when `auth.enabled = true`, because Prometheus scrapers expect an unauthenticated target. They expose aggregate counters, Go runtime stats, and host architecture — no queries, database or measurement names, file paths, or credentials.
+<Callout type="warn" title="The metrics endpoints need a token from Arc 27.01.1">
+From Arc 27.01.1, `/metrics` and every `/api/v1/metrics*` path need a valid token while `auth.enabled = true`, the default. Any token works, read-only included, so give each scraper its own [read-only token](/arc/configuration/authentication/). Without one they answer `401`. `/health` and `/ready` stay public for load balancers and probes.
 
-If Arc is reachable beyond your cluster, restrict these paths at your ingress or proxy. `/api/v1/logs` is **not** public — it requires admin auth, because buffered log lines can contain operational detail.
+**Released versions before 27.01.1** serve the metrics endpoints without a token, even with auth on. If Arc is reachable beyond your network, restrict these paths at your ingress or proxy.
+
+To keep them public on 27.01.1 and later, set `auth.metrics_public = true` (`ARC_AUTH_METRICS_PUBLIC=true`); Arc logs a warning at start. With `auth.enabled = false` they are public either way. `/api/v1/logs` always requires admin auth, because buffered log lines can contain operational detail.
+
+They carry aggregate counters, Go runtime stats and host architecture, and, only if you enable `iceberg.export_lag_table_series`, database and measurement names. A token scoped to one database can read all of it.
 </Callout>
 
 ### Scrape configuration
+
+Create a read-only token for Prometheus and pass it with `authorization`, which sends `Authorization: Bearer <token>`:
 
 ```yaml
 scrape_configs:
   - job_name: arc
     metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/arc-token   # or: credentials: <token>
     static_configs:
       - targets: ['arc:8000']
 ```
 
-Neither Helm chart ships a `ServiceMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself. For the Prometheus Operator:
+Use `authorization`, not `basic_auth`: Arc does not accept basic auth. Other clients can send `Authorization: Bearer <token>` or `x-api-key: <token>`:
+
+```bash
+curl -s -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/metrics | head
+```
+
+Neither Helm chart ships a `ServiceMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself. The `prometheus.io/*` pod annotations cannot carry a token. Either keep annotation-based discovery and add the `authorization` block to the scrape job that uses it, or use a Prometheus Operator `ServiceMonitor` with a token from a Secret:
 
 ```yaml
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8000"
-  prometheus.io/path: "/metrics"
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arc
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arc
+  endpoints:
+    - port: http
+      path: /metrics
+      authorization:
+        type: Bearer
+        credentials:
+          name: arc-metrics-token   # a Secret holding a read-only Arc token
+          key: token
 ```
+
+<Callout type="info" title="Upgrading to 27.01.1">
+A scraper without a token gets `401` after the upgrade: `up` goes to `0` for Arc, and Arc's auth-failure counters climb with every scrape, so an alert on them fires. Add the token before upgrading, or set `auth.metrics_public = true` until you do.
+</Callout>
 
 ## The signals that matter
 

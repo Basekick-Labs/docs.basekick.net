@@ -709,9 +709,10 @@ the [Monitoring & Ops Playbook](/arc-enterprise/operations/monitoring/).
 
 ### Prometheus metrics
 
-Arc exposes Prometheus metrics at `/metrics`. The endpoint is **unauthenticated
-by design**, because Prometheus scrapers expect an unauthenticated target;
-restrict it at your ingress if Arc is reachable beyond the cluster.
+Arc exposes Prometheus metrics at `/metrics`. From Arc 27.01.1 the endpoint
+needs a valid token while auth is on (any token, read-only included), unless
+`auth.metrics_public = true`. Released versions before 27.01.1 serve it without
+a token; restrict it at your ingress if Arc is reachable beyond the cluster.
 
 The chart does not ship a `ServiceMonitor`, so create one yourself:
 
@@ -724,11 +725,21 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: arc
+      app.kubernetes.io/name: arc-enterprise
   endpoints:
     - port: http
       path: /metrics
       interval: 30s
+      # Arc 27.01.1+: /metrics needs a token while auth is on.
+      authorization:
+        type: Bearer
+        credentials:
+          name: arc-metrics-token   # Secret with a read-only Arc token
+          key: token
+```
+
+```bash
+kubectl create secret generic arc-metrics-token --from-literal=token=<read-only Arc token>
 ```
 
 ### Readiness/liveness probes

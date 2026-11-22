@@ -687,7 +687,7 @@ kubectl delete namespace arc
 
 ### Prometheus metrics
 
-Arc exposes Prometheus metrics at `/metrics`:
+Arc exposes Prometheus metrics at `/metrics`. From Arc 27.01.1 the endpoint needs a valid token while auth is on (any token, read-only included), unless `auth.metrics_public = true`; released versions before 27.01.1 serve it without one. See [Monitoring](/arc/operations/monitoring/#scrape-configuration).
 
 ```yaml
 # ServiceMonitor for Prometheus Operator
@@ -698,11 +698,21 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: arc
+      app.kubernetes.io/name: arc
   endpoints:
     - port: http
       path: /metrics
       interval: 30s
+      # Arc 27.01.1+: /metrics needs a token while auth is on.
+      authorization:
+        type: Bearer
+        credentials:
+          name: arc-metrics-token   # Secret with a read-only Arc token
+          key: token
+```
+
+```bash
+kubectl create secret generic arc-metrics-token --from-literal=token=<read-only Arc token>
 ```
 
 ### Readiness/liveness probes
