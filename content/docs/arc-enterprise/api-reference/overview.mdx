@@ -1354,6 +1354,7 @@ See [RBAC](/arc-enterprise/security/rbac/) for detailed API documentation.
 | `GET` | `/api/v1/tiering/files` | List files, filtered by `tier` and/or `database` |
 | `POST` | `/api/v1/tiering/migrate` | Trigger migration |
 | `POST` | `/api/v1/tiering/scan` | Rescan tier metadata against storage |
+| `POST` | `/api/v1/tiering/reconcile` | Finish migrated files whose hot copy was kept |
 | `GET` | `/api/v1/tiering/stats` | Migration statistics |
 | `GET` | `/api/v1/tiering/policies` | List per-database policies |
 | `GET/PUT/DELETE` | `/api/v1/tiering/policies/{database}` | Get, set or delete a database's policy |

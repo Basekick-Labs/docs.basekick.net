@@ -51,9 +51,12 @@ migration_max_concurrent = 4          # Parallel file transfers
 migration_batch_size = 100            # Files per migration batch
 default_hot_max_age_days = 30         # Data older than this moves to cold
 scan_timeout = "2h"                   # Budget for one tier scan
+migration_timeout = "2h"              # Budget for one migration run
 ```
 
-`scan_timeout` bounds **one** tier scan on every path that runs one: the scan at startup, `POST /api/v1/tiering/scan`, and the pre-migration scan inside a migration cycle or `POST /api/v1/tiering/migrate`. Before v27.01.1 the first two were capped at 30 minutes with no way to change it, while a cycle gave its scan the cycle's own 2 hours ([arc#1154](https://github.com/Basekick-Labs/arc/issues/1154)).
+`scan_timeout` bounds **one** tier scan on every path that runs one: the scan at startup, `POST /api/v1/tiering/scan`, the pre-migration scan inside a scheduled migration cycle, and the scan `POST /api/v1/tiering/reconcile` runs first. `POST /api/v1/tiering/migrate` does not scan. Before v27.01.1 the first two were capped at 30 minutes with no way to change it, while a cycle gave its scan the cycle's own 2 hours ([arc#1154](https://github.com/Basekick-Labs/arc/issues/1154)).
+
+`migration_timeout` bounds one migration run: a scheduled cycle, `POST /api/v1/tiering/migrate`, or `POST /api/v1/tiering/reconcile`. A cycle's scan runs inside it, so keep it above `scan_timeout`; Arc warns at startup if it is not. When a run reaches it, no new copy starts, and files already moved to cold still have their hot copies released for up to 2 more minutes (since 27.01.1, [arc#1830](https://github.com/Basekick-Labs/arc/issues/1830)).
 
 Inside a cycle the scan runs on a budget derived from the cycle's, so it gets whichever of the two is shorter and migration keeps the remainder. At the default the two are equal and the derivation changes nothing; setting `scan_timeout` above 2 hours is harmless because the cycle still bounds the scan.
 
@@ -441,22 +444,96 @@ Notes:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/tiering/migrate \
-  -H "Authorization: Bearer $ARC_TOKEN"
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"database": "telemetry"}'
 ```
+
+The body is optional. `database` and `measurement` limit the run to a subset, and `"dry_run": true` only reports what would move. `from_tier` and `to_tier` accept only `hot` and `cold`. An empty body migrates every database.
+
+This is a migration, not the scheduled cycle. It moves the files this node's tier rows list as eligible, without a pre-migration scan and without reconciliation. If the rows may be behind storage, run [`POST /api/v1/tiering/scan`](#rescan-tiers) first. The run is bounded by `migration_timeout` and answers when it ends.
+
+**Response** when every eligible file was moved:
+
+```json
+{
+  "status": "completed",
+  "message": "Migration completed",
+  "candidates": 42,
+  "migrated": 42,
+  "errors": 0,
+  "not_attempted": 0,
+  "kept_hot_copies": 0,
+  "timed_out": false
+}
+```
+
+The status code and `status` say how the run ended:
+
+| Code | `status` | Meaning |
+|---|---|---|
+| `200` | `completed` | Every eligible file was tried. `errors` counts files that could not be migrated; they stay hot. |
+| `200` | `incomplete` | The run stopped before trying every file. The cause is `migration_timeout` (`"timed_out": true`), this node no longer being the primary writer, tiering stopping, or a DELETE holding the file. The `not_attempted` files stay hot, with nothing in cold. Run it again to move them. |
+| `500` | `incomplete` | `kept_hot_copies` files were migrated, but their hot copy could not be released, because a cluster manifest update or a hot delete failed. The body carries `error`. Until they are reconciled, a node reading both tiers counts their rows twice. Run [`POST /api/v1/tiering/reconcile`](#reconcile-kept-hot-copies). |
+| `409` | — | This node is not the primary writer, or a migration or reconciliation is already running on it. |
+| `400` | — | An unsupported `from_tier` or `to_tier`. |
+
+Before v27.01.1 the release of the moved files' hot copies ran inside the same budget. A run that reached `migration_timeout` could leave the last files it moved both in cold and still hot, and in the cluster manifest. Their rows were counted twice, and the call still answered `200` with `"Migration completed successfully"` ([arc#1830](https://github.com/Basekick-Labs/arc/issues/1830)).
+
+**Dry run** response:
+
+```json
+{
+  "status": "dry_run",
+  "would_migrate": 42,
+  "total_bytes": 4500000000,
+  "from_tier": "hot",
+  "to_tier": "cold"
+}
+```
+
+On a cluster node that is not the primary writer the request is refused with `409 Conflict` naming the node's role; see [Clusters and shared storage](#clusters-and-shared-storage).
+
+### Reconcile kept hot copies
+
+```bash
+curl -X POST http://localhost:8000/api/v1/tiering/reconcile \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"window_hours": 72}'
+```
+
+Runs, on demand, the reconciliation a scheduled migration cycle runs after it migrates (since v27.01.1, [arc#1830](https://github.com/Basekick-Labs/arc/issues/1830)):
+
+1. **Scan.** The cold sync and hot scan, the same pass as [`POST /api/v1/tiering/scan`](#rescan-tiers), bounded by `scan_timeout`. After a writer failover this is what shows the new primary the files the old one moved to cold.
+2. **Orphan sweep.** Files migrated within the window whose row says cold but whose hot copy is still present. Once the cold object is verified, each one is removed from the cluster manifest first and then from hot storage.
+3. **Manifest sweep.** Cluster manifest entries of cold files migrated more than an hour ago, removed once the cold object matches the size the manifest recorded.
+
+Use it when a migration answered with `kept_hot_copies` above zero, on a deployment that drives migration through the API and does not run the schedule. It runs on the primary writer only, is bounded by `migration_timeout`, and never runs alongside a migration on the same node.
+
+The body is optional and is read as JSON whatever its `Content-Type`. `window_hours` sets how far back the orphan sweep looks: `0` or absent means 48 (the scheduled cycle's window), and the maximum is 8760. On a cluster with node-local storage, removing a manifest entry also removes every node's replica, so the manifest sweep finishes older kept files too. On shared storage it does not, so widen `window_hours` to reach them.
 
 **Response:**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "message": "Migration started",
-    "files_eligible": 42
-  }
+  "status": "completed",
+  "window_hours": 72,
+  "cold_synced": 0,
+  "orphans_found": 8,
+  "orphans_deleted": 8,
+  "manifest_entries_removed": 0,
+  "errors": 0
 }
 ```
 
-On a cluster node that is not the primary writer the request is refused with `409 Conflict` naming the node's role; see [Clusters and shared storage](#clusters-and-shared-storage).
+`status` is `completed_with_errors` when `errors` is above zero; the log names each file.
+
+| Code | Meaning |
+|---|---|
+| `409` | This node is not the primary writer, a migration or reconciliation is already running on it, or it has no usable cold tier. |
+| `503` | The cold tier could not be listed, so no sweep ran. Check that the cold credentials allow listing the bucket or container, and that `scan_timeout` and `migration_timeout` cover a full listing. |
+| `400` | A `window_hours` outside 0 to 8760, or a body that is not JSON. |
 
 ### Rescan tiers
 
