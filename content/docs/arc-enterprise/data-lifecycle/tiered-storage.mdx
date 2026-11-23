@@ -453,17 +453,24 @@ curl -X POST http://localhost:8000/api/v1/tiering/migrate \
   -d '{"database": "telemetry"}'
 ```
 
-The body is optional. `database` and `measurement` limit the run to a subset, and `"dry_run": true` only reports what would move. The only migration supported is `hot` to `cold`, so `from_tier` may only be `hot` and `to_tier` may only be `cold`; anything else is refused with `400`. An empty body migrates every database; to migrate every database, leave the filters out.
+The body is optional. `database` and `measurement` limit the run to a subset, and `"dry_run": true` only reports what would move. The only migration supported is `hot` to `cold`, so `from_tier` may only be `hot` and `to_tier` may only be `cold`; anything else is refused with `400`. An empty body, or one without `database` and `measurement`, migrates every database.
 
-A body starting with `{` is read as JSON whatever its `Content-Type`, so `curl -d` without a JSON header works. Form fields (`application/x-www-form-urlencoded`) are read by the same names. Arc refuses with `400`, and migrates nothing, any body that:
+A body starting with `{` is read as JSON whatever its `Content-Type`, so `curl -d` without a JSON header works. Form fields (`application/x-www-form-urlencoded`) are read by the same names. Arc answers `400` and migrates nothing when the body:
 
-- it cannot read;
-- has an unknown or repeated field, or anything after the JSON object;
-- has a filter that is present but empty or `null`;
-- has a `dry_run` that is not `true` or `false`.
+- is neither a JSON object nor form fields (a multipart body from `curl -F` included), or cannot be parsed;
+- has an unknown field, anything after the JSON object, or a form field given twice;
+- has a field that is `null`, or a `database`, `measurement`, `from_tier` or `to_tier` that is present but empty;
+- has a `dry_run` that is not a boolean.
 
-<Callout type="warn" title="Before v27.01.1: an unreadable body migrated every database">
-Before v27.01.1 the endpoint ignored a body it could not read, and then migrated every database. That included JSON sent without `Content-Type: application/json`, malformed JSON and a misspelt field. `dry_run` sent as a form field was dropped too, so that dry run ran a real migration ([arc#1841](https://github.com/Basekick-Labs/arc/issues/1841)). On those versions, send JSON with `Content-Type: application/json` and check the field names.
+<Callout type="warn" title="Before v27.01.1: a body Arc could not use migrated every database">
+Before v27.01.1 the endpoint dropped what it could not use, and an empty request migrates every database ([arc#1841](https://github.com/Basekick-Labs/arc/issues/1841)). That covered:
+
+- JSON sent without `Content-Type: application/json`;
+- malformed JSON;
+- a misspelt field;
+- `dry_run` sent as a form field, or as a JSON string such as `"true"`, so that dry run ran a real migration.
+
+On those versions, send JSON with `Content-Type: application/json` and check the field names. Scripts that worked there may now get `400`: forms using `dryrun`, `Database` or `fromtier`, JSON with extra fields, and `curl -F`. Switch them to the field names above, or to JSON.
 </Callout>
 
 This is a migration, not the scheduled cycle. It moves the files this node's tier rows list as eligible, without a pre-migration scan and without reconciliation. If the rows may be behind storage, run [`POST /api/v1/tiering/scan`](#rescan-tiers) first. The run is bounded by `migration_timeout`. It answers when it ends, which can be up to 2 minutes after the budget while the files it moved are released.
