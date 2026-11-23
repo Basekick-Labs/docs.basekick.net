@@ -453,10 +453,24 @@ curl -X POST http://localhost:8000/api/v1/tiering/migrate \
   -d '{"database": "telemetry"}'
 ```
 
-The body is optional. `database` and `measurement` limit the run to a subset, and `"dry_run": true` only reports what would move. The only migration supported is `hot` to `cold`, so `from_tier` may only be `hot` and `to_tier` may only be `cold`; anything else is refused with `400`. An empty body migrates every database.
+The body is optional. `database` and `measurement` limit the run to a subset, and `"dry_run": true` only reports what would move. The only migration supported is `hot` to `cold`, so `from_tier` may only be `hot` and `to_tier` may only be `cold`; anything else is refused with `400`. An empty body, or one without `database` and `measurement`, migrates every database.
 
-<Callout type="warn" title="Send the body as JSON">
-Set `Content-Type: application/json`. A body the endpoint cannot read as JSON, which includes `curl -d` without that header (curl then sends a form type), is ignored without an error, and the call migrates every database.
+A body starting with `{` is read as JSON whatever its `Content-Type`, so `curl -d` without a JSON header works. Form fields (`application/x-www-form-urlencoded`) are read by the same names. Arc answers `400` and migrates nothing when the body:
+
+- is neither a JSON object nor form fields (a multipart body from `curl -F` included), or cannot be parsed;
+- has an unknown field, anything after the JSON object, or a form field given twice;
+- has a field that is `null`, or a `database`, `measurement`, `from_tier` or `to_tier` that is present but empty;
+- has a `dry_run` that is not a boolean.
+
+<Callout type="warn" title="Before v27.01.1: a body Arc could not use migrated every database">
+Before v27.01.1 the endpoint dropped what it could not use, and an empty request migrates every database ([arc#1841](https://github.com/Basekick-Labs/arc/issues/1841)). That covered:
+
+- JSON sent without `Content-Type: application/json`;
+- malformed JSON;
+- a misspelt field;
+- `dry_run` sent as a form field, or as a JSON string such as `"true"`, so that dry run ran a real migration.
+
+On those versions, send JSON with `Content-Type: application/json` and check the field names. Scripts that worked there may now get `400`: forms using `dryrun`, `Database` or `fromtier`, JSON with extra fields, and `curl -F`. Switch them to the field names above, or to JSON.
 </Callout>
 
 This is a migration, not the scheduled cycle. It moves the files this node's tier rows list as eligible, without a pre-migration scan and without reconciliation. If the rows may be behind storage, run [`POST /api/v1/tiering/scan`](#rescan-tiers) first. The run is bounded by `migration_timeout`. It answers when it ends, which can be up to 2 minutes after the budget while the files it moved are released.
@@ -482,7 +496,7 @@ The status code and `status` say how the run ended:
 |---|---|---|
 | `200` | `completed` | Every eligible file was tried. `errors` counts the files that could not be migrated, which stay hot, plus one if the candidate lookup or a release failed. |
 | `200` | `incomplete` | The run stopped before trying every file. The `not_attempted` files stay hot, with nothing in cold; run it again to move them. |
-| `400` | — | An unsupported `from_tier` or `to_tier`. |
+| `400` | — | An unsupported `from_tier` or `to_tier`, or a body Arc refuses (see above): `{"error": "invalid request body: …", "message": "… Nothing was migrated."}`. |
 | `409` | — | This node is not the primary writer, a migration or reconciliation is already running on it, or a dry-run preview failed (the body carries the error). |
 | `500` | `incomplete` | `kept_hot_copies` files were migrated, but their hot copy could not be released. |
 | `500` | — | Any other failure, such as a node without a usable cold tier: `{"error": "Failed to trigger migration"}`, with no `status`. |
@@ -524,7 +538,7 @@ Runs the reconciliation a scheduled migration cycle runs after it migrates, on d
 
 Use it when a migration answered with `kept_hot_copies` above zero, on a deployment that drives migration through the API rather than through `migration_schedule`. It runs on the primary writer only, is bounded by `migration_timeout`, and never runs alongside a migration on the same node.
 
-The body is optional and is read as JSON whatever its `Content-Type`. `window_hours` sets how far back the orphan sweep looks: `0` or absent means 48 (the scheduled cycle's window), and the maximum is 8760.
+The body is optional and is read as JSON whatever its `Content-Type`; an unknown field is refused with `400`. `window_hours` sets how far back the orphan sweep looks: `0` or absent means 48 (the scheduled cycle's window), and the maximum is 8760.
 
 For a file kept older than the window, it depends on why it was kept:
 
@@ -549,7 +563,7 @@ For a file kept older than the window, it depends on why it was kept:
 
 | Code | Meaning |
 |---|---|
-| `400` | A `window_hours` outside 0 to 8760, or a body that is not JSON. |
+| `400` | A `window_hours` outside 0 to 8760, a body that is not JSON, or an unknown field. |
 | `409` | This node is not the primary writer, a migration or reconciliation is already running on it, or it has no usable cold tier. |
 | `500` | Any other failure, with the error in `error`. |
 | `503` | The cold tier could not be listed, so no sweep ran. Check that the cold credentials allow listing the bucket or container, and that `scan_timeout` and `migration_timeout` cover a full listing. |
