@@ -97,7 +97,9 @@ The listener is read-only: a write or DDL statement is refused, as it is on the 
 
 A prepared statement's result schema is read by binding the statement, without running it. Each ADBC execute prepares first, so it pays one bind; on a measurement with many files the bind adds some time to each query.
 
-## Connect with JDBC (DBeaver, DataGrip, Tableau)
+A query runs until it finishes, the client cancels it, or `query.timeout` (default 300 seconds) ends it. A client that stops reading a result without cancelling it leaves the query running until then.
+
+## Connect with JDBC (DBeaver, Tableau)
 
 Use the Arrow Flight SQL JDBC driver (`flight-sql-jdbc-driver`, tested with 19.0.0):
 
@@ -119,12 +121,12 @@ Tools that cannot select an empty schema, such as Tableau, need the second shape
 
 ## Tableau
 
-In Tableau Desktop, choose **Other Databases (JDBC)** after copying the driver jar to Tableau's `Drivers` folder:
+In Tableau Desktop (tested with 2026.3), choose **Other Databases (JDBC)** after copying the driver jar to Tableau's `Drivers` folder:
 
 - **URL:** `jdbc:arrow-flight-sql://<host>:<flight_sql.port>?useEncryption=false&x-arc-metadata=schemas`
 - **Dialect:** PostgreSQL. **Username:** any value. **Password:** the Arc token.
 
-Pick the database under **Schema** and drag measurements in. Tableau shows Arc's `time` column (a timestamp with time zone, UTC) as text; to use it as a date, add it through **New Custom SQL** with a cast, `SELECT "time"::TIMESTAMP AS "time", … FROM "mydb"."orders"`. In an Extract, Tableau reads those timestamps in the computer's time zone, so use a Live connection or run Tableau in UTC.
+Pick the database under **Schema** and drag measurements in. Tableau shows Arc's `time` column (a timestamp with time zone, UTC) as text, and changing its type to **Date & Time** in Tableau fails: Tableau converts it with `TO_TIMESTAMP(text, format)`, which Arc does not accept. To use it as a date, add it through **New Custom SQL** with a cast, `SELECT "time"::TIMESTAMP AS "time", … FROM "mydb"."orders"`. In an Extract, the hours shift by the computer's offset from UTC; use a Live connection, or set the computer's time zone to UTC before refreshing the Extract.
 
 ## Shutdown
 
