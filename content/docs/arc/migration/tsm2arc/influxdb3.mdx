@@ -22,7 +22,7 @@ tsm2arc --datadir s3://my-bucket/influxdb3 --arc-url https://arc.example.net --d
 
 InfluxDB 3 keeps up to ~10 minutes of the newest writes **only in its WAL**, and a clean server shutdown does **not** flush them: v3 never snapshots on shutdown, so a cold store almost always carries un-snapshotted WAL — sometimes including entire recently-created tables that exist nowhere else. tsm2arc decodes those WAL files in-process and merges the rows into the migration:
 
-```
+```text
 decoded 40 row(s) from 4 un-snapshotted WAL file(s) (sequences 13-16); nothing left behind
 ```
 
@@ -57,7 +57,7 @@ New Enterprise 3.11+ clusters default to the Pacha-tree storage engine (`.pt` fi
 
 All optional — the common case needs none of them:
 
-```
+```text
 --s3-endpoint URL     custom S3 endpoint (MinIO/on-prem); forces path-style addressing
 --s3-region REGION    override the AWS region from the credential chain
 --skip-wal            skip decoding un-snapshotted WAL (those newest writes will

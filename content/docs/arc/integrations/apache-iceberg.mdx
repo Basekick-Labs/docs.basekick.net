@@ -482,13 +482,13 @@ The reason is a genuine conflict rather than an omission. Iceberg copy-on-write 
 
 So that a reader gets a meaningful error rather than one that looks like data loss, a reconcile pass that removes any file now expires every older snapshot. Time travel to one returns:
 
-```
+```text
 Invalid Configuration Error: Could not find snapshot with id 873009943563408273
 ```
 
 which is the ordinary result of any Iceberg retention policy, instead of:
 
-```
+```text
 IO Error: Cannot open file ".../cpu_20261008_155058_567682000.parquet": No such file or directory
 ```
 
