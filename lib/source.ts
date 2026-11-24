@@ -1,5 +1,5 @@
 import { loader } from 'fumadocs-core/source';
-import { docsContentRoute, docsRoute } from './shared';
+import { docsContentRoute, docsRoute, siteUrl } from './shared';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
 
@@ -35,7 +35,9 @@ export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
 export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed');
 
-  return `# ${page.data.title} (${page.url})
+  // Absolute and with the trailing slash: this text is read out of context
+  // (per-page Markdown, llms-full.txt), and the un-slashed path is a 301.
+  return `# ${page.data.title} (${siteUrl}${page.url.replace(/\/$/, '')}/)
 
 ${processed}`;
 }
