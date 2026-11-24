@@ -34,6 +34,10 @@ app/(docs)/[...slug]/           the docs route (REQUIRED catch-all)
 app/(home)/                     the landing page at /
 components/mdx.tsx              MDX component registration
 lib/source.ts                   content source + loader
+lib/llm-markdown.mjs            MDX -> plain Markdown for the AI-facing output
+app/llms.txt/                   /llms.txt: index, links to each page's Markdown
+app/llms.mdx/                   /llms.mdx/<path>/content.md: one page as Markdown
+app/llms-full.txt/, llms-full/  /llms-full.txt and /llms-full/<product>.txt
 public/img/**                   images, referenced as /img/...
 ```
 

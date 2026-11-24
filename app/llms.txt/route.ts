@@ -1,6 +1,6 @@
 import type { Folder, Item, Node } from 'fumadocs-core/page-tree';
 import { siteUrl } from '@/lib/shared';
-import { getPageMarkdownUrl, getProductFullTextUrl, getProducts, source } from '@/lib/source';
+import { getPageMarkdownUrl, getProductFullTextUrl, getProductSlug, source } from '@/lib/source';
 
 export const revalidate = false;
 
@@ -95,15 +95,21 @@ function renderNode(node: Node, indent: number): string[] {
   return head ? [head, ...nested] : nested;
 }
 
-function renderSection(folder: Folder, fullText: Map<string, string>): string[] {
+function renderSection(folder: Folder): string[] {
   const { index, children } = splitIndex(folder);
   const head = index ? renderItem(index, 0) : null;
   const title = folderTitle(folder);
-  const full = fullText.get(title);
+  const slug = getProductSlug(folder);
   const entries = [
     ...(head ? [head] : []),
-    ...(full
-      ? [listItem(0, link(`${title}: full text`, full), `Every ${title} page below as one Markdown file.`)]
+    ...(slug
+      ? [
+          listItem(
+            0,
+            link(`${title}: full text`, getProductFullTextUrl(slug)),
+            `Every ${title} page in this section as one Markdown file.`,
+          ),
+        ]
       : []),
     ...children.flatMap((child) => renderNode(child, 0)),
   ];
@@ -115,10 +121,9 @@ export function GET() {
   const tree = source.getPageTree();
   const sections: string[] = [];
   const loose: string[] = [];
-  const fullText = new Map(getProducts().map((p) => [p.title, getProductFullTextUrl(p.slug)]));
 
   for (const node of tree.children) {
-    if (node.type === 'folder') sections.push(...renderSection(node, fullText));
+    if (node.type === 'folder') sections.push(...renderSection(node));
     else loose.push(...renderNode(node, 0));
   }
 
@@ -127,7 +132,7 @@ export function GET() {
     '',
     '> Arc is an open, SQL-native time-series database on Parquet and object storage. These docs cover Arc OSS, Arc Enterprise, Arc Launchpad (the web UI) and arcli (the command line).',
     '',
-    `Every link below is the Markdown source of one page. The same page in HTML is at the path between \`/llms.mdx\` and \`/content.md\`, with a trailing slash: ${siteUrl}/llms.mdx/arc/installation/content.md is ${siteUrl}/arc/installation/. Each section starts with a link to that product's pages as one Markdown file. All four products together are at ${siteUrl}/llms-full.txt, which is several megabytes.`,
+    `Each page link below is the Markdown rendition of one page. The same page in HTML is at the path between \`/llms.mdx\` and \`/content.md\`, with a trailing slash: ${siteUrl}/llms.mdx/arc/installation/content.md is ${siteUrl}/arc/installation/. Each section also links one file with all of that product's pages. All four products together are at ${siteUrl}/llms-full.txt, about 2 MB.`,
     '',
     ...sections,
     ...(loose.length > 0 ? ['## Other', '', ...loose, ''] : []),
