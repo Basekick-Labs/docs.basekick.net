@@ -285,6 +285,7 @@ High-performance MessagePack binary writes (recommended).
 - `Content-Type: application/msgpack`
 - `Content-Encoding: gzip` (optional)
 - `x-arc-database: default` (optional)
+- `x-arc-wait: visible` (optional, v27.01.1+, standalone): answer only once the rows are visible to a query. Needs `ingest.wait_visible_enabled`; see [Wait until the rows are visible](/arc/guides/writing-data/#wait-until-the-rows-are-visible-v27011).
 
 **Body (MessagePack):**
 ```json
@@ -439,6 +440,7 @@ Arc-native Line Protocol endpoint. Uses headers instead of query parameters.
 - `Content-Type: text/plain`
 - `Authorization: Bearer TOKEN`
 - `x-arc-database: default` - Target database
+- `x-arc-wait: visible` (optional, v27.01.1+, standalone): answer only once the rows are visible to a query. Needs `ingest.wait_visible_enabled`; see [Wait until the rows are visible](/arc/guides/writing-data/#wait-until-the-rows-are-visible-v27011).
 
 ### POST /api/v1/write/line-protocol/flush
 

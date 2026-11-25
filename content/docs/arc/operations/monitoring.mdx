@@ -131,6 +131,14 @@ arc_ingest_batches_total      # counter: write requests turned into batches
 arc_ingest_errors_total       # counter: rejected writes
 ```
 
+Writes sent with `x-arc-wait: visible` (v27.01.1+) have their own metrics, and are left out of `arc_http_*` latency:
+
+```text
+arc_ingest_wait_visible_total{outcome}   # counter: answers by outcome (visible, timeout, storage_not_confirmable, busy, ...)
+arc_ingest_wait_visible_waiters          # gauge: writes waiting now (refused above 1024)
+arc_ingest_wait_visible_seconds          # histogram: time waited
+```
+
 ```text
 # Ingest rate, records/sec
 rate(arc_ingest_records_total[5m])
