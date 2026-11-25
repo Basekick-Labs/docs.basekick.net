@@ -266,6 +266,14 @@ CREATE DATABASE arc_linked
 - **Clusters:** on a shared bucket every node can answer. With node-local storage only the node running the export can; the others answer `503`.
 - **Not served:** edge-sync spoke namespaces (read them by path), credential vending and the OAuth token endpoint.
 
+
+#### Fresh table loads
+
+With `iceberg.load_export_min_interval` set (27.01.1+, off by default), a table load on the REST catalog first waits, at most 2 seconds, until every file reported to the export for that table before the load is in the published version. It does not commit anything itself: it moves the table's next export earlier, to no sooner than `load_export_min_interval` after its last one, and the export adds the files as it always does. Loads at the same time share that export, and a table nobody loads keeps `ingest_export_interval`.
+
+A load reads the published version without waiting when an append cannot serve it soon: during a timed pass, while the table's last export failed or fell back to a full pass, during a restore, or past the limits (64 waiting loads per table, 1024 in all, and at most `ingest_export_concurrency` exports moved earlier per 2 seconds). It does nothing on a cluster over a shared bucket, without the append path (`ingest_append_enabled`), or without the REST catalog. On a cluster with local storage a file counts once it has reached the exporting node.
+
+A reader that loads a table often makes it export every `load_export_min_interval`. A catalog that loads tables on its own clock does that for every table it loads, and those tables keep more metadata versions (`min_version_age / load_export_min_interval`, at least `retain_snapshots`). `arc_iceberg_load_fresh_total{outcome}` counts the loads by outcome.
 ### Through AWS Glue
 
 Since 27.01.1, Arc can also register its tables in AWS Glue, so Athena, EMR, Redshift Spectrum, Snowflake (`CATALOG_SOURCE = GLUE`), BigQuery (a [Glue federated dataset](/arc/integrations/bigquery/)) and engines that federate Glue can read them. This needs an S3 primary on AWS.
@@ -352,6 +360,7 @@ Arc does not notify any of them: what an engine sees is Arc's last export plus t
 | `iceberg.enabled` | `ARC_ICEBERG_ENABLED` | `false` | Enable the export reconciler. |
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
 | `iceberg.ingest_export_interval` | `ARC_ICEBERG_INGEST_EXPORT_INTERVAL` | `60` | Since 27.01.1: the ingest trigger. The least time, in seconds, between two exports of one table that ingest flushes cause, so a flushed file is exported after at most this long plus the export itself (with many tables written at once, they can queue). `0` turns the trigger off and leaves the timed passes only; otherwise at least `5`. On a cluster it applies on the node that exports, to every file that reaches it, its own included. |
+| `iceberg.load_export_min_interval` | `ARC_ICEBERG_LOAD_EXPORT_MIN_INTERVAL` | `0` | Since 27.01.1: a REST catalog table load waits up to 2 s for the files reported before it, moving the table's next export to no sooner than this many seconds after its last one. `0` is off; otherwise from `5` to `ingest_export_interval`. See [Fresh table loads](#fresh-table-loads). |
 | `iceberg.export_lag_table_series` | `ARC_ICEBERG_EXPORT_LAG_TABLE_SERIES` | `0` | Since 27.01.1: how many tables get their own export lag series on `/metrics` (`0`–`1000`; `0` = none). See [Monitoring the export](#monitoring-the-export). |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
@@ -545,6 +554,7 @@ Always on:
 | `arc_iceberg_export_lag_seconds` | histogram | Per ingest file published in a table: the time from when the file was written until a table version containing it was published. Files written before the process started are left out. |
 | `arc_iceberg_export_pending_seconds` | gauge | How long the oldest flushed file that asked for an export has waited for one that covers it; `0` when none is waiting. Set by the ingest trigger only, so it reads `0` with `ingest_export_interval = 0`, and on a cluster node that does not export; use the histogram, or the per-table series below, there. |
 | `arc_iceberg_export_backlog_files_total` | counter | Ingest files published that were written before the process started: existing data exported after a start, not lag. |
+| `arc_iceberg_load_fresh_total` | counter | REST catalog table loads that asked for the files reported before them (`iceberg.load_export_min_interval`), labelled `outcome`: `nothing_pending`, `covered`, `skipped`, `timeout` (the last two read the published version). |
 
 ### Per table
 
