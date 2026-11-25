@@ -28,7 +28,7 @@ Rows written shortly before the DELETE may still be in the ingest buffer.
 Since v27.01.1 the DELETE first flushes that measurement's buffered rows and
 waits for them to reach files, so every row written before the request is
 deleted. While an earlier flush failure is outstanding (its rows wait for WAL
-recovery), the DELETE answers `503` with `Retry-After: 30` instead. A dry run
+recovery), the DELETE answers `503` with `Retry-After: 30` instead. The answer says which applies: an earlier flush failed, or a WAL recovery pass left files to replay. A flush that fails while the DELETE flushes its rows also answers `503`. `arc_ingest_flush_failure_latch_age_seconds` shows how long DELETEs have been refused. A dry run
 does not flush.
 
 ### 2. Find affected files

@@ -131,6 +131,12 @@ arc_ingest_batches_total      # counter: write requests turned into batches
 arc_ingest_errors_total       # counter: rejected writes
 ```
 
+After a flush fails, rows wait in the WAL for the next recovery pass (v27.01.1+). While they do, DELETEs that flush this node's buffer are refused:
+
+```text
+arc_ingest_flush_failure_latch_age_seconds   # gauge: seconds since a flush failure left rows to recover; 0 when none (and with the WAL off)
+```
+
 ```text
 # Ingest rate, records/sec
 rate(arc_ingest_records_total[5m])
