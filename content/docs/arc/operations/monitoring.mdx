@@ -161,9 +161,9 @@ histogram_quantile(0.95, sum by (engine, le) (rate(arc_query_latency_seconds_buc
 sum by (engine, outcome) (rate(arc_query_engine_executions_total[5m]))
 ```
 
-`engine` is the engine that ran the query, `duckdb` or `arcx`; `outcome` is `success` or `error`. The histogram's buckets run from 1 ms to 30 s, and failed executions are in it too. The JSON snapshot (`GET /api/v1/metrics`) carries the same counts under `query_engine_executions`.
+`engine` is the engine that ran the query, `duckdb` or `arcx`; `outcome` is `success` or `error`. Both engines' series are always exported, so an `engine="arcx"` series stays at `0` until arcx runs a query. The histogram's buckets run from 1 ms to 30 s, and failed executions are in it too. The JSON snapshot (`GET /api/v1/metrics`) carries the same counts under `query_engine_executions`.
 
-These two metrics count only queries that reached an engine. A request refused before that (validation, permissions, the SQL transform) appears in `arc_query_requests_total` and `arc_query_errors_total` only, so `sum(arc_query_engine_executions_total)` can be lower than `arc_query_requests_total` by design. Build error-rate ratios from the request counters below, and latency percentiles from the histogram.
+These two metrics count only queries that reached an engine. A request refused before that (validation, permissions, the SQL transform) appears in `arc_query_requests_total` and `arc_query_errors_total` only, so `sum(arc_query_engine_executions_total)` can be lower than `arc_query_requests_total` by design. Build error-rate ratios from the request counters, and latency percentiles from the histogram.
 
 <Callout type="info" title="Available since v27.01.1">
 Before v27.01.1 there is no `arc_query_latency_*` histogram and no per-engine counter: query latency is available only as a lifetime average from `GET /api/v1/metrics`. On an earlier version, use the HTTP histogram above for percentiles.
@@ -175,19 +175,17 @@ For a query-specific error rate, use the query counters:
 rate(arc_query_errors_total[5m]) / rate(arc_query_requests_total[5m])
 ```
 
-All four query entry points — `/api/v1/query`, `/api/v1/query/msgpack`, `/api/v1/query/:measurement` and `/api/v1/query/arrow` — count requests consistently, so `success + errors` equals `requests`.
+All four query entry points — `/api/v1/query`, `/api/v1/query/msgpack`, `/api/v1/query/:measurement` and `/api/v1/query/arrow` — count their requests. From v27.01.1, every request also ends as exactly one success or one error, so `success + errors` equals `requests`. Before that, a few outcomes counted as neither:
+
+- An empty result (a measurement with no data) on `/api/v1/query/msgpack` and on `/api/v1/query` with Arrow encoding. It is now a success there, as on the other paths of `/api/v1/query` and on `/api/v1/query/arrow`, and it is counted in the lifetime latency average. `/api/v1/query/:measurement` answers it as an error, as before.
+- A query that shutdown cancels, on `/api/v1/query/msgpack`, `/api/v1/query/arrow` and `/api/v1/query` with Arrow encoding. It is now an error there too, as it already was on the other paths; the query registry still records it as cancelled.
+- An Arrow query that times out before its stream starts. It is now an error as well as a timeout.
+
+Also from v27.01.1, a response whose final write fails counts as an error, and on the JSON and Arrow paths also in `arc_query_client_disconnects_total`; before, it counted as a success. After the upgrade, `arc_query_success_total` rises slightly where empty results are common, and `arc_query_errors_total` where clients disconnect at the end of a response or queries run into a shutdown.
 
 <Callout type="info" title="Available since v26.09.2">
-Before v26.09.2 the Arrow endpoint counted its failures but not its requests or successes, so this expression could exceed 1 — or divide by zero — on an Arrow-heavy workload, and Arrow throughput was invisible. On an earlier version, use `arc_http_requests_error_total / arc_http_requests_total`, which moves for both query paths at the cost of aggregating every endpoint.
+Before v26.09.2 the Arrow endpoint counted its failures but not its requests or successes, so the error-rate expression above could exceed 1 — or divide by zero — on an Arrow-heavy workload, and Arrow throughput was invisible. On an earlier version, use `arc_http_requests_error_total / arc_http_requests_total`, which moves for both query paths at the cost of aggregating every endpoint.
 </Callout>
-
-From v27.01.1, these outcomes count the same way across the query entry points:
-
-- An empty result (a measurement with no data) is a success on `/api/v1/query`, `/api/v1/query/msgpack` and `/api/v1/query/arrow`.
-- A query that shutdown cancels is an error. The query registry still records it as cancelled.
-- A response whose final write fails is an error, and a client disconnect.
-
-Before v27.01.1, some of these counted as neither a success nor an error on some entry points, so `success + errors` could fall short of `requests`. Dashboards built on these counters may shift slightly after the upgrade.
 
 `arc_query_timeouts_total` and `arc_slow_queries_total` are wired on both paths and are safe to alert on. `arc_slow_queries_total` only moves when `query.slow_query_threshold_ms` is set (it defaults to `0`, disabled).
 
@@ -510,7 +508,7 @@ Every rule below uses a metric verified to move. Thresholds are starting points 
 | Ingest backlog growing | `arc_buffer_records_buffered > 500000` | Storage writes are not keeping up with ingest. |
 | Audit events dropped | `increase(arc_audit_events_dropped_total[5m]) > 0` | Audit trail has gaps. Only relevant with `audit_log.enabled`. |
 | Query timeouts | `rate(arc_query_timeouts_total[5m]) > 0` | Queries exceeding `query.timeout`. |
-| Query latency | `histogram_quantile(0.95, sum by (le) (rate(arc_query_latency_seconds_bucket[5m]))) > 5` | 95th-percentile query time above 5 s (v27.01.1+). Set the threshold from your own baseline. |
+| Query latency | `histogram_quantile(0.95, sum by (le) (rate(arc_query_latency_seconds_bucket[5m]))) > 5` | 95th-percentile query time above 5 s, over all engines (v27.01.1+). 5 s is a bucket edge; pick a threshold above your workload's normal p95. An idle node yields no value and never fires. |
 | Compaction failing | `rate(arc_compaction_jobs_failed_total[1h]) > 0` | File count grows; tiering stalls. |
 | Memory near limit | `arc_memory_sys_bytes > 0.85 * <container limit>` | OOM-kill risk. |
 | Node not ready | `probe /ready != 200 for 5m` | Startup stuck or credentials expired. |
