@@ -834,8 +834,9 @@ List files eligible for compaction.
 Manually trigger a compaction cycle. Filters are query parameters, not a
 body: `tier` (comma-separated, defaults to every enabled tier), `database`,
 and `measurement` (v26.09.2+, requires `database`). Returns `409` while a
-cycle is already running, and `503` with `"stopping": true` while Arc is
-shutting down (v27.01.1+).
+cycle is already running. Returns `503` with `"stopping": true` while Arc is
+shutting down (v27.01.1+), and, in cluster mode, `503` with `lease_holder`
+from a node that does not hold the compaction lease.
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=default&measurement=cpu" \
@@ -857,10 +858,10 @@ Attempts in flight: `active_jobs`, `unit: "attempts"`, and an always-empty
 ### GET /api/v1/compaction/history
 
 Job history, one record per **attempt**. Query parameters: `limit` (default 10,
-capped at 100; ignored before v27.01.1) and `cycle_id` to filter to one cycle.
-Records carry `cycle_id` and `attempt_depth`, the adaptive-splitter level.
-With `cycle_id` and a `boot_id` that is not this process's (v27.01.1+), the
-answer has no jobs and `"boot_id_mismatch": true`.
+capped at 100; ignored before v27.01.1), `cycle_id` to filter to one cycle,
+and `boot_id` (v27.01.1+): with `cycle_id`, a `boot_id` that is not this
+process's returns no jobs and `"boot_id_mismatch": true`. Records carry
+`cycle_id` and `attempt_depth`, the adaptive-splitter level.
 
 ### GET /api/v1/compaction/cycles
 
@@ -872,7 +873,7 @@ Carries `running_cycle_id` while a cycle runs.
 v27.01.1+. One cycle by id, including `failed_partitions` — a deduplicated map of
 partition path to failed-batch count, which is the retry list. A `404` names
 the retained window rather than claiming the cycle never ran.
-With `?boot_id=` (v27.01.1+), a `boot_id` that is not this process's answers
+With `?boot_id=`, a `boot_id` that is not this process's answers
 `404` with `"boot_id_mismatch": true`, even when a record with that number
 exists here: it is another process's cycle.
 

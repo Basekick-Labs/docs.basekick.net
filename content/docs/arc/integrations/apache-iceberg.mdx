@@ -505,25 +505,6 @@ A pass that expires history this way logs at `warn` with the snapshot counts bef
 
 If you need reproducible reads of historical state, snapshot the query results rather than the table, or use Arc's backup and restore.
 
-## At shutdown
-
-From v27.01.1, the files Arc writes while it shuts down reach their tables
-before it exits. On SIGTERM, ingest's final flush writes what is still
-buffered. Once the buffer and the WAL have closed, the export serves what is
-queued (the final flush's files, files waiting for their next ingest export,
-and requests the loop had taken but not served), one table at a time, then
-Glue syncs what was published. Before, those files stayed out of their tables
-until Arc started again, and for good on a node that did not come back.
-
-This uses what is left of `server.shutdown_timeout` after the buffer's close,
-less a tenth for the closes that follow and, with Glue on, a twentieth for
-Glue. With many tables and little time left, the drain stops at its deadline
-and the next start reconciles the rest; raise `server.shutdown_timeout` if
-every table must be current at exit. On a cluster with a shared bucket,
-`server.shutdown_timeout` of 45 seconds or more gives the drain room. With
-`iceberg.ingest_export_interval = 0`, flushes report nothing to the export, so
-the final flush's files wait for the next start, as before.
-
 ## Cold-tier tiering
 
 With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering moves to cold stays in the Iceberg table under its `s3://` URI, with the same rows and statistics. Readers see the same data before, during and after a migration.
@@ -534,6 +515,33 @@ With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering
 - **No extra reads:** a migrated file's entry is copied from the hot one. The cold object is read only for cold data the table never held hot, and then with the cold tier's own credentials.
 - **Brief read error, never wrong rows:** in the one reconcile pass between a migration deleting the hot copy and the table moving to the cold URI, a reader that already resolved the old path can get a not-found error. Compaction and retention have the same window.
 - **Licensing:** tiering requires an Enterprise license. Without it Arc disables tiering, and with a cold tier still configured the export does not start; tables keep their last snapshot until the license is restored. The same applies if the configured cold tier is unavailable at startup.
+
+## At shutdown
+
+From v27.01.1, Arc tries to add the files it writes while it shuts down to
+their tables before it exits. On SIGTERM or SIGINT, ingest's final flush
+writes what is still buffered. Once the buffer and the WAL have closed, the
+export serves what is queued, one table at a time: the final flush's files,
+files waiting for their next ingest export, and requests the export had taken
+but not served. With Glue on, Glue then syncs what was published. Before
+v27.01.1, those files stayed out of their tables until Arc started again, and
+for good on a node that did not come back.
+
+The drain uses what is left of [`server.shutdown_timeout`](/arc/operations/monitoring/#operational-traps)
+(default 30 seconds), less a tenth for the closes after it and, with Glue on,
+a twentieth for Glue. [Compaction's shutdown wait](/arc/advanced/compaction/#at-shutdown)
+runs first: when a compaction batch overruns and is killed, the drain gets
+only a tenth of the budget, or a twentieth with Glue on.
+
+What the drain does not reach waits for the next start, which reconciles it:
+
+- With many tables and little time left, the drain stops at its deadline.
+  Raise `server.shutdown_timeout` if every table must be current at exit. On
+  a cluster with a shared bucket, 45 seconds or more gives the drain room.
+- With `iceberg.ingest_export_interval = 0`, flushes report nothing to the
+  export, so the final flush's files wait for the next start, as before.
+- If the export's loop does not stop in time (a pass that ignores
+  cancellation), the drain is skipped.
 
 ## Monitoring the export
 

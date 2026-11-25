@@ -79,7 +79,7 @@ curl -X POST "http://localhost:8000/api/v1/import/parquet?measurement=metrics" \
 | `413` | File exceeds 500 MB size limit |
 | `415` | The request has a `Content-Encoding` header |
 | `422` | Unreadable Parquet file, an unsupported column type, or a GeoParquet column whose encoding is not WKB |
-| `500` | Import execution error. When the flush failed after every row was accepted, the rows may still be stored: check before running the file again. See [When an import answers](/arc/data-import/#when-an-import-answers). When it stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read), the body has `rows_written` and `written_measurements`: running the whole file again writes those rows again. |
+| `500` | Import execution error. If `error` starts with "failed to flush imported data", every row was accepted and some may be stored: check before running the file again. See [When an import answers](/arc/data-import/#when-an-import-answers). If the body has `rows_written`, the import stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read); it also has `written_measurements`, and running the whole file again writes those rows again. |
 
 Since Arc 27.01.1, a missing or invalid database or measurement name answers
 the `400`, and a write-permission denial the `403`, shown above. From v26.06.2 until

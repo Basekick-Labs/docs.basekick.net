@@ -11,6 +11,36 @@ Bulk import is for loading data you already have. For continuous writes, use the
   <Card title="Line Protocol" href="/arc/data-import/line-protocol/" description="Load .lp or .txt files, plain or gzip-compressed." />
 </Cards>
 
+## When an import answers
+
+From v27.01.1, an import answers once every row of the file is handed to the
+flush, without waiting for every file to be written. What the answer means
+depends on whether its rows have a copy in the
+[write-ahead log](/arc/advanced/wal/):
+
+- **Every row has a WAL copy** (the WAL on): the import answers at once, and
+  its files follow as the flushes finish. A flush that fails later is
+  replayed from the WAL. A flush the import runs itself (its last one, or one
+  it runs to stay under the memory limit) still fails it on any error, with
+  the `500` below.
+- **Some rows have no WAL copy** (the WAL off, which is the default, or a
+  queued-mode WAL that dropped an append): those rows are only in memory until
+  their flush stores them, so the import waits for the flushes holding its
+  rows, including the ones it started while writing. A `200` then means its
+  files are written.
+  - If one of those flushes failed, the import answers `500` "failed to flush
+    imported data; the rows were accepted and may still be stored, check
+    before running the file again". The `error` text gives how many of its
+    rows were at risk. A flush can fail after storing some of its hour files.
+  - If Arc shuts down during the wait, the import answers `500` saying the
+    outcome is not known.
+  - Only the import's own rows count. A failed flush of another writer's rows,
+    even of the same measurement, does not fail an import whose rows were
+    stored.
+
+In v26.09.x an import flushed every buffer on the node before it answered,
+so it waited for the flush, and a flush error of any writer failed it.
+
 ## Imports in a cluster
 
 An import can be sent to any node. A reader, a compactor or a standby writer
@@ -32,35 +62,6 @@ rows without an explicit timestamp in the file stay duplicated.
 | `503` with `Retry-After` and `X-Arc-Ingest-Refused: import_queue` | Every import write slot on the writer stayed busy for `ingest.import_queue_timeout_ms`. Nothing was written. Retry. |
 | `503` with `Retry-After` and `X-Arc-Ingest-Refused: buffer_full` | With [`ingest.max_buffered_bytes`](/arc/configuration/overview/#limiting-unflushed-data) set, the writer's unflushed rows are at 90% of it or more (storage is behind). Nothing was written. Retry later (v27.01.1+). |
 | `508` | The request was already forwarded once (a routing loop). |
-
-## When an import answers
-
-An import answers once every row of the file is handed to the flush. What
-the answer means depends on whether its rows have a copy in the
-[write-ahead log](/arc/advanced/wal/):
-
-- **Every row has a WAL copy** (the WAL on): the import answers at once, and
-  its files follow as the flushes finish. A flush that fails later is
-  replayed from the WAL.
-- **Some rows have no WAL copy** (the WAL off, which is the default, or a
-  queued-mode WAL that dropped an append): those rows are only in memory
-  until their flush stores them. From v27.01.1 the import waits for the
-  flushes holding its rows, including the ones it started while writing,
-  before it answers. A `200` then means its files are written.
-  - If one of those flushes failed, the import answers `500` "failed to flush
-    imported data; the rows were accepted and may still be stored, check
-    before running the file again", with how many of its rows were at risk.
-    A flush can fail after storing some of its hour files, so check the row
-    count before you send the file again.
-  - If Arc shuts down during the wait, the import answers `500` saying the
-    outcome is not known.
-  - Only the import's own rows count. A failed flush of another writer's rows,
-    even of the same measurement, does not fail an import whose rows were
-    stored.
-
-Before v27.01.1, an import with the WAL off answered `200` before its files
-were written, and a flush that failed afterwards lost the rows with nothing
-reported to the client.
 
 ## Memory and large files
 
