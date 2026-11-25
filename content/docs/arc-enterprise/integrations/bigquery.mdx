@@ -157,7 +157,7 @@ The result's **Visualization** tab charts it:
 
 ## Keeping it current
 
-Glue federated datasets don't cache metadata: each query reads the table's current pointer from Glue, which Arc moves within seconds of publishing a version. Arc publishes on each export pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default). There is nothing to refresh in BigQuery. In a test, a measurement written to Arc after the dataset existed appeared in BigQuery as a table on its own, and a new row was counted by the first query after Arc's next export pass.
+Glue federated datasets don't cache metadata: each query reads the table's current pointer from Glue, which Arc moves within seconds of publishing a version. Arc publishes on each export that finds changed files: within `iceberg.ingest_export_interval` of a write (60 seconds by default), and on each timed pass (`iceberg.reconcile_interval`, 300 seconds by default). There is nothing to refresh in BigQuery. In a test, a measurement written to Arc after the dataset existed appeared in BigQuery as a table on its own, and a new row was counted by the first query after Arc's next export pass.
 
 ## Limits
 

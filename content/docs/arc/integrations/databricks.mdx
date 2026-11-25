@@ -248,9 +248,9 @@ On the canvas, add a visualization per dataset (bar, map, heatmap, counters):
 
 ## Keeping it current
 
-There is nothing to schedule in Databricks. Arc publishes a new table version on each export pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default), Glue points at it within seconds, and the next Databricks query reads it.
+There is nothing to schedule in Databricks. Arc publishes a new table version on each export that finds changed files: within `iceberg.ingest_export_interval` of a write (60 seconds by default), and on each timed pass (`iceberg.reconcile_interval`, 300 seconds by default), Glue points at it within seconds, and the next Databricks query reads it.
 
-In a test with `reconcile_interval = 30`, a write reached Databricks 26 seconds after Arc accepted it: 22 seconds waiting for the export pass, then the first query after the Glue update returned the new rows. With the default interval, expect up to about five minutes.
+In a test with `reconcile_interval = 30`, a write reached Databricks 26 seconds after Arc accepted it: 22 seconds waiting for the export pass, then the first query after the Glue update returned the new rows. With the defaults, expect up to about a minute: the export follows a write within `iceberg.ingest_export_interval` (60 seconds).
 
 ## Set up with SQL
 
