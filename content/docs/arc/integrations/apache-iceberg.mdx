@@ -25,7 +25,7 @@ Arc's Iceberg export is a background **reconciler** that registers Arc's **exist
 ## How it works
 
 1. Arc ingests as usual, writing Parquet under `{database}/{measurement}/{Y}/{M}/{D}/{H}/`.
-2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set. Since 27.01.1, on a standalone node, an ingest flush also asks for an export of its table (the *ingest trigger*, `iceberg.ingest_export_interval`, default 60 s), so new files reach the table within about a minute instead of at the next timed pass.
+2. On a timer (default every 5 minutes), the reconciler walks each measurement's Parquet files and diffs them, by path and size, against the Iceberg table's current file set. Since 27.01.1 a new ingest file also asks for an export of its table (the *ingest trigger*, `iceberg.ingest_export_interval`, default 60 s): on a standalone node its flush does, and on a cluster the file reaching the node that exports does, whichever node wrote it. A table not exported in the last `ingest_export_interval` gets the file within seconds; otherwise at most that long after its previous export. On a shared bucket each of these exports is a full pass of the table rather than an append.
 3. It commits the delta in one Iceberg snapshot — adding newly-written files and removing files that compaction/retention deleted — **without rewriting any data**. Since 27.01.1 the row-level delete API publishes a rewritten file under a fresh path rather than replacing the original in place, so a partial delete reaches the table as a normal add-and-remove.
 4. Old snapshots are expired on a retention policy so metadata stays bounded. A pass that removes any file expires **all** older snapshots, because they reference files Arc has deleted — see [Time travel](#time-travel) below.
 
@@ -266,6 +266,14 @@ CREATE DATABASE arc_linked
 - **Clusters:** on a shared bucket every node can answer. With node-local storage only the node running the export can; the others answer `503`.
 - **Not served:** edge-sync spoke namespaces (read them by path), credential vending and the OAuth token endpoint.
 
+
+#### Fresh table loads
+
+With `iceberg.load_export_min_interval` set (27.01.1+, off by default), a table load on the REST catalog first waits, at most 2 seconds, until every file reported to the export for that table before the load is in the published version. It does not commit anything itself: it moves the table's next export earlier, to no sooner than `load_export_min_interval` after its last one, and the export adds the files as it always does. Loads at the same time share that export, and a table nobody loads keeps `ingest_export_interval`.
+
+A load reads the published version without waiting when an append cannot serve it soon: during a timed pass, while the table's last export failed or fell back to a full pass, during a restore, or past the limits (64 waiting loads per table, 1024 in all, and at most `ingest_export_concurrency` exports moved earlier per 2 seconds). It does nothing on a cluster over a shared bucket, without the append path (`ingest_append_enabled`), or without the REST catalog. On a cluster with local storage a file counts once it has reached the exporting node.
+
+A reader that loads a table often makes it export every `load_export_min_interval`. A catalog that loads tables on its own clock does that for every table it loads, and those tables keep more metadata versions (`min_version_age / load_export_min_interval`, at least `retain_snapshots`). `arc_iceberg_load_fresh_total{outcome}` counts the loads by outcome.
 ### Through AWS Glue
 
 Since 27.01.1, Arc can also register its tables in AWS Glue, so Athena, EMR, Redshift Spectrum, Snowflake (`CATALOG_SOURCE = GLUE`), BigQuery (a [Glue federated dataset](/arc/integrations/bigquery/)) and engines that federate Glue can read them. This needs an S3 primary on AWS.
@@ -329,13 +337,30 @@ A dataset whose own schema changed over time can carry the same column under two
 
 Any engine with an Iceberg connector can read the tables by path too. See **Limitations** below.
 
+### How soon each engine sees a new version
+
+Arc publishes a new table version at each export (see [How it works](#how-it-works)). An engine sees it the next time it reads Arc's REST catalog, Glue or the table's directory, which some engines do only on their own clock. From each vendor's documentation, not run by us, except where a measurement is given:
+
+| Engine | Sees a new version | What controls it |
+|---|---|---|
+| Athena, Databricks (through Glue) | Measured: as soon as Glue has it, about 2 s after Arc publishes. | Nothing to set. |
+| Snowflake (a catalog-linked database or a table on the REST catalog integration, or Glue), `AUTO_REFRESH = TRUE` | At its next auto-refresh. Measured with the [Snowflake guide](/arc/integrations/snowflake/)'s setup at the default interval: about 80 s (REST) and 70 s (Glue) after Arc published. | `REFRESH_INTERVAL_SECONDS`: default 30, also the minimum ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/create-catalog-integration-rest)); a catalog-linked database syncs with Arc's catalog every `SYNC_INTERVAL_SECONDS`, default 30, also the minimum ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/create-database-catalog-linked)). `ALTER ICEBERG TABLE … REFRESH` is documented for tables on an external Iceberg catalog, with no example for a REST integration or a catalog-linked database, needs OWNERSHIP of the table, and its cost is not documented ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/alter-iceberg-table-refresh)). |
+| Spark and other engines on the Iceberg Java catalog (REST) | When its catalog cache expires: on by default, 30 s. | `cache-enabled=false`, or a shorter `cache.expiration-interval-ms` ([Iceberg](https://iceberg.apache.org/docs/latest/spark-configuration/)). |
+| Trino (REST) | No cache of table loads is documented for the REST catalog. | Nothing documented to set ([Trino](https://trino.io/docs/current/connector/iceberg.html)). |
+| BigQuery Iceberg external table | Never by itself: the table names one metadata file. | Point it at the new metadata file (`bq update`) ([BigQuery](https://docs.cloud.google.com/bigquery/docs/iceberg-external-tables)). |
+| BigQuery through Glue federation | Background sync, off by default; when on, every 300 s or more. | `--refresh-interval` ([Google Cloud](https://docs.cloud.google.com/lakehouse/docs/set-up-cross-cloud-lakehouse-aws-glue)). |
+| Fabric / OneLake shortcut | Converts each commit in 5 s to 2 min. Microsoft asks for commits less often than every 2 minutes ([Microsoft](https://learn.microsoft.com/en-us/fabric/onelake/onelake-iceberg-tables)); Arc can publish a table more often than that (every `ingest_export_interval`, 60 s by default). Not tested with Fabric. | On Arc's side, a longer `iceberg.ingest_export_interval`; timed and compaction-requested passes publish too. |
+
+Arc does not notify any of them: what an engine sees is Arc's last export plus that engine's own delay.
+
 ## Configuration reference
 
 | Key (`arc.toml`) | Env var | Default | Meaning |
 |---|---|---|---|
 | `iceberg.enabled` | `ARC_ICEBERG_ENABLED` | `false` | Enable the export reconciler. |
 | `iceberg.reconcile_interval` | `ARC_ICEBERG_RECONCILE_INTERVAL` | `300` | Seconds between reconcile passes. |
-| `iceberg.ingest_export_interval` | `ARC_ICEBERG_INGEST_EXPORT_INTERVAL` | `60` | Since 27.01.1: the ingest trigger. The least time, in seconds, between two exports of one table that ingest flushes cause, so a flushed file is exported after at most this long plus the export itself (with many tables written at once, they can queue). `0` turns the trigger off and leaves the timed passes only; otherwise at least `5`. Standalone nodes only: a cluster node exports on the timed pass. |
+| `iceberg.ingest_export_interval` | `ARC_ICEBERG_INGEST_EXPORT_INTERVAL` | `60` | Since 27.01.1: the ingest trigger. The least time, in seconds, between two exports of one table that ingest flushes cause, so a flushed file is exported after at most this long plus the export itself (with many tables written at once, they can queue). `0` turns the trigger off and leaves the timed passes only; otherwise at least `5`. On a cluster it applies on the node that exports, to every file that reaches it, its own included. |
+| `iceberg.load_export_min_interval` | `ARC_ICEBERG_LOAD_EXPORT_MIN_INTERVAL` | `0` | Since 27.01.1: a REST catalog table load waits up to 2 s for the files reported before it, moving the table's next export to no sooner than this many seconds after its last one. `0` is off; otherwise from `5` to `ingest_export_interval`. See [Fresh table loads](#fresh-table-loads). |
 | `iceberg.export_lag_table_series` | `ARC_ICEBERG_EXPORT_LAG_TABLE_SERIES` | `0` | Since 27.01.1: how many tables get their own export lag series on `/metrics` (`0`–`1000`; `0` = none). See [Monitoring the export](#monitoring-the-export). |
 | `iceberg.retain_snapshots` | `ARC_ICEBERG_RETAIN_SNAPSHOTS` | `10` | Iceberg snapshots (and metadata versions) kept per table; older are expired to bound metadata growth. An upper bound, not a guarantee: a pass that removes a file expires all older snapshots regardless of this value, because they reference deleted files (see [Time travel](#time-travel)). |
 | `iceberg.namespace_prefix` | `ARC_ICEBERG_NAMESPACE_PREFIX` | `arc` | Namespace prefix; tables land in `<prefix>_<database>`. |
@@ -527,14 +552,15 @@ Always on:
 | Metric | Type | Meaning |
 |---|---|---|
 | `arc_iceberg_export_lag_seconds` | histogram | Per ingest file published in a table: the time from when the file was written until a table version containing it was published. Files written before the process started are left out. |
-| `arc_iceberg_export_pending_seconds` | gauge | How long the oldest flushed file that asked for an export has waited for one that covers it; `0` when none is waiting. Set by the ingest trigger only, so it reads `0` on every cluster node and with `ingest_export_interval = 0`; use the histogram, or the per-table series below, there. |
+| `arc_iceberg_export_pending_seconds` | gauge | How long the oldest flushed file that asked for an export has waited for one that covers it; `0` when none is waiting. Set by the ingest trigger only, so it reads `0` with `ingest_export_interval = 0`, and on a cluster node that does not export; use the histogram, or the per-table series below, there. |
 | `arc_iceberg_export_backlog_files_total` | counter | Ingest files published that were written before the process started: existing data exported after a start, not lag. |
+| `arc_iceberg_load_fresh_total` | counter | REST catalog table loads that asked for the files reported before them (`iceberg.load_export_min_interval`), labelled `outcome`: `nothing_pending`, `covered`, `skipped`, `timeout` (the last two read the published version). |
 
 ### Per table
 
 Opt-in: set `iceberg.export_lag_table_series` to a number N. Two terms first:
 
-- **The ingest trigger** is the export an ingest flush asks for, on a standalone node with `ingest_export_interval` above `0`. A cluster node has none; it exports on its timed pass.
+- **The ingest trigger** is the export a new ingest file asks for, with `ingest_export_interval` above `0`: its flush on a standalone node, its arrival on the exporting node of a cluster.
 - **The floor** is twice `ingest_export_interval`, or twice `reconcile_interval` where the ingest trigger is off. A table counts as waiting only once its wait passes the floor, so a healthy table between two exports is not listed.
 
 The per-table series are labelled `database` and `measurement`, at most N of each, so up to 2N labelled series:
@@ -557,7 +583,7 @@ max(arc_iceberg_export_tables_pending) > 0
 How the per-table values are counted:
 
 - **Where a wait starts.** The earlier of two times: when a flushed file asked for an export (the ingest trigger), and when a file the table has committed but not yet published was written (every mode; files written after the process started).
-- **What is not shown.** On a cluster, or with `ingest_export_interval = 0`, a table whose commits keep failing. After a restart, a table whose publishes keep failing, until it commits again.
+- **What is not shown.** With `ingest_export_interval = 0`, a table whose commits keep failing. After a restart, a table whose publishes keep failing, until it commits again.
 - **Last lag.** Only files written after the process started count, and only publishes within the last hour, or within three reconcile intervals if that is longer. A table missing from this series is not known to be healthy, only not recently slow.
 - **Cluster.** A node that is not the exporter reports no labelled series, checked at each scrape, so during a failover two nodes do not report the same table. Its `arc_iceberg_export_tables_pending` reads `0`, which says nothing; take `max()` across nodes.
 
@@ -572,12 +598,13 @@ These series carry database and measurement names, which no other Arc metric doe
   - an S3 backend pointed at Google Cloud Storage's S3-compatible endpoint (`storage.googleapis.com`);
   - an S3 backend whose `iceberg.warehouse` is outside the storage root.
 - **Cold tier on S3 only.** Iceberg export runs alongside cold-tier tiering when the cold tier is S3 (see [Cold-tier tiering](#cold-tier-tiering)). Arc refuses to start with Iceberg enabled and an Azure or GCS cold tier, or an S3 cold tier on Google Cloud Storage's interop endpoint, because files migrated there would leave the table.
-- **Eventual consistency.** The Iceberg view reflects the last export. It lags live ingest by up to `reconcile_interval`, or, on a standalone node with the ingest trigger on (since 27.01.1), by about `ingest_export_interval`. See [Monitoring the export](#monitoring-the-export). This is expected for a lakehouse export.
+- **Eventual consistency.** The Iceberg view reflects the last export. With the ingest trigger on (since 27.01.1, standalone and cluster), it lags live ingest by about the ingest buffer age for a table not exported in the last `ingest_export_interval`, and otherwise by up to that interval after the table's previous export; with the trigger off, by up to `reconcile_interval`. See [Monitoring the export](#monitoring-the-export). This is expected for a lakehouse export.
 - **On-disk portability.** Iceberg metadata references files by absolute path. Tables read fine on the same host; moving a local table to a different path/host requires re-pointing (object-store warehouses avoid this).
 - **Catalog discovery.** Since 27.01.1 Arc serves a read-only Iceberg REST catalog (`iceberg.rest_catalog_enabled`). See [Through Arc's REST catalog](#through-arcs-rest-catalog). Arc also registers its tables in AWS Glue (`iceberg.glue.enabled`); see [Through AWS Glue](#through-aws-glue).
 - **Metadata is bounded, not constant.** Each reconcile pass that removes a file writes new manifests and leaves the superseded ones behind, so the metadata directory grows with the removal history rather than with the data. Two mechanisms bound it, both automatic: the orphan sweep (above) deletes manifests no retained metadata version references, and a pass that finds a table at 12 or more data manifests merges them into one. Expect on the order of `retain_snapshots` commits' worth of `.avro` in a steady state. A table whose file set has stopped changing is skipped by the reconciler, so it keeps whatever manifest count it last had until something writes to it again.
 - **Clustered deployments.** Exactly one node must run the reconciler.
   - Under the compactor failover lease this is guaranteed.
+  - With local storage each exporting node keeps its own copy of the table in its warehouse. Once the lease moves, the former exporter's REST catalog answers `503`, but its copy stays as it was: it can name files that compaction, retention or a DELETE has removed since, and lacks newer ones. Read through the REST catalog of the node that exports, or from that node's warehouse. A node that gets the lease back starts a full pass within about 5 seconds, which brings its copy up to date (27.01.1+).
   - In a static-role cluster with local storage, enable Iceberg export where a single compaction-capable node runs.
   - **With shared storage** (`cluster.shared_storage_mode`), Iceberg export requires `cluster.failover_enabled = true`, and only the node holding the compactor lease exports. No node exports before the first lease is assigned.
   - The version published in the bucket, not a node's own catalog, is the table's current version. A node that takes over, or comes back after a failover, continues from it.

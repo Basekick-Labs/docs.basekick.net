@@ -183,7 +183,7 @@ Build the report as in [step 6](#6-build-the-report):
 
 ### Keeping it current
 
-Arc commits a new snapshot on each reconcile pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default), and OneLake converts the new snapshot when it detects it. There is nothing to schedule in Fabric.
+Arc commits a new snapshot on each export that finds changed files: within `iceberg.ingest_export_interval` of a write (60 seconds by default), and on each timed pass (`iceberg.reconcile_interval`, 300 seconds by default), and OneLake converts the new snapshot when it detects it. There is nothing to schedule in Fabric.
 
 <Callout type="warn" title="Never run orphan-file cleanup on these tables">
 The table's folder is Arc's data folder. `remove_orphan_files` (from a Fabric Spark notebook or any other engine) deletes every file there that no snapshot references, including data Arc wrote since the last pass.
