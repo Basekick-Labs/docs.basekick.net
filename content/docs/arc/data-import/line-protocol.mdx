@@ -112,5 +112,5 @@ Data flows through Arc's high-performance columnar ingest pipeline (ArrowBuffer 
 | `403` | Insufficient write permissions for one or more measurements |
 | `413` | File exceeds 500 MB size limit (after decompression) |
 | `415` | The request has a `Content-Encoding` header (gzip the file itself instead) |
-| `500` | Import execution error. When the flush failed after every row was accepted, the rows may still be stored: check before running the file again. When it stopped after part of the file was written, the body has `rows_written`, `written_measurements` and `stopped_at_measurement` (when a write failed): running the whole file again writes those rows again. |
+| `500` | Import execution error. When the flush failed after every row was accepted, the rows may still be stored: check before running the file again. See [When an import answers](/arc/data-import/#when-an-import-answers). When it stopped after part of the file was written, the body has `rows_written`, `written_measurements` and `stopped_at_measurement` (when a write failed): running the whole file again writes those rows again. |
 | `503` | Refused before anything was written (for example the node is fenced, or the WAL volume is low). Retry after `Retry-After`. |

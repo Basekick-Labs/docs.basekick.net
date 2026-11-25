@@ -505,6 +505,25 @@ A pass that expires history this way logs at `warn` with the snapshot counts bef
 
 If you need reproducible reads of historical state, snapshot the query results rather than the table, or use Arc's backup and restore.
 
+## At shutdown
+
+From v27.01.1, the files Arc writes while it shuts down reach their tables
+before it exits. On SIGTERM, ingest's final flush writes what is still
+buffered. Once the buffer and the WAL have closed, the export serves what is
+queued (the final flush's files, files waiting for their next ingest export,
+and requests the loop had taken but not served), one table at a time, then
+Glue syncs what was published. Before, those files stayed out of their tables
+until Arc started again, and for good on a node that did not come back.
+
+This uses what is left of `server.shutdown_timeout` after the buffer's close,
+less a tenth for the closes that follow and, with Glue on, a twentieth for
+Glue. With many tables and little time left, the drain stops at its deadline
+and the next start reconciles the rest; raise `server.shutdown_timeout` if
+every table must be current at exit. On a cluster with a shared bucket,
+`server.shutdown_timeout` of 45 seconds or more gives the drain room. With
+`iceberg.ingest_export_interval = 0`, flushes report nothing to the export, so
+the final flush's files wait for the next start, as before.
+
 ## Cold-tier tiering
 
 With an S3 cold tier (`tiered_storage.cold.backend = "s3"`), a file that tiering moves to cold stays in the Iceberg table under its `s3://` URI, with the same rows and statistics. Readers see the same data before, during and after a migration.

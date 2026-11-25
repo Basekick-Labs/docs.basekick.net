@@ -92,7 +92,7 @@ curl -X POST "http://localhost:8000/api/v1/import/csv?measurement=telemetry&time
 | `413` | File exceeds 500 MB size limit |
 | `415` | The request has a `Content-Encoding` header |
 | `422` | Malformed CSV rows |
-| `500` | Import execution error. When it stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read), the body has `rows_written` and `written_measurements`: running the whole file again writes those rows again. |
+| `500` | Import execution error. When the flush failed after every row was accepted, the rows may still be stored: check before running the file again. See [When an import answers](/arc/data-import/#when-an-import-answers). When it stopped after part of the file was written (the node was fenced, the buffer is closing, flushes are not keeping up, or a later part of the file could not be read), the body has `rows_written` and `written_measurements`: running the whole file again writes those rows again. |
 
 Since Arc 27.01.1, a missing or invalid database or measurement name answers
 the `400`, and a write-permission denial the `403`, shown above. From v26.06.2 until
