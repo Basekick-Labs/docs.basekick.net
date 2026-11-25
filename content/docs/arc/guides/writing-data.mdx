@@ -360,7 +360,7 @@ The write is not flushed early: it waits for its rows' normal age or size flush,
 
 | Status | Headers | Meaning |
 |---|---|---|
-| `204` | `X-Arc-Visible: true` | Every row is in a stored file (registered too, with tiered storage). A query over HTTP `/api/v1/query` on this node that starts after the answer sees them. |
+| `204` | `X-Arc-Visible: true` | Every row is in a stored file (registered too, with tiered storage). A query over HTTP `/api/v1/query` on this node that starts after the answer sees them; Flight SQL is not covered. |
 | `202` | `X-Arc-Visible: false`, `X-Arc-Visible-Reason` | The rows were accepted, as a plain `204` says, but are not known to be visible. Do not resend them. The body is `{"visible": false, "reason": ..., "rows_written": ...}`. |
 | `500` | `X-Arc-Visible-Reason: flush_failed_rows_at_risk` | A flush holding rows without a WAL copy failed. The body has `rows_at_risk`; the rows may still be stored, so check before resending. |
 
@@ -368,12 +368,12 @@ The `202` reasons:
 
 - `timeout`: 20 s passed first.
 - `shutdown`: the server began shutting down; the rows are still flushed at close.
-- `flush_failed_wal_replay`: the flush failed and a WAL copy was accepted; recovery replays it.
+- `flush_failed_wal_replay`: the flush failed and a WAL copy was accepted; recovery replays it. With `wal.sync_mode = "async"` that copy may not have reached the disk yet.
 - `not_confirmed`: a tiering registration failed, or the rows did not all add up.
 - `storage_not_confirmable`: the storage backend is S3, MinIO, GCS or Azure. Only local storage confirms in this version, and Arc logs a warning at startup.
 - `future_stamped`: a row is stamped more than `query.file_time_pruning_margin_seconds` ahead in the current hour, which file-level time pruning can hide until the hour closes.
 
-Answered at once, without waiting: a partial write (`400`) carries `X-Arc-Visible: false` and `partial_write`; a write stopped part-way (`500`) carries `write_stopped`. Refused with nothing written:
+Answered at once, without waiting: a partial write (`400`) carries `X-Arc-Visible: false` and `partial_write`; a write stopped part-way (`500`) carries `write_stopped`; an empty MessagePack write keeps its `204`, with `X-Arc-Visible: true`. Refused with nothing written:
 
 - the key off: `403`;
 - another value of the header, or a cluster (`cluster.enabled`): `400`;
