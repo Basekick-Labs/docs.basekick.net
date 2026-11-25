@@ -162,7 +162,7 @@ Its trust policy lets `redshift.amazonaws.com` and `redshift-serverless.amazonaw
 
 ## Keeping it current
 
-There is nothing to refresh in either engine. Arc publishes a new table version on each export pass that finds changed files (`iceberg.reconcile_interval`, 300 seconds by default), moves the Glue pointer within seconds, and the next Athena or Redshift query reads the new version. New measurements appear as new tables.
+There is nothing to refresh in either engine. Arc publishes a new table version on each export that finds changed files: within `iceberg.ingest_export_interval` of a write (60 seconds by default), and on each timed pass (`iceberg.reconcile_interval`, 300 seconds by default), moves the Glue pointer within seconds, and the next Athena or Redshift query reads the new version. New measurements appear as new tables.
 
 ## Troubleshooting
 

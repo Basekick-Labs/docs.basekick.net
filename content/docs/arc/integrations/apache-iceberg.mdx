@@ -329,6 +329,22 @@ A dataset whose own schema changed over time can carry the same column under two
 
 Any engine with an Iceberg connector can read the tables by path too. See **Limitations** below.
 
+### How soon each engine sees a new version
+
+Arc publishes a new table version at each export (see [How it works](#how-it-works)). An engine sees it the next time it reads Arc's REST catalog, Glue or the table's directory, which some engines do only on their own clock. From each vendor's documentation, not run by us, except where a measurement is given:
+
+| Engine | Sees a new version | What controls it |
+|---|---|---|
+| Athena, Databricks (through Glue) | Measured: as soon as Glue has it, about 2 s after Arc publishes. | Nothing to set. |
+| Snowflake (a catalog-linked database or a table on the REST catalog integration, or Glue), `AUTO_REFRESH = TRUE` | At its next auto-refresh. Measured with the [Snowflake guide](/arc/integrations/snowflake/)'s setup at the default interval: about 80 s (REST) and 70 s (Glue) after Arc published. | `REFRESH_INTERVAL_SECONDS`: default 30, also the minimum ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/create-catalog-integration-rest)); a catalog-linked database syncs with Arc's catalog every `SYNC_INTERVAL_SECONDS`, default 30, also the minimum ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/create-database-catalog-linked)). `ALTER ICEBERG TABLE … REFRESH` is documented for tables on an external Iceberg catalog, with no example for a REST integration or a catalog-linked database, needs OWNERSHIP of the table, and its cost is not documented ([Snowflake](https://docs.snowflake.com/en/sql-reference/sql/alter-iceberg-table-refresh)). |
+| Spark and other engines on the Iceberg Java catalog (REST) | When its catalog cache expires: on by default, 30 s. | `cache-enabled=false`, or a shorter `cache.expiration-interval-ms` ([Iceberg](https://iceberg.apache.org/docs/latest/spark-configuration/)). |
+| Trino (REST) | No cache of table loads is documented for the REST catalog. | Nothing documented to set ([Trino](https://trino.io/docs/current/connector/iceberg.html)). |
+| BigQuery Iceberg external table | Never by itself: the table names one metadata file. | Point it at the new metadata file (`bq update`) ([BigQuery](https://docs.cloud.google.com/bigquery/docs/iceberg-external-tables)). |
+| BigQuery through Glue federation | Background sync, off by default; when on, every 300 s or more. | `--refresh-interval` ([Google Cloud](https://docs.cloud.google.com/lakehouse/docs/set-up-cross-cloud-lakehouse-aws-glue)). |
+| Fabric / OneLake shortcut | Converts each commit in 5 s to 2 min. Microsoft asks for commits less often than every 2 minutes ([Microsoft](https://learn.microsoft.com/en-us/fabric/onelake/onelake-iceberg-tables)); Arc can publish a table more often than that (every `ingest_export_interval`, 60 s by default). Not tested with Fabric. | On Arc's side, a longer `iceberg.ingest_export_interval`; timed and compaction-requested passes publish too. |
+
+Arc does not notify any of them: what an engine sees is Arc's last export plus that engine's own delay.
+
 ## Configuration reference
 
 | Key (`arc.toml`) | Env var | Default | Meaning |
