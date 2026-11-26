@@ -187,6 +187,17 @@ Also from v27.01.1, a response whose final write fails counts as an error, and o
 Before v26.09.2 the Arrow endpoint counted its failures but not its requests or successes, so the error-rate expression above could exceed 1 — or divide by zero — on an Arrow-heavy workload, and Arrow throughput was invisible. On an earlier version, use `arc_http_requests_error_total / arc_http_requests_total`, which moves for both query paths at the cost of aggregating every endpoint.
 </Callout>
 
+Queries sent with `x-arc-freshness: flush` (v27.01.1+, see [Read every acknowledged write](/arc/guides/querying/#read-every-acknowledged-write-v27011)) have their own metrics, and are left out of `arc_http_*` latency. Their `arc_query_latency_seconds` starts after the wait:
+
+```text
+arc_query_fresh_flush_total{outcome}     # counter: answers by outcome: flushed, or the X-Arc-Freshness-Reason (busy, timeout, forbidden, ...)
+arc_query_fresh_flush_waiters            # gauge: fresh queries waiting now (refused above query.fresh_flush_max_waiters)
+arc_query_fresh_flush_seconds            # histogram: time waited for the flushes, before the SQL ran (buckets 1 ms to 30 s)
+arc_ingest_forced_flushes_total{source="read",result}  # counter: early flushes fresh queries asked for: forced, not_due, over_budget, nothing, not_wanted, closing, lost_race
+```
+
+`arc_ingest_forced_flushes_total` also counts the early flushes of visible writes (`source="write"`); the two share one budget. `over_budget` means no spare flush capacity, so the query waited for the measurement's age or size flush.
+
 `arc_query_timeouts_total` and `arc_slow_queries_total` are wired on both paths and are safe to alert on. `arc_slow_queries_total` only moves when `query.slow_query_threshold_ms` is set (it defaults to `0`, disabled).
 
 <Callout type="info" title="Arrow coverage since v26.09.2">
