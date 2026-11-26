@@ -344,6 +344,51 @@ The `--database metrics` option sends `x-arc-database: metrics`, so the SQL only
 
 Arc buffers writes briefly, so newly accepted data may take a few seconds to appear in a query.
 
+### Wait until the rows are visible (v27.01.1+)
+
+A client that writes and then reads at once, such as a test, an agent's memory or a job step, can ask the write to answer only once its rows are visible, instead of sleeping or polling. Turn it on with `ingest.wait_visible_enabled = true` (`ARC_INGEST_WAIT_VISIBLE_ENABLED`, default `false`), then send `x-arc-wait: visible` on `/api/v1/write/msgpack` or `/api/v1/write/line-protocol`:
+
+```bash
+curl -i -X POST "http://localhost:8000/api/v1/write/line-protocol" \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "x-arc-database: metrics" \
+  -H "x-arc-wait: visible" \
+  --data-binary "cpu,host=server01 usage_idle=95.2"
+```
+
+The measurements the write touched are flushed early, at most once per `ingest.wait_visible_min_interval_ms` per measurement and only while the flush pipeline has spare capacity. Otherwise the write waits for its rows' normal age or size flush, up to `max_buffer_age_ms` (5 s by default) plus the flush time. Either way it waits at most 20 s.
+
+- **`ingest.wait_visible_min_interval_ms`** (`ARC_INGEST_WAIT_VISIBLE_MIN_INTERVAL_MS`, default `5000`, between `1000` and `3600000`; any other value stops Arc at startup). A measurement idle for longer than the interval is flushed right after the write is buffered. With the interval at most `max_buffer_age_ms`, a writer that keeps one measurement busy gets an early flush at most once per interval and waits about half the interval on average; above the age, the age flush comes first.
+- **Spare capacity:** the flush queue under half full, no flush deferred within the last `max_buffer_age_ms` (at least 1 s), buffered bytes under half of `max_buffered_bytes` (when set), and at most `max(1, flush_workers / 4)` early flushes at once. A request flushes early only the measurements it wrote. A write that cannot flush early is not refused: it waits for the age flush. One request writing many measurements can hold all of the node's early-flush slots for a while.
+- **Files:** an early flush writes a file like an age flush. A measurement gets at most 3 600 000 / interval (in ms) early flushes an hour, 720 at the default; overall at most `max_buffer_age_ms` / interval times the files of the age flush alone (no more at the defaults, five times as many at the 1 s floor with the default age).
+- **Where:** standalone with local storage only. On object storage the write is not flushed early and ends as `202 storage_not_confirmable`.
+
+The answers:
+
+| Status | Headers | Meaning |
+|---|---|---|
+| `204` | `X-Arc-Visible: true` | Every row is in a stored file (registered too, with tiered storage). A query over HTTP `/api/v1/query` on this node that starts after the answer sees them; Flight SQL is not covered. |
+| `202` | `X-Arc-Visible: false`, `X-Arc-Visible-Reason` | The rows were accepted, as a plain `204` says, but are not known to be visible. Do not resend them. The body is `{"visible": false, "reason": ..., "rows_written": ...}`. |
+| `500` | `X-Arc-Visible-Reason: flush_failed_rows_at_risk` | A flush holding rows without a WAL copy failed. The body has `rows_at_risk`; the rows may still be stored, so check before resending. |
+
+The `202` reasons:
+
+- `timeout`: 20 s passed first.
+- `shutdown`: the server began shutting down; the rows are still flushed at close.
+- `flush_failed_wal_replay`: the flush failed and a WAL copy was accepted; recovery replays it. With `wal.sync_mode = "async"` that copy may not have reached the disk yet.
+- `not_confirmed`: a tiering registration failed, or the rows did not all add up.
+- `storage_not_confirmable`: the storage backend is S3, MinIO, GCS or Azure. Only local storage confirms in this version, and Arc logs a warning at startup.
+- `future_stamped`: a row is stamped more than `query.file_time_pruning_margin_seconds` ahead in the current hour, which file-level time pruning can hide until the hour closes.
+
+Answered at once, without waiting: a partial write (`400`) carries `X-Arc-Visible: false` and `partial_write`; a write stopped part-way (`500`) carries `write_stopped`; an empty MessagePack write keeps its `204`, with `X-Arc-Visible: true`. Refused with nothing written:
+
+- the key off: `403`;
+- another value of the header, or a cluster (`cluster.enabled`): `400`;
+- the header on `/write`, `/api/v2/write`, Prometheus remote write, TLE, or an import (`/api/v1/import/csv`, `parquet`, `lp`, `tle`): `400`;
+- more than 1024 waiting writes on the node: `503` with `X-Arc-Ingest-Refused: wait_visible_busy` and `Retry-After: 5`. The limit is shared by every client on the node.
+
+Other routes ignore the header and answer without `X-Arc-Visible`; its absence never means visible. Proxies and load balancers in front of Arc need idle timeouts above 20 s. Waited writes are counted by `arc_ingest_wait_visible_total{outcome}`, `arc_ingest_wait_visible_waiters` and `arc_ingest_wait_visible_seconds`, and are left out of `arc_http_*` latency.
+
 ## Related guides
 
 - [Querying Arc](/arc/guides/querying/)
