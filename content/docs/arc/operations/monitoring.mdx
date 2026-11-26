@@ -193,6 +193,19 @@ Before v26.09.2 the Arrow endpoint counted its failures but not its requests or 
 Before v26.09.2 the Arrow endpoint never moved `arc_slow_queries_total`, and moved `arc_query_timeouts_total` only for a timeout that fired before streaming started. From v26.09.2 both counters cover `/api/v1/query/arrow` the same way they cover `/api/v1/query`.
 </Callout>
 
+### Fresh queries
+
+Queries sent with `x-arc-freshness: flush` (v27.01.1+, see [Read every acknowledged write](/arc/guides/querying/#read-every-acknowledged-write-v27011)) have their own metrics. One that took a waiter slot is left out of `arc_http_*` latency (a refusal before that, such as `busy`, is not), and its `arc_query_latency_seconds` starts after the wait:
+
+```text
+arc_query_fresh_flush_total{outcome}     # counter: answers by outcome (flushed, or the X-Arc-Freshness-Reason: busy, timeout, forbidden, ...)
+arc_query_fresh_flush_waiters            # gauge: fresh queries waiting now (refused above query.fresh_flush_max_waiters)
+arc_query_fresh_flush_seconds            # histogram: time waited for the flushes, before the SQL ran (buckets 1 ms to 30 s)
+arc_ingest_forced_flushes_total{source="read",result}  # counter: fresh queries' requests for an early flush, by result (forced, not_due, over_budget, nothing, closing, lost_race)
+```
+
+Only `result="forced"` is an early flush. `over_budget` means there was no spare flush capacity, so the query waited for the measurement's next flush: its age or size flush, or another request's early flush. `arc_ingest_forced_flushes_total` also counts the requests of visible writes (`source="write"`); the two share one budget. A Flight SQL call that sends `x-arc-freshness` is counted as `outcome="unsupported_route"`, with the key on or off.
+
 ### Storage
 
 ```text

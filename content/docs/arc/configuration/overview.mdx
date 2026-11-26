@@ -701,6 +701,11 @@ empty_range_anchor_scan = false           # EXPERIMENTAL: answer a proven-empty 
 # File-level time pruning of the live hour (v26.09.2+, on by default from v27.01.1, local backend)
 file_time_pruning = true
 file_time_pruning_margin_seconds = 300    # writer clock-skew allowance
+
+# Fresh queries: x-arc-freshness: flush (v27.01.1+, standalone, local storage)
+fresh_flush_enabled = false               # off: a query sending x-arc-freshness: flush gets 403
+fresh_flush_min_interval_ms = 5000        # minimum interval between early flushes of one measurement (1000 to 3600000)
+fresh_flush_max_waiters = 64              # fresh queries waiting at once on the node (1 to 1024)
 ```
 
 **SQL length limit.** `max_sql_length` (env `ARC_QUERY_MAX_SQL_LENGTH`) is
@@ -723,6 +728,14 @@ that flushed it, and still within the current hour, can be missing from such a
 query until the hour closes. `arc_ingest_future_stamped_rows_total` counts
 these rows on that node. Size the margin to the worst clock skew among the
 nodes that write, or set `file_time_pruning = false` to turn it off.
+
+**Fresh queries** (v27.01.1+). With `fresh_flush_enabled = true`, a query to
+`/api/v1/query` or `/api/v1/query/msgpack` that sends `x-arc-freshness: flush`
+first flushes the measurements it reads, and runs once every row this node
+acknowledged before the request arrived has been stored. The env variables are
+`ARC_QUERY_FRESH_FLUSH_ENABLED`, `ARC_QUERY_FRESH_FLUSH_MIN_INTERVAL_MS` and
+`ARC_QUERY_FRESH_FLUSH_MAX_WAITERS`; a value outside its range refuses to
+start. Standalone nodes only, on local storage that does not fold names. See [Read every acknowledged write](/arc/guides/querying/#read-every-acknowledged-write-v27011).
 
 ### Retention policies
 
