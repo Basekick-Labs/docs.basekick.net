@@ -530,6 +530,8 @@ max_buffer_age_ms = 5000
 # A write sending `x-arc-wait: visible` answers once its rows are visible to a
 # query (v27.01.1+, standalone; see the writing guide). Off: the header gets 403.
 # wait_visible_enabled = false
+# How often (ms) such a write may flush a measurement early; 1000-3600000.
+# wait_visible_min_interval_ms = 5000
 
 # Concurrency settings (auto-detected if not set)
 # flush_workers = 16       # async flush workers (2x CPU cores, min 8, max 64)

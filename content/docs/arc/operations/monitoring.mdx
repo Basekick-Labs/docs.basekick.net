@@ -137,6 +137,7 @@ Writes sent with `x-arc-wait: visible` (v27.01.1+) have their own metrics, and a
 arc_ingest_wait_visible_total{outcome}   # counter: answers by outcome (visible, timeout, storage_not_confirmable, busy, ...)
 arc_ingest_wait_visible_waiters          # gauge: writes waiting now (refused above 1024)
 arc_ingest_wait_visible_seconds          # histogram: time waited
+arc_ingest_forced_flushes_total{source,result}  # counter: early flushes asked for (source="write"): forced, not_due, over_budget, nothing, not_wanted, closing
 ```
 
 ```text
