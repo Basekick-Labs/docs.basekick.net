@@ -45,8 +45,10 @@ curl "http://localhost:8000/write?db=mydb&p=$ARC_TOKEN" -d 'cpu,host=server01 us
 
 - `GET /health` - Health check
 - `GET /ready` - Readiness probe
-- `GET /metrics` - Prometheus metrics
+- `GET /ready/write` - Write-pool readiness probe
 - `GET /api/v1/auth/verify` - Token verification
+
+**Not public from Arc 27.01.1:** `GET /metrics` and the `GET /api/v1/metrics*` endpoints need a valid token (any token, read-only included) while auth is on, unless `auth.metrics_public = true`. Versions before 27.01.1 serve them without a token.
 
 ## Quick examples
 
@@ -225,13 +227,17 @@ Kubernetes readiness probe.
 
 ### GET /metrics
 
-Prometheus-format metrics.
+Prometheus-format metrics. From Arc 27.01.1 it needs a valid token while auth is on, as does every `/api/v1/metrics*` endpoint below; see [Monitoring](/arc/operations/monitoring/#scrape-configuration).
 
 **Response:** `text/plain` (Prometheus format)
 
+```bash
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/metrics
+```
+
 Or request JSON:
 ```bash
-curl -H "Accept: application/json" http://localhost:8000/metrics
+curl -H "Authorization: Bearer $ARC_TOKEN" -H "Accept: application/json" http://localhost:8000/metrics
 ```
 
 ### GET /api/v1/metrics

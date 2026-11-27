@@ -453,7 +453,7 @@ If you're importing large datasets and encounter 413 errors, you can:
 2. Batch your imports into smaller chunks (recommended for reliability)
 </Callout>
 
-**Compressed MessagePack writes over the limit (Arc 27.01.1+).** `/api/v1/write/msgpack` checks the limit against the decompressed body as well, and answers `413` when it is exceeded, so a client that splits batches on `413` (the [Node-RED node](/docs/arc/integrations/node-red) does) can recover. Before 27.01.1 this answered `400`.
+**Compressed MessagePack writes over the limit (Arc 27.01.1+).** `/api/v1/write/msgpack` checks the limit against the decompressed body as well, and answers `413` when it is exceeded, so a client that splits batches on `413` (the [Node-RED node](/arc/integrations/node-red/) does) can recover. Before 27.01.1 this answered `400`.
 
 With a limit below 32MB, a zstd body is also refused with `413` when its frame *window* (the decoder memory the encoder asks for) is larger than the limit, before it is decoded. Encoders that know the batch size, such as Node.js `zlib.zstdCompressSync`, use a window no larger than the batch, so splitting the batch fixes it. An encoder that streams without knowing the size (for example `cat batch.msgpack | zstd -19`) keeps an 8MB window however small the batch, and splitting never gets it under a smaller limit. In that case lower the encoder's window (`zstd --zstd=wlog=20` for 1MB) or raise `max_payload_size`. A window over 32MB (`--ultra`, `--long`) is always refused with `400`.
 
@@ -660,10 +660,13 @@ Token-based API authentication:
 ```toml
 [auth]
 enabled = true              # Enable/disable auth
-db_path = "./data/arc_auth.db"  # Token database
-cache_ttl = 30              # Token cache TTL (seconds)
+db_path = "./data/arc.db"   # Token database
+cache_ttl = 300             # Token cache TTL (seconds)
 max_cache_size = 1000       # Max cached tokens
+metrics_public = false      # Serve /metrics and /api/v1/metrics without a token (v27.01.1+)
 ```
+
+From Arc 27.01.1 the metrics endpoints need a valid token while auth is on; `metrics_public = true` keeps them open. See [Metrics endpoints](/arc/configuration/authentication/#metrics-endpoints).
 
 ### Delete operations
 
@@ -984,10 +987,10 @@ Check metrics after configuration changes:
 
 ```bash
 # Memory usage
-curl http://localhost:8000/api/v1/metrics/memory
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/metrics/memory
 
 # Query performance
-curl http://localhost:8000/api/v1/metrics/query-pool
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/metrics/query-pool
 
 # Compaction status
 curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/compaction/status
@@ -1022,7 +1025,7 @@ export SERVER_PORT=8000         # Wrong - missing ARC_ prefix
 
 ```bash
 # Check current settings via metrics
-curl http://localhost:8000/api/v1/metrics/memory
+curl -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/api/v1/metrics/memory
 
 # Adjust in arc.toml:
 [database]

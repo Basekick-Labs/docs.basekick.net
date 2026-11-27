@@ -13,46 +13,114 @@ Each metric documented here was checked against a running Arc by scraping `/metr
 
 ## Endpoints
 
-| Endpoint | Format | Auth |
-|---|---|---|
-| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | **None** |
-| `GET /api/v1/metrics` | JSON snapshot of every counter | **None** |
-| `GET /api/v1/metrics/memory` | Go runtime and GC detail | **None** |
-| `GET /api/v1/metrics/query-pool` | Query counters | **None** |
-| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | **None** |
-| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | **None** |
-| `GET /health` | Liveness | **None** |
-| `GET /ready` | Readiness | **None** |
-| `GET /api/v1/logs` | Buffered application logs | **Admin** |
+| Endpoint | Format | Auth before 27.01.1 | Auth from 27.01.1 (`auth.enabled = true`) |
+|---|---|---|---|
+| `GET /metrics` | Prometheus text (default); JSON with `Accept: application/json` | None | **Any valid token** |
+| `GET /api/v1/metrics` | JSON snapshot of every counter | None | **Any valid token** |
+| `GET /api/v1/metrics/memory` | Go runtime and GC detail | None | **Any valid token** |
+| `GET /api/v1/metrics/query-pool` | Query counters | None | **Any valid token** |
+| `GET /api/v1/metrics/endpoints` | Counters grouped by subsystem | None | **Any valid token** |
+| `GET /api/v1/metrics/timeseries/:type` | Historical ring buffer | None | **Any valid token** |
+| `GET /health` | Liveness | None | None |
+| `GET /ready` | Readiness | None | None |
+| `GET /ready/write` | Write-pool readiness | None | None |
+| `GET /api/v1/logs` | Buffered application logs | Admin | Admin |
 
-<Callout type="warn" title="The metrics endpoints are public by design">
-`/metrics` and every `/api/v1/metrics*` path bypass authentication even when `auth.enabled = true`, because Prometheus scrapers expect an unauthenticated target. They expose aggregate counters, Go runtime stats, and host architecture — no queries, database or measurement names, file paths, or credentials.
+<Callout type="info" title="Who can read the metrics">
+The metrics endpoints carry aggregate counters, Go runtime stats and host architecture, and, only if you enable `iceberg.export_lag_table_series`, database and measurement names. No queries, file paths or credentials.
 
-If Arc is reachable beyond your cluster, restrict these paths at your ingress or proxy. `/api/v1/logs` is **not** public — it requires admin auth, because buffered log lines can contain operational detail.
+From Arc 27.01.1 they need a valid token while `auth.enabled = true`, the default. Any token works, read-only included, so give each scraper its own [read-only token](/arc/configuration/authentication/). Without one they answer `401`. A token scoped to one database (Enterprise RBAC) can read all of them. `/health`, `/ready` and `/ready/write` stay public for load balancers and probes.
+
+To keep the metrics endpoints public on 27.01.1 and later, set `auth.metrics_public = true` (`ARC_AUTH_METRICS_PUBLIC=true`); with auth on, Arc logs a warning at start. With `auth.enabled = false` they are public either way.
+
+Versions before 27.01.1 serve the metrics endpoints without a token, even with auth on. If Arc is reachable beyond your network, restrict these paths at your ingress or proxy.
+
+`/api/v1/logs` requires admin auth while auth is on, because buffered log lines can contain operational detail.
+</Callout>
+
+<Callout type="warn" title="Upgrading to 27.01.1">
+A scraper without a token gets `401` on every scrape after the upgrade, so in Prometheus `up` goes to `0` for Arc and an `up == 0` alert fires. Add the token before upgrading, or set `auth.metrics_public = true` until you do.
 </Callout>
 
 ### Scrape configuration
+
+Create a read-only token for Prometheus and pass it with `authorization`, which sends `Authorization: Bearer <token>`:
 
 ```yaml
 scrape_configs:
   - job_name: arc
     metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/arc-token   # or: credentials: <token>
     static_configs:
       - targets: ['arc:8000']
 ```
 
-Neither Helm chart ships a `ServiceMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself. For the Prometheus Operator:
+Use `authorization`, not `basic_auth`: Arc does not accept basic auth. Other clients send the token with any of the [authentication methods](/arc/configuration/authentication/#authentication-methods), for example:
+
+```bash
+curl -s -H "Authorization: Bearer $ARC_TOKEN" http://localhost:8000/metrics | head
+```
+
+Neither Helm chart ships a `ServiceMonitor`, a `PodMonitor` or `prometheus.io/*` annotations, so add scrape configuration yourself.
+
+**Prometheus Operator.** Put a read-only Arc token in a Secret in the namespace Arc runs in (here `arc`), then select Arc's pods with a `PodMonitor`. A `PodMonitor` scrapes each pod once; a `ServiceMonitor` on the Enterprise chart would match both the plain and the headless Service of each role and scrape writer and reader pods twice.
+
+```bash
+kubectl -n arc create secret generic arc-metrics-token --from-literal=token="$ARC_METRICS_TOKEN"
+```
 
 ```yaml
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8000"
-  prometheus.io/path: "/metrics"
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: arc
+  namespace: arc
+  # labels:
+  #   release: <your kube-prometheus-stack release>   # if your Prometheus selects monitors by label
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arc   # arc-enterprise for the Enterprise chart
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: arc-metrics-token
+          key: token
+```
+
+**Annotation-based discovery.** `prometheus.io/*` annotations cannot carry a token, and a token set on a shared `kubernetes-pods` job would be sent to every annotated pod. Give Arc its own job instead:
+
+```yaml
+scrape_configs:
+  - job_name: arc
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/arc-token
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [arc]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        regex: arc|arc-enterprise
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        regex: http
+        action: keep
 ```
 
 ## The signals that matter
 
 Start with these. Each one is verified to move in response to the condition it describes.
+
+<Callout type="info" title="Iceberg export lag">
+With Iceberg export on, the export's lag behind ingest has its own metrics, node-wide and, opt-in, per table. See [Monitoring the export](/arc/integrations/apache-iceberg/#monitoring-the-export).
+</Callout>
 
 ### Ingest throughput and errors
 
@@ -83,7 +151,23 @@ histogram_quantile(0.95, rate(arc_http_latency_seconds_bucket[5m]))
 rate(arc_http_requests_error_total[5m]) / rate(arc_http_requests_total[5m])
 ```
 
-There is no `arc_query_latency_*` histogram; query latency is available only as a lifetime average from `GET /api/v1/metrics`. Use the HTTP histogram above for percentiles.
+For query latency on its own, use the per-engine histogram, `arc_query_latency_seconds{engine}`:
+
+```text
+# p95 query latency, per engine
+histogram_quantile(0.95, sum by (engine, le) (rate(arc_query_latency_seconds_bucket[5m])))
+
+# Query executions per second, by engine and outcome
+sum by (engine, outcome) (rate(arc_query_engine_executions_total[5m]))
+```
+
+`engine` is the engine that ran the query, `duckdb` or `arcx`; `outcome` is `success` or `error`. Both engines' series are always exported, so an `engine="arcx"` series stays at `0` until arcx runs a query. The histogram's buckets run from 1 ms to 30 s, and failed executions are in it too. The JSON snapshot (`GET /api/v1/metrics`) carries the same counts under `query_engine_executions`.
+
+These two metrics count only queries that reached an engine. A request refused before that (validation, permissions, the SQL transform) appears in `arc_query_requests_total` and `arc_query_errors_total` only, so `sum(arc_query_engine_executions_total)` can be lower than `arc_query_requests_total` by design. Build error-rate ratios from the request counters, and latency percentiles from the histogram.
+
+<Callout type="info" title="Available since v27.01.1">
+Before v27.01.1 there is no `arc_query_latency_*` histogram and no per-engine counter: query latency is available only as a lifetime average from `GET /api/v1/metrics`. On an earlier version, use the HTTP histogram above for percentiles.
+</Callout>
 
 For a query-specific error rate, use the query counters:
 
@@ -91,10 +175,16 @@ For a query-specific error rate, use the query counters:
 rate(arc_query_errors_total[5m]) / rate(arc_query_requests_total[5m])
 ```
 
-All four query entry points — `/api/v1/query`, `/api/v1/query/msgpack`, `/api/v1/query/:measurement` and `/api/v1/query/arrow` — count requests consistently, so `success + errors` equals `requests`.
+All four query entry points — `/api/v1/query`, `/api/v1/query/msgpack`, `/api/v1/query/:measurement` and `/api/v1/query/arrow` — count their requests. From v27.01.1, every request also ends as exactly one success or one error, so `success + errors` equals `requests`. Before that, a few outcomes counted as neither:
+
+- An empty result (a measurement with no data) on `/api/v1/query/msgpack` and on `/api/v1/query` with Arrow encoding. It is now a success there, as on the other paths of `/api/v1/query` and on `/api/v1/query/arrow`, and it is counted in the lifetime latency average. `/api/v1/query/:measurement` answers it as an error, as before.
+- A query that shutdown cancels, on `/api/v1/query/msgpack`, `/api/v1/query/arrow` and `/api/v1/query` with Arrow encoding. It is now an error there too, as it already was on the other paths; the query registry still records it as cancelled.
+- An Arrow query that times out before its stream starts. It is now an error as well as a timeout.
+
+Also from v27.01.1, a response whose final write fails counts as an error, and on the JSON and Arrow paths also in `arc_query_client_disconnects_total`; before, it counted as a success. After the upgrade, `arc_query_success_total` rises slightly where empty results are common, and `arc_query_errors_total` where clients disconnect at the end of a response or queries run into a shutdown.
 
 <Callout type="info" title="Available since v26.09.2">
-Before v26.09.2 the Arrow endpoint counted its failures but not its requests or successes, so this expression could exceed 1 — or divide by zero — on an Arrow-heavy workload, and Arrow throughput was invisible. On an earlier version, use `arc_http_requests_error_total / arc_http_requests_total`, which moves for both query paths at the cost of aggregating every endpoint.
+Before v26.09.2 the Arrow endpoint counted its failures but not its requests or successes, so the error-rate expression above could exceed 1 — or divide by zero — on an Arrow-heavy workload, and Arrow throughput was invisible. On an earlier version, use `arc_http_requests_error_total / arc_http_requests_total`, which moves for both query paths at the cost of aggregating every endpoint.
 </Callout>
 
 `arc_query_timeouts_total` and `arc_slow_queries_total` are wired on both paths and are safe to alert on. `arc_slow_queries_total` only moves when `query.slow_query_threshold_ms` is set (it defaults to `0`, disabled).
@@ -418,6 +508,7 @@ Every rule below uses a metric verified to move. Thresholds are starting points 
 | Ingest backlog growing | `arc_buffer_records_buffered > 500000` | Storage writes are not keeping up with ingest. |
 | Audit events dropped | `increase(arc_audit_events_dropped_total[5m]) > 0` | Audit trail has gaps. Only relevant with `audit_log.enabled`. |
 | Query timeouts | `rate(arc_query_timeouts_total[5m]) > 0` | Queries exceeding `query.timeout`. |
+| Query latency | `histogram_quantile(0.95, sum by (le) (rate(arc_query_latency_seconds_bucket[5m]))) > 5` | 95th-percentile query time above 5 s, over all engines (v27.01.1+). 5 s is a bucket edge; pick a threshold above your workload's normal p95. An idle node yields no value and never fires. |
 | Compaction failing | `rate(arc_compaction_jobs_failed_total[1h]) > 0` | File count grows; tiering stalls. |
 | Memory near limit | `arc_memory_sys_bytes > 0.85 * <container limit>` | OOM-kill risk. |
 | Node not ready | `probe /ready != 200 for 5m` | Startup stuck or credentials expired. |
@@ -473,7 +564,7 @@ One metric is wired everywhere but has a deliberate exclusion:
 For air-gapped or edge deployments, Arc keeps its own in-memory history — no external system required.
 
 ```bash
-curl 'http://arc:8000/api/v1/metrics/timeseries/application?duration_minutes=30'
+curl -H "Authorization: Bearer $ARC_TOKEN" 'http://arc:8000/api/v1/metrics/timeseries/application?duration_minutes=30'
 ```
 
 Valid types are **`system`**, **`application`**, and **`api`** only; anything else returns 400 with the valid list. `duration_minutes` accepts 1–1440 and defaults to 30.
@@ -481,7 +572,7 @@ Valid types are **`system`**, **`application`**, and **`api`** only; anything el
 Retention is governed by `metrics.timeseries_retention_minutes` (default 30) and `metrics.timeseries_interval_seconds` (default 5), giving 360 sample points.
 
 <Callout type="warn" title="These are raw counters, not rates">
-Each sample holds cumulative counter values; compute deltas yourself. The `*_latency_avg_us` fields are **lifetime** averages rather than windowed, so they flatten over time and will not reveal a latency spike.
+Each sample holds cumulative counter values; compute deltas yourself. The `*_latency_avg_us` fields are **lifetime** averages rather than windowed, so they flatten over time and will not reveal a latency spike. For query latency over a window, scrape `arc_query_latency_seconds` (v27.01.1+).
 </Callout>
 
 ## Operational traps
@@ -490,7 +581,7 @@ Things that make a dashboard look healthy when it is not.
 
 **A query for a measurement that does not exist is not an error.** It returns HTTP 200 with `success: true` and zero rows, because Arc resolves measurements as a path glob at read time. No error counter moves. A dashboard that silently goes empty may be a typo in a measurement name, not an outage.
 
-**`/api/v1/metrics/query-pool` has two similar error fields.** `query_errors` is the API-level count (real); `query_errors_total` maps to a DuckDB connection-level counter that is never incremented. Pick the wrong one and the panel reads zero forever. The endpoint's `queries_total` is likewise always `0`: query execution does not route through the handle it counts. Its `connections_*` fields are populated as of v26.09.2, but prefer `/metrics` over this endpoint — the Prometheus surface has the pool gauges plus the wait counters this endpoint does not expose.
+**Before v27.01.1, the JSON endpoints serve two query counters that are always `0`.** `/api/v1/metrics/query-pool` has `pool.queries_total` and `pool.query_errors_total` next to the real `query_requests`, `query_success` and `query_errors`; the JSON snapshot (`/api/v1/metrics`, and `/metrics` with `Accept: application/json`) and `/api/v1/metrics/timeseries/api` have `db_queries_total` and `db_query_errors_total`. Nothing counts them: query execution does not pass through the DuckDB handle they were meant to count at. `query_errors` and `query_errors_total` differ by one suffix, and a panel on the wrong one reads zero forever. From v27.01.1 these four keys are gone; read `query_requests_total`, `query_success_total` and `query_errors_total` (`query_requests`, `query_success`, `query_errors` on query-pool), which count every query endpoint. The query-pool `connections_*` fields are populated as of v26.09.2, but prefer `/metrics` over this endpoint — the Prometheus surface has the pool gauges plus the wait counters this endpoint does not expose.
 
 **`/api/v1/metrics/endpoints` has no per-route breakdown** despite the name. It groups counters by subsystem.
 

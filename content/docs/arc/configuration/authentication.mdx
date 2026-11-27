@@ -14,21 +14,23 @@ Authentication is enabled by default since Arc v26.01.2. To disable it for local
 ```toml
 [auth]
 enabled = true                    # Enable/disable authentication
-db_path = "./data/arc_auth.db"    # SQLite database for token storage
-cache_ttl = 30                    # Token cache TTL in seconds
+db_path = "./data/arc.db"         # SQLite database for token storage
+cache_ttl = 300                   # Token cache TTL in seconds
 max_cache_size = 1000             # Maximum cached tokens
 bootstrap_token = ""              # Pre-set admin token value (v26.04.1+)
 force_bootstrap = false           # Add a recovery token without removing existing ones (v26.04.1+)
+metrics_public = false            # Serve /metrics and /api/v1/metrics without a token (v27.01.1+)
 ```
 
 **Environment variables:**
 ```bash
 export ARC_AUTH_ENABLED=true
-export ARC_AUTH_DB_PATH="./data/arc_auth.db"
-export ARC_AUTH_CACHE_TTL=30
+export ARC_AUTH_DB_PATH="./data/arc.db"
+export ARC_AUTH_CACHE_TTL=300
 export ARC_AUTH_MAX_CACHE_SIZE=1000
 export ARC_AUTH_BOOTSTRAP_TOKEN=""   # v26.04.1+
 export ARC_AUTH_FORCE_BOOTSTRAP=false  # v26.04.1+
+export ARC_AUTH_METRICS_PUBLIC=false   # v27.01.1+
 ```
 
 ## Authentication methods
@@ -153,7 +155,7 @@ Applier-side validation runs on every node before a token command lands in the F
 
 ### Prometheus counters
 
-Per node, on the `/metrics` endpoint:
+Per node, on the `/metrics` endpoint (from Arc 27.01.1 it needs a token while auth is on; see [Metrics endpoints](#metrics-endpoints)):
 
 ```text
 arc_cluster_auth_apply_create_total
@@ -313,7 +315,7 @@ The seed runs only on the Raft leader, gated by `WaitForLeader(30s)`. It is idem
 
 ### Prometheus counters
 
-Per node, alongside the Phase A token counters:
+Per node, alongside the Phase A token counters (on `/metrics`, which needs a token while auth is on from Arc 27.01.1):
 
 ```text
 arc_cluster_rbac_apply_create_organization_total
@@ -539,8 +541,16 @@ These endpoints do not require authentication:
 
 - `GET /health` -- Health check
 - `GET /ready` -- Readiness probe
-- `GET /metrics` -- Prometheus metrics
+- `GET /ready/write` -- Write-pool readiness probe
 - `GET /api/v1/auth/verify` -- Token verification
+
+## Metrics endpoints
+
+From Arc 27.01.1 (v27.01.1+), `GET /metrics` and every `GET /api/v1/metrics*` path need a valid token while `auth.enabled = true`. Any token works, read-only included, so give a Prometheus scraper or a dashboard its own read-only token. Without one they answer `401`. See [Monitoring](/arc/operations/monitoring/#scrape-configuration) for the Prometheus configuration.
+
+To serve them without a token, set `metrics_public = true` under `[auth]` (`ARC_AUTH_METRICS_PUBLIC=true`). With auth on, Arc logs a warning at start. With `auth.enabled = false` they are public either way.
+
+Versions before 27.01.1 serve the metrics endpoints without a token, even with auth on.
 
 ## API endpoints reference
 
