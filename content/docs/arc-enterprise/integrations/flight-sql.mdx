@@ -130,6 +130,8 @@ With audit logging on, every Flight query is recorded like an HTTP query, with t
 
 Enable the listener on the nodes clients query. A Flight query sent to a node that forwards reads (a compactor forwards to a reader) is forwarded like an HTTP query.
 
+A node from before Arc 27.01.1 ignores the [`x-arc-decimals`](#exact-integer-decimals) header and answers with the default types: upgrade every node before relying on it.
+
 ## Shutdown
 
 On shutdown, in-flight Flight queries get 5 seconds to finish and are then cancelled; connections still open 2 seconds later are closed, so a client that stops reading a result cannot hold shutdown up. The listener stops in at most about 11 seconds, and sooner when `server.shutdown_timeout` leaves less.
