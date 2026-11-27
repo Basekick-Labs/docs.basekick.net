@@ -13,6 +13,9 @@ Per-database comparisons (8 total):
   https://basekick.net/blog/arc-clickbench-cold-runs
   https://basekick.net/blog/arc-log-benchmark-2026
 
+Release posts with measurements (verified 200, 2026-11-27):
+  https://basekick.net/blog/arc-release-26-09-1   (response compression: JSON 5M rows −68%; Arrow dictionary + zstd: 39.0 → 19.4 bytes/row)
+
 ## DO NOT USE
   arc-clickbench-vs-clickhouse  -> 404, NO SUCH POST EXISTS.
   There is no ClickHouse ClickBench comparison. Do not link it, do not

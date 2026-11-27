@@ -614,6 +614,7 @@ A name describes the column, not the JSON token its values are written as:
 | `date32` | RFC 3339 string: the day at `T00:00:00Z` |
 | `binary`, `large_binary` | base64 string |
 | `utf8`, `large_utf8`, `string_encoded`, `list`, `struct`, `map`, `unknown:…` | string |
+| `null` | always `null` |
 
 Any value can be `null`. A timestamp or date with a year outside 0–9999 (such
 as DuckDB's `infinity`) is written with more digits than RFC 3339 allows.
@@ -674,7 +675,8 @@ same-host consumers (they trade CPU for wire bytes):
 | `x-arc-arrow-dictionary: true` | Dictionary-encode low-cardinality string columns (adaptive, first-batch analysis). Columns arrive as standard Arrow dictionary arrays — pyarrow, polars, and pandas read them transparently. |
 | `x-arc-arrow-compression: zstd` (or `lz4`) | Arrow IPC buffer compression, decompressed natively by Arrow clients. |
 
-Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row).
+Combined, the two encodings roughly halve the bytes on the wire; the measurements are in
+the [Arc 26.09.1 release post](https://basekick.net/blog/arc-release-26-09-1).
 
 ### Response compression (v26.09.1+)
 
@@ -686,7 +688,9 @@ automatically. HTTP libraries decode only the encodings they support. Python `re
 handles gzip out of the box but zstd only with `pip install "urllib3[zstd]"`;
 without it, a hand-set `Accept-Encoding: zstd` hands the compressed bytes to
 your parser (`msgpack` fails with `ExtraData`). With it installed, leave the
-header alone: `requests` offers zstd itself and decodes the response. Typical savings: JSON −68%, msgpack −38% on large results.
+header alone: `requests` offers zstd itself and decodes the response.
+Large results shrink substantially; the
+[Arc 26.09.1 release post](https://basekick.net/blog/arc-release-26-09-1) measures a large JSON result.
 Clients that omit the header get identical responses to previous versions.
 
 ### Request compression

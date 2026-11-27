@@ -429,6 +429,7 @@ A name describes the column, not the JSON token its values are written as:
 | `date32` | RFC 3339 string: the day at `T00:00:00Z` |
 | `binary`, `large_binary` | base64 string |
 | `utf8`, `large_utf8`, `string_encoded`, `list`, `struct`, `map`, `unknown:…` | string |
+| `null` | always `null` |
 
 Any value can be `null`. A timestamp or date with a year outside 0–9999 (such
 as DuckDB's `infinity`) is written with more digits than RFC 3339 allows.
