@@ -159,7 +159,8 @@ The response is a single MessagePack map:
 
 The `truncated` and `truncation_reason` completion fields are JSON-only. The
 `POST /api/v1/query/msgpack` endpoint materializes the full result before
-committing response headers, so a DuckDB failure becomes a proper 5xx rather
+committing response headers, so a DuckDB failure becomes an error status (5xx,
+or 400 for a [decimal value beyond int64](/arc/api-reference/overview/#decimal-results)) rather
 than a marked partial body. A failure while writing the MessagePack body can
 still produce a partial response without an in-band truncation marker.
 
@@ -595,6 +596,24 @@ deployment. Client libraries should still handle them, so the same code
 behaves correctly against an Enterprise server.
 
 
+
+### Decimal results
+
+By default, Arc sends decimal result columns as numbers: a decimal with a scale (`DECIMAL(18,8)`, or `sum()` of one) as `float64`, and a scale-0 decimal as `int64`. That includes `sum()` of any integer column, which DuckDB computes as a 128-bit integer (`HUGEINT`, a `DECIMAL(38,0)`), and columns stored with `ingest.decimal_columns`. Stored values stay exact; the conversion only applies to the response:
+
+- A `float64` keeps about 15–17 significant digits. `DECIMAL(18,8)` value `1234567890.12345678` comes back as `1234567890.1234567`.
+- A scale-0 value beyond the `int64` range (−9,223,372,036,854,775,808 to 9,223,372,036,854,775,807) cannot be sent as an `int64`. Since Arc 27.01.1, by default, a query whose first chunk of results (at most 2,048 rows) holds such a value is answered with **HTTP 400** (Flight SQL: `INVALID_ARGUMENT`), and the message names the column and the row:
+
+  ```text
+  decimal value beyond the int64 range: column "s" (DECIMAL(38,0)/HUGEINT) at row 0; cast it in SQL: ::DOUBLE (approximate) or ::VARCHAR (exact digits)
+  ```
+
+  If the value first appears after the first chunk, the response has already started: JSON ends with `truncated: true` and this message as `truncation_reason` (the column name is masked as `"..."` there, like every quoted name in a truncation reason), Arrow with the `Arc-Stream-Truncated` trailer, and Flight SQL with `INVALID_ARGUMENT`. MessagePack reads the whole result first, so it answers 400 for any row within the governance row cap. Before 27.01.1, the same query returned `200` with `truncated` (JSON), a cut Arrow stream or `500` (MessagePack).
+
+To get such a value, cast it in the query: `sum(x)::DOUBLE` returns an approximate number, `sum(x)::VARCHAR` the exact digits as text. `::VARCHAR` returns the exact digits of any decimal. The cast needs no setting and no change to stored data or to `ingest.decimal_columns`.
+
+**Exact integer decimals (v27.01.1+):** an Arrow IPC (`POST /api/v1/query/arrow`) or Flight SQL request can send `x-arc-decimals: exact` instead. A scale-0 decimal column with a precision above 18 then keeps its Arrow `decimal128` type, so its values arrive exact, beyond int64 too; every integer `sum()` comes back as `decimal128(38,0)`, including sums that fit in int64. Decimals with a scale stay `float64`, and scale-0 decimals with a precision of 18 or less stay `int64`. The JSON and MessagePack endpoints answer `exact` with 400 (`x-arc-decimals=exact is supported only for Arrow IPC and Flight SQL`). See [Exact integer decimals](/arc/guides/decimal-precision/#exact-integer-decimals) for Flight SQL, the clients and the limits.
+
 ### POST /api/v1/query/arrow
 
 Execute SQL queries with Apache Arrow IPC response.
@@ -641,6 +660,12 @@ same-host consumers (they trade CPU for wire bytes):
 
 Combined, these halved wire size on a 500M-row benchmark (39 → 19.4 bytes/row).
 
+**Exact integer decimals (v27.01.1+):**
+
+| Header | Effect |
+|---|---|
+| `x-arc-decimals: exact` | Scale-0 decimal columns with a precision above 18 (every integer `sum()` among them) keep their Arrow `decimal128` type instead of `int64`, so values beyond int64 arrive exact. `default`, or no header, keeps the default types. See [Decimal results](#decimal-results). |
+
 ### Response compression (v26.09.1+)
 
 `POST /api/v1/query` (JSON) and `POST /api/v1/query/msgpack` honor the
@@ -674,6 +699,8 @@ Estimate query cost before execution.
 }
 ```
 
+An `x-arc-decimals` header is checked as on the query endpoints: `exact` and `default` are accepted and change nothing, since an estimate returns no column values; any other value, or the header sent more than once, is answered with 400.
+
 ### GET /api/v1/measurements
 
 List all measurements across databases.
@@ -681,6 +708,8 @@ List all measurements across databases.
 ### GET /api/v1/query/:measurement
 
 Query a specific measurement directly.
+
+The response is JSON, so `x-arc-decimals: exact` is answered with 400 here, as on `POST /api/v1/query` (see [Decimal results](#decimal-results)).
 
 ---
 

@@ -136,34 +136,33 @@ Line Protocol transmits all float values as text, so precision is preserved thro
 
 ## Querying
 
-Arc reads the Parquet DECIMAL type natively — no query changes needed:
+Arc reads the Parquet DECIMAL type natively — no query changes needed, and all SQL operations work with decimal columns (aggregation, filtering, ordering, window functions). `sum()`, `min()` and `max()` of a decimal column stay decimals; `avg()` returns a `DOUBLE`.
+
+**The response converts decimals to numbers** (on every HTTP query API since Arc 26.09.2, and on Flight SQL, new in 27.01.1). The query APIs send a decimal with a scale as `float64` and a scale-0 decimal as `int64` (the same on JSON, MessagePack, Arrow IPC and Flight SQL, unless an Arrow IPC or Flight SQL request sends [`x-arc-decimals: exact`](#exact-integer-decimals)), so a value with more than about 15–17 significant digits is rounded in the response:
 
 ```sql
-SELECT price, amount, typeof(price) as price_type
+SELECT price, typeof(price) AS price_type
 FROM trades
-LIMIT 5
+LIMIT 2
 ```
-
-Response:
 
 ```json
 {
-  "columns": ["price", "amount", "price_type"],
+  "columns": ["price", "price_type"],
   "data": [
-    ["123.45678901", "999.12345678", "DECIMAL(18,8)"],
-    ["99999.12345678", "0.00000001", "DECIMAL(18,8)"]
+    [1234567890.1234567, "DECIMAL(18,8)"],
+    [0.1, "DECIMAL(18,8)"]
   ]
 }
 ```
 
-All SQL operations work with decimal columns — aggregation, filtering, ordering, window functions:
+The stored value is `1234567890.12345678`; the response carries the nearest `float64`. **To get the exact digits, cast to text in the query:**
 
 ```sql
--- Aggregation preserves decimal precision
-SELECT symbol,
-       AVG(price) as avg_price,
-       SUM(amount) as total_amount,
-       COUNT(*) as trade_count
+SELECT price::VARCHAR AS price FROM trades LIMIT 2
+-- ["1234567890.12345678"], ["0.10000000"]
+
+SELECT symbol, sum(amount)::VARCHAR AS total_amount
 FROM trades
 GROUP BY symbol
 
@@ -171,15 +170,121 @@ GROUP BY symbol
 SELECT * FROM trades WHERE price > 50000.00
 
 -- Arithmetic on decimal columns
-SELECT price * amount as notional_value FROM trades
+SELECT price * amount AS notional_value FROM trades
 ```
+
+<Callout type="info" title="Scale-0 decimals beyond int64">
+A `DECIMAL(p,0)` value outside the int64 range (for example a `DECIMAL(38,0)` column, or `sum()` of a large integer column) cannot be sent as an `int64`. Since Arc 27.01.1, when the value is in the first chunk of the result (at most 2,048 rows), the query is answered with HTTP 400 and a message naming the column and the cast to use; see [Decimal results](/arc/api-reference/overview/#decimal-results). Cast it as above to get the value, or, on Arrow IPC and Flight SQL, send [`x-arc-decimals: exact`](#exact-integer-decimals).
+</Callout>
+
+## Exact integer decimals
+
+<Callout type="info" title="Available since v27.01.1">
+The `x-arc-decimals` header ships in Arc 27.01.1. A request without it gets the same types as before.
+</Callout>
+
+An Arrow IPC (`POST /api/v1/query/arrow`) or Flight SQL request can send the header **`x-arc-decimals: exact`**. A scale-0 decimal column with a precision above 18 then keeps its Arrow `decimal128` type instead of being converted to `int64`, so its values arrive exact, including values beyond the int64 range, which are otherwise refused (with 400 when they are in the first chunk of the result). This is the way to read `sum()` of a large `BIGINT` column as a number.
+
+- **Only scale-0 decimals with a precision above 18 change.** A decimal with a scale (such as `DECIMAL(18,8)` above) is still sent as `float64`, and a `DECIMAL(p,0)` with a precision of 18 or less as `int64`, which is already exact. For the exact digits of a decimal with a scale, cast to `VARCHAR` as above.
+- **It is per column, not per value.** With `exact`, every integer `sum()` comes back as `decimal128(38,0)`, including sums that fit in int64. Send the header only from a client that reads Arrow decimals.
+- **The value** is `exact` or `default` (the same as sending nothing), in lowercase. Surrounding spaces are ignored and an empty value counts as no header. Any other value is refused with 400 (Flight SQL: `INVALID_ARGUMENT`), and so is the header sent more than once, even with the same value twice (`exact, exact` on one line is one unknown value).
+
+### Where it applies
+
+| Endpoint or call | With `x-arc-decimals: exact` |
+|---|---|
+| `POST /api/v1/query/arrow` | applied |
+| Flight SQL statements and prepared statements | applied |
+| Flight SQL `GetTables` with schemas | applied to the table schemas |
+| Other Flight SQL catalog calls | header ignored, whatever its value |
+| `POST /api/v1/query`, `POST /api/v1/query/msgpack`, `GET /api/v1/query/:measurement` | **400** `x-arc-decimals=exact is supported only for Arrow IPC and Flight SQL` |
+| `POST /api/v1/query/estimate` | accepted and ignored, since an estimate returns no column values |
+
+JSON and MessagePack have no numeric encoding for these values that every client reads; there, cast in SQL (`::VARCHAR` for the exact digits). `x-arc-decimals: default` is accepted wherever the header is read, and an invalid or repeated value is refused there with 400 (`INVALID_ARGUMENT` on Flight SQL).
+
+Browsers can send the header: it is in Arc's CORS allow-list, together with `x-arc-arrow-dictionary` and `x-arc-arrow-compression`.
+
+### Arrow IPC
+
+The examples use the `trades` measurement above. `$ARC_TOKEN` is an Arc token with read permission; see [Token management](/arc/configuration/authentication/#token-management) to create one.
+
+```bash
+curl -sS --fail-with-body -X POST http://localhost:8000/api/v1/query/arrow \
+  -H "Authorization: Bearer $ARC_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "x-arc-decimals: exact" \
+  -d '{"sql": "SELECT symbol, sum(volume) AS total_volume FROM mydb.trades GROUP BY symbol"}' \
+  -o result.arrow
+```
+
+With Python and pyarrow:
+
+```python
+import os
+import pyarrow as pa
+import requests
+
+resp = requests.post(
+    "http://localhost:8000/api/v1/query/arrow",
+    headers={
+        "Authorization": f"Bearer {os.environ['ARC_TOKEN']}",
+        "x-arc-decimals": "exact",
+    },
+    json={"sql": "SELECT symbol, sum(volume) AS total_volume FROM mydb.trades GROUP BY symbol"},
+)
+resp.raise_for_status()
+table = pa.ipc.open_stream(resp.content).read_all()
+print(table.schema)  # total_volume: decimal128(38, 0)
+```
+
+### Flight SQL
+
+On [Flight SQL](/arc/integrations/flight-sql/) the header is a gRPC call header:
+
+- **ADBC:** set the option `adbc.flight.sql.rpc.call_header.x-arc-decimals` to `exact`, at either the database level or the connection level, not both. ADBC sends the header from both levels, and Arc refuses a header sent more than once.
+
+  ```python
+  import os
+  import adbc_driver_flightsql.dbapi as flightsql
+
+  conn = flightsql.connect(
+      "grpc://localhost:50051",
+      db_kwargs={
+          "username": "",
+          "password": os.environ["ARC_TOKEN"],
+          "adbc.flight.sql.rpc.call_header.x-arc-decimals": "exact",
+      },
+  )
+  cur = conn.cursor()
+  cur.execute("SELECT symbol, sum(volume) AS total_volume FROM mydb.trades GROUP BY symbol")
+  print(cur.fetch_arrow_table().schema)  # total_volume: decimal128(38, 0)
+  cur.close()
+  conn.close()
+  ```
+
+- **JDBC** (the Arrow Flight SQL JDBC driver): add `x-arc-decimals=exact` to the URL, for example `jdbc:arrow-flight-sql://<host>:<flight_sql.port>?useEncryption=false&x-arc-decimals=exact`, or set `x-arc-decimals` to `exact` as a driver property. The driver sends unknown URL parameters and properties as call headers. As user, give any value; as password, the Arc token.
+
+Both clients send the header on every call, which Arc requires: the mode of a statement is fixed when it is prepared, or at `GetFlightInfo` for a statement run without a prepare, and every later call on it (`GetSchema`, `GetFlightInfo`, `DoGet`) must send the same value. A call with another value is refused with `INVALID_ARGUMENT`, and so is a call without the header on a statement fixed to `exact`, prepared or not. The prepared schema, the result stream and the table schemas of `GetTables` with schemas all follow the mode.
+
+Tested with the ADBC Flight SQL driver 1.13.0 and the Arrow Flight SQL JDBC driver (`flight-sql-jdbc-driver`) 19.0.0.
+
+### Clusters (Enterprise)
+
+A node from before Arc 27.01.1 ignores the header and answers with the default types. Upgrade every node before relying on it.
+
+### Limits
+
+- **DuckDB's unsigned `UHUGEINT` is not exact above 2^127 − 1** (170141183460469231731687303715884105727). DuckDB exports a `UHUGEINT` as `decimal(38,0)`, and Arc cannot tell it from a signed `HUGEINT`. With `exact`, every `UHUGEINT` value from 2^127 up arrives as that value minus 2^128: negative, with 200 and no error (the maximum arrives as `-1`). Cast `UHUGEINT` to `VARCHAR` for its digits. Sums are not affected: `sum()` of an integer column, `UBIGINT` included, is a signed `HUGEINT`, and `sum()` of a `UHUGEINT` is a `DOUBLE`.
+
+  Without the header, most of that `UHUGEINT` range gets the 400 described above (for a value in the first chunk). The top 2^63 values (from 340282366920938463454151235394913435648 up) fit in int64 after the wrap and arrive wrong, with 200 (the maximum as `-1`), on every query route (JSON, MessagePack, Arrow IPC and Flight SQL), as v26.09.4 already did on JSON and Arrow IPC.
+- **`HUGEINT` values with 39 digits** (10^38 up to 2^127 − 1, and the negatives down to −2^127) arrive correct with `exact`, but have more digits than their `decimal(38,0)` field declares. pyarrow and ADBC read them; a client that checks precision may refuse them. Without the header they get the 400.
 
 ## How it works
 
 1. **Ingestion**: Float64, int64, or string values arriving for declared decimal columns are converted to Arrow Decimal128 at buffer time
 2. **Storage**: Stored as Parquet DECIMAL logical type (16 bytes per value, exact precision)
 3. **Metadata**: Decimal column specs are stored as Parquet metadata (`arc:decimals`) for self-describing files
-4. **Querying**: Arc reads Parquet DECIMAL natively
+4. **Querying**: Arc reads Parquet DECIMAL natively; responses send decimals as `float64` or `int64`, so cast to `VARCHAR` in SQL for exact digits, or send [`x-arc-decimals: exact`](#exact-integer-decimals) on Arrow IPC and Flight SQL to keep scale-0 decimal columns with a precision above 18 as `decimal128`
 5. **Compaction**: DECIMAL types are preserved automatically during compaction
 
 ## Performance

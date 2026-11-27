@@ -84,6 +84,15 @@ conn = flightsql.connect(
 
 ADBC drivers also exist for Go, Java, R and Rust, and any Flight SQL client that runs plain statement queries works the same way.
 
+## Exact integer decimals
+
+Arc sends a scale-0 decimal column, such as `sum()` of an integer column, as `int64`, so a value beyond the int64 range is refused with `INVALID_ARGUMENT`. Since Arc 27.01.1, a client can send the call header `x-arc-decimals: exact`: a scale-0 decimal column with a precision above 18 then keeps its Arrow `decimal128` type and its values arrive exact. Every integer `sum()` then comes back as `decimal128(38,0)`, including sums that fit in int64.
+
+- **ADBC:** set `adbc.flight.sql.rpc.call_header.x-arc-decimals` to `exact`, at the database or the connection level, not both (a header sent twice is refused).
+- **JDBC:** add `x-arc-decimals=exact` to the URL, or set it as a driver property.
+
+The mode of a statement is fixed when it is prepared, or at `GetFlightInfo` for a statement run without a prepare, and every later call on it must send the same value. See [Exact integer decimals](/arc/guides/decimal-precision/#exact-integer-decimals) for the rules, the catalog calls and the limits.
+
 ## What is supported
 
 | | |
@@ -120,6 +129,8 @@ With audit logging on, every Flight query is recorded like an HTTP query, with t
 ## Clusters
 
 Enable the listener on the nodes clients query. A Flight query sent to a node that forwards reads (a compactor forwards to a reader) is forwarded like an HTTP query.
+
+A node from before Arc 27.01.1 ignores the [`x-arc-decimals`](#exact-integer-decimals) header and answers with the default types: upgrade every node before relying on it.
 
 ## Shutdown
 

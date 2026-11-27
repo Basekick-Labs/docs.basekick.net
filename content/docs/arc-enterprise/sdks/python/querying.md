@@ -110,6 +110,16 @@ and must be discarded, while `rows_capped` means it is valid but stopped at a
 policy limit. Treating a capped result as a failure is as wrong as treating it
 as complete.
 
+**A decimal value beyond the `int64` range** (for example `sum()` of a large
+integer column): with Arc 27.01.1 or later, when the value is in the first
+chunk of the result, the server answers HTTP 400. With `arc-tsdb-client`
+0.2.1, `query()` and `query_arrow()` raise `ArcQueryError` whose message
+carries the server's reason, including the SQL cast that returns the value
+(`::DOUBLE` or `::VARCHAR`); `query_msgpack()` raises `ArcQueryError` too,
+with the server's MessagePack error body in the message. A value later in the
+result still arrives as a truncation, as above. See
+[Decimal results](/arc-enterprise/api-reference/overview/#decimal-results).
+
 
 ### When to use
 
