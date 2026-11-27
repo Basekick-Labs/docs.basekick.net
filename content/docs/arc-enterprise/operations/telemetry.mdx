@@ -1,6 +1,6 @@
 ---
 title: "Telemetry"
-description: "What anonymous usage telemetry an Arc Enterprise node reports, what is deliberately excluded, and how to disable it in arc.toml or by environment variable across a cluster."
+description: "What anonymous usage telemetry an Arc Enterprise node reports, how each cluster node keeps one instance id with telemetry.instance_id, and how to disable reporting."
 ---
 
 Arc sends anonymous usage telemetry to help improve the project. This page explains what data is collected, how it's used, and how to opt out.
@@ -23,8 +23,10 @@ the one exception: it is derived by the receiving server, not sent by Arc):
 
 ### Instance information
 
-- **instance_id**: A random UUID generated on first run
-  - Stored in `./data/.instance_id`
+- **instance_id**: A UUID, random and generated on first run unless
+  `telemetry.instance_id` sets it (v27.01.1+; see
+  [Keeping the instance id across restarts](#keeping-the-instance-id-across-restarts))
+  - Stored in `.instance_id` under `telemetry.data_dir` (default `./data`; the key is v27.01.1+)
   - Unique per Arc installation
   - Not linked to any personal information
 
@@ -75,7 +77,7 @@ the one exception: it is derived by the receiving server, not sent by Arc):
 
 ```json
 {
-  "instance_id": "550e8400-e29b-41d4-a716-446655440000",
+  "instance_id": "<instance-id>",
   "timestamp": "2024-01-20T10:30:00Z",
   "arc_version": "0.1.0",
   "os": {
@@ -136,7 +138,7 @@ Telemetry is sent to: `telemetry.basekick.net`
 
 - If the telemetry endpoint is unreachable, Arc logs a warning but continues operating normally
 - Failed transmissions are retried during the next scheduled transmission
-- No telemetry data is queued or persisted locally
+- Nothing is persisted locally besides `.instance_id`; the CLI-installation window (at most 256 ids) is held in memory until the next successful report
 
 ### Startup logging
 
@@ -155,6 +157,42 @@ INF > Telemetry is DISABLED (opt-out via ARC_TELEMETRY_ENABLED=false)
 ```
 
 Arc prints the same line whether telemetry was turned off in `arc.toml` or with `ARC_TELEMETRY_ENABLED=false`.
+
+## Keeping the instance id across restarts
+
+Arc keeps its instance id in a file, `./data/.instance_id` by default,
+relative to the working directory. A deployment without a persistent disk
+gets a new id on every start and counts as a new installation each time: for
+example a Kubernetes pod with an `emptyDir`, or a container recreated without
+a volume at `/app/data`. From v27.01.1, two keys fix that:
+
+| Key | Environment variable | Default | Meaning |
+|---|---|---|---|
+| `telemetry.instance_id` | `ARC_TELEMETRY_INSTANCE_ID` | empty | An id to use instead of the file. Nothing is written to disk. |
+| `telemetry.data_dir` | `ARC_TELEMETRY_DATA_DIR` | `./data` | Where the id file lives when no id is set. An empty value means `./data`. It does not follow `auth.db_path` or `storage.local_path`. |
+
+```toml
+[telemetry]
+instance_id = "<uuid from uuidgen>"
+```
+
+- **The id must be a UUID.** Generate one with `uuidgen`; don't copy one from
+  an example. While telemetry is on, Arc refuses to start with a value that is
+  not a UUID, or with a placeholder: the nil UUID, the max UUID, or the
+  `550e8400-e29b-41d4-a716-446655440000` example. Upper case and braces are
+  accepted and stored in canonical form, so they don't make a second id.
+- **Standalone:** the value is the id. Give each installation its own.
+- **Cluster:** with `cluster.enabled`, each node reports an id derived from
+  the value and its `cluster.node_id`, or its host name when `node_id` is
+  unset. One value in a
+  multi-replica template still counts each node once, as long as each node's
+  name is stable across restarts (a StatefulSet pod's is).
+- Setting `instance_id` on an installation that already has an id file
+  changes its id for as long as the key is set; removing the key brings the
+  file's id back. To keep the current id on a standalone node, set the key to
+  the file's contents.
+- A new id file is created with mode `0600`. A file that holds only
+  whitespace is replaced with a new id.
 
 ## Disabling telemetry
 

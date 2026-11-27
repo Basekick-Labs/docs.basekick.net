@@ -295,7 +295,8 @@ cycle_timeout = "30m"    # Positive Go duration: 90s, 30m, 2h
 A longer budget does not reduce peak memory demand or guarantee that every
 candidate completes; it only lets one cycle process more of them. A
 scheduled tick that arrives while a cycle is still running is skipped, and a
-manual trigger during a running cycle returns `409`.
+manual trigger during a running cycle returns `409`. While Arc is shutting
+down, a manual trigger returns `503` (v27.01.1+, see [At shutdown](#at-shutdown)).
 
 #### Exclude databases
 
@@ -356,6 +357,32 @@ enabled = false
 <Callout type="warn">
 Disabling compaction will cause queries to slow down significantly as files accumulate.
 </Callout>
+
+## At shutdown
+
+From v27.01.1, Arc stops compaction in two steps when it shuts down. Both use
+[`server.shutdown_timeout`](/arc-enterprise/operations/monitoring/#deployment-notes) (default 30 seconds).
+
+1. **First, before `/ready` starts answering `503` and requests drain:**
+   - No new cycle starts. Every manual trigger answers `503` with
+     `"stopping": true`, even while a cycle is running.
+   - A running cycle, scheduled or manual, stops at its next boundary: before
+     its next batch, measurement, database, manifest to recover, or half of a
+     split batch. Its unstarted batches are left for the next cycle.
+   - The cycle's `status` is `stopped`. A stop is not counted as a failure,
+     and a split stopped part way does not mark the partition as too wide.
+   - Batches already running keep going.
+2. **Then, after the buffers flush and the WAL closes**, Arc waits for the
+   batches still running, until a fifth of `server.shutdown_timeout` is left.
+   Any still running then are killed, and the cycle's `status` is
+   `cancelled`. The next start recovers each killed job from its manifest, as
+   after a crash.
+
+No compaction subprocess outlives Arc. If the shutdown deadline passed before
+the wait could run, Arc kills the cycle as its last step before exiting.
+
+On a cluster, the completion watcher applies the records of the batches that
+ended during the wait, before Raft stops.
 
 ## Monitoring
 
@@ -418,6 +445,7 @@ curl http://localhost:8000/api/v1/compaction/stats \
   "active_jobs": 2,
   "cycle_running": true,
   "current_cycle_id": 42,
+  "boot_id": "0fb37bac4a18fc4e",
   "paused": false,
   "exclude_databases": [],
   "last_cycle": {
@@ -495,6 +523,28 @@ curl -X POST "http://localhost:8000/api/v1/compaction/trigger?database=prod&meas
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
+The answer carries the cycle's `cycle_id` and, from v27.01.1, the process's
+`boot_id`:
+
+```json
+{
+  "message": "Compaction triggered",
+  "status": "running",
+  "tiers": ["hourly"],
+  "cycle_id": 42,
+  "boot_id": "0fb37bac4a18fc4e",
+  "database": "prod",
+  "measurement": "cpu"
+}
+```
+
+Keep both. Cycle ids are counted from 1 in each Arc process, so after a
+restart, or on another node behind a load balancer, the same number names
+another cycle. Send the `boot_id` back when you look the cycle up (see
+[Resolve a cycle you triggered](#resolve-a-cycle-you-triggered)). A trigger
+refused with `409` because a cycle is already running names that cycle's
+`cycle_id` and the `boot_id` too.
+
 <Callout type="info" title="Available in main; ships in v27.01.1">
 Per-cycle lookup (`/cycles`, `/cycles/{id}`), the `cycle_id` job filter, a
 working `limit` on `/history`, and a real `active_jobs` count are merged in
@@ -503,6 +553,30 @@ them is **v27.01.1**. On v26.09.x the `/cycles` routes return `404`,
 `/history?limit=` is capped at 10 records, and `active_jobs` is `null` on
 `/status` and always `0` on `/jobs`.
 </Callout>
+
+#### Wait for the cycle to finish
+
+From v27.01.1, the trigger's `wait` query parameter holds the answer until the
+cycle ends:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/compaction/trigger?wait=50s" \
+  -H "Authorization: Bearer $ARC_TOKEN"
+```
+
+`wait` is a Go duration (`90s`, `5m`); a value above 10 minutes is capped at
+10 minutes. The answer depends on how the wait ends:
+
+| Answer | When |
+|---|---|
+| `200` with the cycle's record, as [`/cycles/{id}`](#resolve-a-cycle-you-triggered) returns it | The cycle finished. A cycle that failed, or that Arc [stopped at shutdown](#at-shutdown), answers `200` too, so read its `status`. |
+| `202` with the trigger's fields, `"status": "running"` and a `message` | The wait ran out. The cycle carries on: poll `/cycles/{id}?boot_id=`. |
+| `202` with `"status": "unknown"` | The server shut down before the cycle recorded its end. |
+| `400` | `wait` is not a positive duration. No cycle is claimed. |
+
+A client that gives up early does not end the server's wait. Behind a load
+balancer, keep `wait` under its idle timeout (often 60 seconds), or the
+balancer answers `504` while the cycle carries on.
 
 ### View work in flight
 
@@ -523,16 +597,17 @@ attempts are running, not which ones.
 
 ### Resolve a cycle you triggered
 
-A trigger hands back a `cycle_id`. Ask what that cycle did:
+A trigger hands back a `cycle_id` and a `boot_id`. Ask what that cycle did:
 
 ```bash
-curl http://localhost:8000/api/v1/compaction/cycles/42 \
+curl "http://localhost:8000/api/v1/compaction/cycles/42?boot_id=0fb37bac4a18fc4e" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ```json
 {
   "cycle_id": 42,
+  "boot_id": "0fb37bac4a18fc4e",
   "status": "completed",
   "source": "api",
   "databases": ["prod"],
@@ -563,7 +638,10 @@ unless `failed_partitions_truncated` is present. That flag means more distinct
 partitions failed than the cycle record retains (200), so the list is
 incomplete — never read a capped list as the full answer.
 
-`status` is `running`, `completed`, `failed`, or `interrupted`. A cycle that
+`status` is `running`, `completed`, `failed`, `timed_out` (the cycle reached
+`cycle_timeout`), `cancelled` (the cycle was killed, for example at the
+shutdown deadline), `paused` (a cluster restore paused compaction) or
+`stopped` (Arc began shutting down; v27.01.1+). A cycle that
 has been claimed but has not yet written its record answers `claimed`, which is
 what you get if you resolve an id in the same millisecond you triggered it.
 
@@ -572,9 +650,18 @@ cron tick, `unspecified` otherwise.
 
 A `404` means this node retains no record of that id — and that is **not** the
 same as "the cycle did nothing". Cycle ids restart at 1 when the process
-restarts, and cycles run on whichever node holds the compactor lease, so the
+restarts (the trigger's `boot_id` tells processes apart), and cycles run on whichever node holds the compactor lease, so the
 response names the retained window (`oldest_retained`, `newest_retained`) to
 tell a trimmed id apart from one that was never here.
+
+When the `boot_id` is not this process's, the lookup answers `404` with
+`"boot_id_mismatch": true`, even when this process has a record with the
+same number: that record is another cycle. The answer names this process's
+`boot_id` and, on a cluster, the node holding the compactor lease
+(`lease_holder`). Arc cannot tell whether it restarted or the request reached
+another node. Without `boot_id`, or with it empty, the lookup works as
+before. Every `/cycles`, `/cycles/{id}`, `/history` and `/stats` answer
+carries `boot_id`, and Arc logs it once at startup.
 
 ### List recent cycles
 
@@ -586,6 +673,7 @@ curl "http://localhost:8000/api/v1/compaction/cycles?limit=20" \
 ```json
 {
   "cycles": [ { "cycle_id": 42, "status": "completed" } ],
+  "boot_id": "0fb37bac4a18fc4e",
   "retained": 137,
   "oldest_retained": 1,
   "newest_retained": 42,
@@ -620,12 +708,13 @@ curl "http://localhost:8000/api/v1/compaction/history?limit=50" \
 Narrow it to one cycle:
 
 ```bash
-curl "http://localhost:8000/api/v1/compaction/history?cycle_id=42" \
+curl "http://localhost:8000/api/v1/compaction/history?cycle_id=42&boot_id=0fb37bac4a18fc4e" \
   -H "Authorization: Bearer $ARC_TOKEN"
 ```
 
 ```json
 {
+  "boot_id": "0fb37bac4a18fc4e",
   "total_jobs": 1894,
   "recent_jobs": [
     {
@@ -671,6 +760,11 @@ been overwritten. It is present only when that is possible — attempts of one
 cycle are contiguous in the ring, so a retained cycle older than the one you
 asked about proves nothing of yours was evicted, and the flag is then absent. `cycle_retained: false` means the cycle itself has aged out of
 the far longer cycle history, so an empty page says nothing about what failed.
+
+With `cycle_id` and a `boot_id` that is not this process's (v27.01.1+), the
+answer is `200` with no jobs, `cycle_retained: false` and
+`"boot_id_mismatch": true`: the jobs here with that number belong to another
+cycle.
 
 ## Performance impact
 
@@ -979,11 +1073,17 @@ it on `/cycles/{id}`. Before v27.01.1 it was computed as "current id plus one"
 before the claim existed, and under concurrent triggers it could name another
 caller's cycle.
 
-Returns `409` while a cycle is already running, with the running `cycle_id` and
-`is_running` in the body, and `409` when compaction is paused cluster-wide. In
-cluster mode a node that does not hold the compaction lease returns `503` with
-`role`, `can_compact`, and `lease_holder`, naming the node to send the trigger
-to.
+`wait=<duration>` (v27.01.1+) holds the answer until the cycle ends; see
+[Wait for the cycle to finish](#wait-for-the-cycle-to-finish). The answer
+carries `boot_id` (v27.01.1+): keep it with the `cycle_id`.
+
+Returns `409` while a cycle is already running, with the running `cycle_id`,
+`boot_id` and `is_running` in the body, and `409` when compaction is paused
+cluster-wide. Two different `503`s:
+
+- `"stopping": true`: Arc is shutting down and takes no new cycle (v27.01.1+).
+- `role`, `can_compact` and `lease_holder`: in cluster mode, a node that does
+  not hold the compaction lease, naming the node to send the trigger to.
 
 **Response:**
 ```json
@@ -992,6 +1092,7 @@ to.
   "status": "running",
   "tiers": ["hourly"],
   "cycle_id": 42,
+  "boot_id": "0fb37bac4a18fc4e",
   "database": "prod",
   "measurement": "cpu"
 }
@@ -1008,7 +1109,9 @@ attempt. Reports `0` unconditionally before v27.01.1.
 Compaction job history, one record per **attempt**. Query parameters: `limit`
 (default 10, capped at the 100 retained records; ignored before v27.01.1) and
 `cycle_id`, which filters to one cycle and echoes that cycle's authoritative
-counters alongside the page. Records carry `cycle_id` and `attempt_depth`.
+counters alongside the page, and `boot_id` (v27.01.1+): with `cycle_id`, a
+`boot_id` that is not this process's returns no jobs and
+`"boot_id_mismatch": true`. Records carry `cycle_id` and `attempt_depth`.
 
 ### GET /api/v1/compaction/cycles
 
@@ -1026,7 +1129,8 @@ path to failed-batch count, which is the list of partitions to retry.
 
 A `404` names the retained window rather than claiming the cycle never ran:
 ids restart at 1 on process restart, and cycles run on the node holding the
-compactor lease.
+compactor lease. With `?boot_id=`, an id from another process answers `404`
+with `"boot_id_mismatch": true`.
 
 ### GET /api/v1/compaction/too-wide
 
