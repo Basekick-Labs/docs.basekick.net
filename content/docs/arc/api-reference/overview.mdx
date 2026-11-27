@@ -87,7 +87,7 @@ response = requests.post(
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Authorization: Bearer $ARC_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM default.cpu LIMIT 10", "format": "json"}'
+  -d '{"sql": "SELECT * FROM default.cpu LIMIT 10"}'
 ```
 
 ### Query data (Apache Arrow)
@@ -113,10 +113,10 @@ arrow_table = reader.read_all()
 
 ### Query data (MessagePack)
 
-MessagePack is the best general-purpose binary format for clients: it is
-columnar, carries per-column type names, supports `SHOW` statements, and honors
-`Accept-Encoding` — noticeably faster end-to-end than JSON on large result
-sets. Arrow is faster still for raw throughput, but does not accept `SHOW` and
+MessagePack is the best general-purpose binary format for clients. It is
+columnar, supports `SHOW` statements, honors `Accept-Encoding`, and is
+noticeably faster end-to-end than JSON on large result sets. Its per-column
+`types` are the same names the JSON response carries (v27.01.1+). Arrow is faster still for raw throughput, but does not accept `SHOW` and
 has no response compression.
 
 ```python
@@ -170,7 +170,8 @@ reading it still has to check for one.
 
 #### Type vocabulary
 
-The `types` values are a stable contract. Scalars are
+The `types` values, in this response and in the JSON response (v27.01.1+),
+are a stable contract. Scalars are
 `bool`, `int8`/`int16`/`int32`/`int64`, `uint8`/`uint16`/`uint32`/`uint64`,
 `float32`/`float64`, `utf8`, `large_utf8`, `binary`, `large_binary`, `date32`,
 and `null`. Timestamps carry their unit, e.g. `timestamp[us]`.
@@ -184,7 +185,7 @@ Three values tell you a column is **not** natively typed on the wire:
   arrives here). Never bind to the text after the prefix; it is diagnostic.
 
 `SUM(int_col)` and other decimal-producing aggregates are normalized to
-`int64` (scale 0) or `float64` (scaled), matching the Arrow endpoint — the
+`int64` (scale 0) or `float64` (scaled), matching the Arrow endpoint's default — the
 values are numbers, not strings.
 
 ### Health check
@@ -546,25 +547,27 @@ is answered `400`. The same limit applies to `/api/v1/query/arrow`,
 **Request:**
 ```json
 {
-  "sql": "SELECT * FROM default.cpu LIMIT 10",
-  "format": "json"
+  "sql": "SELECT * FROM default.cpu LIMIT 10"
 }
 ```
 
 **Response:**
 ```json
 {
+  "success": true,
   "columns": ["time", "host", "usage"],
-  "types": ["TIMESTAMP", "VARCHAR", "DOUBLE"],
+  "types": ["timestamp[us]", "utf8", "float64"],
   "data": [
-    [1697472000000, "server01", 45.2],
-    [1697472001000, "server02", 67.8]
+    ["2023-10-16T16:00:00Z", "server01", 45.2],
+    ["2023-10-16T16:00:01Z", "server02", 67.8]
   ],
   "row_count": 2,
-  "execution_time_ms": 12
+  "execution_time_ms": 12,
+  "timestamp": "2023-10-16T16:00:02Z"
 }
 ```
 
+`data` is an array of rows.
 
 **Stream completion fields (JSON):**
 
@@ -594,6 +597,38 @@ authenticated token, so `rows_capped` and `row_cap` never appear on an OSS
 deployment. Client libraries should still handle them, so the same code
 behaves correctly against an Enterprise server.
 
+#### Column types (v27.01.1+)
+
+`types` gives one type name per column, parallel to `columns`. The names are
+the ones the MessagePack response carries for the same query;
+[Type vocabulary](#type-vocabulary) lists them all.
+
+A name describes the column, not the JSON token its values are written as:
+
+| Type name | JSON value |
+|---|---|
+| `int8` … `int64`, `uint8` … `uint64` | number. An `int64` or `uint64` above `2^53` loses precision in a client that reads every number as a double. |
+| `float32`, `float64` | number. NaN and ±Infinity are `null`, since JSON has no literal for them. |
+| `bool` | `true` / `false` |
+| `timestamp[s]`, `timestamp[ms]`, `timestamp[us]`, `timestamp[ns]` | RFC 3339 string in UTC. The fraction drops trailing zeros and is left out when zero, so parse it as RFC 3339, not with a fixed-width format. |
+| `date32` | RFC 3339 string: the day at `T00:00:00Z` |
+| `binary`, `large_binary` | base64 string |
+| `utf8`, `large_utf8`, `string_encoded`, `list`, `struct`, `map`, `unknown:…` | string |
+
+Any value can be `null`. A timestamp or date with a year outside 0–9999 (such
+as DuckDB's `infinity`) is written with more digits than RFC 3339 allows.
+
+- **Decimals:** Arc converts decimals before naming them, so `types` agrees
+  with the values: `SUM()` of an integer column is `int64`, and a scaled
+  decimal is `float64`.
+- **No files:** a query on a measurement with no files answers
+  `"columns": [], "types": []`, and so does a misspelled measurement name. A query that matches no rows still names its
+  columns and their types, with `"data": []`.
+- **SHOW** statements (`SHOW DATABASES`, `SHOW TABLES`) carry `types` too.
+- **Treat it as optional.** It is absent on an error response, from a server
+  older than v27.01.1 (on a cluster, until every node is upgraded), and when
+  Arc answers over a connection that cannot open an Arrow stream. A response
+  that fails part way still has it, with `"truncated": true`.
 
 ### POST /api/v1/query/arrow
 
@@ -681,6 +716,9 @@ List all measurements across databases.
 ### GET /api/v1/query/:measurement
 
 Query a specific measurement directly.
+
+The response has the same shape as [`POST /api/v1/query`](#post-apiv1query),
+including `types` (v27.01.1+).
 
 ---
 
