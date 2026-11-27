@@ -276,7 +276,7 @@ A node from before Arc 27.01.1 ignores the header and answers with the default t
 
 - **DuckDB's unsigned `UHUGEINT` is not exact above 2^127 − 1** (170141183460469231731687303715884105727). DuckDB exports a `UHUGEINT` as `decimal(38,0)`, and Arc cannot tell it from a signed `HUGEINT`. With `exact`, every `UHUGEINT` value from 2^127 up arrives as that value minus 2^128: negative, with 200 and no error (the maximum arrives as `-1`). Cast `UHUGEINT` to `VARCHAR` for its digits. Sums are not affected: `sum()` of an integer column, `UBIGINT` included, is a signed `HUGEINT`, and `sum()` of a `UHUGEINT` is a `DOUBLE`.
 
-  Without the header, most of that `UHUGEINT` range gets the 400 described above (for a value in the first chunk). The top 2^63 values (from 340282366920938463454151235394913435648 up) fit in int64 after the wrap and arrive wrong, with 200 (the maximum as `-1`), on JSON and on Arrow IPC, as in earlier releases.
+  Without the header, most of that `UHUGEINT` range gets the 400 described above (for a value in the first chunk). The top 2^63 values (from 340282366920938463454151235394913435648 up) fit in int64 after the wrap and arrive wrong, with 200 (the maximum as `-1`), on every query route (JSON, MessagePack, Arrow IPC and Flight SQL), as v26.09.4 already did on JSON and Arrow IPC.
 - **`HUGEINT` values with 39 digits** (10^38 up to 2^127 − 1, and the negatives down to −2^127) arrive correct with `exact`, but have more digits than their `decimal(38,0)` field declares. pyarrow and ADBC read them; a client that checks precision may refuse them. Without the header they get the 400.
 
 ## How it works
