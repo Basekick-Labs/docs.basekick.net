@@ -554,16 +554,52 @@ is answered `400`. The same limit applies to `/api/v1/query/arrow`,
 **Response:**
 ```json
 {
+  "success": true,
   "columns": ["time", "host", "usage"],
-  "types": ["TIMESTAMP", "VARCHAR", "DOUBLE"],
+  "types": ["timestamp[us]", "utf8", "float64"],
   "data": [
-    [1697472000000, "server01", 45.2],
-    [1697472001000, "server02", 67.8]
+    ["2023-10-16T16:00:00Z", "server01", 45.2],
+    ["2023-10-16T16:00:01Z", "server02", 67.8]
   ],
   "row_count": 2,
-  "execution_time_ms": 12
+  "execution_time_ms": 12,
+  "timestamp": "2023-10-16T16:00:02Z"
 }
 ```
+
+`data` is an array of rows. Timestamps are RFC 3339 strings in UTC.
+
+#### Column types (v27.01.1+)
+
+`types` gives one type name per column, parallel to `columns`. The names are
+the ones the MessagePack response carries for the same query: see
+[Type vocabulary](#type-vocabulary) for the full list.
+
+A name describes the column, not the JSON token its values are written as:
+
+| Type name | JSON value |
+|---|---|
+| `int8` … `int64`, `uint8` … `uint64` | number. An `int64` or `uint64` above 2^53 loses precision in a client that reads every number as a double. |
+| `float32`, `float64` | number. NaN and ±Infinity are `null`, since JSON has no literal for them. |
+| `bool` | `true` / `false` |
+| `timestamp[s]`, `[ms]`, `[us]`, `[ns]` | RFC 3339 string in UTC. The unit is the column's precision. |
+| `date32` | RFC 3339 string: the day at `T00:00:00Z` |
+| `binary`, `large_binary` | base64 string |
+| `utf8`, `large_utf8`, `string_encoded`, `list`, `struct`, `map`, `unknown:…` | string |
+
+Any value can be `null`.
+
+- **Decimals** follow the conversion Arc applies to every query response:
+  `SUM()` of an integer column reads `int64`, a scaled decimal reads
+  `float64`, and the values match.
+- **No data yet:** a query on a measurement with no files answers
+  `"columns": [], "types": []`. A query that matches no rows still names its
+  columns and their types, with `"data": []`.
+- **SHOW** statements (`SHOW DATABASES`, `SHOW TABLES`) carry `types` too.
+- **Treat it as optional.** It is absent on an error response, from a server
+  older than v27.01.1 (on a cluster, until every node is upgraded), and in the
+  rare case where Arc answers without its Arrow path. A response that fails
+  part way still has it, with `"truncated": true`.
 
 
 **Stream completion fields (JSON):**
@@ -681,6 +717,9 @@ List all measurements across databases.
 ### GET /api/v1/query/:measurement
 
 Query a specific measurement directly.
+
+The response has the same shape as [`POST /api/v1/query`](#post-apiv1query),
+including `types` (v27.01.1+).
 
 ---
 
