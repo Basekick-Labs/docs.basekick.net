@@ -80,6 +80,11 @@ The chart passes the token to Arc as `ARC_AUTH_BOOTSTRAP_TOKEN`. Arc uses it onl
 on first run, when no token exists yet; after that it is ignored, so changing it
 on a later upgrade does not change the admin token. The chart refuses a `value`
 shorter than 32 characters. Arc would reject it and start with no admin token.
+From v27.01.1, Arc trims surrounding whitespace from the token and the chart
+measures the trimmed value, so a 31-character token followed by a newline is
+refused too. See [surrounding whitespace](/arc/configuration/authentication/#surrounding-whitespace-v27011)
+for what changed and how to recover a token an earlier release stored with a
+trailing newline.
 
 Prefer `existingSecret` in production: a `value` is stored in the Helm release
 along with the rest of your values.
